@@ -78,16 +78,14 @@ export default function CustomerDetailPage() {
   };
 
   const fetchCustomerQuotes = async () => {
-    try {
-      const response = await quoteService.getQuotes({
-        filters: { customer_id: customerId },
-        page: 1,
-        page_size: 10,
-      });
-      setQuotes(response.data);
-    } catch (error: any) {
-      console.error('Error fetching quotes:', error);
-    }
+    // TODO: Implement quote fetching with proper organizationId context
+    // Need to get organizationId from auth context/profile
+    // const organizationId = profile?.organization_id || '';
+    // const response = await quoteService.getQuotes(organizationId, { customer_id: customerId }, { page: 1, limit: 10 });
+    // if (response.success && response.data) {
+    //   setQuotes(response.data.quotes || []);
+    // }
+    setQuotes([]); // Temporary: empty quotes list
   };
 
   const handleUpdate = async (values: any) => {

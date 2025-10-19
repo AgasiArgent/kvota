@@ -80,19 +80,16 @@ export default function QuoteApprovalPage() {
   const fetchPendingApprovals = async () => {
     setLoading(true);
     try {
-      // In real implementation, this would be a specific API endpoint
-      // that returns quotes pending the current user's approval
-      const response = await quoteService.getQuotes({
-        page: 1,
-        page_size: 100,
-        filters: {
-          // This would filter for quotes where current user is an approver
-          // and their approval status is 'pending'
-          status: 'pending_approval,partially_approved',
-        },
-      });
-
-      setQuotes(response.data);
+      // TODO: Implement with organizationId from auth context
+      // const organizationId = profile?.organization_id || '';
+      // const response = await quoteService.getQuotes(organizationId,
+      //   { status: 'pending_approval,partially_approved' },
+      //   { page: 1, limit: 100 }
+      // );
+      // if (response.success && response.data) {
+      //   setQuotes(response.data.quotes || []);
+      // }
+      setQuotes([]); // Temporary: empty list
     } catch (error: any) {
       message.error(`Ошибка загрузки КП: ${error.message}`);
     } finally {

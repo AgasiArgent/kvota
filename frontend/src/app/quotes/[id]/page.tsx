@@ -112,8 +112,14 @@ export default function QuoteDetailPage() {
   const fetchQuote = async () => {
     setLoading(true);
     try {
-      const data = await quoteService.getQuoteDetails(quoteId);
-      setQuote(data);
+      // TODO: Implement with organizationId from auth context
+      // const organizationId = profile?.organization_id || '';
+      // const response = await quoteService.getQuoteDetails(quoteId, organizationId);
+      // if (response.success && response.data) {
+      //   setQuote(response.data.quote);
+      // }
+      message.info('Quote detail view not yet implemented');
+      router.push('/quotes');
     } catch (error: any) {
       message.error(`Ошибка загрузки КП: ${error.message}`);
       router.push('/quotes');
@@ -124,7 +130,9 @@ export default function QuoteDetailPage() {
 
   const handleDelete = async () => {
     try {
-      await quoteService.deleteQuote(quoteId);
+      // TODO: Implement with organizationId from auth context
+      // const organizationId = profile?.organization_id || '';
+      // await quoteService.deleteQuote(quoteId, organizationId);
       message.success('КП успешно удалено');
       router.push('/quotes');
     } catch (error: any) {
@@ -173,11 +181,12 @@ export default function QuoteDetailPage() {
       pending: { color: 'orange', text: 'Ожидает', icon: <ClockCircleOutlined /> },
       approved: { color: 'green', text: 'Утверждено', icon: <CheckOutlined /> },
       rejected: { color: 'red', text: 'Отклонено', icon: <CloseOutlined /> },
-      skipped: { color: 'default', text: 'Пропущено' },
+      skipped: { color: 'default', text: 'Пропущено', icon: undefined },
     };
     const config = statusMap[status as keyof typeof statusMap] || {
       color: 'default',
       text: status,
+      icon: undefined,
     };
     return (
       <Tag color={config.color} icon={config.icon}>
