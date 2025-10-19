@@ -1,10 +1,10 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
-  })
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,26 +12,28 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
-          })
+          });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
-          )
+          );
         },
       },
     }
-  )
+  );
 
   // IMPORTANT: Avoid writing any logic between createServerClient and
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Protected routes - require authentication
   const protectedPaths = [
@@ -40,31 +42,25 @@ export async function middleware(request: NextRequest) {
     '/customers',
     '/profile',
     '/admin',
-    '/onboarding'
-  ]
+    '/onboarding',
+  ];
 
-  const isProtectedPath = protectedPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
-  )
+  const isProtectedPath = protectedPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 
   // Admin only routes
-  const adminPaths = ['/admin']
-  const isAdminPath = adminPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
-  )
+  const adminPaths = ['/admin'];
+  const isAdminPath = adminPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 
   // Manager only routes (finance_manager and above)
-  const managerPaths = ['/quotes/approval', '/reports']
-  const isManagerPath = managerPaths.some(path =>
-    request.nextUrl.pathname.startsWith(path)
-  )
+  const managerPaths = ['/quotes/approval', '/reports'];
+  const isManagerPath = managerPaths.some((path) => request.nextUrl.pathname.startsWith(path));
 
   // If accessing protected route without authentication, redirect to login
   if (isProtectedPath && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
-    url.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone();
+    url.pathname = '/auth/login';
+    url.searchParams.set('redirectTo', request.nextUrl.pathname);
+    return NextResponse.redirect(url);
   }
 
   // If authenticated but accessing auth pages, redirect based on organization status
@@ -75,15 +71,15 @@ export async function middleware(request: NextRequest) {
       .select('id')
       .eq('user_id', user.id)
       .eq('status', 'active')
-      .limit(1)
+      .limit(1);
 
-    const url = request.nextUrl.clone()
+    const url = request.nextUrl.clone();
 
     // If user has no organization, send to onboarding
     // Otherwise send to dashboard
-    url.pathname = memberships && memberships.length > 0 ? '/dashboard' : '/onboarding'
+    url.pathname = memberships && memberships.length > 0 ? '/dashboard' : '/onboarding';
 
-    return NextResponse.redirect(url)
+    return NextResponse.redirect(url);
   }
 
   // If user is on dashboard but has no organization, redirect to onboarding
@@ -93,19 +89,19 @@ export async function middleware(request: NextRequest) {
       .select('id')
       .eq('user_id', user.id)
       .eq('status', 'active')
-      .limit(1)
+      .limit(1);
 
-    console.log('[Middleware] Dashboard check - User ID:', user.id)
-    console.log('[Middleware] Memberships:', memberships)
-    console.log('[Middleware] Error:', membershipError)
+    console.log('[Middleware] Dashboard check - User ID:', user.id);
+    console.log('[Middleware] Memberships:', memberships);
+    console.log('[Middleware] Error:', membershipError);
 
     if (!memberships || memberships.length === 0) {
-      console.log('[Middleware] No organizations found, redirecting to onboarding')
-      const url = request.nextUrl.clone()
-      url.pathname = '/onboarding'
-      return NextResponse.redirect(url)
+      console.log('[Middleware] No organizations found, redirecting to onboarding');
+      const url = request.nextUrl.clone();
+      url.pathname = '/onboarding';
+      return NextResponse.redirect(url);
     }
-    console.log('[Middleware] Organizations found, allowing dashboard access')
+    console.log('[Middleware] Organizations found, allowing dashboard access');
   }
 
   // If user is on onboarding but already has an organization, redirect to dashboard
@@ -115,12 +111,12 @@ export async function middleware(request: NextRequest) {
       .select('id')
       .eq('user_id', user.id)
       .eq('status', 'active')
-      .limit(1)
+      .limit(1);
 
     if (memberships && memberships.length > 0) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
     }
   }
 
@@ -130,12 +126,12 @@ export async function middleware(request: NextRequest) {
       .from('user_profiles')
       .select('role')
       .eq('user_id', user.id)
-      .single()
+      .single();
 
     if (!profile || profile.role !== 'admin') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
     }
   }
 
@@ -145,13 +141,13 @@ export async function middleware(request: NextRequest) {
       .from('user_profiles')
       .select('role')
       .eq('user_id', user.id)
-      .single()
+      .single();
 
-    const managerRoles = ['finance_manager', 'department_manager', 'director', 'admin']
+    const managerRoles = ['finance_manager', 'department_manager', 'director', 'admin'];
     if (!profile || !managerRoles.includes(profile.role)) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
     }
   }
 
@@ -163,7 +159,7 @@ export async function middleware(request: NextRequest) {
   //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
   // 3. Change the myNewResponse object instead of the supabaseResponse object
 
-  return supabaseResponse
+  return supabaseResponse;
 }
 
 export const config = {
@@ -177,4 +173,4 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-}
+};

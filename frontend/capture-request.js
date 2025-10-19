@@ -24,7 +24,7 @@ const { chromium } = require('playwright');
   console.log('Listening for API requests...\n');
 
   // Capture the request
-  targetPage.on('request', request => {
+  targetPage.on('request', (request) => {
     if (request.url().includes('/api/customers/') && request.method() === 'POST') {
       console.log('=== Captured Request ===');
       console.log('URL:', request.url());
@@ -35,7 +35,7 @@ const { chromium } = require('playwright');
   });
 
   // Capture the response
-  targetPage.on('response', async response => {
+  targetPage.on('response', async (response) => {
     if (response.url().includes('/api/customers/') && response.request().method() === 'POST') {
       console.log('\n=== Captured Response ===');
       console.log('Status:', response.status());
@@ -61,11 +61,13 @@ const { chromium } = require('playwright');
 
   // Click the submit button
   console.log('Clicking submit button...\n');
-  await targetPage.waitForSelector('button:has-text("Создать клиента"):not([disabled])', { timeout: 5000 });
+  await targetPage.waitForSelector('button:has-text("Создать клиента"):not([disabled])', {
+    timeout: 5000,
+  });
   await targetPage.click('button:has-text("Создать клиента")');
 
   // Wait for the request/response
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   process.exit(0);
 })();

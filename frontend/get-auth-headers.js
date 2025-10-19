@@ -28,12 +28,14 @@ const { chromium } = require('playwright');
       // Simulate what customer-service.ts does
       const { createClient } = await import('/src/lib/supabase/client.ts');
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
       if (session?.access_token) {
         return {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
         };
       }
       return null;
@@ -61,7 +63,7 @@ const { chromium } = require('playwright');
     organization_id: '77144c58-b396-4ec7-b51a-2a822ec6d889',
     name: 'Test Customer',
     company_type: 'organization',
-    status: 'active'
+    status: 'active',
   };
 
   console.log('\n=== Making API Request ===');
@@ -72,7 +74,7 @@ const { chromium } = require('playwright');
     const response = await fetch('http://localhost:8000/api/customers/', {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify(testData)
+      body: JSON.stringify(testData),
     });
 
     console.log('\n=== Response ===');
@@ -90,7 +92,6 @@ const { chromium } = require('playwright');
     } catch (e) {
       console.log('(Not valid JSON)');
     }
-
   } catch (error) {
     console.log('Request failed:', error.message);
   }

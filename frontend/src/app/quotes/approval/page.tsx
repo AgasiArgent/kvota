@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -15,46 +15,46 @@ import {
   Modal,
   Input,
   Empty,
-} from 'antd'
+} from 'antd';
 import {
   CheckOutlined,
   CloseOutlined,
   EyeOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-} from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { QuoteService } from '@/lib/api/quote-service'
-import { useAuth } from '@/lib/auth/AuthProvider'
+} from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { QuoteService } from '@/lib/api/quote-service';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
-const { Title, Text } = Typography
-const { TextArea } = Input
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 interface Quote {
-  id: string
-  quote_number: string
-  customer_name: string
-  title: string
-  total_amount: number
-  currency: string
-  status: string
-  created_at: string
-  submitted_for_approval_at: string
+  id: string;
+  quote_number: string;
+  customer_name: string;
+  title: string;
+  total_amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  submitted_for_approval_at: string;
 }
 
 export default function QuoteApprovalPage() {
-  const router = useRouter()
-  const { user, profile } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const [quotes, setQuotes] = useState<Quote[]>([])
-  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null)
-  const [approvalModalVisible, setApprovalModalVisible] = useState(false)
-  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve')
-  const [approvalNotes, setApprovalNotes] = useState('')
-  const [actionLoading, setActionLoading] = useState(false)
+  const router = useRouter();
+  const { user, profile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [approvalModalVisible, setApprovalModalVisible] = useState(false);
+  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
+  const [approvalNotes, setApprovalNotes] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const quoteService = new QuoteService()
+  const quoteService = new QuoteService();
 
   useEffect(() => {
     // Check if user has manager role
@@ -66,19 +66,19 @@ export default function QuoteApprovalPage() {
       'procurement_manager',
       'customs_manager',
       'logistics_manager',
-    ]
+    ];
 
     if (!profile?.role || !managerRoles.includes(profile.role)) {
-      message.error('У вас нет прав для доступа к этой странице')
-      router.push('/dashboard')
-      return
+      message.error('У вас нет прав для доступа к этой странице');
+      router.push('/dashboard');
+      return;
     }
 
-    fetchPendingApprovals()
-  }, [])
+    fetchPendingApprovals();
+  }, []);
 
   const fetchPendingApprovals = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       // In real implementation, this would be a specific API endpoint
       // that returns quotes pending the current user's approval
@@ -90,20 +90,20 @@ export default function QuoteApprovalPage() {
           // and their approval status is 'pending'
           status: 'pending_approval,partially_approved',
         },
-      })
+      });
 
-      setQuotes(response.data)
+      setQuotes(response.data);
     } catch (error: any) {
-      message.error(`Ошибка загрузки КП: ${error.message}`)
+      message.error(`Ошибка загрузки КП: ${error.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleApproval = async () => {
-    if (!selectedQuote) return
+    if (!selectedQuote) return;
 
-    setActionLoading(true)
+    setActionLoading(true);
     try {
       // In real implementation, call API to approve/reject
       // await quoteService.approveQuote(selectedQuote.id, approvalAction, approvalNotes)
@@ -112,38 +112,38 @@ export default function QuoteApprovalPage() {
         approvalAction === 'approve'
           ? `КП ${selectedQuote.quote_number} утверждено`
           : `КП ${selectedQuote.quote_number} отклонено`
-      )
+      );
 
-      setApprovalModalVisible(false)
-      setApprovalNotes('')
-      setSelectedQuote(null)
-      fetchPendingApprovals()
+      setApprovalModalVisible(false);
+      setApprovalNotes('');
+      setSelectedQuote(null);
+      fetchPendingApprovals();
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`)
+      message.error(`Ошибка: ${error.message}`);
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
   const getStatusTag = (status: string) => {
     const statusMap = {
       pending_approval: { color: 'orange', text: 'На утверждении' },
       partially_approved: { color: 'gold', text: 'Частично утверждено' },
-    }
+    };
     const config = statusMap[status as keyof typeof statusMap] || {
       color: 'default',
       text: status,
-    }
-    return <Tag color={config.color}>{config.text}</Tag>
-  }
+    };
+    return <Tag color={config.color}>{config.text}</Tag>;
+  };
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('ru-RU', {
       style: 'currency',
       currency: currency || 'RUB',
       minimumFractionDigits: 0,
-    }).format(amount)
-  }
+    }).format(amount);
+  };
 
   const columns = [
     {
@@ -152,10 +152,7 @@ export default function QuoteApprovalPage() {
       key: 'quote_number',
       width: 150,
       render: (text: string, record: Quote) => (
-        <a
-          onClick={() => router.push(`/quotes/${record.id}`)}
-          style={{ fontWeight: 500 }}
-        >
+        <a onClick={() => router.push(`/quotes/${record.id}`)} style={{ fontWeight: 500 }}>
           {text}
         </a>
       ),
@@ -180,8 +177,7 @@ export default function QuoteApprovalPage() {
       key: 'total_amount',
       width: 150,
       align: 'right' as const,
-      render: (amount: number, record: Quote) =>
-        formatCurrency(amount, record.currency),
+      render: (amount: number, record: Quote) => formatCurrency(amount, record.currency),
     },
     {
       title: 'Статус',
@@ -196,18 +192,20 @@ export default function QuoteApprovalPage() {
       key: 'submitted_for_approval_at',
       width: 160,
       render: (date: string) => {
-        if (!date) return '—'
+        if (!date) return '—';
         const daysSince = Math.floor(
           (new Date().getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)
-        )
+        );
         return (
           <Space direction="vertical" size={0}>
             <Text>{new Date(date).toLocaleDateString('ru-RU')}</Text>
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              {daysSince === 0 ? 'Сегодня' : `${daysSince} ${daysSince === 1 ? 'день' : 'дней'} назад`}
+              {daysSince === 0
+                ? 'Сегодня'
+                : `${daysSince} ${daysSince === 1 ? 'день' : 'дней'} назад`}
             </Text>
           </Space>
-        )
+        );
       },
     },
     {
@@ -228,9 +226,9 @@ export default function QuoteApprovalPage() {
             size="small"
             icon={<CheckOutlined />}
             onClick={() => {
-              setSelectedQuote(record)
-              setApprovalAction('approve')
-              setApprovalModalVisible(true)
+              setSelectedQuote(record);
+              setApprovalAction('approve');
+              setApprovalModalVisible(true);
             }}
           >
             Утвердить
@@ -240,9 +238,9 @@ export default function QuoteApprovalPage() {
             size="small"
             icon={<CloseOutlined />}
             onClick={() => {
-              setSelectedQuote(record)
-              setApprovalAction('reject')
-              setApprovalModalVisible(true)
+              setSelectedQuote(record);
+              setApprovalAction('reject');
+              setApprovalModalVisible(true);
             }}
           >
             Отклонить
@@ -250,10 +248,10 @@ export default function QuoteApprovalPage() {
         </Space>
       ),
     },
-  ]
+  ];
 
-  const pendingCount = quotes.filter((q) => q.status === 'pending_approval').length
-  const partialCount = quotes.filter((q) => q.status === 'partially_approved').length
+  const pendingCount = quotes.filter((q) => q.status === 'pending_approval').length;
+  const partialCount = quotes.filter((q) => q.status === 'partially_approved').length;
 
   return (
     <MainLayout>
@@ -262,9 +260,7 @@ export default function QuoteApprovalPage() {
         <Row justify="space-between" align="middle">
           <Col>
             <Title level={2}>КП на утверждении</Title>
-            <Text type="secondary">
-              Коммерческие предложения, ожидающие вашего утверждения
-            </Text>
+            <Text type="secondary">Коммерческие предложения, ожидающие вашего утверждения</Text>
           </Col>
         </Row>
 
@@ -326,9 +322,9 @@ export default function QuoteApprovalPage() {
         open={approvalModalVisible}
         onOk={handleApproval}
         onCancel={() => {
-          setApprovalModalVisible(false)
-          setApprovalNotes('')
-          setSelectedQuote(null)
+          setApprovalModalVisible(false);
+          setApprovalNotes('');
+          setSelectedQuote(null);
         }}
         okText={approvalAction === 'approve' ? 'Утвердить' : 'Отклонить'}
         cancelText="Отмена"
@@ -362,14 +358,12 @@ export default function QuoteApprovalPage() {
                 onChange={(e) => setApprovalNotes(e.target.value)}
               />
               {approvalAction === 'reject' && (
-                <Text type="warning">
-                  После отклонения КП вернется автору для доработки
-                </Text>
+                <Text type="warning">После отклонения КП вернется автору для доработки</Text>
               )}
             </>
           )}
         </Space>
       </Modal>
     </MainLayout>
-  )
+  );
 }

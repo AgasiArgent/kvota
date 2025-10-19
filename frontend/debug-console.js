@@ -26,21 +26,23 @@ const { chromium } = require('playwright');
   }
 
   if (!targetPage) {
-    console.log('Customer create page not found. Please open http://localhost:3000/customers/create');
+    console.log(
+      'Customer create page not found. Please open http://localhost:3000/customers/create'
+    );
     process.exit(1);
   }
 
   console.log('\n=== Listening to console logs ===\n');
 
   // Listen to console messages
-  targetPage.on('console', msg => {
+  targetPage.on('console', (msg) => {
     const type = msg.type();
     const text = msg.text();
     console.log(`[${type.toUpperCase()}] ${text}`);
   });
 
   // Listen to page errors
-  targetPage.on('pageerror', error => {
+  targetPage.on('pageerror', (error) => {
     console.log(`[PAGE ERROR] ${error.message}`);
   });
 
@@ -49,15 +51,16 @@ const { chromium } = require('playwright');
 
   try {
     // Wait for the button to be enabled
-    await targetPage.waitForSelector('button:has-text("Создать клиента"):not([disabled])', { timeout: 5000 });
+    await targetPage.waitForSelector('button:has-text("Создать клиента"):not([disabled])', {
+      timeout: 5000,
+    });
     console.log('Button is enabled, clicking...');
 
     await targetPage.click('button:has-text("Создать клиента")');
     console.log('Button clicked!');
 
     // Wait a bit to see the results
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
+    await new Promise((resolve) => setTimeout(resolve, 5000));
   } catch (error) {
     console.log(`Error: ${error.message}`);
   }

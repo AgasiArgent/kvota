@@ -32,7 +32,7 @@ const { chromium } = require('playwright');
     }
 
     const customers = [];
-    rows.forEach(row => {
+    rows.forEach((row) => {
       const cells = row.querySelectorAll('td');
       if (cells.length > 0) {
         customers.push({
@@ -52,13 +52,16 @@ const { chromium } = require('playwright');
 
   // Look for our test customer
   if (content.customers) {
-    const testCustomer = content.customers.find(c => c.name === 'name');
+    const testCustomer = content.customers.find((c) => c.name === 'name');
     if (testCustomer) {
       console.log('\n✅ Test customer found!');
       console.log(JSON.stringify(testCustomer, null, 2));
     } else {
       console.log('\n❌ Test customer NOT found');
-      console.log('Available customers:', content.customers.map(c => c.name));
+      console.log(
+        'Available customers:',
+        content.customers.map((c) => c.name)
+      );
     }
   }
 

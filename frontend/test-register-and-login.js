@@ -5,19 +5,19 @@ const { chromium } = require('playwright');
 
   const browser = await chromium.launch({
     headless: false,
-    slowMo: 500
+    slowMo: 500,
   });
 
   const page = await browser.newPage();
 
   // Capture console and errors
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     if (msg.type() === 'error') {
       console.log(`❌ [Console error]: ${msg.text()}`);
     }
   });
 
-  page.on('pageerror', err => {
+  page.on('pageerror', (err) => {
     console.log('❌ [Page Error]:', err.message);
   });
 
@@ -26,7 +26,7 @@ const { chromium } = require('playwright');
     console.log('📍 Navigating to register page...');
     await page.goto('http://localhost:3000/auth/register', {
       waitUntil: 'networkidle',
-      timeout: 30000
+      timeout: 30000,
     });
 
     console.log('✅ Register page loaded');
@@ -66,7 +66,7 @@ const { chromium } = require('playwright');
     // Now try to login
     console.log('\n🔄 Now testing login...');
     await page.goto('http://localhost:3000/auth/login', {
-      waitUntil: 'networkidle'
+      waitUntil: 'networkidle',
     });
 
     await page.fill('#login_email', 'andrey@novikov.fr');
@@ -90,7 +90,6 @@ const { chromium } = require('playwright');
     }
 
     await page.waitForTimeout(5000);
-
   } catch (error) {
     console.log('\n💥 TEST FAILED:');
     console.log(error.message);

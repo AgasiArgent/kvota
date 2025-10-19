@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 import {
   Card,
   Form,
@@ -16,7 +16,7 @@ import {
   Avatar,
   Upload,
   Descriptions,
-} from 'antd'
+} from 'antd';
 import {
   UserOutlined,
   SaveOutlined,
@@ -27,18 +27,18 @@ import {
   FileTextOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-} from '@ant-design/icons'
-import MainLayout from '@/components/layout/MainLayout'
-import { useAuth } from '@/lib/auth/AuthProvider'
+} from '@ant-design/icons';
+import MainLayout from '@/components/layout/MainLayout';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
-const { Title, Text } = Typography
+const { Title, Text } = Typography;
 
 export default function ProfilePage() {
-  const { user, profile, updateProfile } = useAuth()
-  const [form] = Form.useForm()
-  const [passwordForm] = Form.useForm()
-  const [loading, setLoading] = useState(false)
-  const [passwordLoading, setPasswordLoading] = useState(false)
+  const { user, profile, updateProfile } = useAuth();
+  const [form] = Form.useForm();
+  const [passwordForm] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   // Mock stats - in real app, fetch from API
   const stats = {
@@ -46,33 +46,33 @@ export default function ProfilePage() {
     quotesApproved: 12,
     quotesInProgress: 8,
     totalRevenue: 12500000,
-  }
+  };
 
   const handleProfileUpdate = async (values: any) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      await updateProfile(values)
-      message.success('Профиль успешно обновлен')
+      await updateProfile(values);
+      message.success('Профиль успешно обновлен');
     } catch (error: any) {
-      message.error(`Ошибка обновления профиля: ${error.message}`)
+      message.error(`Ошибка обновления профиля: ${error.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handlePasswordChange = async (values: any) => {
-    setPasswordLoading(true)
+    setPasswordLoading(true);
     try {
       // In real app, call API to change password
       // await authService.changePassword(values.current_password, values.new_password)
-      message.success('Пароль успешно изменен')
-      passwordForm.resetFields()
+      message.success('Пароль успешно изменен');
+      passwordForm.resetFields();
     } catch (error: any) {
-      message.error(`Ошибка изменения пароля: ${error.message}`)
+      message.error(`Ошибка изменения пароля: ${error.message}`);
     } finally {
-      setPasswordLoading(false)
+      setPasswordLoading(false);
     }
-  }
+  };
 
   const getRoleDisplay = (role: string) => {
     const roleMap = {
@@ -84,17 +84,17 @@ export default function ProfilePage() {
       procurement_manager: 'Менеджер по закупкам',
       customs_manager: 'Менеджер по таможне',
       logistics_manager: 'Менеджер по логистике',
-    }
-    return roleMap[role as keyof typeof roleMap] || role
-  }
+    };
+    return roleMap[role as keyof typeof roleMap] || role;
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ru-RU', {
       style: 'currency',
       currency: 'RUB',
       minimumFractionDigits: 0,
-    }).format(amount)
-  }
+    }).format(amount);
+  };
 
   return (
     <MainLayout>
@@ -131,11 +131,7 @@ export default function ProfilePage() {
                         { min: 2, message: 'Минимум 2 символа' },
                       ]}
                     >
-                      <Input
-                        size="large"
-                        prefix={<UserOutlined />}
-                        placeholder="Иван Иванов"
-                      />
+                      <Input size="large" prefix={<UserOutlined />} placeholder="Иван Иванов" />
                     </Form.Item>
                   </Col>
 
@@ -194,19 +190,13 @@ export default function ProfilePage() {
 
             {/* Change Password */}
             <Card title="Изменить пароль" style={{ marginTop: 24 }}>
-              <Form
-                form={passwordForm}
-                layout="vertical"
-                onFinish={handlePasswordChange}
-              >
+              <Form form={passwordForm} layout="vertical" onFinish={handlePasswordChange}>
                 <Row gutter={16}>
                   <Col xs={24} md={8}>
                     <Form.Item
                       name="current_password"
                       label="Текущий пароль"
-                      rules={[
-                        { required: true, message: 'Введите текущий пароль' },
-                      ]}
+                      rules={[{ required: true, message: 'Введите текущий пароль' }]}
                     >
                       <Input.Password
                         size="large"
@@ -243,9 +233,9 @@ export default function ProfilePage() {
                         ({ getFieldValue }) => ({
                           validator(_, value) {
                             if (!value || getFieldValue('new_password') === value) {
-                              return Promise.resolve()
+                              return Promise.resolve();
                             }
-                            return Promise.reject(new Error('Пароли не совпадают'))
+                            return Promise.reject(new Error('Пароли не совпадают'));
                           },
                         }),
                       ]}
@@ -276,9 +266,7 @@ export default function ProfilePage() {
             {/* Account Info */}
             <Card title="Информация об аккаунте" style={{ marginTop: 24 }}>
               <Descriptions column={1} bordered>
-                <Descriptions.Item label="ID пользователя">
-                  {user?.id}
-                </Descriptions.Item>
+                <Descriptions.Item label="ID пользователя">{user?.id}</Descriptions.Item>
                 <Descriptions.Item label="Email подтвержден">
                   {user?.email_confirmed_at ? (
                     <Text type="success">
@@ -289,14 +277,10 @@ export default function ProfilePage() {
                   )}
                 </Descriptions.Item>
                 <Descriptions.Item label="Дата регистрации">
-                  {user?.created_at
-                    ? new Date(user.created_at).toLocaleDateString('ru-RU')
-                    : '—'}
+                  {user?.created_at ? new Date(user.created_at).toLocaleDateString('ru-RU') : '—'}
                 </Descriptions.Item>
                 <Descriptions.Item label="Последнее обновление">
-                  {profile?.updated_at
-                    ? new Date(profile.updated_at).toLocaleString('ru-RU')
-                    : '—'}
+                  {profile?.updated_at ? new Date(profile.updated_at).toLocaleString('ru-RU') : '—'}
                 </Descriptions.Item>
               </Descriptions>
             </Card>
@@ -323,8 +307,8 @@ export default function ProfilePage() {
                   showUploadList={false}
                   beforeUpload={(file) => {
                     // In real app, upload to storage
-                    message.info('Загрузка аватара в разработке')
-                    return false
+                    message.info('Загрузка аватара в разработке');
+                    return false;
                   }}
                 >
                   <Button icon={<CameraOutlined />}>Изменить фото</Button>
@@ -367,5 +351,5 @@ export default function ProfilePage() {
         </Row>
       </Space>
     </MainLayout>
-  )
+  );
 }

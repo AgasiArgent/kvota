@@ -23,7 +23,7 @@ const { chromium } = require('playwright');
 
   // Get cookies
   const cookies = await context.cookies();
-  const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+  const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
 
   console.log('Making API request to GET /api/customers/\n');
 
@@ -31,9 +31,9 @@ const { chromium } = require('playwright');
     const response = await fetch('http://localhost:8000/api/customers/', {
       method: 'GET',
       headers: {
-        'Cookie': cookieHeader,
+        Cookie: cookieHeader,
         'Content-Type': 'application/json',
-      }
+      },
     });
 
     console.log('Status:', response.status);
@@ -57,7 +57,6 @@ const { chromium } = require('playwright');
     } catch (e) {
       console.log('(Not valid JSON)');
     }
-
   } catch (error) {
     console.log('Request failed:', error.message);
   }

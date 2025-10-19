@@ -27,24 +27,24 @@ const { chromium } = require('playwright');
   let apiRequest = null;
   let apiResponse = null;
 
-  targetPage.on('request', request => {
+  targetPage.on('request', (request) => {
     if (request.url().includes('/api/customers/') && request.method() === 'GET') {
       apiRequest = {
         url: request.url(),
         method: request.method(),
-        headers: request.headers()
+        headers: request.headers(),
       };
     }
   });
 
-  targetPage.on('response', async response => {
+  targetPage.on('response', async (response) => {
     if (response.url().includes('/api/customers/') && response.request().method() === 'GET') {
       try {
         const body = await response.text();
         apiResponse = {
           status: response.status(),
           statusText: response.statusText(),
-          body: body
+          body: body,
         };
       } catch (e) {
         console.log('Error reading response:', e.message);
@@ -53,10 +53,13 @@ const { chromium } = require('playwright');
   });
 
   // Navigate to customers page to trigger the request
-  await targetPage.goto('http://localhost:3000/customers', { waitUntil: 'networkidle', timeout: 10000 });
+  await targetPage.goto('http://localhost:3000/customers', {
+    waitUntil: 'networkidle',
+    timeout: 10000,
+  });
 
   // Wait for API call
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   if (apiRequest) {
     console.log('=== API Request ===');

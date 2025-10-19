@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -15,7 +15,7 @@ import {
   Row,
   Col,
   Statistic,
-} from 'antd'
+} from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -23,77 +23,80 @@ import {
   DeleteOutlined,
   EyeOutlined,
   TeamOutlined,
-} from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { customerService, Customer } from '@/lib/api/customer-service'
+} from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { customerService, Customer } from '@/lib/api/customer-service';
 
-const { Title} = Typography
-const { Search } = Input
+const { Title } = Typography;
+const { Search } = Input;
 
 export default function CustomersPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [totalCount, setTotalCount] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [regionFilter, setRegionFilter] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [regionFilter, setRegionFilter] = useState<string>('');
 
   useEffect(() => {
-    fetchCustomers()
-  }, [currentPage, pageSize, searchTerm, statusFilter, regionFilter])
+    fetchCustomers();
+  }, [currentPage, pageSize, searchTerm, statusFilter, regionFilter]);
 
   const fetchCustomers = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await customerService.listCustomers()
+      const response = await customerService.listCustomers();
 
       if (response.success && response.data) {
-        setCustomers(response.data.customers || [])
-        setTotalCount(response.data.total || 0)
+        setCustomers(response.data.customers || []);
+        setTotalCount(response.data.total || 0);
       } else {
-        message.error(`Ошибка загрузки клиентов: ${response.error}`)
-        setCustomers([])
-        setTotalCount(0)
+        message.error(`Ошибка загрузки клиентов: ${response.error}`);
+        setCustomers([]);
+        setTotalCount(0);
       }
     } catch (error: any) {
-      message.error(`Ошибка загрузки клиентов: ${error.message}`)
-      setCustomers([])
-      setTotalCount(0)
+      message.error(`Ошибка загрузки клиентов: ${error.message}`);
+      setCustomers([]);
+      setTotalCount(0);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
     try {
-      const response = await customerService.deleteCustomer(id)
+      const response = await customerService.deleteCustomer(id);
       if (response.success) {
-        message.success('Клиент успешно удален')
+        message.success('Клиент успешно удален');
       } else {
-        message.error(`Ошибка удаления: ${response.error}`)
-        return
+        message.error(`Ошибка удаления: ${response.error}`);
+        return;
       }
-      fetchCustomers()
+      fetchCustomers();
     } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`)
+      message.error(`Ошибка удаления: ${error.message}`);
     }
-  }
+  };
 
   const getStatusTag = (status: string) => {
     const statusMap = {
       active: { color: 'green', text: 'Активный' },
       inactive: { color: 'default', text: 'Неактивный' },
       suspended: { color: 'red', text: 'Приостановлен' },
-    }
-    const config = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
-    return <Tag color={config.color}>{config.text}</Tag>
-  }
+    };
+    const config = statusMap[status as keyof typeof statusMap] || {
+      color: 'default',
+      text: status,
+    };
+    return <Tag color={config.color}>{config.text}</Tag>;
+  };
 
   const getCompanyTypeDisplay = (type: string) => {
     const typeMap = {
@@ -101,9 +104,9 @@ export default function CustomersPage() {
       individual_entrepreneur: 'ИП',
       individual: 'Физ. лицо',
       government: 'Гос. орган',
-    }
-    return typeMap[type as keyof typeof typeMap] || type
-  }
+    };
+    return typeMap[type as keyof typeof typeMap] || type;
+  };
 
   const columns = [
     {
@@ -154,12 +157,8 @@ export default function CustomersPage() {
       width: 200,
       render: (_: any, record: Customer) => (
         <Space direction="vertical" size={0}>
-          {record.email && (
-            <span style={{ fontSize: '12px' }}>{record.email}</span>
-          )}
-          {record.phone && (
-            <span style={{ fontSize: '12px' }}>{record.phone}</span>
-          )}
+          {record.email && <span style={{ fontSize: '12px' }}>{record.email}</span>}
+          {record.phone && <span style={{ fontSize: '12px' }}>{record.phone}</span>}
         </Space>
       ),
     },
@@ -197,21 +196,16 @@ export default function CustomersPage() {
             cancelText="Отмена"
             okButtonProps={{ danger: true }}
           >
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              title="Удалить"
-            />
+            <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
           </Popconfirm>
         </Space>
       ),
     },
-  ]
+  ];
 
   // Stats calculation
-  const activeCustomers = customers.filter(c => c.status === 'active').length
-  const inactiveCustomers = customers.filter(c => c.status === 'inactive').length
+  const activeCustomers = customers.filter((c) => c.status === 'active').length;
+  const inactiveCustomers = customers.filter((c) => c.status === 'inactive').length;
 
   return (
     <MainLayout>
@@ -275,13 +269,13 @@ export default function CustomersPage() {
                 enterButton={<SearchOutlined />}
                 size="large"
                 onSearch={(value) => {
-                  setSearchTerm(value)
-                  setCurrentPage(1)
+                  setSearchTerm(value);
+                  setCurrentPage(1);
                 }}
                 onChange={(e) => {
                   if (!e.target.value) {
-                    setSearchTerm('')
-                    setCurrentPage(1)
+                    setSearchTerm('');
+                    setCurrentPage(1);
                   }
                 }}
               />
@@ -293,8 +287,8 @@ export default function CustomersPage() {
                 size="large"
                 style={{ width: '100%' }}
                 onChange={(value) => {
-                  setStatusFilter(value || '')
-                  setCurrentPage(1)
+                  setStatusFilter(value || '');
+                  setCurrentPage(1);
                 }}
                 options={[
                   { label: 'Активный', value: 'active' },
@@ -311,8 +305,8 @@ export default function CustomersPage() {
                 style={{ width: '100%' }}
                 showSearch
                 onChange={(value) => {
-                  setRegionFilter(value || '')
-                  setCurrentPage(1)
+                  setRegionFilter(value || '');
+                  setCurrentPage(1);
                 }}
                 options={[
                   { label: 'Москва', value: 'Москва' },
@@ -341,13 +335,13 @@ export default function CustomersPage() {
               showSizeChanger: true,
               showTotal: (total) => `Всего: ${total} клиентов`,
               onChange: (page, size) => {
-                setCurrentPage(page)
-                setPageSize(size)
+                setCurrentPage(page);
+                setPageSize(size);
               },
             }}
           />
         </Card>
       </Space>
     </MainLayout>
-  )
+  );
 }

@@ -43,7 +43,7 @@ const { chromium } = require('playwright');
     organization_id: '77144c58-b396-4ec7-b51a-2a822ec6d889',
     name: 'Test Customer',
     company_type: 'organization',
-    status: 'active'
+    status: 'active',
   };
 
   try {
@@ -51,9 +51,9 @@ const { chromium } = require('playwright');
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(testData)
+      body: JSON.stringify(testData),
     });
 
     console.log('Status:', response.status);
@@ -70,7 +70,6 @@ const { chromium } = require('playwright');
     } catch (e) {
       console.log('(Not valid JSON)');
     }
-
   } catch (error) {
     console.log('Request failed:', error.message);
   }

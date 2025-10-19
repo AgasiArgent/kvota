@@ -5,17 +5,17 @@ const { chromium } = require('playwright');
 
   const browser = await chromium.launch({
     headless: false,
-    args: ['--start-maximized']
+    args: ['--start-maximized'],
   });
 
   const context = await browser.newContext({
-    viewport: null
+    viewport: null,
   });
 
   const page = await context.newPage();
 
   // Capture console logs
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     const type = msg.type();
     const text = msg.text();
     if (type === 'error') {
@@ -28,7 +28,7 @@ const { chromium } = require('playwright');
   });
 
   // Capture network errors
-  page.on('response', response => {
+  page.on('response', (response) => {
     if (response.status() >= 400) {
       console.log(`❌ HTTP ${response.status()}: ${response.url()}`);
     }
@@ -47,7 +47,6 @@ const { chromium } = require('playwright');
 
     // Keep browser open
     await new Promise(() => {});
-
   } catch (error) {
     console.error('\n❌ Error:', error.message);
     await browser.close();
