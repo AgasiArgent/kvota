@@ -1,0 +1,15 @@
+{
+  "name": "kvota",
+  "version": "1.0.0",
+  "private": true,
+  "description": "B2B Quotation Platform for cross-border trade",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}
