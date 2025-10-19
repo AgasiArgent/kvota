@@ -81,7 +81,7 @@ export default function CalculationSettingsPage() {
 
     // Validate
     const validation = calculationSettingsService.validateSettings(settingsData);
-    if (!validation.valid) {
+    if (!validation.isValid) {
       validation.errors.forEach((error) => messageApi.error(error));
       return;
     }

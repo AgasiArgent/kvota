@@ -14,13 +14,12 @@ import {
   Col,
   Select,
 } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined, IdcardOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import Link from 'next/link';
 
 const { Title, Text, Paragraph } = Typography;
-const { Option } = Select;
 
 export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
@@ -76,7 +75,7 @@ export default function RegisterPage() {
       setRegisteredEmail(values.email);
       setSuccess(true);
       // Note: User needs to confirm email before they can login
-    } catch (err) {
+    } catch (_err) {
       setError('Произошла неожиданная ошибка');
     } finally {
       setLoading(false);

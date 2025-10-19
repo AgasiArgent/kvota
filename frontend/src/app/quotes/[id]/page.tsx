@@ -29,7 +29,6 @@ import {
   CloseOutlined,
   DownloadOutlined,
   SendOutlined,
-  UserOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
@@ -94,7 +93,7 @@ interface Quote {
 export default function QuoteDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
+  const _searchParams = useSearchParams();
   const { user, profile } = useAuth();
   const quoteId = params.id as string;
 
@@ -113,7 +112,7 @@ export default function QuoteDetailPage() {
   const fetchQuote = async () => {
     setLoading(true);
     try {
-      const data = await quoteService.getById(quoteId);
+      const data = await quoteService.getQuoteDetails(quoteId);
       setQuote(data);
     } catch (error: any) {
       message.error(`Ошибка загрузки КП: ${error.message}`);
@@ -125,7 +124,7 @@ export default function QuoteDetailPage() {
 
   const handleDelete = async () => {
     try {
-      await quoteService.delete(quoteId);
+      await quoteService.deleteQuote(quoteId);
       message.success('КП успешно удалено');
       router.push('/quotes');
     } catch (error: any) {

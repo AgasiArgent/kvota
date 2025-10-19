@@ -13,7 +13,6 @@ import {
   Col,
   message,
   Spin,
-  Divider,
   InputNumber,
   Tabs,
   Table,
@@ -23,40 +22,12 @@ import {
 import { SaveOutlined, ArrowLeftOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
-import { BaseApiService } from '@/lib/api/base-api';
-import {
-  validateINN,
-  validateKPP,
-  validateOGRN,
-  formatINN,
-  formatKPP,
-  formatOGRN,
-} from '@/lib/validation/russian-business';
+import { customerService, Customer } from '@/lib/api/customer-service';
+import { quoteService } from '@/lib/api/quote-service';
+import { validateINN, validateKPP, validateOGRN } from '@/lib/validation/russian-business';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 const { TextArea } = Input;
-
-interface Customer {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  region: string;
-  postal_code: string;
-  inn: string;
-  kpp: string;
-  ogrn: string;
-  company_type: string;
-  industry: string;
-  credit_limit: number;
-  payment_terms: number;
-  status: string;
-  notes: string;
-  created_at: string;
-  updated_at: string;
-}
 
 interface Quote {
   id: string;
@@ -82,9 +53,6 @@ export default function CustomerDetailPage() {
   const [isEditMode, setIsEditMode] = useState(searchParams.get('mode') === 'edit');
   const [companyType, setCompanyType] = useState<string>('organization');
 
-  const customerService = new BaseApiService<Customer>('customers');
-  const quoteService = new BaseApiService<Quote>('quotes');
-
   useEffect(() => {
     fetchCustomer();
     fetchCustomerQuotes();
@@ -93,10 +61,14 @@ export default function CustomerDetailPage() {
   const fetchCustomer = async () => {
     setLoading(true);
     try {
-      const data = await customerService.getById(customerId);
-      setCustomer(data);
-      setCompanyType(data.company_type);
-      form.setFieldsValue(data);
+      const response = await customerService.getCustomer(customerId);
+      if (response.success && response.data) {
+        setCustomer(response.data);
+        setCompanyType(response.data.company_type);
+        form.setFieldsValue(response.data);
+      } else {
+        throw new Error(response.error || 'Failed to load customer');
+      }
     } catch (error: any) {
       message.error(`Ошибка загрузки клиента: ${error.message}`);
       router.push('/customers');
@@ -107,7 +79,7 @@ export default function CustomerDetailPage() {
 
   const fetchCustomerQuotes = async () => {
     try {
-      const response = await quoteService.getAll({
+      const response = await quoteService.getQuotes({
         filters: { customer_id: customerId },
         page: 1,
         page_size: 10,
@@ -121,7 +93,7 @@ export default function CustomerDetailPage() {
   const handleUpdate = async (values: any) => {
     setSaving(true);
     try {
-      await customerService.update(customerId, values);
+      await customerService.updateCustomer(customerId, values);
       message.success('Клиент успешно обновлен');
       setIsEditMode(false);
       fetchCustomer();
@@ -134,7 +106,7 @@ export default function CustomerDetailPage() {
 
   const handleDelete = async () => {
     try {
-      await customerService.delete(customerId);
+      await customerService.deleteCustomer(customerId);
       message.success('Клиент успешно удален');
       router.push('/customers');
     } catch (error: any) {
@@ -146,7 +118,7 @@ export default function CustomerDetailPage() {
   const validateINNField = (_: any, value: string) => {
     if (!value) return Promise.resolve();
     const validation = validateINN(value);
-    if (!validation.valid) {
+    if (!validation.isValid) {
       return Promise.reject(new Error(validation.error));
     }
     return Promise.resolve();
@@ -155,7 +127,7 @@ export default function CustomerDetailPage() {
   const validateKPPField = (_: any, value: string) => {
     if (!value) return Promise.resolve();
     const validation = validateKPP(value);
-    if (!validation.valid) {
+    if (!validation.isValid) {
       return Promise.reject(new Error(validation.error));
     }
     return Promise.resolve();
@@ -164,7 +136,7 @@ export default function CustomerDetailPage() {
   const validateOGRNField = (_: any, value: string) => {
     if (!value) return Promise.resolve();
     const validation = validateOGRN(value);
-    if (!validation.valid) {
+    if (!validation.isValid) {
       return Promise.reject(new Error(validation.error));
     }
     return Promise.resolve();

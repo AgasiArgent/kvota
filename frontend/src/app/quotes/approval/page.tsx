@@ -82,7 +82,7 @@ export default function QuoteApprovalPage() {
     try {
       // In real implementation, this would be a specific API endpoint
       // that returns quotes pending the current user's approval
-      const response = await quoteService.getAll({
+      const response = await quoteService.getQuotes({
         page: 1,
         page_size: 100,
         filters: {
