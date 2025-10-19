@@ -67,7 +67,7 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       // Fetch all quotes for stats
-      const quotesResponse = await quoteService.getAll({
+      const quotesResponse = await quoteService.getQuotes({
         page: 1,
         page_size: 100, // Get enough for stats
       });
@@ -86,7 +86,7 @@ export default function DashboardPage() {
         .reduce((sum: number, q: Quote) => sum + (q.total_amount || 0), 0);
 
       // Fetch customer count
-      const customersResponse = await customerService.getAll({
+      const customersResponse = await customerService.listCustomers({
         page: 1,
         page_size: 1,
       });

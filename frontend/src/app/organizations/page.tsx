@@ -74,7 +74,7 @@ export default function OrganizationsPage() {
     return isOwner || roleName === 'admin';
   };
 
-  const truncateDescription = (description?: string) => {
+  const _truncateDescription = (description?: string) => {
     if (!description) return 'Нет описания';
     if (description.length <= 100) return description;
     return description.substring(0, 100) + '...';

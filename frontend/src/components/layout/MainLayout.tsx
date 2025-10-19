@@ -136,7 +136,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
   ];
 
   // Role display in Russian
-  const getRoleDisplay = (role: string) => {
+  const _getRoleDisplay = (role: string) => {
     const roleMap = {
       sales_manager: 'Менеджер по продажам',
       finance_manager: 'Финансовый менеджер',

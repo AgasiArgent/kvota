@@ -20,14 +20,7 @@ import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
 import { customerService } from '@/lib/api/customer-service';
 import { organizationService } from '@/lib/api/organization-service';
-import {
-  validateINN,
-  validateKPP,
-  validateOGRN,
-  formatINN,
-  formatKPP,
-  formatOGRN,
-} from '@/lib/validation/russian-business';
+import { validateINN, validateKPP, validateOGRN } from '@/lib/validation/russian-business';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;

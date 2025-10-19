@@ -87,7 +87,7 @@ export default function QuotesPage() {
         filters.date_to = dateRange[1].format('YYYY-MM-DD');
       }
 
-      const response = await quoteService.getAll({
+      const response = await quoteService.getQuotes({
         page: currentPage,
         page_size: pageSize,
         filters,
@@ -104,7 +104,7 @@ export default function QuotesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await quoteService.delete(id);
+      await quoteService.deleteQuote(id);
       message.success('КП успешно удалено');
       fetchQuotes();
     } catch (error: any) {

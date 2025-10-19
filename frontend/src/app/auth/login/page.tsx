@@ -13,7 +13,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
-  const router = useRouter();
+  const _router = useRouter(); // Reserved for future navigation
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/onboarding';
 
