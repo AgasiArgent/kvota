@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Russian B2B Platform Colors */
+  --primary-blue: #1890ff;
+  --success-green: #52c41a;
+  --warning-orange: #faad14;
+  --error-red: #ff4d4f;
+  --neutral-gray: #f5f5f5;
+
+  /* Russian Business Context Colors */
+  --rub-color: #0066cc;
+  --cny-color: #ff6b35;
+  --usd-color: #28a745;
+  --eur-color: #6f42c1;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
+}
+
+/* Ant Design customizations for Russian B2B context */
+.ant-layout {
+  min-height: 100vh;
+}
+
+.ant-layout-header {
+  background: #001529;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+}
+
+.ant-layout-content {
+  padding: 24px;
+  background: #f5f5f5;
+}
+
+.ant-layout-sider {
+  background: #001529;
+}
+
+/* Russian business form styling */
+.russian-business-form .ant-form-item-label > label {
+  font-weight: 600;
+}
+
+.russian-business-form .ant-input,
+.russian-business-form .ant-select-selector {
+  border-radius: 6px;
+}
+
+/* Currency specific styling */
+.currency-rub { color: var(--rub-color); }
+.currency-cny { color: var(--cny-color); }
+.currency-usd { color: var(--usd-color); }
+.currency-eur { color: var(--eur-color); }
+
+/* Status indicators for Russian business workflows */
+.status-pending { color: var(--warning-orange); }
+.status-approved { color: var(--success-green); }
+.status-rejected { color: var(--error-red); }
+.status-in-review { color: var(--primary-blue); }
+
+/* Russian business table styling */
+.russian-business-table .ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  border-bottom: 2px solid #e8e8e8;
+}
+
+.russian-business-table .ant-table-tbody > tr:hover > td {
+  background: #f0f9ff;
+}
+
+/* Quote approval workflow styling */
+.approval-workflow-step {
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e8e8e8;
+}
+
+.approval-workflow-step.active {
+  border-color: var(--primary-blue);
+  background: #f0f9ff;
+}
+
+.approval-workflow-step.completed {
+  border-color: var(--success-green);
+  background: #f6ffed;
+}
+
+.approval-workflow-step.rejected {
+  border-color: var(--error-red);
+  background: #fff2f0;
+}

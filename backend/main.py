@@ -1,0 +1,521 @@
+"""
+B2B Quotation Platform - FastAPI Application
+Main application with Supabase authentication and Russian business context
+"""
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse
+import asyncpg
+from supabase import create_client, Client
+from dotenv import load_dotenv
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings
+
+
+# Import our authentication system
+from auth import (
+    get_current_user, 
+    get_auth_context,
+    require_permission,
+    require_role,
+    require_manager_or_above,
+    User,
+    AuthContext,
+    UserRole,
+    AuthenticationService,
+    create_test_user
+)
+
+# Load environment variables
+load_dotenv()
+
+# ============================================================================
+# APPLICATION LIFECYCLE
+# ============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan context manager
+    Handles startup and shutdown events
+    """
+    # Startup
+    print("🚀 Starting B2B Quotation Platform API")
+    
+    # Test database connection using Supabase client
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+        # Test query
+        result = supabase.table("roles").select("count", count="exact").limit(1).execute()
+        print("✅ Database connection verified (Supabase REST API)")
+    except Exception as e:
+        print(f"⚠️  Database connection failed: {e}")
+        print("⚠️  Server will start anyway - database will be checked per request")
+    
+    # Verify required environment variables
+    required_vars = [
+        "SUPABASE_URL", 
+        "SUPABASE_ANON_KEY", 
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "DATABASE_URL"
+    ]
+    
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        print(f"❌ Missing environment variables: {missing_vars}")
+        raise ValueError(f"Missing required environment variables: {missing_vars}")
+    
+    print("✅ Environment variables verified")
+    print("🎯 API is ready to serve requests")
+    
+    yield
+    
+    # Shutdown
+    print("🔄 Shutting down B2B Quotation Platform API")
+
+# ============================================================================
+# FASTAPI APPLICATION SETUP
+# ============================================================================
+
+app = FastAPI(
+    title="B2B Quotation Platform API",
+    description="Russian B2B quotation system with multi-manager approval workflow",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json"
+)
+
+# ============================================================================
+# MIDDLEWARE CONFIGURATION
+# ============================================================================
+
+# CORS middleware for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],  # Next.js/React dev servers
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Trusted host middleware for security
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1", "*.render.com"]  # Add your domain
+)
+
+# ============================================================================
+# CUSTOM MIDDLEWARE
+# ============================================================================
+
+@app.middleware("http")
+async def security_headers_middleware(request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+@app.middleware("http")
+async def request_logging_middleware(request, call_next):
+    """Log requests for debugging"""
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    
+    # Only log API requests (not static files)
+    if request.url.path.startswith("/api/"):
+        print(f"🌐 {request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)")
+    
+    return response
+
+import time  # Add this import at the top
+
+# ============================================================================
+# ERROR HANDLERS
+# ============================================================================
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    """Custom HTTP exception handler"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": True,
+            "message": exc.detail,
+            "status_code": exc.status_code,
+            "path": str(request.url.path)
+        }
+    )
+
+@app.exception_handler(500)
+async def internal_server_error_handler(request, exc):
+    """Handle internal server errors"""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": True,
+            "message": "Internal server error",
+            "status_code": 500,
+            "path": str(request.url.path)
+        }
+    )
+
+# ============================================================================
+# PUBLIC ENDPOINTS
+# ============================================================================
+
+@app.get("/")
+async def root():
+    """API root endpoint"""
+    return {
+        "message": "B2B Quotation Platform API",
+        "version": "1.0.0",
+        "description": "Russian B2B quotation system with multi-manager approval",
+        "docs": "/api/docs"
+    }
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        # Test database connection using Supabase client
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+        result = supabase.table("roles").select("count", count="exact").limit(1).execute()
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "connection_type": "Supabase REST API",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "disconnected",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+        )
+
+# ============================================================================
+# AUTHENTICATION ENDPOINTS
+# ============================================================================
+
+@app.get("/api/auth/me")
+async def get_current_user_info(user: User = Depends(get_current_user)):
+    """Get current authenticated user information"""
+    return {
+        "user": user.dict(),
+        "message": "User authenticated successfully"
+    }
+
+@app.get("/api/auth/context")
+async def get_authentication_context(auth_context: AuthContext = Depends(get_auth_context)):
+    """Get full authentication context"""
+    return {
+        "user": auth_context.user.dict(),
+        "token_expires_at": auth_context.expires_at.isoformat(),
+        "message": "Authentication context retrieved"
+    }
+
+# ============================================================================
+# USER MANAGEMENT ENDPOINTS (Admin only)
+# ============================================================================
+
+@app.post("/api/users/create")
+async def create_user_endpoint(
+    user_data: dict,
+    current_user: User = Depends(require_role(UserRole.ADMIN))
+):
+    """Create new user account (Admin only)"""
+    try:
+        created_user = await AuthenticationService.create_user(
+            email=user_data["email"],
+            password=user_data["password"],
+            user_data={
+                "full_name": user_data.get("full_name"),
+                "role": user_data.get("role", UserRole.SALES_MANAGER),
+                "department": user_data.get("department")
+            }
+        )
+        
+        return {
+            "message": "User created successfully",
+            "user_id": created_user.get("id")
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+@app.post("/api/users/test")
+async def create_test_user_endpoint():
+    """Create test user for development (should be disabled in production)"""
+    if os.getenv("ENVIRONMENT") == "production":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Test user creation disabled in production"
+        )
+    
+    user_id = await create_test_user()
+    if user_id:
+        return {
+            "message": "Test user created successfully",
+            "user_id": user_id,
+            "email": "test@example.com",
+            "password": "testpassword123"
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create test user"
+        )
+
+# ============================================================================
+# ROLE-BASED ACCESS EXAMPLES
+# ============================================================================
+
+@app.get("/api/quotes/my")
+async def get_my_quotes(user: User = Depends(get_current_user)):
+    """Get quotes for current user (all authenticated users)"""
+    return {
+        "message": f"Quotes for {user.email}",
+        "user_role": user.role,
+        "access_level": "own_quotes"
+    }
+
+@app.get("/api/quotes/all")
+async def get_all_quotes(user: User = Depends(require_permission("quotes:read_all"))):
+    """Get all quotes (managers only)"""
+    return {
+        "message": "All quotes access granted",
+        "user_role": user.role,
+        "access_level": "all_quotes"
+    }
+
+@app.post("/api/quotes/approve")
+async def approve_quote(
+    quote_id: str,
+    user: User = Depends(require_manager_or_above())
+):
+    """Approve quote (manager access required)"""
+    return {
+        "message": f"Quote {quote_id} approved by {user.email}",
+        "approver_role": user.role,
+        "quote_id": quote_id
+    }
+
+@app.get("/api/admin/dashboard")
+async def admin_dashboard(user: User = Depends(require_role(UserRole.ADMIN))):
+    """Admin dashboard (admin only)"""
+    return {
+        "message": "Admin dashboard access granted",
+        "user": user.email,
+        "role": user.role
+    }
+
+# ============================================================================
+# DATABASE ACCESS EXAMPLES
+# ============================================================================
+
+@app.get("/api/customers")
+async def get_customers(user: User = Depends(require_permission("customers:read"))):
+    """Get customers list with RLS applied"""
+    try:
+        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        
+        # Set RLS context
+        await conn.execute(
+            "SELECT set_config('request.jwt.claims', $1, true)", 
+            f'{{"sub": "{user.id}", "role": "authenticated"}}'
+        )
+        
+        # Query will automatically apply RLS policies
+        customers = await conn.fetch("SELECT id, name, email, created_at FROM customers LIMIT 10")
+        await conn.close()
+        
+        return {
+            "customers": [dict(customer) for customer in customers],
+            "count": len(customers),
+            "user_access": user.role
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
+
+# ============================================================================
+# TESTING ENDPOINTS
+# ============================================================================
+
+@app.get("/api/test/permissions")
+async def test_permissions(user: User = Depends(get_current_user)):
+    """Test endpoint to check user permissions"""
+    return {
+        "user": {
+            "email": user.email,
+            "role": user.role,
+            "department": user.department,
+            "permissions": user.permissions
+        },
+        "role_hierarchy": {
+            "sales_manager": "Basic access to own quotes and customers",
+            "finance_manager": "Financial oversight and approval rights",
+            "department_manager": "Team management and approval rights", 
+            "director": "Company-wide access and final approval",
+            "admin": "System administration and full access"
+        }
+    }
+
+@app.get("/api/test/database")
+async def test_database(user: User = Depends(get_current_user)):
+    """Test database connection with user context"""
+    try:
+        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        
+        # Set user context for RLS
+        await conn.execute(
+            "SELECT set_config('request.jwt.claims', $1, true)", 
+            f'{{"sub": "{user.id}", "role": "authenticated"}}'
+        )
+        
+        # Test basic queries
+        quote_count = await conn.fetchval("SELECT COUNT(*) FROM quotes")
+        customer_count = await conn.fetchval("SELECT COUNT(*) FROM customers") 
+        
+        await conn.close()
+        
+        return {
+            "database_connection": "success",
+            "user_context": user.id,
+            "rls_enabled": True,
+            "accessible_quotes": quote_count,
+            "accessible_customers": customer_count
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database test failed: {str(e)}"
+        )
+app.include_router(customers.router)
+app.include_router(quotes.router)
+app.include_router(quotes_calc.router)
+app.include_router(organizations.router)
+app.include_router(calculation_settings.router)
+
+@app.post("/api/admin/fix-database-function")
+async def fix_database_function():
+    """Fix the recalculate_quote_totals function"""
+    try:
+        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        
+        # Fix the database function
+        await conn.execute("""
+            CREATE OR REPLACE FUNCTION recalculate_quote_totals()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                quote_id_to_update UUID;
+                quote_record RECORD;
+                items_subtotal DECIMAL(15,2);
+                quote_discount DECIMAL(15,2);
+                quote_vat DECIMAL(15,2);
+                quote_duties DECIMAL(15,2);
+                quote_credit DECIMAL(15,2);
+                final_total DECIMAL(15,2);
+            BEGIN
+                -- Get the quote ID (handle both INSERT/UPDATE and DELETE)
+                IF TG_OP = 'DELETE' THEN
+                    quote_id_to_update := OLD.quote_id;
+                ELSE
+                    quote_id_to_update := NEW.quote_id;
+                END IF;
+                
+                -- Calculate subtotal from all quote items
+                SELECT COALESCE(SUM(line_total), 0)
+                INTO items_subtotal
+                FROM quote_items 
+                WHERE quote_id = quote_id_to_update;
+                
+                -- Get quote-level information for additional calculations
+                SELECT 
+                    discount_type, discount_rate, discount_amount,
+                    vat_rate, import_duty_rate, credit_rate
+                INTO quote_record
+                FROM quotes 
+                WHERE id = quote_id_to_update;
+                
+                -- Calculate quote-level discount
+                IF quote_record.discount_type = 'percentage' THEN
+                    quote_discount := items_subtotal * (quote_record.discount_rate / 100);
+                ELSE
+                    quote_discount := quote_record.discount_amount;
+                END IF;
+                
+                -- Calculate quote-level VAT
+                quote_vat := (items_subtotal - quote_discount) * (quote_record.vat_rate / 100);
+                
+                -- Calculate quote-level import duties
+                quote_duties := (items_subtotal - quote_discount) * (quote_record.import_duty_rate / 100);
+                
+                -- Calculate credit cost (cost of money)
+                quote_credit := (items_subtotal - quote_discount + quote_vat + quote_duties) * (quote_record.credit_rate / 100);
+                
+                -- Final total
+                final_total := items_subtotal - quote_discount + quote_vat + quote_duties + quote_credit;
+                
+                -- Update the quote totals
+                UPDATE quotes 
+                SET 
+                    subtotal = items_subtotal,
+                    discount_amount = quote_discount,
+                    vat_amount = quote_vat,
+                    import_duty_amount = quote_duties,
+                    credit_amount = quote_credit,
+                    total_amount = final_total,
+                    updated_at = TIMEZONE('utc', NOW())
+                WHERE id = quote_id_to_update;
+                
+                IF TG_OP = 'DELETE' THEN
+                    RETURN OLD;
+                ELSE
+                    RETURN NEW;
+                END IF;
+            END;
+            $$ language 'plpgsql';
+        """)
+        
+        await conn.close()
+        
+        return {"message": "Database function fixed successfully"}
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )

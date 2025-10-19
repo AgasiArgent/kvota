@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/novi/quotation-app/backend/extract_all_test_values.py", line 6, in <module>
+    from test_suite_10_cases import *
+  File "/home/novi/quotation-app/backend/test_suite_10_cases.py", line 10, in <module>
+    from calculation_models import (
+  File "/home/novi/quotation-app/backend/calculation_models.py", line 8, in <module>
+    from pydantic import BaseModel, Field, validator
+ModuleNotFoundError: No module named 'pydantic'
