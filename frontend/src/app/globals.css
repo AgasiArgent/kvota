@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #ffffff;
@@ -38,7 +38,8 @@
   margin: 0;
 }
 
-html, body {
+html,
+body {
   max-width: 100vw;
   overflow-x: hidden;
 }
@@ -46,7 +47,13 @@ html, body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    var(--font-geist-sans),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   line-height: 1.6;
 }
 
@@ -82,16 +89,32 @@ body {
 }
 
 /* Currency specific styling */
-.currency-rub { color: var(--rub-color); }
-.currency-cny { color: var(--cny-color); }
-.currency-usd { color: var(--usd-color); }
-.currency-eur { color: var(--eur-color); }
+.currency-rub {
+  color: var(--rub-color);
+}
+.currency-cny {
+  color: var(--cny-color);
+}
+.currency-usd {
+  color: var(--usd-color);
+}
+.currency-eur {
+  color: var(--eur-color);
+}
 
 /* Status indicators for Russian business workflows */
-.status-pending { color: var(--warning-orange); }
-.status-approved { color: var(--success-green); }
-.status-rejected { color: var(--error-red); }
-.status-in-review { color: var(--primary-blue); }
+.status-pending {
+  color: var(--warning-orange);
+}
+.status-approved {
+  color: var(--success-green);
+}
+.status-rejected {
+  color: var(--error-red);
+}
+.status-in-review {
+  color: var(--primary-blue);
+}
 
 /* Russian business table styling */
 .russian-business-table .ant-table-thead > tr > th {
