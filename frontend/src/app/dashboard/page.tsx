@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import {
   Row,
   Col,
@@ -15,7 +15,7 @@ import {
   Progress,
   Spin,
   message,
-} from 'antd'
+} from 'antd';
 import {
   FileTextOutlined,
   CheckCircleOutlined,
@@ -23,29 +23,29 @@ import {
   DollarOutlined,
   TrophyOutlined,
   ArrowUpOutlined,
-} from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { useAuth } from '@/lib/auth/AuthProvider'
-import { QuoteService } from '@/lib/api/quote-service'
-import { BaseApiService } from '@/lib/api/base-api'
+} from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { QuoteService } from '@/lib/api/quote-service';
+import { BaseApiService } from '@/lib/api/base-api';
 
-const { Title, Text } = Typography
+const { Title, Text } = Typography;
 
 interface Quote {
-  id: string
-  quote_number: string
-  customer_name: string
-  total_amount: number
-  currency: string
-  status: string
-  created_at: string
+  id: string;
+  quote_number: string;
+  customer_name: string;
+  total_amount: number;
+  currency: string;
+  status: string;
+  created_at: string;
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const { profile } = useAuth()
-  const [loading, setLoading] = useState(true)
+  const router = useRouter();
+  const { profile } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalQuotes: 0,
     approvedQuotes: 0,
@@ -53,44 +53,43 @@ export default function DashboardPage() {
     totalRevenue: 0,
     monthlyGrowth: 12.5, // This would come from analytics API
     totalCustomers: 0,
-  })
-  const [recentQuotes, setRecentQuotes] = useState<Quote[]>([])
+  });
+  const [recentQuotes, setRecentQuotes] = useState<Quote[]>([]);
 
-  const quoteService = new QuoteService()
-  const customerService = new BaseApiService('customers')
+  const quoteService = new QuoteService();
+  const customerService = new BaseApiService('customers');
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    fetchDashboardData();
+  }, []);
 
   const fetchDashboardData = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       // Fetch all quotes for stats
       const quotesResponse = await quoteService.getAll({
         page: 1,
         page_size: 100, // Get enough for stats
-      })
+      });
 
-      const allQuotes = quotesResponse.data
+      const allQuotes = quotesResponse.data;
 
       // Calculate stats
       const approvedCount = allQuotes.filter(
         (q: Quote) => q.status === 'approved' || q.status === 'accepted'
-      ).length
+      ).length;
       const pendingCount = allQuotes.filter(
-        (q: Quote) =>
-          q.status === 'pending_approval' || q.status === 'partially_approved'
-      ).length
+        (q: Quote) => q.status === 'pending_approval' || q.status === 'partially_approved'
+      ).length;
       const revenue = allQuotes
         .filter((q: Quote) => q.status === 'accepted')
-        .reduce((sum: number, q: Quote) => sum + (q.total_amount || 0), 0)
+        .reduce((sum: number, q: Quote) => sum + (q.total_amount || 0), 0);
 
       // Fetch customer count
       const customersResponse = await customerService.getAll({
         page: 1,
         page_size: 1,
-      })
+      });
 
       setStats({
         totalQuotes: quotesResponse.total,
@@ -99,37 +98,37 @@ export default function DashboardPage() {
         totalRevenue: revenue,
         monthlyGrowth: 12.5, // Would calculate from historical data
         totalCustomers: customersResponse.total,
-      })
+      });
 
       // Set recent quotes (first 5)
-      setRecentQuotes(allQuotes.slice(0, 5))
+      setRecentQuotes(allQuotes.slice(0, 5));
     } catch (error: any) {
-      message.error(`Ошибка загрузки данных: ${error.message}`)
+      message.error(`Ошибка загрузки данных: ${error.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getStatusTag = (status: string) => {
     const statusMap = {
-      'draft': { color: 'default', text: 'Черновик' },
-      'pending_approval': { color: 'orange', text: 'На утверждении' },
-      'approved': { color: 'green', text: 'Утверждено' },
-      'sent': { color: 'blue', text: 'Отправлено' },
-      'accepted': { color: 'cyan', text: 'Принято' },
-      'rejected': { color: 'red', text: 'Отклонено' },
-      'expired': { color: 'default', text: 'Истекло' },
-    }
-    return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
-  }
+      draft: { color: 'default', text: 'Черновик' },
+      pending_approval: { color: 'orange', text: 'На утверждении' },
+      approved: { color: 'green', text: 'Утверждено' },
+      sent: { color: 'blue', text: 'Отправлено' },
+      accepted: { color: 'cyan', text: 'Принято' },
+      rejected: { color: 'red', text: 'Отклонено' },
+      expired: { color: 'default', text: 'Истекло' },
+    };
+    return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
+  };
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('ru-RU', {
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 0,
-    }).format(amount)
-  }
+    }).format(amount);
+  };
 
   const tableColumns = [
     {
@@ -156,8 +155,8 @@ export default function DashboardPage() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const statusConfig = getStatusTag(status)
-        return <Tag color={statusConfig.color}>{statusConfig.text}</Tag>
+        const statusConfig = getStatusTag(status);
+        return <Tag color={statusConfig.color}>{statusConfig.text}</Tag>;
       },
     },
     {
@@ -166,18 +165,18 @@ export default function DashboardPage() {
       key: 'created_at',
       render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
     },
-  ]
+  ];
 
   const getRoleWelcome = () => {
     const roleMessages = {
-      'sales_manager': 'Создавайте и отправляйте коммерческие предложения',
-      'finance_manager': 'Утверждайте КП и контролируйте финансовые показатели',
-      'department_manager': 'Управляйте процессами утверждения в отделе',
-      'director': 'Контролируйте все бизнес-процессы компании',
-      'admin': 'Администрируйте систему и управляйте пользователями',
-    }
-    return roleMessages[profile?.role as keyof typeof roleMessages] || 'Добро пожаловать в систему'
-  }
+      sales_manager: 'Создавайте и отправляйте коммерческие предложения',
+      finance_manager: 'Утверждайте КП и контролируйте финансовые показатели',
+      department_manager: 'Управляйте процессами утверждения в отделе',
+      director: 'Контролируйте все бизнес-процессы компании',
+      admin: 'Администрируйте систему и управляйте пользователями',
+    };
+    return roleMessages[profile?.role as keyof typeof roleMessages] || 'Добро пожаловать в систему';
+  };
 
   if (loading) {
     return (
@@ -186,7 +185,7 @@ export default function DashboardPage() {
           <Spin size="large" tip="Загрузка данных..." />
         </div>
       </MainLayout>
-    )
+    );
   }
 
   return (
@@ -194,9 +193,7 @@ export default function DashboardPage() {
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Welcome Section */}
         <div>
-          <Title level={2}>
-            Добро пожаловать, {profile?.full_name || 'Пользователь'}!
-          </Title>
+          <Title level={2}>Добро пожаловать, {profile?.full_name || 'Пользователь'}!</Title>
           <Text type="secondary" style={{ fontSize: '16px' }}>
             {getRoleWelcome()}
           </Text>
@@ -303,11 +300,14 @@ export default function DashboardPage() {
                   Создать новое КП
                 </Button>
 
-                {profile?.role && ['finance_manager', 'department_manager', 'director', 'admin'].includes(profile.role) && (
-                  <Button size="large" block href="/quotes/approval">
-                    Проверить КП на утверждении ({stats.pendingQuotes})
-                  </Button>
-                )}
+                {profile?.role &&
+                  ['finance_manager', 'department_manager', 'director', 'admin'].includes(
+                    profile.role
+                  ) && (
+                    <Button size="large" block href="/quotes/approval">
+                      Проверить КП на утверждении ({stats.pendingQuotes})
+                    </Button>
+                  )}
 
                 <Button size="large" block href="/customers">
                   Управление клиентами
@@ -336,7 +336,11 @@ export default function DashboardPage() {
         {/* Recent Quotes Table */}
         <Card
           title="Последние коммерческие предложения"
-          extra={<Button type="link" href="/quotes">Показать все</Button>}
+          extra={
+            <Button type="link" href="/quotes">
+              Показать все
+            </Button>
+          }
         >
           <Table
             columns={tableColumns}
@@ -347,5 +351,5 @@ export default function DashboardPage() {
         </Card>
       </Space>
     </MainLayout>
-  )
+  );
 }

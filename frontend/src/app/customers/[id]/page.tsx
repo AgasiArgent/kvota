@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import {
   Form,
   Input,
@@ -19,16 +19,11 @@ import {
   Table,
   Tag,
   Popconfirm,
-} from 'antd'
-import {
-  SaveOutlined,
-  ArrowLeftOutlined,
-  EditOutlined,
-  DeleteOutlined,
-} from '@ant-design/icons'
-import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { BaseApiService } from '@/lib/api/base-api'
+} from 'antd';
+import { SaveOutlined, ArrowLeftOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { BaseApiService } from '@/lib/api/base-api';
 import {
   validateINN,
   validateKPP,
@@ -36,79 +31,79 @@ import {
   formatINN,
   formatKPP,
   formatOGRN,
-} from '@/lib/validation/russian-business'
+} from '@/lib/validation/russian-business';
 
-const { Title, Text } = Typography
-const { TextArea } = Input
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 interface Customer {
-  id: string
-  name: string
-  email: string
-  phone: string
-  address: string
-  city: string
-  region: string
-  postal_code: string
-  inn: string
-  kpp: string
-  ogrn: string
-  company_type: string
-  industry: string
-  credit_limit: number
-  payment_terms: number
-  status: string
-  notes: string
-  created_at: string
-  updated_at: string
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  region: string;
+  postal_code: string;
+  inn: string;
+  kpp: string;
+  ogrn: string;
+  company_type: string;
+  industry: string;
+  credit_limit: number;
+  payment_terms: number;
+  status: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Quote {
-  id: string
-  quote_number: string
-  title: string
-  status: string
-  total_amount: number
-  currency: string
-  created_at: string
+  id: string;
+  quote_number: string;
+  title: string;
+  status: string;
+  total_amount: number;
+  currency: string;
+  created_at: string;
 }
 
 export default function CustomerDetailPage() {
-  const router = useRouter()
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const customerId = params.id as string
+  const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const customerId = params.id as string;
 
-  const [form] = Form.useForm()
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [customer, setCustomer] = useState<Customer | null>(null)
-  const [quotes, setQuotes] = useState<Quote[]>([])
-  const [isEditMode, setIsEditMode] = useState(searchParams.get('mode') === 'edit')
-  const [companyType, setCompanyType] = useState<string>('organization')
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [isEditMode, setIsEditMode] = useState(searchParams.get('mode') === 'edit');
+  const [companyType, setCompanyType] = useState<string>('organization');
 
-  const customerService = new BaseApiService<Customer>('customers')
-  const quoteService = new BaseApiService<Quote>('quotes')
+  const customerService = new BaseApiService<Customer>('customers');
+  const quoteService = new BaseApiService<Quote>('quotes');
 
   useEffect(() => {
-    fetchCustomer()
-    fetchCustomerQuotes()
-  }, [customerId])
+    fetchCustomer();
+    fetchCustomerQuotes();
+  }, [customerId]);
 
   const fetchCustomer = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const data = await customerService.getById(customerId)
-      setCustomer(data)
-      setCompanyType(data.company_type)
-      form.setFieldsValue(data)
+      const data = await customerService.getById(customerId);
+      setCustomer(data);
+      setCompanyType(data.company_type);
+      form.setFieldsValue(data);
     } catch (error: any) {
-      message.error(`Ошибка загрузки клиента: ${error.message}`)
-      router.push('/customers')
+      message.error(`Ошибка загрузки клиента: ${error.message}`);
+      router.push('/customers');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchCustomerQuotes = async () => {
     try {
@@ -116,74 +111,77 @@ export default function CustomerDetailPage() {
         filters: { customer_id: customerId },
         page: 1,
         page_size: 10,
-      })
-      setQuotes(response.data)
+      });
+      setQuotes(response.data);
     } catch (error: any) {
-      console.error('Error fetching quotes:', error)
+      console.error('Error fetching quotes:', error);
     }
-  }
+  };
 
   const handleUpdate = async (values: any) => {
-    setSaving(true)
+    setSaving(true);
     try {
-      await customerService.update(customerId, values)
-      message.success('Клиент успешно обновлен')
-      setIsEditMode(false)
-      fetchCustomer()
+      await customerService.update(customerId, values);
+      message.success('Клиент успешно обновлен');
+      setIsEditMode(false);
+      fetchCustomer();
     } catch (error: any) {
-      message.error(`Ошибка обновления: ${error.message}`)
+      message.error(`Ошибка обновления: ${error.message}`);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
     try {
-      await customerService.delete(customerId)
-      message.success('Клиент успешно удален')
-      router.push('/customers')
+      await customerService.delete(customerId);
+      message.success('Клиент успешно удален');
+      router.push('/customers');
     } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`)
+      message.error(`Ошибка удаления: ${error.message}`);
     }
-  }
+  };
 
   // Custom validators (same as create page)
   const validateINNField = (_: any, value: string) => {
-    if (!value) return Promise.resolve()
-    const validation = validateINN(value)
+    if (!value) return Promise.resolve();
+    const validation = validateINN(value);
     if (!validation.valid) {
-      return Promise.reject(new Error(validation.error))
+      return Promise.reject(new Error(validation.error));
     }
-    return Promise.resolve()
-  }
+    return Promise.resolve();
+  };
 
   const validateKPPField = (_: any, value: string) => {
-    if (!value) return Promise.resolve()
-    const validation = validateKPP(value)
+    if (!value) return Promise.resolve();
+    const validation = validateKPP(value);
     if (!validation.valid) {
-      return Promise.reject(new Error(validation.error))
+      return Promise.reject(new Error(validation.error));
     }
-    return Promise.resolve()
-  }
+    return Promise.resolve();
+  };
 
   const validateOGRNField = (_: any, value: string) => {
-    if (!value) return Promise.resolve()
-    const validation = validateOGRN(value)
+    if (!value) return Promise.resolve();
+    const validation = validateOGRN(value);
     if (!validation.valid) {
-      return Promise.reject(new Error(validation.error))
+      return Promise.reject(new Error(validation.error));
     }
-    return Promise.resolve()
-  }
+    return Promise.resolve();
+  };
 
   const getStatusTag = (status: string) => {
     const statusMap = {
       active: { color: 'green', text: 'Активный' },
       inactive: { color: 'default', text: 'Неактивный' },
       suspended: { color: 'red', text: 'Приостановлен' },
-    }
-    const config = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
-    return <Tag color={config.color}>{config.text}</Tag>
-  }
+    };
+    const config = statusMap[status as keyof typeof statusMap] || {
+      color: 'default',
+      text: status,
+    };
+    return <Tag color={config.color}>{config.text}</Tag>;
+  };
 
   const getQuoteStatusTag = (status: string) => {
     const statusMap = {
@@ -193,9 +191,9 @@ export default function CustomerDetailPage() {
       sent: { color: 'blue', text: 'Отправлено' },
       accepted: { color: 'cyan', text: 'Принято' },
       rejected: { color: 'red', text: 'Отклонено' },
-    }
-    return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
-  }
+    };
+    return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
+  };
 
   const quoteColumns = [
     {
@@ -226,8 +224,8 @@ export default function CustomerDetailPage() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const config = getQuoteStatusTag(status)
-        return <Tag color={config.color}>{config.text}</Tag>
+        const config = getQuoteStatusTag(status);
+        return <Tag color={config.color}>{config.text}</Tag>;
       },
     },
     {
@@ -236,7 +234,7 @@ export default function CustomerDetailPage() {
       key: 'created_at',
       render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
     },
-  ]
+  ];
 
   if (loading) {
     return (
@@ -245,10 +243,10 @@ export default function CustomerDetailPage() {
           <Spin size="large" />
         </div>
       </MainLayout>
-    )
+    );
   }
 
-  if (!customer) return null
+  if (!customer) return null;
 
   return (
     <MainLayout>
@@ -257,10 +255,7 @@ export default function CustomerDetailPage() {
         <Row justify="space-between" align="middle">
           <Col>
             <Space>
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={() => router.push('/customers')}
-              >
+              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/customers')}>
                 Назад
               </Button>
               <Title level={2} style={{ margin: 0 }}>
@@ -272,11 +267,7 @@ export default function CustomerDetailPage() {
           <Col>
             <Space>
               {!isEditMode && (
-                <Button
-                  type="primary"
-                  icon={<EditOutlined />}
-                  onClick={() => setIsEditMode(true)}
-                >
+                <Button type="primary" icon={<EditOutlined />} onClick={() => setIsEditMode(true)}>
                   Редактировать
                 </Button>
               )}
@@ -303,12 +294,7 @@ export default function CustomerDetailPage() {
               key: 'info',
               label: 'Информация',
               children: (
-                <Form
-                  form={form}
-                  layout="vertical"
-                  onFinish={handleUpdate}
-                  disabled={!isEditMode}
-                >
+                <Form form={form} layout="vertical" onFinish={handleUpdate} disabled={!isEditMode}>
                   <Row gutter={24}>
                     <Col xs={24} lg={16}>
                       <Card title="Основная информация">
@@ -324,7 +310,11 @@ export default function CustomerDetailPage() {
                           </Col>
 
                           <Col xs={24} md={12}>
-                            <Form.Item name="company_type" label="Тип организации" rules={[{ required: true }]}>
+                            <Form.Item
+                              name="company_type"
+                              label="Тип организации"
+                              rules={[{ required: true }]}
+                            >
                               <Select
                                 size="large"
                                 onChange={(value) => setCompanyType(value)}
@@ -410,19 +400,31 @@ export default function CustomerDetailPage() {
                       <Card title="Реквизиты" style={{ marginTop: 24 }}>
                         <Row gutter={16}>
                           <Col xs={24} md={8}>
-                            <Form.Item name="inn" label="ИНН" rules={[{ validator: validateINNField }]}>
+                            <Form.Item
+                              name="inn"
+                              label="ИНН"
+                              rules={[{ validator: validateINNField }]}
+                            >
                               <Input size="large" maxLength={12} />
                             </Form.Item>
                           </Col>
                           {companyType === 'organization' && (
                             <Col xs={24} md={8}>
-                              <Form.Item name="kpp" label="КПП" rules={[{ validator: validateKPPField }]}>
+                              <Form.Item
+                                name="kpp"
+                                label="КПП"
+                                rules={[{ validator: validateKPPField }]}
+                              >
                                 <Input size="large" maxLength={9} />
                               </Form.Item>
                             </Col>
                           )}
                           <Col xs={24} md={8}>
-                            <Form.Item name="ogrn" label={companyType === 'organization' ? 'ОГРН' : 'ОГРНИП'} rules={[{ validator: validateOGRNField }]}>
+                            <Form.Item
+                              name="ogrn"
+                              label={companyType === 'organization' ? 'ОГРН' : 'ОГРНИП'}
+                              rules={[{ validator: validateOGRNField }]}
+                            >
                               <Input size="large" maxLength={15} />
                             </Form.Item>
                           </Col>
@@ -437,7 +439,9 @@ export default function CustomerDetailPage() {
                             size="large"
                             style={{ width: '100%' }}
                             min={0}
-                            formatter={(value) => `₽ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+                            formatter={(value) =>
+                              `₽ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                            }
                             parser={(value) => value?.replace(/₽\s?|(\s*)/g, '') as any}
                           />
                         </Form.Item>
@@ -475,8 +479,8 @@ export default function CustomerDetailPage() {
                               size="large"
                               block
                               onClick={() => {
-                                setIsEditMode(false)
-                                form.setFieldsValue(customer)
+                                setIsEditMode(false);
+                                form.setFieldsValue(customer);
                               }}
                             >
                               Отмена
@@ -507,5 +511,5 @@ export default function CustomerDetailPage() {
         />
       </Space>
     </MainLayout>
-  )
+  );
 }

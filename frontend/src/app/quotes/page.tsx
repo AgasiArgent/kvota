@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import {
   Table,
   Button,
@@ -16,7 +16,7 @@ import {
   Col,
   Statistic,
   DatePicker,
-} from 'antd'
+} from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -27,90 +27,90 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   DollarOutlined,
-} from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { QuoteService } from '@/lib/api/quote-service'
-import { useAuth } from '@/lib/auth/AuthProvider'
-import dayjs, { Dayjs } from 'dayjs'
+} from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { QuoteService } from '@/lib/api/quote-service';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import dayjs, { Dayjs } from 'dayjs';
 
-const { Title } = Typography
-const { Search } = Input
-const { RangePicker } = DatePicker
+const { Title } = Typography;
+const { Search } = Input;
+const { RangePicker } = DatePicker;
 
 interface Quote {
-  id: string
-  quote_number: string
-  customer_name: string
-  title: string
-  status: string
-  total_amount: number
-  currency: string
-  quote_date: string
-  valid_until: string
-  created_at: string
+  id: string;
+  quote_number: string;
+  customer_name: string;
+  title: string;
+  status: string;
+  total_amount: number;
+  currency: string;
+  quote_date: string;
+  valid_until: string;
+  created_at: string;
 }
 
 export default function QuotesPage() {
-  const router = useRouter()
-  const { profile } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const [quotes, setQuotes] = useState<Quote[]>([])
-  const [totalCount, setTotalCount] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const router = useRouter();
+  const { profile } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Filters
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
 
-  const quoteService = new QuoteService()
+  const quoteService = new QuoteService();
 
   useEffect(() => {
-    fetchQuotes()
-  }, [currentPage, pageSize, searchTerm, statusFilter, dateRange])
+    fetchQuotes();
+  }, [currentPage, pageSize, searchTerm, statusFilter, dateRange]);
 
   const fetchQuotes = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const filters: Record<string, any> = {}
+      const filters: Record<string, any> = {};
 
       if (searchTerm) {
-        filters.search = searchTerm
+        filters.search = searchTerm;
       }
       if (statusFilter) {
-        filters.status = statusFilter
+        filters.status = statusFilter;
       }
       if (dateRange) {
-        filters.date_from = dateRange[0].format('YYYY-MM-DD')
-        filters.date_to = dateRange[1].format('YYYY-MM-DD')
+        filters.date_from = dateRange[0].format('YYYY-MM-DD');
+        filters.date_to = dateRange[1].format('YYYY-MM-DD');
       }
 
       const response = await quoteService.getAll({
         page: currentPage,
         page_size: pageSize,
         filters,
-      })
+      });
 
-      setQuotes(response.data)
-      setTotalCount(response.total)
+      setQuotes(response.data);
+      setTotalCount(response.total);
     } catch (error: any) {
-      message.error(`Ошибка загрузки КП: ${error.message}`)
+      message.error(`Ошибка загрузки КП: ${error.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDelete = async (id: string) => {
     try {
-      await quoteService.delete(id)
-      message.success('КП успешно удалено')
-      fetchQuotes()
+      await quoteService.delete(id);
+      message.success('КП успешно удалено');
+      fetchQuotes();
     } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`)
+      message.error(`Ошибка удаления: ${error.message}`);
     }
-  }
+  };
 
   const getStatusTag = (status: string) => {
     const statusMap = {
@@ -127,18 +127,21 @@ export default function QuotesPage() {
       rejected: { color: 'red', text: 'Отклонено' },
       expired: { color: 'default', text: 'Истекло' },
       cancelled: { color: 'default', text: 'Отменено' },
-    }
-    const config = statusMap[status as keyof typeof statusMap] || { color: 'default', text: status }
-    return <Tag color={config.color}>{config.text}</Tag>
-  }
+    };
+    const config = statusMap[status as keyof typeof statusMap] || {
+      color: 'default',
+      text: status,
+    };
+    return <Tag color={config.color}>{config.text}</Tag>;
+  };
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('ru-RU', {
       style: 'currency',
       currency: currency || 'RUB',
       minimumFractionDigits: 0,
-    }).format(amount)
-  }
+    }).format(amount);
+  };
 
   const columns = [
     {
@@ -147,10 +150,7 @@ export default function QuotesPage() {
       key: 'quote_number',
       width: 150,
       render: (text: string, record: Quote) => (
-        <a
-          onClick={() => router.push(`/quotes/${record.id}`)}
-          style={{ fontWeight: 500 }}
-        >
+        <a onClick={() => router.push(`/quotes/${record.id}`)} style={{ fontWeight: 500 }}>
           {text}
         </a>
       ),
@@ -189,7 +189,7 @@ export default function QuotesPage() {
       dataIndex: 'quote_date',
       key: 'quote_date',
       width: 120,
-      render: (date: string) => date ? new Date(date).toLocaleDateString('ru-RU') : '—',
+      render: (date: string) => (date ? new Date(date).toLocaleDateString('ru-RU') : '—'),
     },
     {
       title: 'Действительно до',
@@ -197,14 +197,14 @@ export default function QuotesPage() {
       key: 'valid_until',
       width: 140,
       render: (date: string) => {
-        if (!date) return '—'
-        const validDate = new Date(date)
-        const isExpired = validDate < new Date()
+        if (!date) return '—';
+        const validDate = new Date(date);
+        const isExpired = validDate < new Date();
         return (
           <span style={{ color: isExpired ? '#ff4d4f' : undefined }}>
             {validDate.toLocaleDateString('ru-RU')}
           </span>
-        )
+        );
       },
     },
     {
@@ -243,17 +243,19 @@ export default function QuotesPage() {
         </Space>
       ),
     },
-  ]
+  ];
 
   // Calculate stats
-  const totalQuotes = totalCount
-  const approvedQuotes = quotes.filter(q => q.status === 'approved' || q.status === 'accepted').length
-  const pendingQuotes = quotes.filter(q =>
+  const totalQuotes = totalCount;
+  const approvedQuotes = quotes.filter(
+    (q) => q.status === 'approved' || q.status === 'accepted'
+  ).length;
+  const pendingQuotes = quotes.filter((q) =>
     ['pending_approval', 'partially_approved'].includes(q.status)
-  ).length
+  ).length;
   const totalRevenue = quotes
-    .filter(q => q.status === 'accepted')
-    .reduce((sum, q) => sum + (q.total_amount || 0), 0)
+    .filter((q) => q.status === 'accepted')
+    .reduce((sum, q) => sum + (q.total_amount || 0), 0);
 
   return (
     <MainLayout>
@@ -330,13 +332,13 @@ export default function QuotesPage() {
                 enterButton={<SearchOutlined />}
                 size="large"
                 onSearch={(value) => {
-                  setSearchTerm(value)
-                  setCurrentPage(1)
+                  setSearchTerm(value);
+                  setCurrentPage(1);
                 }}
                 onChange={(e) => {
                   if (!e.target.value) {
-                    setSearchTerm('')
-                    setCurrentPage(1)
+                    setSearchTerm('');
+                    setCurrentPage(1);
                   }
                 }}
               />
@@ -348,8 +350,8 @@ export default function QuotesPage() {
                 size="large"
                 style={{ width: '100%' }}
                 onChange={(value) => {
-                  setStatusFilter(value || '')
-                  setCurrentPage(1)
+                  setStatusFilter(value || '');
+                  setCurrentPage(1);
                 }}
                 options={[
                   { label: 'Черновик', value: 'draft' },
@@ -375,8 +377,8 @@ export default function QuotesPage() {
                 format="DD.MM.YYYY"
                 placeholder={['Дата от', 'Дата до']}
                 onChange={(dates) => {
-                  setDateRange(dates as [Dayjs, Dayjs] | null)
-                  setCurrentPage(1)
+                  setDateRange(dates as [Dayjs, Dayjs] | null);
+                  setCurrentPage(1);
                 }}
               />
             </Col>
@@ -398,13 +400,13 @@ export default function QuotesPage() {
               showSizeChanger: true,
               showTotal: (total) => `Всего: ${total} КП`,
               onChange: (page, size) => {
-                setCurrentPage(page)
-                setPageSize(size)
+                setCurrentPage(page);
+                setPageSize(size);
               },
             }}
           />
         </Card>
       </Space>
     </MainLayout>
-  )
+  );
 }

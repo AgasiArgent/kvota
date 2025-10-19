@@ -4,16 +4,16 @@ const { chromium } = require('playwright');
   console.log('🧪 Starting Interactive Testing Session\n');
 
   const browser = await chromium.launch({
-    headless: false,  // Show browser
-    slowMo: 500,      // Slow down actions
-    devtools: true    // Open DevTools automatically
+    headless: false, // Show browser
+    slowMo: 500, // Slow down actions
+    devtools: true, // Open DevTools automatically
   });
 
   const context = await browser.newContext();
   const page = await context.newPage();
 
   // Capture all console logs
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     const type = msg.type();
     const text = msg.text();
     if (type === 'error') {
@@ -26,12 +26,12 @@ const { chromium } = require('playwright');
   });
 
   // Capture network errors
-  page.on('requestfailed', request => {
+  page.on('requestfailed', (request) => {
     console.log('🌐 Network Failed:', request.url(), request.failure().errorText);
   });
 
   // Capture page errors
-  page.on('pageerror', error => {
+  page.on('pageerror', (error) => {
     console.log('💥 Page Error:', error.message);
   });
 
@@ -40,7 +40,7 @@ const { chromium } = require('playwright');
     console.log('📍 Navigating to: http://localhost:3000/onboarding\n');
     await page.goto('http://localhost:3000/onboarding', {
       waitUntil: 'networkidle',
-      timeout: 30000
+      timeout: 30000,
     });
 
     // Wait a bit to see what happens
@@ -70,7 +70,6 @@ const { chromium } = require('playwright');
 
     // Keep browser open
     await new Promise(() => {});
-
   } catch (error) {
     console.error('\n💥 Test Error:', error.message);
     await page.screenshot({ path: 'screenshots/error-playwright.png' });

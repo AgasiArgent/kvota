@@ -2,11 +2,22 @@
 
 **MCP (Model Context Protocol)** servers extend Claude Code's capabilities.
 
-## Currently Installed
+## Currently Configured
+
+- ✅ **postgres** - Direct Supabase database queries and schema inspection
+  - Status: **Working** (verified 2025-10-19)
+  - Can query database, inspect schemas, test SQL
+
+- ⚠️ **github** - GitHub issue and PR management from Claude
+  - Status: **MCP tools not working (env var issue), using direct API calls instead**
+  - Token: Has full scopes including `repo` (verified working via curl)
+  - Workaround: Using `curl -H "Authorization: token <token>" https://api.github.com/...` for GitHub operations
+  - Repository: https://github.com/AgasiArgent/kvota (private, accessible via API)
 
 - ✅ **chrome-devtools** - Browser debugging via remote debugging port 9222
-- ✅ **postgres** - Direct Supabase database queries and schema inspection
-- ✅ **github** - GitHub issue and PR management from Claude
+  - Status: **Configured**
+
+**Configuration:** See [.mcp.json](/.mcp.json) and [.claude/settings.json](/.claude/settings.json)
 
 ## Additional MCP Servers (Optional)
 
@@ -32,18 +43,14 @@
 - **Install:** `npx -y @modelcontextprotocol/server-memory`
 - **Benefit:** Better context retention
 
-## Installation Instructions
+## Current Configuration
 
-### Via Claude Code Settings
+MCP servers are configured in two files:
 
-1. Open Claude Code settings
-2. Go to MCP section
-3. Add server configuration
-4. Restart Claude Code
+### 1. `.mcp.json` - Server Definitions
 
-### Manual Configuration
+Defines which MCP servers to run and their configuration:
 
-Edit `.claude/settings.json`:
 ```json
 {
   "mcpServers": {
@@ -55,12 +62,29 @@ Edit `.claude/settings.json`:
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
-        "GITHUB_TOKEN": "your_github_token_here"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
       }
     }
   }
 }
 ```
+
+### 2. `.claude/settings.json` - Enable Servers
+
+Tells Claude Code to enable the servers from `.mcp.json`:
+
+```json
+{
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": ["postgres", "github", "chrome-devtools"]
+}
+```
+
+### Adding New MCP Servers
+
+1. Add server definition to `.mcp.json`
+2. Add server name to `enabledMcpjsonServers` in `.claude/settings.json`
+3. Reload VSCode window (Ctrl+Shift+P → "Developer: Reload Window")
 
 ## Resources
 

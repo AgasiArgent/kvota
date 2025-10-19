@@ -1,57 +1,46 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
-import {
-  Card,
-  Button,
-  Space,
-  Typography,
-  message,
-  Row,
-  Col,
-  Tag,
-  Empty,
-  Spin,
-} from 'antd'
+import React, { useState, useEffect } from 'react';
+import { Card, Button, Space, Typography, message, Row, Col, Tag, Empty, Spin } from 'antd';
 import {
   PlusOutlined,
   SettingOutlined,
   TeamOutlined,
   CrownOutlined,
   UserOutlined,
-} from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { organizationService } from '@/lib/api/organization-service'
-import { UserOrganization } from '@/lib/types/organization'
+} from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { organizationService } from '@/lib/api/organization-service';
+import { UserOrganization } from '@/lib/types/organization';
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Text, Paragraph } = Typography;
 
 export default function OrganizationsPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [organizations, setOrganizations] = useState<UserOrganization[]>([])
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [organizations, setOrganizations] = useState<UserOrganization[]>([]);
 
   useEffect(() => {
-    fetchOrganizations()
-  }, [])
+    fetchOrganizations();
+  }, []);
 
   const fetchOrganizations = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const result = await organizationService.listOrganizations()
+      const result = await organizationService.listOrganizations();
 
       if (result.success && result.data) {
-        setOrganizations(result.data)
+        setOrganizations(result.data);
       } else {
-        message.error(result.error || 'Ошибка загрузки организаций')
+        message.error(result.error || 'Ошибка загрузки организаций');
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`)
+      message.error(`Ошибка: ${error.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getRoleBadge = (roleName: string, isOwner: boolean) => {
     if (isOwner) {
@@ -59,37 +48,37 @@ export default function OrganizationsPage() {
         <Tag icon={<CrownOutlined />} color="gold">
           Владелец
         </Tag>
-      )
+      );
     }
 
     // Map role names to Russian labels
     const roleMap: Record<string, { label: string; color: string }> = {
-      'admin': { label: 'Администратор', color: 'red' },
+      admin: { label: 'Администратор', color: 'red' },
       'financial-admin': { label: 'Финансовый администратор', color: 'purple' },
       'sales-manager': { label: 'Менеджер по продажам', color: 'blue' },
       'procurement-manager': { label: 'Менеджер по закупкам', color: 'cyan' },
       'logistics-manager': { label: 'Менеджер по логистике', color: 'green' },
-    }
+    };
 
-    const role = roleMap[roleName] || { label: roleName, color: 'default' }
+    const role = roleMap[roleName] || { label: roleName, color: 'default' };
 
     return (
       <Tag icon={<UserOutlined />} color={role.color}>
         {role.label}
       </Tag>
-    )
-  }
+    );
+  };
 
   const canManageOrganization = (roleName: string, isOwner: boolean) => {
     // Only owners and admins can access settings
-    return isOwner || roleName === 'admin'
-  }
+    return isOwner || roleName === 'admin';
+  };
 
   const truncateDescription = (description?: string) => {
-    if (!description) return 'Нет описания'
-    if (description.length <= 100) return description
-    return description.substring(0, 100) + '...'
-  }
+    if (!description) return 'Нет описания';
+    if (description.length <= 100) return description;
+    return description.substring(0, 100) + '...';
+  };
 
   return (
     <MainLayout>
@@ -174,7 +163,9 @@ export default function OrganizationsPage() {
                         key="settings"
                         type="link"
                         icon={<SettingOutlined />}
-                        onClick={() => router.push(`/organizations/${org.organization_id}/settings`)}
+                        onClick={() =>
+                          router.push(`/organizations/${org.organization_id}/settings`)
+                        }
                       >
                         Настройки
                       </Button>
@@ -199,9 +190,7 @@ export default function OrganizationsPage() {
                         Присоединились:
                       </Text>
                       <br />
-                      <Text>
-                        {new Date(org.joined_at).toLocaleDateString('ru-RU')}
-                      </Text>
+                      <Text>{new Date(org.joined_at).toLocaleDateString('ru-RU')}</Text>
                     </div>
                   </Space>
                 </Card>
@@ -240,5 +229,5 @@ export default function OrganizationsPage() {
         )}
       </Space>
     </MainLayout>
-  )
+  );
 }

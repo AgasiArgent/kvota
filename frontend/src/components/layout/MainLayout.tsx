@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
+import React, { useState } from 'react';
 import {
   Layout,
   Menu,
@@ -11,8 +11,8 @@ import {
   Badge,
   Divider,
   Button,
-  theme
-} from 'antd'
+  theme,
+} from 'antd';
 import {
   DashboardOutlined,
   FileTextOutlined,
@@ -24,24 +24,24 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ApartmentOutlined,
-} from '@ant-design/icons'
-import { useRouter, usePathname } from 'next/navigation'
-import { useAuth } from '@/lib/auth/AuthProvider'
-import OrganizationSwitcher from '@/components/organizations/OrganizationSwitcher'
+} from '@ant-design/icons';
+import { useRouter, usePathname } from 'next/navigation';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import OrganizationSwitcher from '@/components/organizations/OrganizationSwitcher';
 
-const { Header, Sider, Content } = Layout
-const { Title, Text } = Typography
+const { Header, Sider, Content } = Layout;
+const { Title, Text } = Typography;
 
 interface MainLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export default function MainLayout({ children }: MainLayoutProps) {
-  const [collapsed, setCollapsed] = useState(false)
-  const { user, profile, signOut } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
-  const { token } = theme.useToken()
+  const [collapsed, setCollapsed] = useState(false);
+  const { user, profile, signOut } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const { token } = theme.useToken();
 
   // Menu items based on user role
   const getMenuItems = () => {
@@ -68,7 +68,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
             key: '/quotes/drafts',
             label: 'Черновики',
           },
-        ]
+        ],
       },
       {
         key: '/customers',
@@ -80,14 +80,17 @@ export default function MainLayout({ children }: MainLayoutProps) {
         icon: <ApartmentOutlined />,
         label: 'Организации',
       },
-    ]
+    ];
 
     // Add approval items for managers and above
-    if (profile?.role && ['finance_manager', 'department_manager', 'director', 'admin'].includes(profile.role)) {
+    if (
+      profile?.role &&
+      ['finance_manager', 'department_manager', 'director', 'admin'].includes(profile.role)
+    ) {
       baseItems[1].children?.push({
         key: '/quotes/approval',
         label: 'На утверждении',
-      })
+      });
     }
 
     // Add admin items
@@ -105,12 +108,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
             key: '/admin/settings',
             label: 'Настройки',
           },
-        ]
-      })
+        ],
+      });
     }
 
-    return baseItems
-  }
+    return baseItems;
+  };
 
   // User dropdown menu
   const userMenuItems = [
@@ -130,19 +133,19 @@ export default function MainLayout({ children }: MainLayoutProps) {
       label: 'Выйти',
       onClick: signOut,
     },
-  ]
+  ];
 
   // Role display in Russian
   const getRoleDisplay = (role: string) => {
     const roleMap = {
-      'sales_manager': 'Менеджер по продажам',
-      'finance_manager': 'Финансовый менеджер',
-      'department_manager': 'Руководитель отдела',
-      'director': 'Директор',
-      'admin': 'Администратор',
-    }
-    return roleMap[role as keyof typeof roleMap] || role
-  }
+      sales_manager: 'Менеджер по продажам',
+      finance_manager: 'Финансовый менеджер',
+      department_manager: 'Руководитель отдела',
+      director: 'Директор',
+      admin: 'Администратор',
+    };
+    return roleMap[role as keyof typeof roleMap] || role;
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -159,15 +162,17 @@ export default function MainLayout({ children }: MainLayoutProps) {
           bottom: 0,
         }}
       >
-        <div style={{
-          height: '64px',
-          margin: '16px',
-          background: 'rgba(255, 255, 255, 0.2)',
-          borderRadius: '6px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
+        <div
+          style={{
+            height: '64px',
+            margin: '16px',
+            background: 'rgba(255, 255, 255, 0.2)',
+            borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           <Title level={4} style={{ color: 'white', margin: 0 }}>
             {collapsed ? 'КП' : 'Коммерческие предложения'}
           </Title>
@@ -212,25 +217,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
           <Space size="large">
             {/* Notifications */}
             <Badge count={5} size="small">
-              <Button
-                type="text"
-                icon={<BellOutlined />}
-                style={{ fontSize: '16px' }}
-              />
+              <Button type="text" icon={<BellOutlined />} style={{ fontSize: '16px' }} />
             </Badge>
 
             {/* User dropdown */}
-            <Dropdown
-              menu={{ items: userMenuItems }}
-              placement="bottomRight"
-              arrow
-            >
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
               <Space style={{ cursor: 'pointer' }} align="center">
-                <Avatar
-                  size="large"
-                  icon={<UserOutlined />}
-                  src={profile?.avatar_url}
-                />
+                <Avatar size="large" icon={<UserOutlined />} src={profile?.avatar_url} />
                 {!collapsed && (
                   <Text strong style={{ display: 'block' }}>
                     {profile?.full_name || user?.email}
@@ -254,5 +247,5 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </Content>
       </Layout>
     </Layout>
-  )
+  );
 }

@@ -27,25 +27,33 @@ const { chromium } = require('playwright');
   let capturedRequest = null;
   let capturedResponse = null;
 
-  targetPage.on('request', request => {
-    if (request.url().includes('/api/customers') && request.method() === 'GET' && !request.url().includes('create')) {
+  targetPage.on('request', (request) => {
+    if (
+      request.url().includes('/api/customers') &&
+      request.method() === 'GET' &&
+      !request.url().includes('create')
+    ) {
       capturedRequest = {
         url: request.url(),
         method: request.method(),
-        headers: request.headers()
+        headers: request.headers(),
       };
       console.log('📤 GET request captured');
     }
   });
 
-  targetPage.on('response', async response => {
-    if (response.url().includes('/api/customers') && response.request().method() === 'GET' && !response.url().includes('create')) {
+  targetPage.on('response', async (response) => {
+    if (
+      response.url().includes('/api/customers') &&
+      response.request().method() === 'GET' &&
+      !response.url().includes('create')
+    ) {
       try {
         const body = await response.text();
         capturedResponse = {
           status: response.status(),
           statusText: response.statusText(),
-          body: body
+          body: body,
         };
         console.log('📥 Response received:', response.status());
       } catch (e) {
@@ -55,10 +63,13 @@ const { chromium } = require('playwright');
   });
 
   console.log('Refreshing customers page...\n');
-  await targetPage.goto('http://localhost:3000/customers', { waitUntil: 'networkidle', timeout: 15000 });
+  await targetPage.goto('http://localhost:3000/customers', {
+    waitUntil: 'networkidle',
+    timeout: 15000,
+  });
 
   // Wait for requests
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   if (capturedRequest) {
     console.log('\n=== Request ===');
@@ -78,7 +89,7 @@ const { chromium } = require('playwright');
 
       if (json.customers) {
         console.log(`\n✅ Success! Found ${json.customers.length} customers`);
-        json.customers.forEach(c => {
+        json.customers.forEach((c) => {
           console.log(`  - ${c.name}`);
         });
       }

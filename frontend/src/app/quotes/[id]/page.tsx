@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Button,
@@ -20,7 +20,7 @@ import {
   Popconfirm,
   Timeline,
   Avatar,
-} from 'antd'
+} from 'antd';
 import {
   ArrowLeftOutlined,
   EditOutlined,
@@ -31,122 +31,120 @@ import {
   SendOutlined,
   UserOutlined,
   ClockCircleOutlined,
-} from '@ant-design/icons'
-import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { QuoteService } from '@/lib/api/quote-service'
-import { useAuth } from '@/lib/auth/AuthProvider'
+} from '@ant-design/icons';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { QuoteService } from '@/lib/api/quote-service';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
-const { Title, Text } = Typography
-const { TextArea } = Input
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 interface QuoteItem {
-  id: string
-  description: string
-  product_code?: string
-  quantity: number
-  unit: string
-  unit_price: number
-  line_total: number
-  discount_rate?: number
-  vat_rate?: number
+  id: string;
+  description: string;
+  product_code?: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+  discount_rate?: number;
+  vat_rate?: number;
 }
 
 interface QuoteApproval {
-  id: string
-  approver_id: string
-  approver_name?: string
-  approval_status: string
-  approval_order: number
-  decision_notes?: string
-  revision_notes?: string
-  assigned_at: string
-  decided_at?: string
+  id: string;
+  approver_id: string;
+  approver_name?: string;
+  approval_status: string;
+  approval_order: number;
+  decision_notes?: string;
+  revision_notes?: string;
+  assigned_at: string;
+  decided_at?: string;
 }
 
 interface Quote {
-  id: string
-  quote_number: string
-  customer_id: string
-  customer_name: string
-  customer_email?: string
-  title: string
-  description?: string
-  status: string
-  currency: string
-  subtotal: number
-  discount_amount: number
-  vat_amount: number
-  import_duty_amount?: number
-  credit_amount?: number
-  total_amount: number
-  quote_date: string
-  valid_until?: string
-  payment_terms: number
-  notes?: string
-  internal_notes?: string
-  created_at: string
-  updated_at: string
-  items?: QuoteItem[]
-  approvals?: QuoteApproval[]
+  id: string;
+  quote_number: string;
+  customer_id: string;
+  customer_name: string;
+  customer_email?: string;
+  title: string;
+  description?: string;
+  status: string;
+  currency: string;
+  subtotal: number;
+  discount_amount: number;
+  vat_amount: number;
+  import_duty_amount?: number;
+  credit_amount?: number;
+  total_amount: number;
+  quote_date: string;
+  valid_until?: string;
+  payment_terms: number;
+  notes?: string;
+  internal_notes?: string;
+  created_at: string;
+  updated_at: string;
+  items?: QuoteItem[];
+  approvals?: QuoteApproval[];
 }
 
 export default function QuoteDetailPage() {
-  const router = useRouter()
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const { user, profile } = useAuth()
-  const quoteId = params.id as string
+  const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const { user, profile } = useAuth();
+  const quoteId = params.id as string;
 
-  const [loading, setLoading] = useState(true)
-  const [quote, setQuote] = useState<Quote | null>(null)
-  const [approvalModalVisible, setApprovalModalVisible] = useState(false)
-  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve')
-  const [approvalNotes, setApprovalNotes] = useState('')
+  const [loading, setLoading] = useState(true);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [approvalModalVisible, setApprovalModalVisible] = useState(false);
+  const [approvalAction, setApprovalAction] = useState<'approve' | 'reject'>('approve');
+  const [approvalNotes, setApprovalNotes] = useState('');
 
-  const quoteService = new QuoteService()
+  const quoteService = new QuoteService();
 
   useEffect(() => {
-    fetchQuote()
-  }, [quoteId])
+    fetchQuote();
+  }, [quoteId]);
 
   const fetchQuote = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const data = await quoteService.getById(quoteId)
-      setQuote(data)
+      const data = await quoteService.getById(quoteId);
+      setQuote(data);
     } catch (error: any) {
-      message.error(`Ошибка загрузки КП: ${error.message}`)
-      router.push('/quotes')
+      message.error(`Ошибка загрузки КП: ${error.message}`);
+      router.push('/quotes');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
     try {
-      await quoteService.delete(quoteId)
-      message.success('КП успешно удалено')
-      router.push('/quotes')
+      await quoteService.delete(quoteId);
+      message.success('КП успешно удалено');
+      router.push('/quotes');
     } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`)
+      message.error(`Ошибка удаления: ${error.message}`);
     }
-  }
+  };
 
   const handleApproval = async () => {
     try {
       // This would call the backend approval endpoint
       // await quoteService.approveQuote(quoteId, approvalAction, approvalNotes)
-      message.success(
-        approvalAction === 'approve' ? 'КП утверждено' : 'КП отклонено'
-      )
-      setApprovalModalVisible(false)
-      setApprovalNotes('')
-      fetchQuote()
+      message.success(approvalAction === 'approve' ? 'КП утверждено' : 'КП отклонено');
+      setApprovalModalVisible(false);
+      setApprovalNotes('');
+      fetchQuote();
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`)
+      message.error(`Ошибка: ${error.message}`);
     }
-  }
+  };
 
   const getStatusTag = (status: string) => {
     const statusMap = {
@@ -163,13 +161,13 @@ export default function QuoteDetailPage() {
       rejected: { color: 'red', text: 'Отклонено' },
       expired: { color: 'default', text: 'Истекло' },
       cancelled: { color: 'default', text: 'Отменено' },
-    }
+    };
     const config = statusMap[status as keyof typeof statusMap] || {
       color: 'default',
       text: status,
-    }
-    return <Tag color={config.color}>{config.text}</Tag>
-  }
+    };
+    return <Tag color={config.color}>{config.text}</Tag>;
+  };
 
   const getApprovalStatusTag = (status: string) => {
     const statusMap = {
@@ -177,25 +175,25 @@ export default function QuoteDetailPage() {
       approved: { color: 'green', text: 'Утверждено', icon: <CheckOutlined /> },
       rejected: { color: 'red', text: 'Отклонено', icon: <CloseOutlined /> },
       skipped: { color: 'default', text: 'Пропущено' },
-    }
+    };
     const config = statusMap[status as keyof typeof statusMap] || {
       color: 'default',
       text: status,
-    }
+    };
     return (
       <Tag color={config.color} icon={config.icon}>
         {config.text}
       </Tag>
-    )
-  }
+    );
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ru-RU', {
       style: 'currency',
       currency: quote?.currency || 'RUB',
       minimumFractionDigits: 2,
-    }).format(amount)
-  }
+    }).format(amount);
+  };
 
   const itemColumns = [
     {
@@ -244,12 +242,12 @@ export default function QuoteDetailPage() {
       align: 'right' as const,
       render: (total: number) => <Text strong>{formatCurrency(total)}</Text>,
     },
-  ]
+  ];
 
   // Check if current user can approve
   const userApproval = quote?.approvals?.find(
     (a) => a.approver_id === user?.id && a.approval_status === 'pending'
-  )
+  );
 
   if (loading) {
     return (
@@ -258,10 +256,10 @@ export default function QuoteDetailPage() {
           <Spin size="large" />
         </div>
       </MainLayout>
-    )
+    );
   }
 
-  if (!quote) return null
+  if (!quote) return null;
 
   return (
     <MainLayout>
@@ -270,10 +268,7 @@ export default function QuoteDetailPage() {
         <Row justify="space-between" align="middle">
           <Col>
             <Space>
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={() => router.push('/quotes')}
-              >
+              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
                 Назад
               </Button>
               <Title level={2} style={{ margin: 0 }}>
@@ -290,8 +285,8 @@ export default function QuoteDetailPage() {
                     type="primary"
                     icon={<CheckOutlined />}
                     onClick={() => {
-                      setApprovalAction('approve')
-                      setApprovalModalVisible(true)
+                      setApprovalAction('approve');
+                      setApprovalModalVisible(true);
                     }}
                   >
                     Утвердить
@@ -300,8 +295,8 @@ export default function QuoteDetailPage() {
                     danger
                     icon={<CloseOutlined />}
                     onClick={() => {
-                      setApprovalAction('reject')
-                      setApprovalModalVisible(true)
+                      setApprovalAction('reject');
+                      setApprovalModalVisible(true);
                     }}
                   >
                     Отклонить
@@ -348,12 +343,8 @@ export default function QuoteDetailPage() {
             {/* Basic Info */}
             <Card title="Информация о КП">
               <Descriptions column={2} bordered>
-                <Descriptions.Item label="Номер КП">
-                  {quote.quote_number}
-                </Descriptions.Item>
-                <Descriptions.Item label="Статус">
-                  {getStatusTag(quote.status)}
-                </Descriptions.Item>
+                <Descriptions.Item label="Номер КП">{quote.quote_number}</Descriptions.Item>
+                <Descriptions.Item label="Статус">{getStatusTag(quote.status)}</Descriptions.Item>
                 <Descriptions.Item label="Клиент">
                   <a onClick={() => router.push(`/customers/${quote.customer_id}`)}>
                     {quote.customer_name}
@@ -381,9 +372,7 @@ export default function QuoteDetailPage() {
                 <Descriptions.Item label="Условия оплаты">
                   {quote.payment_terms} дней
                 </Descriptions.Item>
-                <Descriptions.Item label="Валюта">
-                  {quote.currency}
-                </Descriptions.Item>
+                <Descriptions.Item label="Валюта">{quote.currency}</Descriptions.Item>
               </Descriptions>
             </Card>
 
@@ -417,9 +406,7 @@ export default function QuoteDetailPage() {
                 </Descriptions.Item>
                 {quote.discount_amount > 0 && (
                   <Descriptions.Item label="Скидка">
-                    <Text type="danger">
-                      -{formatCurrency(quote.discount_amount)}
-                    </Text>
+                    <Text type="danger">-{formatCurrency(quote.discount_amount)}</Text>
                   </Descriptions.Item>
                 )}
                 <Descriptions.Item label="НДС (20%)">
@@ -486,9 +473,7 @@ export default function QuoteDetailPage() {
                             </Text>
                           )}
                           {approval.decision_notes && (
-                            <Text style={{ fontSize: '12px' }}>
-                              {approval.decision_notes}
-                            </Text>
+                            <Text style={{ fontSize: '12px' }}>{approval.decision_notes}</Text>
                           )}
                           {approval.revision_notes && (
                             <Text type="warning" style={{ fontSize: '12px' }}>
@@ -501,8 +486,8 @@ export default function QuoteDetailPage() {
                         approval.approval_status === 'approved'
                           ? 'finish'
                           : approval.approval_status === 'rejected'
-                          ? 'error'
-                          : 'wait',
+                            ? 'error'
+                            : 'wait',
                     }))}
                 />
               </Card>
@@ -523,15 +508,20 @@ export default function QuoteDetailPage() {
                     ),
                   },
                   ...(quote.approvals?.map((approval) => ({
-                    color: approval.approval_status === 'approved' ? 'green' : approval.approval_status === 'rejected' ? 'red' : 'blue',
+                    color:
+                      approval.approval_status === 'approved'
+                        ? 'green'
+                        : approval.approval_status === 'rejected'
+                          ? 'red'
+                          : 'blue',
                     children: (
                       <Space direction="vertical" size={0}>
                         <Text strong>
                           {approval.approval_status === 'approved'
                             ? 'Утверждено'
                             : approval.approval_status === 'rejected'
-                            ? 'Отклонено'
-                            : 'Назначен утверждающий'}
+                              ? 'Отклонено'
+                              : 'Назначен утверждающий'}
                         </Text>
                         <Text type="secondary">{approval.approver_name}</Text>
                         {approval.decided_at && (
@@ -555,8 +545,8 @@ export default function QuoteDetailPage() {
         open={approvalModalVisible}
         onOk={handleApproval}
         onCancel={() => {
-          setApprovalModalVisible(false)
-          setApprovalNotes('')
+          setApprovalModalVisible(false);
+          setApprovalNotes('');
         }}
         okText={approvalAction === 'approve' ? 'Утвердить' : 'Отклонить'}
         cancelText="Отмена"
@@ -573,9 +563,7 @@ export default function QuoteDetailPage() {
           <TextArea
             rows={4}
             placeholder={
-              approvalAction === 'approve'
-                ? 'Комментарий (необязательно)'
-                : 'Причина отклонения'
+              approvalAction === 'approve' ? 'Комментарий (необязательно)' : 'Причина отклонения'
             }
             value={approvalNotes}
             onChange={(e) => setApprovalNotes(e.target.value)}
@@ -583,5 +571,5 @@ export default function QuoteDetailPage() {
         </Space>
       </Modal>
     </MainLayout>
-  )
+  );
 }

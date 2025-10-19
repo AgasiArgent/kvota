@@ -1,67 +1,54 @@
-'use client'
+'use client';
 
-import React, { useState, Suspense } from 'react'
-import {
-  Card,
-  Form,
-  Input,
-  Button,
-  Typography,
-  Space,
-  Divider,
-  Alert,
-  Row,
-  Col,
-  Spin,
-} from 'antd'
-import {
-  LockOutlined,
-  MailOutlined,
-} from '@ant-design/icons'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuth } from '@/lib/auth/AuthProvider'
-import Link from 'next/link'
+import React, { useState, Suspense } from 'react';
+import { Card, Form, Input, Button, Typography, Space, Divider, Alert, Row, Col, Spin } from 'antd';
+import { LockOutlined, MailOutlined } from '@ant-design/icons';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import Link from 'next/link';
 
-const { Title, Text, Paragraph } = Typography
+const { Title, Text, Paragraph } = Typography;
 
 function LoginForm() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const { signIn } = useAuth()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') || '/onboarding'
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { signIn } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirectTo') || '/onboarding';
 
   const handleSubmit = async (values: { email: string; password: string }) => {
-    setLoading(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
-      const { error } = await signIn(values.email, values.password)
+      const { error } = await signIn(values.email, values.password);
 
       if (error) {
-        setError(error.message)
-        return
+        setError(error.message);
+        return;
       }
 
       // Use full page redirect to let middleware determine correct destination
-      window.location.href = redirectTo
+      window.location.href = redirectTo;
     } catch {
-      setError('Произошла неожиданная ошибка')
+      setError('Произошла неожиданная ошибка');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px'
-    }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+      }}
+    >
       <Row justify="center" style={{ width: '100%', maxWidth: '1200px' }}>
         <Col xs={24} sm={20} md={16} lg={12} xl={8}>
           <Card
@@ -182,23 +169,27 @@ function LoginForm() {
         </Col>
       </Row>
     </div>
-  )
+  );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <Spin size="large" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Spin size="large" />
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
-  )
+  );
 }

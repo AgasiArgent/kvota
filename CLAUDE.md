@@ -254,8 +254,11 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - **Pre-commit hooks:** Auto-format and lint before commits
 
 ### MCP Servers (Model Context Protocol)
+- **postgres** - Direct Supabase database queries and schema inspection ✅ Working
+- **github** - GitHub issue and PR management from Claude (Token configured, testing after reload)
 - **chrome-devtools** - Browser debugging via remote debugging port 9222
-- **Recommended:** See `.claude/RECOMMENDED_MCP_SERVERS.md` for more
+- **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers)
+- **See:** `.claude/RECOMMENDED_MCP_SERVERS.md` for configuration details and additional optional servers
 
 ### Database
 - **Supabase PostgreSQL** - Multi-tenant with RLS

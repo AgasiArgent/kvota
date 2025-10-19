@@ -5,48 +5,49 @@ const { chromium } = require('playwright');
 
   const browser = await chromium.launch({
     headless: false,
-    slowMo: 500 // Slow down actions for visibility
+    slowMo: 500, // Slow down actions for visibility
   });
 
   const page = await browser.newPage();
 
   // Capture all console messages
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     const type = msg.type();
     const text = msg.text();
-    const emoji = {
-      'log': '📝',
-      'info': 'ℹ️',
-      'warn': '⚠️',
-      'error': '❌',
-      'debug': '🐛'
-    }[type] || '💬';
+    const emoji =
+      {
+        log: '📝',
+        info: 'ℹ️',
+        warn: '⚠️',
+        error: '❌',
+        debug: '🐛',
+      }[type] || '💬';
     console.log(`${emoji} [Console ${type}]: ${text}`);
   });
 
   // Capture page errors
-  page.on('pageerror', err => {
+  page.on('pageerror', (err) => {
     console.log('❌ [Page Error]:', err.message);
     console.log('Stack:', err.stack);
   });
 
   // Capture failed requests
-  page.on('requestfailed', request => {
+  page.on('requestfailed', (request) => {
     console.log(`❌ [Request Failed]: ${request.url()}`);
     console.log(`   Failure: ${request.failure().errorText}`);
   });
 
   // Capture all network requests
   const requests = [];
-  page.on('request', request => {
+  page.on('request', (request) => {
     requests.push({
       url: request.url(),
       method: request.method(),
-      headers: request.headers()
+      headers: request.headers(),
     });
   });
 
-  page.on('response', async response => {
+  page.on('response', async (response) => {
     const url = response.url();
     const status = response.status();
 
@@ -71,7 +72,7 @@ const { chromium } = require('playwright');
     console.log('\n📍 Navigating to login page...');
     await page.goto('http://localhost:3000/auth/login', {
       waitUntil: 'networkidle',
-      timeout: 30000
+      timeout: 30000,
     });
 
     console.log('✅ Login page loaded');
@@ -116,8 +117,8 @@ const { chromium } = require('playwright');
       console.log('\n⚠️  Still on login page - login might have failed');
 
       // Look for error messages
-      const errorMessages = await page.$$eval('[class*="error"], [role="alert"]',
-        elements => elements.map(el => el.textContent)
+      const errorMessages = await page.$$eval('[class*="error"], [role="alert"]', (elements) =>
+        elements.map((el) => el.textContent)
       );
       if (errorMessages.length > 0) {
         console.log('   Error messages found:', errorMessages);
@@ -128,9 +129,10 @@ const { chromium } = require('playwright');
 
     // Check local storage for auth token
     const hasToken = await page.evaluate(() => {
-      const token = localStorage.getItem('auth_token') ||
-                    localStorage.getItem('supabase.auth.token') ||
-                    localStorage.getItem('sb-wstwwmiihkzlgvlymlfd-auth-token');
+      const token =
+        localStorage.getItem('auth_token') ||
+        localStorage.getItem('supabase.auth.token') ||
+        localStorage.getItem('sb-wstwwmiihkzlgvlymlfd-auth-token');
       return !!token;
     });
     console.log('🔑 Auth token in localStorage:', hasToken ? 'YES' : 'NO');
@@ -138,7 +140,6 @@ const { chromium } = require('playwright');
     // Wait a bit before closing
     console.log('\n⏳ Waiting 5 seconds before closing...');
     await page.waitForTimeout(5000);
-
   } catch (error) {
     console.log('\n💥 TEST FAILED WITH ERROR:');
     console.log(error);

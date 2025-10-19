@@ -5,11 +5,11 @@ const { chromium } = require('playwright');
 
   const browser = await chromium.launch({
     headless: false,
-    args: ['--start-maximized']
+    args: ['--start-maximized'],
   });
 
   const context = await browser.newContext({
-    viewport: null
+    viewport: null,
   });
 
   const page = await context.newPage();

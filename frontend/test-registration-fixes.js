@@ -5,14 +5,14 @@ const { chromium } = require('playwright');
 
   const browser = await chromium.launch({
     headless: false,
-    slowMo: 500  // Slow down actions to see what's happening
+    slowMo: 500, // Slow down actions to see what's happening
   });
 
   const context = await browser.newContext();
   const page = await context.newPage();
 
   // Capture console logs
-  page.on('console', msg => {
+  page.on('console', (msg) => {
     const type = msg.type();
     if (type === 'error') console.log('❌ Browser Error:', msg.text());
     else if (type === 'warning') console.log('⚠️  Browser Warning:', msg.text());
@@ -91,7 +91,6 @@ const { chromium } = require('playwright');
     console.log('\n✅ All registration tests completed!');
     console.log('\n⏸️  Browser will stay open for 10 seconds for inspection...');
     await page.waitForTimeout(10000);
-
   } catch (error) {
     console.error('\n❌ Test Error:', error.message);
     await page.screenshot({ path: 'screenshots/test-error.png' });

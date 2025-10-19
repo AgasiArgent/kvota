@@ -6,28 +6,28 @@ const { chromium } = require('playwright');
   try {
     const browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     const page = await browser.newPage();
 
     // Capture all console messages
-    page.on('console', msg => {
+    page.on('console', (msg) => {
       console.log(`[Console ${msg.type()}]: ${msg.text()}`);
     });
 
     // Capture page errors
-    page.on('pageerror', err => {
+    page.on('pageerror', (err) => {
       console.log('❌ [Page Error]:', err.message);
     });
 
     // Capture failed requests
-    page.on('requestfailed', request => {
+    page.on('requestfailed', (request) => {
       console.log(`❌ [Request Failed]: ${request.url()}`);
     });
 
     // Capture API responses
-    page.on('response', async response => {
+    page.on('response', async (response) => {
       const url = response.url();
       const status = response.status();
 
@@ -48,7 +48,7 @@ const { chromium } = require('playwright');
     console.log('📍 Navigating to login page...');
     await page.goto('http://localhost:3000/auth/login', {
       waitUntil: 'networkidle',
-      timeout: 30000
+      timeout: 30000,
     });
 
     console.log('✅ Login page loaded');
@@ -72,8 +72,8 @@ const { chromium } = require('playwright');
       console.log('✅ LOGIN SUCCESSFUL!');
     } else if (currentUrl.includes('/login')) {
       console.log('⚠️  Still on login page');
-      const errorMessages = await page.$$eval('[class*="error"], [role="alert"]',
-        elements => elements.map(el => el.textContent)
+      const errorMessages = await page.$$eval('[class*="error"], [role="alert"]', (elements) =>
+        elements.map((el) => el.textContent)
       );
       if (errorMessages.length > 0) {
         console.log('   Errors:', errorMessages);
@@ -81,16 +81,16 @@ const { chromium } = require('playwright');
     }
 
     const hasToken = await page.evaluate(() => {
-      const token = localStorage.getItem('auth_token') ||
-                    localStorage.getItem('supabase.auth.token') ||
-                    localStorage.getItem('sb-wstwwmiihkzlgvlymlfd-auth-token');
+      const token =
+        localStorage.getItem('auth_token') ||
+        localStorage.getItem('supabase.auth.token') ||
+        localStorage.getItem('sb-wstwwmiihkzlgvlymlfd-auth-token');
       return !!token;
     });
     console.log('🔑 Auth token:', hasToken ? 'YES' : 'NO');
 
     await browser.close();
     console.log('\n✅ Test complete!');
-
   } catch (error) {
     console.log('\n💥 TEST FAILED:');
     console.log(error.message);

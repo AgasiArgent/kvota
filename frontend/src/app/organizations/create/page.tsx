@@ -1,83 +1,73 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
-import {
-  Form,
-  Input,
-  Button,
-  Card,
-  Space,
-  Typography,
-  Row,
-  Col,
-  message,
-} from 'antd'
-import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons'
-import { useRouter } from 'next/navigation'
-import MainLayout from '@/components/layout/MainLayout'
-import { organizationService } from '@/lib/api/organization-service'
-import { OrganizationCreate } from '@/lib/types/organization'
+import React, { useState } from 'react';
+import { Form, Input, Button, Card, Space, Typography, Row, Col, message } from 'antd';
+import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { organizationService } from '@/lib/api/organization-service';
+import { OrganizationCreate } from '@/lib/types/organization';
 
-const { Title, Text } = Typography
-const { TextArea } = Input
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 export default function CreateOrganizationPage() {
-  const router = useRouter()
-  const [form] = Form.useForm()
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
 
   // Auto-generate slug from name
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const name = e.target.value
+    const name = e.target.value;
     if (name) {
-      const slug = organizationService.generateSlug(name)
-      form.setFieldValue('slug', slug)
+      const slug = organizationService.generateSlug(name);
+      form.setFieldValue('slug', slug);
     }
-  }
+  };
 
   const handleSubmit = async (values: OrganizationCreate) => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const result = await organizationService.createOrganization(values)
+      const result = await organizationService.createOrganization(values);
 
       if (result.success && result.data) {
-        message.success('Организация успешно создана')
-        router.push('/organizations')
+        message.success('Организация успешно создана');
+        router.push('/organizations');
       } else {
-        message.error(result.error || 'Ошибка создания организации')
+        message.error(result.error || 'Ошибка создания организации');
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`)
+      message.error(`Ошибка: ${error.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // Custom validator for slug format
   const validateSlug = (_: any, value: string) => {
     if (!value) {
-      return Promise.reject(new Error('Введите уникальный идентификатор'))
+      return Promise.reject(new Error('Введите уникальный идентификатор'));
     }
 
     // Check format: lowercase, alphanumeric + hyphens
-    const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+    const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
     if (!slugRegex.test(value)) {
       return Promise.reject(
         new Error('Идентификатор может содержать только строчные латинские буквы, цифры и дефисы')
-      )
+      );
     }
 
     // Check length
     if (value.length < 3) {
-      return Promise.reject(new Error('Минимум 3 символа'))
+      return Promise.reject(new Error('Минимум 3 символа'));
     }
 
     if (value.length > 50) {
-      return Promise.reject(new Error('Максимум 50 символов'))
+      return Promise.reject(new Error('Максимум 50 символов'));
     }
 
-    return Promise.resolve()
-  }
+    return Promise.resolve();
+  };
 
   return (
     <MainLayout>
@@ -86,10 +76,7 @@ export default function CreateOrganizationPage() {
         <Row justify="space-between" align="middle">
           <Col>
             <Space>
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={() => router.push('/organizations')}
-              >
+              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/organizations')}>
                 Назад
               </Button>
               <Title level={2} style={{ margin: 0 }}>
@@ -102,12 +89,7 @@ export default function CreateOrganizationPage() {
         {/* Form */}
         <Row gutter={24}>
           <Col xs={24} lg={16}>
-            <Form
-              form={form}
-              layout="vertical"
-              onFinish={handleSubmit}
-              requiredMark="optional"
-            >
+            <Form form={form} layout="vertical" onFinish={handleSubmit} requiredMark="optional">
               <Card title="Информация об организации">
                 <Row gutter={16}>
                   <Col xs={24}>
@@ -140,10 +122,7 @@ export default function CreateOrganizationPage() {
                         </Text>
                       }
                     >
-                      <Input
-                        size="large"
-                        placeholder="moya-kompaniya"
-                      />
+                      <Input size="large" placeholder="moya-kompaniya" />
                     </Form.Item>
                   </Col>
 
@@ -151,9 +130,7 @@ export default function CreateOrganizationPage() {
                     <Form.Item
                       name="description"
                       label="Описание"
-                      rules={[
-                        { max: 500, message: 'Максимум 500 символов' },
-                      ]}
+                      rules={[{ max: 500, message: 'Максимум 500 символов' }]}
                     >
                       <TextArea
                         rows={4}
@@ -179,11 +156,7 @@ export default function CreateOrganizationPage() {
                   >
                     Создать организацию
                   </Button>
-                  <Button
-                    size="large"
-                    block
-                    onClick={() => router.push('/organizations')}
-                  >
+                  <Button size="large" block onClick={() => router.push('/organizations')}>
                     Отмена
                   </Button>
                 </Space>
@@ -198,17 +171,15 @@ export default function CreateOrganizationPage() {
                 <div>
                   <Text strong>Название организации</Text>
                   <br />
-                  <Text type="secondary">
-                    Полное название вашей организации или компании
-                  </Text>
+                  <Text type="secondary">Полное название вашей организации или компании</Text>
                 </div>
 
                 <div>
                   <Text strong>Уникальный идентификатор</Text>
                   <br />
                   <Text type="secondary">
-                    Используется для создания уникального URL организации.
-                    Автоматически генерируется из названия.
+                    Используется для создания уникального URL организации. Автоматически
+                    генерируется из названия.
                   </Text>
                 </div>
 
@@ -226,10 +197,18 @@ export default function CreateOrganizationPage() {
               <Space direction="vertical" size="small">
                 <Text>После создания организации вы сможете:</Text>
                 <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
-                  <li><Text type="secondary">Пригласить участников команды</Text></li>
-                  <li><Text type="secondary">Настроить роли и права доступа</Text></li>
-                  <li><Text type="secondary">Управлять настройками организации</Text></li>
-                  <li><Text type="secondary">Создавать коммерческие предложения</Text></li>
+                  <li>
+                    <Text type="secondary">Пригласить участников команды</Text>
+                  </li>
+                  <li>
+                    <Text type="secondary">Настроить роли и права доступа</Text>
+                  </li>
+                  <li>
+                    <Text type="secondary">Управлять настройками организации</Text>
+                  </li>
+                  <li>
+                    <Text type="secondary">Создавать коммерческие предложения</Text>
+                  </li>
                 </ul>
               </Space>
             </Card>
@@ -237,5 +216,5 @@ export default function CreateOrganizationPage() {
         </Row>
       </Space>
     </MainLayout>
-  )
+  );
 }

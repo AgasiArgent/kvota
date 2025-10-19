@@ -37,7 +37,7 @@ const { chromium } = require('playwright');
   }
 
   // Find the Supabase auth key
-  const authKey = Object.keys(allStorage).find(k => k.includes('auth-token'));
+  const authKey = Object.keys(allStorage).find((k) => k.includes('auth-token'));
   if (authKey) {
     const data = JSON.parse(allStorage[authKey]);
     console.log('\n=== Token Info ===');
