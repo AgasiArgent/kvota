@@ -1,0 +1,225 @@
+# Kvota - B2B Quotation Platform
+# .gitignore
+
+# ============================================================================
+# SECRETS & ENVIRONMENT VARIABLES (NEVER COMMIT THESE!)
+# ============================================================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# ============================================================================
+# FRONTEND (Next.js + React)
+# ============================================================================
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Next.js build output
+.next/
+out/
+frontend/.next/
+frontend/out/
+
+# Production build
+build/
+dist/
+frontend/build/
+frontend/dist/
+
+# Turbopack cache
+.turbo/
+frontend/.turbo/
+
+# Testing
+coverage/
+.nyc_output/
+frontend/coverage/
+
+# Misc
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IDE - WebStorm/IntelliJ
+.idea/
+*.iml
+*.iws
+
+# ============================================================================
+# BACKEND (Python + FastAPI)
+# ============================================================================
+
+# Python virtual environment
+venv/
+env/
+ENV/
+backend/venv/
+backend/env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ============================================================================
+# DATABASE & MIGRATIONS
+# ============================================================================
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Database dumps
+*.dump
+*.sql.backup
+
+# Migration temporary files
+*_temp.sql
+*_backup.sql
+
+# ============================================================================
+# DOCUMENTATION & LOGS
+# ============================================================================
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+.pnpm-debug.log*
+backend/logs/
+
+# Documentation builds
+docs/_build/
+site/
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================================================
+# TEMPORARY FILES
+# ============================================================================
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.#*
+
+# Upload directories (if storing user uploads locally)
+uploads/
+temp/
+tmp/
+
+# ============================================================================
+# TESTING & CI/CD
+# ============================================================================
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# E2E screenshots/videos
+screenshots/
+videos/
+
+# ============================================================================
+# CLAUDE CODE
+# ============================================================================
+
+# Claude Code local settings (keep in repo)
+# .claude/settings.local.json
+
+# But ignore any future local overrides
+.claude/*.local.*
+.claude/temp/
+.claude/cache/
+
+# ============================================================================
+# OPTIONAL: Backup files
+# ============================================================================
+
+*.bak
+*.backup
+*_backup
+*_old

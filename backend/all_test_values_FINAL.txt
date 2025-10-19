@@ -1,0 +1,1472 @@
+====================================================================================================
+B2B QUOTATION CALCULATOR - ALL TEST VALUES FOR EXCEL COMPARISON
+====================================================================================================
+
+========================================================================================================================
+                           TEST 1: Baseline SUPPLY RU->Turkey DDP 50% advance (FIXED DM fee)                            
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 1 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,243.20
+V16        Total logistics                                      4,043.20
+Y16        Customs fee                                         47,142.86
+AY16       Internal sale price total                          942,857.20
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                12,872.12
+BL5        Credit sales interest                                6,694.54
+BA16       Initial financing per product                       12,872.12
+BB16       Credit interest per product                          6,694.54
+AB16       COGS per product                                   927,895.62
+AA16       COGS per unit                                       92,789.56
+AF16       Profit                                             139,184.34
+AG16       DM fee                                               1,000.00
+AD16       Sale price/unit (excl financial)                   106,708.00
+AJ16       Sales price per unit (no VAT)                      112,348.75
+AK16       Sales price total (no VAT)                       1,123,487.50
+AL16       FINAL PRICE (with VAT)                           1,348,185.00
+AP16       Net VAT payable                                     26,697.49
+AQ16       Transit commission                                       0.00
+----------------------------------------------------------------------------------------------------
+
+
+====================================================================================================
+TEST 1: Baseline SUPPLY RU->Turkey DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,243.20    V16  =        4,043.20
+AX16 =       94,285.72    AY16 =      942,857.20
+Y16  =       47,142.86    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,287,393.81
+BH3  =      643,696.91    BH7  =      405,446.00
+BI7  =      418,228.10    BJ7  =       12,782.10
+BH10 =        2,855.50    BI10 =        2,945.52
+BJ10 =           90.02    BJ11 =       12,872.12
+BL3  =      643,696.90    BL4  =      650,391.44
+BL5  =        6,694.54
+BA16 =       12,872.12    BB16 =        6,694.54
+AA16 =       92,789.56    AB16 =      927,895.62
+AB13 =      927,895.62
+AF16 =      139,184.34    AG16 =        1,000.00
+AH16 =       32,722.94    AI16 =       22,684.57
+AD16 =      106,708.00    AE16 =    1,067,080.00
+AJ16 =      112,348.75    AK16 =    1,123,487.50
+AM16 =      134,818.50    AL16 =    1,348,185.00
+AN16 =      224,697.50    AO16 =      198,000.01
+AP16 =       26,697.49
+AQ16 =            0.00
+
+
+========================================================================================================================
+                               TEST 2: TRANSIT RU->Turkey DDP 50% advance (FIXED DM fee)                                
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 2 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,243.20
+V16        Total logistics                                      4,043.20
+Y16        Customs fee                                         42,857.15
+AY16       Internal sale price total                          942,857.20
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                12,967.78
+BL5        Credit sales interest                                6,662.98
+BA16       Initial financing per product                       12,967.78
+BB16       Credit interest per product                          6,662.98
+AB16       COGS per product                                   923,674.01
+AA16       COGS per unit                                       92,367.40
+AF16       Profit                                             128,571.44
+AG16       DM fee                                               1,000.00
+AD16       Sale price/unit (excl financial)                    98,571.43
+AJ16       Sales price per unit (no VAT)                      110,621.20
+AK16       Sales price total (no VAT)                       1,106,212.00
+AL16       FINAL PRICE (with VAT)                           1,327,454.40
+AP16       Net VAT payable                                     24,099.53
+AQ16       Transit commission                                 202,168.74
+----------------------------------------------------------------------------------------------------
+
+TRANSIT-SPECIFIC CHECKS:
+  - AF16 (Profit) should be based on S16 (not AB16)
+  - AD16 (Sale price excl financial) should use S16 (not AB16)
+  - AQ16 (Transit commission) should be > 0: 202,168.74
+
+
+====================================================================================================
+TEST 2: TRANSIT RU->Turkey DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,243.20    V16  =        4,043.20
+AX16 =       94,285.72    AY16 =      942,857.20
+Y16  =       42,857.15    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,281,325.25
+BH3  =      640,662.63    BH7  =      408,480.28
+BI7  =      421,358.04    BJ7  =       12,877.76
+BH10 =        2,855.50    BI10 =        2,945.52
+BJ10 =           90.02    BJ11 =       12,967.78
+BL3  =      640,662.62    BL4  =      647,325.60
+BL5  =        6,662.98
+BA16 =       12,967.78    BB16 =        6,662.98
+AA16 =       92,367.40    AB16 =      923,674.01
+AB13 =      923,674.01
+AF16 =      128,571.44    AG16 =        1,000.00
+AH16 =       30,281.97    AI16 =       22,684.57
+AD16 =       98,571.43    AE16 =      985,714.30
+AJ16 =      110,621.20    AK16 =    1,106,212.00
+AM16 =      132,745.44    AL16 =    1,327,454.40
+AN16 =      221,242.40    AO16 =      197,142.87
+AP16 =       24,099.53
+AQ16 =      202,168.74
+
+
+========================================================================================================================
+                               TEST 3: EXPORT RU->Turkey DAP 100% advance (FIXED DM fee)                                
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 3 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,243.20
+V16        Total logistics                                      4,043.20
+Y16        Customs fee                                              0.00
+AY16       Internal sale price total                          942,857.20
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                     0.00
+BL5        Credit sales interest                                    0.00
+BA16       Initial financing per product                            0.00
+BB16       Credit interest per product                              0.00
+AB16       COGS per product                                   861,186.10
+AA16       COGS per unit                                       86,118.61
+AF16       Profit                                             128,571.44
+AG16       DM fee                                               1,000.00
+AD16       Sale price/unit (excl financial)                    98,571.43
+AJ16       Sales price per unit (no VAT)                      102,035.90
+AK16       Sales price total (no VAT)                       1,020,359.00
+AL16       FINAL PRICE (with VAT)                           1,020,359.00
+AP16       Net VAT payable                                          0.00
+AQ16       Transit commission                                       0.00
+----------------------------------------------------------------------------------------------------
+
+EXPORT-SPECIFIC CHECKS:
+  - AI16 (Financial agent fee) should be 0: 0.00
+  - Y16 (Customs fee) should be 0 (DAP): 0.00
+  - AO16 (Import VAT) should be 0: 0.00
+  - AM16 = AJ16 (no VAT added): 102,035.90 vs 102,035.90
+
+
+====================================================================================================
+TEST 3: EXPORT RU->Turkey DAP 100% advance (FIXED DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,243.20    V16  =        4,043.20
+AX16 =       94,285.72    AY16 =      942,857.20
+Y16  =            0.00    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,220,639.51
+BH3  =    1,220,639.51    BH7  =            0.00
+BI7  =            0.00    BJ7  =            0.00
+BH10 =            0.00    BI10 =            0.00
+BJ10 =            0.00    BJ11 =            0.00
+BL3  =            0.00    BL4  =            0.00
+BL5  =            0.00
+BA16 =            0.00    BB16 =            0.00
+AA16 =       86,118.61    AB16 =      861,186.10
+AB13 =      861,186.10
+AF16 =      128,571.44    AG16 =        1,000.00
+AH16 =       29,601.43    AI16 =            0.00
+AD16 =       98,571.43    AE16 =      985,714.30
+AJ16 =      102,035.90    AK16 =    1,020,359.00
+AM16 =      102,035.90    AL16 =    1,020,359.00
+AN16 =            0.00    AO16 =            0.00
+AP16 =            0.00
+AQ16 =            0.00
+
+
+========================================================================================================================
+                       TEST 4: SUPPLY TR (Turkish seller)->Turkey DDP 50% advance (FIXED DM fee)                        
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 4 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,202.90
+V16        Total logistics                                      4,002.90
+Y16        Customs fee                                              0.00
+AY16       Internal sale price total                          857,142.90
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                17,131.95
+BL5        Credit sales interest                                5,289.26
+BA16       Initial financing per product                       17,131.95
+BB16       Credit interest per product                          5,289.26
+AB16       COGS per product                                   883,567.01
+AA16       COGS per unit                                       88,356.70
+AF16       Profit                                             132,535.05
+AG16       DM fee                                               1,000.00
+AD16       Sale price/unit (excl financial)                   101,610.21
+AJ16       Sales price per unit (no VAT)                      104,761.51
+AK16       Sales price total (no VAT)                       1,047,615.10
+AL16       FINAL PRICE (with VAT)                           1,047,615.10
+AP16       Net VAT payable                                          0.00
+AQ16       Transit commission                                       0.00
+----------------------------------------------------------------------------------------------------
+
+TURKISH SELLER-SPECIFIC CHECKS:
+  - AI16 (Financial agent fee) should be 0: 0.00
+  - Internal markup (AW16) should be 0%: Turkey->TR = 0%
+  - rate_vatRu should be 0% (not implemented for TR)
+
+
+====================================================================================================
+TEST 4: Turkish Seller TR->Turkey DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,202.90    V16  =        4,002.90
+AX16 =       85,714.29    AY16 =      857,142.90
+Y16  =            0.00    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,017,152.04
+BH3  =      508,576.02    BH7  =      540,566.89
+BI7  =      557,608.82    BJ7  =       17,041.93
+BH10 =        2,855.50    BI10 =        2,945.52
+BJ10 =           90.02    BJ11 =       17,131.95
+BL3  =      508,576.02    BL4  =      513,865.28
+BL5  =        5,289.26
+BA16 =       17,131.95    BB16 =        5,289.26
+AA16 =       88,356.70    AB16 =      883,567.01
+AB13 =      883,567.01
+AF16 =      132,535.05    AG16 =        1,000.00
+AH16 =       30,513.06    AI16 =            0.00
+AD16 =      101,610.21    AE16 =    1,016,102.10
+AJ16 =      104,761.51    AK16 =    1,047,615.10
+AM16 =      104,761.51    AL16 =    1,047,615.10
+AN16 =            0.00    AO16 =            0.00
+AP16 =            0.00
+AQ16 =            0.00
+
+
+========================================================================================================================
+                                TEST 5: SUPPLY RU->Turkey DAP 0% advance (FIXED DM fee)                                 
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 5 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,243.20
+V16        Total logistics                                      4,043.20
+Y16        Customs fee                                              0.00
+AY16       Internal sale price total                          942,857.20
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                33,165.33
+BL5        Credit sales interest                               12,694.82
+BA16       Initial financing per product                       33,165.33
+BB16       Credit interest per product                         12,694.82
+AB16       COGS per product                                   907,046.25
+AA16       COGS per unit                                       90,704.63
+AF16       Profit                                             136,056.94
+AG16       DM fee                                               1,000.00
+AD16       Sale price/unit (excl financial)                   104,310.32
+AJ16       Sales price per unit (no VAT)                      109,879.14
+AK16       Sales price total (no VAT)                       1,098,791.40
+AL16       FINAL PRICE (with VAT)                           1,098,791.40
+AP16       Net VAT payable                                          0.00
+AQ16       Transit commission                                       0.00
+----------------------------------------------------------------------------------------------------
+
+NON-DDP SPECIFIC CHECKS:
+  - Y16 (Customs fee) should be 0: 0.00
+  - AO16 (Import VAT) should be 0: 0.00
+  - AM16 = AJ16 (no VAT added): 109,879.14 vs 109,879.14
+
+ZERO ADVANCE CHECKS:
+  - BH7 (Supplier financing) should be high: 1,049,142.91
+  - BL3 (Credit sales amount) should equal BH2: 1,220,639.51
+
+
+====================================================================================================
+TEST 5: SUPPLY RU->Turkey DAP 0% advance (FIXED DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,243.20    V16  =        4,043.20
+AX16 =       94,285.72    AY16 =      942,857.20
+Y16  =            0.00    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,220,639.51
+BH3  =            0.00    BH7  =    1,049,142.91
+BI7  =    1,082,218.23    BJ7  =       33,075.32
+BH10 =        2,855.00    BI10 =        2,945.01
+BJ10 =           90.01    BJ11 =       33,165.33
+BL3  =    1,220,639.51    BL4  =    1,233,334.33
+BL5  =       12,694.82
+BA16 =       33,165.33    BB16 =       12,694.82
+AA16 =       90,704.63    AB16 =      907,046.25
+AB13 =      907,046.25
+AF16 =      136,056.94    AG16 =        1,000.00
+AH16 =       32,003.63    AI16 =       22,684.57
+AD16 =      104,310.32    AE16 =    1,043,103.20
+AJ16 =      109,879.14    AK16 =    1,098,791.40
+AM16 =      109,879.14    AL16 =    1,098,791.40
+AN16 =            0.00    AO16 =            0.00
+AP16 =            0.00
+AQ16 =            0.00
+
+
+========================================================================================================================
+                               TEST 6: SUPPLY RU->Turkey DDP 100% advance (FIXED DM fee)                                
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 6 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,243.20
+V16        Total logistics                                      4,043.20
+Y16        Customs fee                                         47,142.86
+AY16       Internal sale price total                          942,857.20
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                     0.00
+BL5        Credit sales interest                                    0.00
+BA16       Initial financing per product                            0.00
+BB16       Credit interest per product                              0.00
+AB16       COGS per product                                   908,328.96
+AA16       COGS per unit                                       90,832.90
+AF16       Profit                                             136,249.34
+AG16       DM fee                                               1,000.00
+AD16       Sale price/unit (excl financial)                   104,457.83
+AJ16       Sales price per unit (no VAT)                      110,031.08
+AK16       Sales price total (no VAT)                       1,100,310.80
+AL16       FINAL PRICE (with VAT)                           1,320,373.00
+AP16       Net VAT payable                                     22,062.19
+AQ16       Transit commission                                       0.00
+----------------------------------------------------------------------------------------------------
+
+FULL ADVANCE CHECKS:
+  - BH3 (Client advance) should equal BH2: 1,287,393.81 vs 1,287,393.81
+  - BH7 (Supplier financing) should be 0 or very low: 0.00
+  - BL3 (Credit sales amount) should be 0: 0.00
+  - BA16+BB16 (Total financing) should be minimal: 0.00
+
+
+====================================================================================================
+TEST 6: SUPPLY RU->Turkey DDP 100% advance (FIXED DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,243.20    V16  =        4,043.20
+AX16 =       94,285.72    AY16 =      942,857.20
+Y16  =       47,142.86    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,287,393.81
+BH3  =    1,287,393.81    BH7  =            0.00
+BI7  =            0.00    BJ7  =            0.00
+BH10 =            0.00    BI10 =            0.00
+BJ10 =            0.00    BJ11 =            0.00
+BL3  =            0.00    BL4  =            0.00
+BL5  =            0.00
+BA16 =            0.00    BB16 =            0.00
+AA16 =       90,832.90    AB16 =      908,328.96
+AB13 =      908,328.96
+AF16 =      136,249.34    AG16 =        1,000.00
+AH16 =       32,047.89    AI16 =       22,684.57
+AD16 =      104,457.83    AE16 =    1,044,578.30
+AJ16 =      110,031.08    AK16 =    1,100,310.80
+AM16 =      132,037.30    AL16 =    1,320,373.00
+AN16 =      220,062.20    AO16 =      198,000.01
+AP16 =       22,062.19
+AQ16 =            0.00
+
+
+========================================================================================================================
+                                TEST 7: SUPPLY RU->Turkey DDP 0% advance (FIXED DM fee)                                 
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 7 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,243.20
+V16        Total logistics                                      4,043.20
+Y16        Customs fee                                         47,142.86
+AY16       Internal sale price total                          942,857.20
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                33,165.33
+BL5        Credit sales interest                               13,389.08
+BA16       Initial financing per product                       33,165.33
+BB16       Credit interest per product                         13,389.08
+AB16       COGS per product                                   954,883.37
+AA16       COGS per unit                                       95,488.34
+AF16       Profit                                             143,232.51
+AG16       DM fee                                               1,000.00
+AD16       Sale price/unit (excl financial)                   109,811.59
+AJ16       Sales price per unit (no VAT)                      115,545.45
+AK16       Sales price total (no VAT)                       1,155,454.50
+AL16       FINAL PRICE (with VAT)                           1,386,545.40
+AP16       Net VAT payable                                     33,090.89
+AQ16       Transit commission                                       0.00
+----------------------------------------------------------------------------------------------------
+
+ZERO ADVANCE CHECKS:
+  - BH3 (Client advance) should be 0: 0.00
+  - BH7 (Supplier financing) should equal BH6: 1,049,142.91 vs 1,049,142.91
+  - BL3 (Credit sales amount) should equal BH2: 1,287,393.81 vs 1,287,393.81
+  - BA16+BB16 (Total financing) should be MAXIMUM: 46,554.41
+
+
+====================================================================================================
+TEST 7: SUPPLY RU->Turkey DDP 0% advance (FIXED DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,243.20    V16  =        4,043.20
+AX16 =       94,285.72    AY16 =      942,857.20
+Y16  =       47,142.86    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,287,393.81
+BH3  =            0.00    BH7  =    1,049,142.91
+BI7  =    1,082,218.23    BJ7  =       33,075.32
+BH10 =        2,855.00    BI10 =        2,945.01
+BJ10 =           90.01    BJ11 =       33,165.33
+BL3  =    1,287,393.81    BL4  =    1,300,782.89
+BL5  =       13,389.08
+BA16 =       33,165.33    BB16 =       13,389.08
+AA16 =       95,488.34    AB16 =      954,883.37
+AB13 =      954,883.37
+AF16 =      143,232.51    AG16 =        1,000.00
+AH16 =       33,654.01    AI16 =       22,684.57
+AD16 =      109,811.59    AE16 =    1,098,115.90
+AJ16 =      115,545.45    AK16 =    1,155,454.50
+AM16 =      138,654.54    AL16 =    1,386,545.40
+AN16 =      231,090.90    AO16 =      198,000.01
+AP16 =       33,090.89
+AQ16 =            0.00
+
+
+========================================================================================================================
+                             TEST 8: SUPPLY RU->Turkey DDP 50% advance (PERCENTAGE DM fee)                              
+========================================================================================================================
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+
+TEST 8 - KEY RESULTS FOR EXCEL COMPARISON
+----------------------------------------------------------------------------------------------------
+Cell       Description                                      Python Value
+----------------------------------------------------------------------------------------------------
+S16        Total purchase price                               857,142.90
+T16        Logistics first leg                                  2,800.00
+U16        Logistics last leg                                   1,243.20
+V16        Total logistics                                      4,043.20
+Y16        Customs fee                                         47,142.86
+AY16       Internal sale price total                          942,857.20
+BH6        Supplier payment needed                          1,049,142.91
+BH4        Total before forwarding                          1,051,998.91
+BJ11       Total financing cost                                12,547.41
+BL5        Credit sales interest                                6,801.66
+BA16       Initial financing per product                       12,547.41
+BB16       Credit interest per product                          6,801.66
+AB16       COGS per product                                   927,678.03
+AA16       COGS per unit                                       92,767.80
+AF16       Profit                                             139,151.70
+AG16       DM fee                                              18,553.56
+AD16       Sale price/unit (excl financial)                   106,682.97
+AJ16       Sales price per unit (no VAT)                      114,130.99
+AK16       Sales price total (no VAT)                       1,141,309.90
+AL16       FINAL PRICE (with VAT)                           1,369,571.90
+AP16       Net VAT payable                                     30,261.99
+AQ16       Transit commission                                       0.00
+----------------------------------------------------------------------------------------------------
+
+PERCENTAGE DM FEE CHECKS:
+  - AG16 should be 2% of AB16: 18,553.56 vs 18,553.56
+  - Compare with Test 1 fixed DM fee (1000.00)
+
+
+====================================================================================================
+TEST 8: SUPPLY RU->Turkey DDP 50% advance (PERCENTAGE DM fee)
+====================================================================================================
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,000.00    P16  =          900.00
+R16  =       85,714.29    S16  =      857,142.90
+BD16 =            1.00    S13  =      857,142.90
+T16  =        2,800.00    U16  =        1,243.20    V16  =        4,043.20
+AX16 =       94,285.72    AY16 =      942,857.20
+Y16  =       47,142.86    Z16  =            0.00
+AZ16 =    1,028,571.48    AZ13 =    1,028,571.48
+BH6  =    1,049,142.91    BH4  =    1,051,998.91
+BH2  =    1,307,993.70
+BH3  =      653,996.85    BH7  =      395,146.06
+BI7  =      407,603.45    BJ7  =       12,457.39
+BH10 =        2,855.50    BI10 =        2,945.52
+BJ10 =           90.02    BJ11 =       12,547.41
+BL3  =      653,996.85    BL4  =      660,798.51
+BL5  =        6,801.66
+BA16 =       12,547.41    BB16 =        6,801.66
+AA16 =       92,767.80    AB16 =      927,678.03
+AB13 =      927,678.03
+AF16 =      139,151.70    AG16 =       18,553.56
+AH16 =       33,242.03    AI16 =       22,684.57
+AD16 =      106,682.97    AE16 =    1,066,829.70
+AJ16 =      114,130.99    AK16 =    1,141,309.90
+AM16 =      136,957.19    AL16 =    1,369,571.90
+AN16 =      228,262.00    AO16 =      198,000.01
+AP16 =       30,261.99
+AQ16 =            0.00
+
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.CHINA, VAT=0.13
+[DEBUG VAT] phase4: S16=1028571.40, vat_seller_country=0.13, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1162285.68
+
+====================================================================================================
+TEST 11: SUPPLY RU→China DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📥 INPUT VARIABLES - Enter these values in Excel:
+----------------------------------------------------------------------------------------------------
+
+--- PRODUCT INFO ---
+K16  base_price_VAT              = 1200.00
+E16  quantity                    = 10
+G16  weight_in_kg                = 25.0
+J16  currency_of_base_price      = USD
+W16  customs_code                = 8708913509
+
+--- FINANCIAL PARAMETERS ---
+D8   currency_of_quote           = RUB
+Q16  exchange_rate               = 0.0105
+O16  supplier_discount           = 10
+AC16 markup                      = 15
+AH11 rate_forex_risk             = 3
+AG3  dm_fee_type                 = fixed
+AG7  dm_fee_value                = 1000
+
+--- LOGISTICS ---
+L16  supplier_country            = Китай
+D7   offer_incoterms             = DDP
+D9   delivery_time               = 30
+W2   logistics_supplier_hub      = 1500.00
+W3   logistics_hub_customs       = 800.00
+W4   logistics_customs_client    = 500.00
+
+--- TAXES & DUTIES ---
+X16  import_tariff               = 5
+Z16  excise_tax                  = 0
+
+--- PAYMENT TERMS ---
+J5   advance_from_client         = 50
+D11  advance_to_supplier         = 100
+K5   time_to_advance             = 7
+K9   time_to_advance_on_receiving = 15
+
+--- CUSTOMS & CLEARANCE ---
+W5   brokerage_hub               = 200.00
+W6   brokerage_customs           = 500.00
+W7   warehousing_at_customs      = 100.00
+W8   customs_documentation       = 200.00
+W9   brokerage_extra             = 50.00
+
+--- COMPANY SETTINGS ---
+D5   seller_company              = МАСТЕР БЭРИНГ ООО
+D6   offer_sale_type             = поставка
+
+--- SYSTEM CONFIGURATION ---
+     rate_fin_comm               = 2
+     rate_loan_interest_daily    = 0.00069
+     rate_insurance              = 0.00047
+
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,200.00    P16  =        1,080.00
+R16  =      102,857.14    S16  =    1,028,571.40
+BD16 =            1.00    S13  =    1,028,571.40
+T16  =        2,700.00    U16  =        1,681.80    V16  =        4,381.80
+AX16 =      113,142.85    AY16 =    1,131,428.50
+Y16  =       56,571.43    Z16  =            0.00
+AZ16 =    1,234,285.68    AZ13 =    1,234,285.68
+BH6  =    1,185,531.39    BH4  =    1,188,285.39
+BH2  =    1,543,966.88
+BH3  =      771,983.44    BH7  =      413,547.95
+BI7  =      426,585.48    BJ7  =       13,037.53
+BH10 =        2,753.50    BI10 =        2,840.31
+BJ10 =           86.81    BJ11 =       13,124.34
+BL3  =      771,983.44    BL4  =      780,012.18
+BL5  =        8,028.74
+BA16 =       13,124.34    BB16 =        8,028.74
+AA16 =      111,067.77    AB16 =    1,110,677.71
+AB13 =    1,110,677.71
+AF16 =      166,601.66    AG16 =        1,000.00
+AH16 =       39,117.11    AI16 =       25,624.28
+AD16 =      127,727.94    AE16 =    1,277,279.40
+AJ16 =      134,302.08    AK16 =    1,343,020.80
+AM16 =      161,162.50    AL16 =    1,611,625.00
+AN16 =      268,604.20    AO16 =      237,599.99
+AP16 =       31,004.21
+AQ16 =            0.00
+
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.CHINA, VAT=0.13
+[DEBUG VAT] phase4: S16=1028571.40, vat_seller_country=0.13, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1162285.68
+
+====================================================================================================
+TEST 12: TRANSIT RU→China DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📥 INPUT VARIABLES - Enter these values in Excel:
+----------------------------------------------------------------------------------------------------
+
+--- PRODUCT INFO ---
+K16  base_price_VAT              = 1200.00
+E16  quantity                    = 10
+G16  weight_in_kg                = 25.0
+J16  currency_of_base_price      = USD
+W16  customs_code                = 8708913509
+
+--- FINANCIAL PARAMETERS ---
+D8   currency_of_quote           = RUB
+Q16  exchange_rate               = 0.0105
+O16  supplier_discount           = 10
+AC16 markup                      = 15
+AH11 rate_forex_risk             = 3
+AG3  dm_fee_type                 = fixed
+AG7  dm_fee_value                = 1000
+
+--- LOGISTICS ---
+L16  supplier_country            = Китай
+D7   offer_incoterms             = DDP
+D9   delivery_time               = 30
+W2   logistics_supplier_hub      = 1500.00
+W3   logistics_hub_customs       = 800.00
+W4   logistics_customs_client    = 500.00
+
+--- TAXES & DUTIES ---
+X16  import_tariff               = 5
+Z16  excise_tax                  = 0
+
+--- PAYMENT TERMS ---
+J5   advance_from_client         = 50
+D11  advance_to_supplier         = 100
+K5   time_to_advance             = 7
+K9   time_to_advance_on_receiving = 15
+
+--- CUSTOMS & CLEARANCE ---
+W5   brokerage_hub               = 200.00
+W6   brokerage_customs           = 500.00
+W7   warehousing_at_customs      = 100.00
+W8   customs_documentation       = 200.00
+W9   brokerage_extra             = 50.00
+
+--- COMPANY SETTINGS ---
+D5   seller_company              = МАСТЕР БЭРИНГ ООО
+D6   offer_sale_type             = транзит
+
+--- SYSTEM CONFIGURATION ---
+     rate_fin_comm               = 2
+     rate_loan_interest_daily    = 0.00069
+     rate_insurance              = 0.00047
+
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,200.00    P16  =        1,080.00
+R16  =      102,857.14    S16  =    1,028,571.40
+BD16 =            1.00    S13  =    1,028,571.40
+T16  =        2,700.00    U16  =        1,681.80    V16  =        4,381.80
+AX16 =      113,142.85    AY16 =    1,131,428.50
+Y16  =       51,428.57    Z16  =            0.00
+AZ16 =    1,234,285.68    AZ13 =    1,234,285.68
+BH6  =    1,185,531.39    BH4  =    1,188,285.39
+BH2  =    1,536,684.58
+BH3  =      768,342.29    BH7  =      417,189.10
+BI7  =      430,341.42    BJ7  =       13,152.32
+BH10 =        2,753.50    BI10 =        2,840.31
+BJ10 =           86.81    BJ11 =       13,239.13
+BL3  =      768,342.29    BL4  =      776,333.16
+BL5  =        7,990.87
+BA16 =       13,239.13    BB16 =        7,990.87
+AA16 =      110,561.18    AB16 =    1,105,611.77
+AB13 =    1,105,611.77
+AF16 =      154,285.71    AG16 =        1,000.00
+AH16 =       36,284.44    AI16 =       25,624.28
+AD16 =      118,285.71    AE16 =    1,182,857.10
+AJ16 =      132,280.62    AK16 =    1,322,806.20
+AM16 =      158,736.74    AL16 =    1,587,367.40
+AN16 =      264,561.20    AO16 =      236,571.41
+AP16 =       27,989.79
+AQ16 =      238,424.43
+
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.CHINA, VAT=0.13
+[DEBUG VAT] phase4: S16=1028571.40, vat_seller_country=0.13, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1162285.68
+
+====================================================================================================
+TEST 13: SUPPLY TR→China DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📥 INPUT VARIABLES - Enter these values in Excel:
+----------------------------------------------------------------------------------------------------
+
+--- PRODUCT INFO ---
+K16  base_price_VAT              = 1200.00
+E16  quantity                    = 10
+G16  weight_in_kg                = 25.0
+J16  currency_of_base_price      = USD
+W16  customs_code                = 8708913509
+
+--- FINANCIAL PARAMETERS ---
+D8   currency_of_quote           = RUB
+Q16  exchange_rate               = 0.0105
+O16  supplier_discount           = 10
+AC16 markup                      = 15
+AH11 rate_forex_risk             = 3
+AG3  dm_fee_type                 = fixed
+AG7  dm_fee_value                = 1000
+
+--- LOGISTICS ---
+L16  supplier_country            = Китай
+D7   offer_incoterms             = DDP
+D9   delivery_time               = 30
+W2   logistics_supplier_hub      = 1500.00
+W3   logistics_hub_customs       = 800.00
+W4   logistics_customs_client    = 500.00
+
+--- TAXES & DUTIES ---
+X16  import_tariff               = 5
+Z16  excise_tax                  = 0
+
+--- PAYMENT TERMS ---
+J5   advance_from_client         = 50
+D11  advance_to_supplier         = 100
+K5   time_to_advance             = 7
+K9   time_to_advance_on_receiving = 15
+
+--- CUSTOMS & CLEARANCE ---
+W5   brokerage_hub               = 200.00
+W6   brokerage_customs           = 500.00
+W7   warehousing_at_customs      = 100.00
+W8   customs_documentation       = 200.00
+W9   brokerage_extra             = 50.00
+
+--- COMPANY SETTINGS ---
+D5   seller_company              = TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ
+D6   offer_sale_type             = поставка
+
+--- SYSTEM CONFIGURATION ---
+     rate_fin_comm               = 2
+     rate_loan_interest_daily    = 0.00069
+     rate_insurance              = 0.00047
+
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =        1,200.00    P16  =        1,080.00
+R16  =      102,857.14    S16  =    1,028,571.40
+BD16 =            1.00    S13  =    1,028,571.40
+T16  =        2,700.00    U16  =        1,633.50    V16  =        4,333.50
+AX16 =      102,857.14    AY16 =    1,028,571.40
+Y16  =            0.00    Z16  =            0.00
+AZ16 =    1,234,285.68    AZ13 =    1,234,285.68
+BH6  =    1,185,531.39    BH4  =    1,188,285.39
+BH2  =    1,219,827.79
+BH3  =      609,913.90    BH7  =      575,617.49
+BI7  =      593,764.43    BJ7  =       18,146.94
+BH10 =        2,753.50    BI10 =        2,840.31
+BJ10 =           86.81    BJ11 =       18,233.75
+BL3  =      609,913.89    BL4  =      616,257.08
+BL5  =        6,343.19
+BA16 =       18,233.75    BB16 =        6,343.19
+AA16 =      105,748.18    AB16 =    1,057,481.84
+AB13 =    1,057,481.84
+AF16 =      158,622.28    AG16 =        1,000.00
+AH16 =       36,513.12    AI16 =            0.00
+AD16 =      121,610.41    AE16 =    1,216,104.10
+AJ16 =      125,361.72    AK16 =    1,253,617.20
+AM16 =      125,361.72    AL16 =    1,253,617.20
+AN16 =            0.00    AO16 =            0.00
+AP16 =            0.00
+AQ16 =            0.00
+
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.LITHUANIA, VAT=0.21
+[DEBUG VAT] phase4: S16=939547.40, vat_seller_country=0.21, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1136852.35
+
+====================================================================================================
+TEST 14: SUPPLY RU→Lithuania DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📥 INPUT VARIABLES - Enter these values in Excel:
+----------------------------------------------------------------------------------------------------
+
+--- PRODUCT INFO ---
+K16  base_price_VAT              = 1200.00
+E16  quantity                    = 10
+G16  weight_in_kg                = 25.0
+J16  currency_of_base_price      = EUR
+W16  customs_code                = 8708913509
+
+--- FINANCIAL PARAMETERS ---
+D8   currency_of_quote           = RUB
+Q16  exchange_rate               = 0.0095
+O16  supplier_discount           = 10
+AC16 markup                      = 15
+AH11 rate_forex_risk             = 3
+AG3  dm_fee_type                 = fixed
+AG7  dm_fee_value                = 1000
+
+--- LOGISTICS ---
+L16  supplier_country            = Литва
+D7   offer_incoterms             = DDP
+D9   delivery_time               = 30
+W2   logistics_supplier_hub      = 1500.00
+W3   logistics_hub_customs       = 800.00
+W4   logistics_customs_client    = 500.00
+
+--- TAXES & DUTIES ---
+X16  import_tariff               = 5
+Z16  excise_tax                  = 0
+
+--- PAYMENT TERMS ---
+J5   advance_from_client         = 50
+D11  advance_to_supplier         = 100
+K5   time_to_advance             = 7
+K9   time_to_advance_on_receiving = 15
+
+--- CUSTOMS & CLEARANCE ---
+W5   brokerage_hub               = 200.00
+W6   brokerage_customs           = 500.00
+W7   warehousing_at_customs      = 100.00
+W8   customs_documentation       = 200.00
+W9   brokerage_extra             = 50.00
+
+--- COMPANY SETTINGS ---
+D5   seller_company              = МАСТЕР БЭРИНГ ООО
+D6   offer_sale_type             = поставка
+
+--- SYSTEM CONFIGURATION ---
+     rate_fin_comm               = 2
+     rate_loan_interest_daily    = 0.00069
+     rate_insurance              = 0.00047
+
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =          991.74    P16  =          892.57
+R16  =       93,954.74    S16  =      939,547.40
+BD16 =            1.00    S13  =      939,547.40
+T16  =        2,700.00    U16  =        1,649.00    V16  =        4,349.00
+AX16 =      106,168.86    AY16 =    1,061,688.60
+Y16  =       53,084.43    Z16  =            0.00
+AZ16 =    1,127,456.88    AZ13 =    1,127,456.88
+BH6  =    1,159,589.40    BH4  =    1,162,343.40
+BH2  =    1,412,924.85
+BH3  =      706,462.43    BH7  =      453,126.97
+BI7  =      467,412.27    BJ7  =       14,285.30
+BH10 =        2,753.50    BI10 =        2,840.31
+BJ10 =           86.81    BJ11 =       14,372.11
+BL3  =      706,462.42    BL4  =      713,809.73
+BL5  =        7,347.31
+BA16 =       14,372.11    BB16 =        7,347.31
+AA16 =      101,870.03    AB16 =    1,018,700.25
+AB13 =    1,018,700.25
+AF16 =      152,805.04    AG16 =        1,000.00
+AH16 =       35,947.56    AI16 =       25,746.86
+AD16 =      117,150.53    AE16 =    1,171,505.30
+AJ16 =      123,419.97    AK16 =    1,234,199.70
+AM16 =      148,103.96    AL16 =    1,481,039.60
+AN16 =      246,839.90    AO16 =      222,954.61
+AP16 =       23,885.29
+AQ16 =            0.00
+
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.LITHUANIA, VAT=0.21
+[DEBUG VAT] phase4: S16=939547.40, vat_seller_country=0.21, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1136852.35
+
+====================================================================================================
+TEST 15: SUPPLY TR→Lithuania DDP 50% advance (FIXED DM fee)
+====================================================================================================
+
+📥 INPUT VARIABLES - Enter these values in Excel:
+----------------------------------------------------------------------------------------------------
+
+--- PRODUCT INFO ---
+K16  base_price_VAT              = 1200.00
+E16  quantity                    = 10
+G16  weight_in_kg                = 25.0
+J16  currency_of_base_price      = EUR
+W16  customs_code                = 8708913509
+
+--- FINANCIAL PARAMETERS ---
+D8   currency_of_quote           = RUB
+Q16  exchange_rate               = 0.0095
+O16  supplier_discount           = 10
+AC16 markup                      = 15
+AH11 rate_forex_risk             = 3
+AG3  dm_fee_type                 = fixed
+AG7  dm_fee_value                = 1000
+
+--- LOGISTICS ---
+L16  supplier_country            = Литва
+D7   offer_incoterms             = DDP
+D9   delivery_time               = 30
+W2   logistics_supplier_hub      = 1500.00
+W3   logistics_hub_customs       = 800.00
+W4   logistics_customs_client    = 500.00
+
+--- TAXES & DUTIES ---
+X16  import_tariff               = 5
+Z16  excise_tax                  = 0
+
+--- PAYMENT TERMS ---
+J5   advance_from_client         = 50
+D11  advance_to_supplier         = 100
+K5   time_to_advance             = 7
+K9   time_to_advance_on_receiving = 15
+
+--- CUSTOMS & CLEARANCE ---
+W5   brokerage_hub               = 200.00
+W6   brokerage_customs           = 500.00
+W7   warehousing_at_customs      = 100.00
+W8   customs_documentation       = 200.00
+W9   brokerage_extra             = 50.00
+
+--- COMPANY SETTINGS ---
+D5   seller_company              = TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ
+D6   offer_sale_type             = поставка
+
+--- SYSTEM CONFIGURATION ---
+     rate_fin_comm               = 2
+     rate_loan_interest_daily    = 0.00069
+     rate_insurance              = 0.00047
+
+
+📤 PYTHON RESULTS - Compare with Excel:
+----------------------------------------------------------------------------------------------------
+
+N16  =          991.74    P16  =          892.57
+R16  =       93,954.74    S16  =      939,547.40
+BD16 =            1.00    S13  =      939,547.40
+T16  =        2,700.00    U16  =        1,604.90    V16  =        4,304.90
+AX16 =       96,773.38    AY16 =      967,733.80
+Y16  =            0.00    Z16  =            0.00
+AZ16 =    1,127,456.88    AZ13 =    1,127,456.88
+BH6  =    1,159,589.40    BH4  =    1,162,343.40
+BH2  =    1,114,745.72
+BH3  =      557,372.86    BH7  =      602,216.54
+BI7  =      621,202.04    BJ7  =       18,985.50
+BH10 =        2,753.50    BI10 =        2,840.31
+BJ10 =           86.81    BJ11 =       19,072.31
+BL3  =      557,372.86    BL4  =      563,169.62
+BL5  =        5,796.76
+BA16 =       19,072.31    BB16 =        5,796.76
+AA16 =       96,872.14    AB16 =      968,721.37
+AB13 =      968,721.37
+AF16 =      145,308.21    AG16 =        1,000.00
+AH16 =       33,450.89    AI16 =            0.00
+AD16 =      111,402.96    AE16 =    1,114,029.60
+AJ16 =      114,848.05    AK16 =    1,148,480.50
+AM16 =      114,848.05    AL16 =    1,148,480.50
+AN16 =            0.00    AO16 =            0.00
+AP16 =            0.00
+AQ16 =            0.00
+
+
+====================================================================================================
+TEST 9: Two Products - MULTI-PRODUCT SCENARIO
+====================================================================================================
+
+📥 COMMON INPUT VARIABLES (same for all products):
+----------------------------------------------------------------------------------------------------
+
+--- FINANCIAL PARAMETERS ---
+D8   currency_of_quote           = RUB
+Q16  exchange_rate               = 0.0105
+O16  supplier_discount           = 10
+AC16 markup                      = 15
+AH11 rate_forex_risk             = 3
+AG3  dm_fee_type                 = fixed
+AG7  dm_fee_value                = 1000
+
+--- LOGISTICS ---
+L16  supplier_country            = Турция
+D7   offer_incoterms             = DDP
+D9   delivery_time               = 30
+W2   logistics_supplier_hub      = 1500.00
+W3   logistics_hub_customs       = 800.00
+W4   logistics_customs_client    = 500.00
+
+--- TAXES & DUTIES ---
+X16  import_tariff               = 5
+Z16  excise_tax                  = 0
+
+--- PAYMENT TERMS ---
+J5   advance_from_client         = 50
+D11  advance_to_supplier         = 100
+K5   time_to_advance             = 7
+K9   time_to_advance_on_receiving = 15
+
+--- CUSTOMS & CLEARANCE ---
+W5   brokerage_hub               = 200.00
+W6   brokerage_customs           = 500.00
+W7   warehousing_at_customs      = 100.00
+W8   customs_documentation       = 200.00
+W9   brokerage_extra             = 50.00
+
+--- COMPANY SETTINGS ---
+D5   seller_company              = МАСТЕР БЭРИНГ ООО
+D6   offer_sale_type             = поставка
+
+--- SYSTEM CONFIGURATION ---
+     rate_fin_comm               = 2
+     rate_loan_interest_daily    = 0.00069
+     rate_insurance              = 0.00047
+
+📥 PRODUCT-SPECIFIC INPUTS:
+----------------------------------------------------------------------------------------------------
+
+PRODUCT 1: $1200 × 10 units (same as Test 1)
+  K16 base_price_VAT           = 1200
+  E16 quantity                 = 10
+  G16 weight_in_kg             = 25.0
+  J16 currency_of_base_price   = USD
+  W16 customs_code             = 8708913509
+
+PRODUCT 2: $2500 × 5 units
+  K16 base_price_VAT           = 2500
+  E16 quantity                 = 5
+  G16 weight_in_kg             = 25.0
+  J16 currency_of_base_price   = USD
+  W16 customs_code             = 8708913509
+
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+[DEBUG VAT] phase4: S16=892857.15, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1071428.58
+[DEBUG INSURANCE] Multi-product: AY13_total=1925000.05, rate_insurance=0.00047
+[DEBUG INSURANCE] Multi-product: insurance_total=904.8
+[DEBUG INSURANCE] Multi-product: total_quantity=15
+[DEBUG INSURANCE] Product 1: quantity=10, proportion=0.6666666666666666666666666667, insurance_per_product=603.2000000000000000000000000
+[DEBUG INSURANCE] Product 1: U16=1166.47
+[DEBUG INSURANCE] Product 2: quantity=5, proportion=0.3333333333333333333333333333, insurance_per_product=301.6000000000000000000000000
+[DEBUG INSURANCE] Product 2: U16=888.33
+
+📊 QUOTE-LEVEL TOTALS (calculated once for entire quote):
+S13  =    1,750,000.05  (Total purchase price - sum of all products)
+AZ13 =    2,100,000.06  (Total purchase with VAT)
+T13  =        2,700.00  (Total first leg logistics)
+U13  =        2,054.80  (Total last leg logistics)
+AB13 =    1,890,914.17  (Total COGS)
+
+BH6  =    2,142,000.06  (Supplier payment needed)
+BH4  =    2,143,530.06  (Total before forwarding)
+BH2  =    2,619,313.27  (Evaluated revenue)
+BH3  =    1,309,656.64  (Client advance)
+BH7  =      832,343.42  (Supplier financing need)
+BJ7  =       26,240.49  (Supplier financing cost)
+BH10 =        1,529.50  (Operational financing need)
+BJ10 =           48.22  (Operational financing cost)
+BJ11 =       26,288.71  (TOTAL financing cost)
+BL3  =    1,309,656.63  (Credit sales amount)
+BL5  =       13,620.61  (Credit sales interest)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+PRODUCT 1: $1200 × 10 units (same as Test 1)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+BD16 =        0.489796  (Distribution base = S16/S13 = 857,142.90/1,750,000.05)
+
+S16  =      857,142.90  (Purchase price for this product)
+T16  =        1,322.45  (First leg logistics × BD16)
+U16  =        1,166.47  (Last leg logistics × BD16)
+V16  =        2,488.92  (Total logistics)
+AX16 =       94,285.72
+AY16 =      942,857.20
+Y16  =       47,142.86
+Z16  =            0.00
+AZ16 =    1,028,571.48
+
+BA16 =       12,876.10  (Initial financing × BD16)
+BB16 =        6,671.32  (Credit interest × BD16)
+
+AA16 =       92,632.21
+AB16 =      926,322.10  (COGS for this product)
+
+AF16 =      138,948.32
+AG16 =          489.80
+AH16 =       32,652.46
+AI16 =       22,655.02
+AD16 =      106,527.04
+AE16 =    1,065,270.40
+AJ16 =      112,106.77
+AK16 =    1,121,067.70
+
+AM16 =      134,528.12
+AL16 =    1,345,281.20  (FINAL PRICE for this product)
+AN16 =      224,213.50
+AO16 =      198,000.01
+AP16 =       26,213.49
+AQ16 =            0.00
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+PRODUCT 2: $2500 × 5 units
+────────────────────────────────────────────────────────────────────────────────────────────────────
+BD16 =        0.510204  (Distribution base = S16/S13 = 892,857.15/1,750,000.05)
+
+S16  =      892,857.15  (Purchase price for this product)
+T16  =        1,377.55  (First leg logistics × BD16)
+U16  =          888.33  (Last leg logistics × BD16)
+V16  =        2,265.88  (Total logistics)
+AX16 =      196,428.57
+AY16 =      982,142.85
+Y16  =       49,107.14
+Z16  =            0.00
+AZ16 =    1,071,428.58
+
+BA16 =       13,412.61  (Initial financing × BD16)
+BB16 =        6,949.29  (Credit interest × BD16)
+
+AA16 =      192,918.41
+AB16 =      964,592.07  (COGS for this product)
+
+AF16 =      144,688.81
+AG16 =          510.20
+AH16 =       34,001.70
+AI16 =       23,598.98
+AD16 =      221,856.18
+AE16 =    1,109,280.90
+AJ16 =      233,478.35
+AK16 =    1,167,391.75
+
+AM16 =      280,174.02
+AL16 =    1,400,870.10  (FINAL PRICE for this product)
+AN16 =      233,478.35
+AO16 =      206,250.00
+AP16 =       27,228.35
+AQ16 =            0.00
+
+
+====================================================================================================
+TEST 10: Three Products - MULTI-PRODUCT SCENARIO
+====================================================================================================
+
+📥 COMMON INPUT VARIABLES (same for all products):
+----------------------------------------------------------------------------------------------------
+
+--- FINANCIAL PARAMETERS ---
+D8   currency_of_quote           = RUB
+Q16  exchange_rate               = 0.0105
+O16  supplier_discount           = 10
+AC16 markup                      = 15
+AH11 rate_forex_risk             = 3
+AG3  dm_fee_type                 = fixed
+AG7  dm_fee_value                = 1000
+
+--- LOGISTICS ---
+L16  supplier_country            = Турция
+D7   offer_incoterms             = DDP
+D9   delivery_time               = 30
+W2   logistics_supplier_hub      = 1500.00
+W3   logistics_hub_customs       = 800.00
+W4   logistics_customs_client    = 500.00
+
+--- TAXES & DUTIES ---
+X16  import_tariff               = 5
+Z16  excise_tax                  = 0
+
+--- PAYMENT TERMS ---
+J5   advance_from_client         = 50
+D11  advance_to_supplier         = 100
+K5   time_to_advance             = 7
+K9   time_to_advance_on_receiving = 15
+
+--- CUSTOMS & CLEARANCE ---
+W5   brokerage_hub               = 200.00
+W6   brokerage_customs           = 500.00
+W7   warehousing_at_customs      = 100.00
+W8   customs_documentation       = 200.00
+W9   brokerage_extra             = 50.00
+
+--- COMPANY SETTINGS ---
+D5   seller_company              = МАСТЕР БЭРИНГ ООО
+D6   offer_sale_type             = поставка
+
+--- SYSTEM CONFIGURATION ---
+     rate_fin_comm               = 2
+     rate_loan_interest_daily    = 0.00069
+     rate_insurance              = 0.00047
+
+📥 PRODUCT-SPECIFIC INPUTS:
+----------------------------------------------------------------------------------------------------
+
+PRODUCT 1: $800 × 20 units
+  K16 base_price_VAT           = 800
+  E16 quantity                 = 20
+  G16 weight_in_kg             = 25.0
+  J16 currency_of_base_price   = USD
+  W16 customs_code             = 8708913509
+
+PRODUCT 2: $1200 × 10 units
+  K16 base_price_VAT           = 1200
+  E16 quantity                 = 10
+  G16 weight_in_kg             = 25.0
+  J16 currency_of_base_price   = USD
+  W16 customs_code             = 8708913509
+
+PRODUCT 3: $2500 × 5 units
+  K16 base_price_VAT           = 2500
+  E16 quantity                 = 5
+  G16 weight_in_kg             = 25.0
+  J16 currency_of_base_price   = USD
+  W16 customs_code             = 8708913509
+
+[DEBUG VAT] get_vat_seller_country: supplier_country=SupplierCountry.TURKEY, VAT=0.20
+[DEBUG VAT] phase4: S16=1142857.20, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1371428.64
+[DEBUG VAT] phase4: S16=857142.90, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1028571.48
+[DEBUG VAT] phase4: S16=892857.15, vat_seller_country=0.20, calculating AZ16...
+[DEBUG VAT] phase4: AZ16=1071428.58
+[DEBUG INSURANCE] Multi-product: AY13_total=3182143.05, rate_insurance=0.00047
+[DEBUG INSURANCE] Multi-product: insurance_total=1495.7
+[DEBUG INSURANCE] Multi-product: total_quantity=35
+[DEBUG INSURANCE] Product 1: quantity=20, proportion=0.5714285714285714285714285714, insurance_per_product=854.6857142857142857142857142
+[DEBUG INSURANCE] Product 1: U16=1309.01
+[DEBUG INSURANCE] Product 2: quantity=10, proportion=0.2857142857142857142857142857, insurance_per_product=427.3428571428571428571428571
+[DEBUG INSURANCE] Product 2: U16=768.08
+[DEBUG INSURANCE] Product 3: quantity=5, proportion=0.1428571428571428571428571429, insurance_per_product=213.6714285714285714285714286
+[DEBUG INSURANCE] Product 3: U16=568.61
+
+📊 QUOTE-LEVEL TOTALS (calculated once for entire quote):
+S13  =    2,892,857.25  (Total purchase price - sum of all products)
+AZ13 =    3,471,428.70  (Total purchase with VAT)
+T13  =        2,700.00  (Total first leg logistics)
+U13  =        2,645.70  (Total last leg logistics)
+AB13 =    3,123,285.82  (Total COGS)
+
+BH6  =    3,540,857.27  (Supplier payment needed)
+BH4  =    3,542,387.27  (Total before forwarding)
+BH2  =    4,326,604.79  (Evaluated revenue)
+BH3  =    2,163,302.40  (Client advance)
+BH7  =    1,377,554.87  (Supplier financing need)
+BJ7  =       43,428.84  (Supplier financing cost)
+BH10 =        1,529.50  (Operational financing need)
+BJ10 =           48.22  (Operational financing cost)
+BJ11 =       43,477.06  (TOTAL financing cost)
+BL3  =    2,163,302.39  (Credit sales amount)
+BL5  =       22,498.65  (Credit sales interest)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+PRODUCT 1: $800 × 20 units
+────────────────────────────────────────────────────────────────────────────────────────────────────
+BD16 =        0.395062  (Distribution base = S16/S13 = 1,142,857.20/2,892,857.25)
+
+S16  =    1,142,857.20  (Purchase price for this product)
+T16  =        1,066.67  (First leg logistics × BD16)
+U16  =        1,309.01  (Last leg logistics × BD16)
+V16  =        2,375.68  (Total logistics)
+AX16 =       62,857.15
+AY16 =    1,257,143.00
+Y16  =       62,857.15
+Z16  =            0.00
+AZ16 =    1,371,428.64
+
+BA16 =       17,176.12  (Initial financing × BD16)
+BB16 =        8,888.36  (Credit interest × BD16)
+
+AA16 =       61,707.73
+AB16 =    1,234,154.51  (COGS for this product)
+
+AF16 =      185,123.18
+AG16 =          395.06
+AH16 =       43,495.96
+AI16 =       30,192.76
+AD16 =       70,963.88
+AE16 =    1,419,277.60
+AJ16 =       74,668.07
+AK16 =    1,493,361.40
+
+AM16 =       89,601.68
+AL16 =    1,792,033.60  (FINAL PRICE for this product)
+AN16 =      298,672.20
+AO16 =      264,000.03
+AP16 =       34,672.17
+AQ16 =            0.00
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+PRODUCT 2: $1200 × 10 units
+────────────────────────────────────────────────────────────────────────────────────────────────────
+BD16 =        0.296296  (Distribution base = S16/S13 = 857,142.90/2,892,857.25)
+
+S16  =      857,142.90  (Purchase price for this product)
+T16  =          800.00  (First leg logistics × BD16)
+U16  =          768.08  (Last leg logistics × BD16)
+V16  =        1,568.08  (Total logistics)
+AX16 =       94,285.72
+AY16 =      942,857.20
+Y16  =       47,142.86
+Z16  =            0.00
+AZ16 =    1,028,571.48
+
+BA16 =       12,882.09  (Initial financing × BD16)
+BB16 =        6,666.27  (Credit interest × BD16)
+
+AA16 =       92,540.22
+AB16 =      925,402.20  (COGS for this product)
+
+AF16 =      138,810.33
+AG16 =          296.30
+AH16 =       32,614.60
+AI16 =       22,644.57
+AD16 =      106,421.25
+AE16 =    1,064,212.50
+AJ16 =      111,976.80
+AK16 =    1,119,768.00
+
+AM16 =      134,372.16
+AL16 =    1,343,721.60  (FINAL PRICE for this product)
+AN16 =      223,953.60
+AO16 =      198,000.01
+AP16 =       25,953.59
+AQ16 =            0.00
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+PRODUCT 3: $2500 × 5 units
+────────────────────────────────────────────────────────────────────────────────────────────────────
+BD16 =        0.308642  (Distribution base = S16/S13 = 892,857.15/2,892,857.25)
+
+S16  =      892,857.15  (Purchase price for this product)
+T16  =          833.33  (First leg logistics × BD16)
+U16  =          568.61  (Last leg logistics × BD16)
+V16  =        1,401.94  (Total logistics)
+AX16 =      196,428.57
+AY16 =      982,142.85
+Y16  =       49,107.14
+Z16  =            0.00
+AZ16 =    1,071,428.58
+
+BA16 =       13,418.85  (Initial financing × BD16)
+BB16 =        6,944.03  (Credit interest × BD16)
+
+AA16 =      192,745.82
+AB16 =      963,729.11  (COGS for this product)
+
+AF16 =      144,559.37
+AG16 =          308.64
+AH16 =       33,965.56
+AI16 =       23,588.10
+AD16 =      221,657.70
+AE16 =    1,108,288.50
+AJ16 =      233,230.16
+AK16 =    1,166,150.80
+
+AM16 =      279,876.19
+AL16 =    1,399,380.95  (FINAL PRICE for this product)
+AN16 =      233,230.15
+AO16 =      206,250.00
+AP16 =       26,980.15
+AQ16 =            0.00
+
+
+====================================================================================================
+✅ ALL TESTS COMPLETE - Compare these values with your Excel file
+====================================================================================================
