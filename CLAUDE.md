@@ -219,9 +219,15 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - **ag-Grid:** 34.2.0 (Community - Excel-like tables)
 - **Supabase:** 2.58.0 (@supabase/supabase-js, @supabase/ssr)
 - **Tailwind CSS:** 4.0 (@tailwindcss/postcss)
-- **TypeScript:** 5.x
-- **Playwright:** 1.56.1 (testing)
+- **TypeScript:** 5.x (strict mode enabled)
+- **Playwright:** 1.56.1 (E2E testing)
 - **Day.js:** 1.11.18 (date handling)
+
+**Code Quality Tools:**
+- **ESLint:** 9.x (linting with Next.js config)
+- **Prettier:** 3.6.2 (code formatting)
+- **Husky:** 9.1.7 (pre-commit hooks)
+- **lint-staged:** 16.2.4 (staged files linting)
 
 ### Backend (Python)
 - **FastAPI:** Latest (async web framework)
@@ -235,12 +241,26 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - **psycopg2-binary:** Latest (PostgreSQL)
 - **uvicorn:** Latest (ASGI server)
 
+**Testing:**
+- **pytest:** 8.3.5 (test framework)
+- **pytest-asyncio:** Latest (async test support)
+- **pytest-cov:** Latest (coverage reporting)
+- **httpx:** Latest (API testing)
+
+### Development Tools
+- **Git:** Version control with SSH authentication
+- **GitHub:** Repository at https://github.com/AgasiArgent/kvota
+- **GitHub Actions:** CI/CD for automated testing
+- **Pre-commit hooks:** Auto-format and lint before commits
+
 ### MCP Servers (Model Context Protocol)
 - **chrome-devtools** - Browser debugging via remote debugging port 9222
+- **Recommended:** See `.claude/RECOMMENDED_MCP_SERVERS.md` for more
 
 ### Database
 - **Supabase PostgreSQL** - Multi-tenant with RLS
 - **Connection:** Direct via DATABASE_URL + REST API via Supabase client
+- **Migrations:** Tracked in `backend/migrations/MIGRATIONS.md`
 
 ---
 
