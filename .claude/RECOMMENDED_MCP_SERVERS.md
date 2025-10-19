@@ -5,32 +5,20 @@
 ## Currently Installed
 
 - ✅ **chrome-devtools** - Browser debugging via remote debugging port 9222
+- ✅ **postgres** - Direct Supabase database queries and schema inspection
+- ✅ **github** - GitHub issue and PR management from Claude
 
-## Recommended to Install
-
-### High Priority
-
-**1. PostgreSQL MCP Server**
-- **Why:** Direct database inspection and queries
-- **Use case:** Debug database issues, inspect schema, run queries
-- **Install:** `npx -y @modelcontextprotocol/server-postgres postgresql://...`
-- **Benefit:** See database state without switching to Supabase dashboard
-
-**2. GitHub MCP Server**
-- **Why:** Manage issues, PRs, releases directly from Claude
-- **Use case:** Create issues for bugs, manage project board, review PRs
-- **Install:** `npx -y @modelcontextprotocol/server-github`
-- **Benefit:** Stay in flow, don't context-switch to GitHub UI
+## Additional MCP Servers (Optional)
 
 ### Medium Priority
 
-**3. Filesystem MCP Server**
+**1. Filesystem MCP Server**
 - **Why:** Enhanced file operations
 - **Use case:** Better file search, bulk operations
 - **Install:** `npx -y @modelcontextprotocol/server-filesystem`
 - **Benefit:** More powerful file operations
 
-**4. SQLite MCP Server** (for local development)
+**2. SQLite MCP Server** (for local development)
 - **Why:** Local database for testing without Supabase
 - **Use case:** Offline development, faster tests
 - **Install:** `npx -y @modelcontextprotocol/server-sqlite`
@@ -38,7 +26,7 @@
 
 ### Low Priority
 
-**5. Memory MCP Server**
+**3. Memory MCP Server**
 - **Why:** Persistent memory across sessions
 - **Use case:** Remember project decisions, patterns
 - **Install:** `npx -y @modelcontextprotocol/server-memory`
