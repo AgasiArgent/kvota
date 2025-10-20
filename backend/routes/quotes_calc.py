@@ -350,6 +350,74 @@ async def get_variable_template(
         )
 
 
+@router.put("/variable-templates/{template_id}", response_model=VariableTemplate)
+async def update_variable_template(
+    template_id: str,
+    template_update: VariableTemplateCreate,
+    user: User = Depends(get_current_user)
+):
+    """Update an existing variable template"""
+
+    if not user.current_organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with any organization"
+        )
+
+    try:
+        # First, verify the template exists and belongs to this organization
+        existing = supabase.table("variable_templates")\
+            .select("*")\
+            .eq("id", template_id)\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not existing.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Template not found"
+            )
+
+        # Update the template
+        response = supabase.table("variable_templates")\
+            .update({
+                "name": template_update.name,
+                "description": template_update.description,
+                "variables": template_update.variables,
+                "is_default": template_update.is_default
+            })\
+            .eq("id", template_id)\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not response.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update template"
+            )
+
+        item = response.data[0]
+
+        return VariableTemplate(
+            id=str(item['id']),
+            organization_id=str(item['organization_id']),
+            name=item['name'],
+            description=item.get('description'),
+            variables=item['variables'],
+            created_by=str(item['created_by']),
+            created_at=item['created_at'],
+            is_default=item.get('is_default', False)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating template: {str(e)}"
+        )
+
+
 @router.delete("/variable-templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_variable_template(
     template_id: str,
