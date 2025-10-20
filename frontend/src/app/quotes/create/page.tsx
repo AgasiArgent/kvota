@@ -274,6 +274,11 @@ export default function CreateQuotePage() {
 
   // Perform template save/update
   const performTemplateSave = async () => {
+    console.log('=== performTemplateSave called ===');
+    console.log('templateSaveMode:', templateSaveMode);
+    console.log('templateUpdateId:', templateUpdateId);
+    console.log('templateNewName:', templateNewName);
+
     const variables = form.getFieldsValue();
     console.log('Form values to save:', variables);
 
@@ -281,13 +286,17 @@ export default function CreateQuotePage() {
       let result;
 
       if (templateSaveMode === 'update' && templateUpdateId) {
+        console.log('>>> ENTERING UPDATE BRANCH');
         // Update existing template
         const existingTemplate = templates.find((t) => t.id === templateUpdateId);
+        console.log('existingTemplate found:', existingTemplate);
+
         if (!existingTemplate) {
           message.error('Шаблон не найден');
           return;
         }
 
+        console.log('Calling updateTemplate with ID:', templateUpdateId);
         result = await quotesCalcService.updateTemplate(templateUpdateId, {
           name: existingTemplate.name,
           description: `Обновлено ${new Date().toLocaleDateString()}`,
