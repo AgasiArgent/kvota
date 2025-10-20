@@ -20,6 +20,7 @@ import {
   Modal,
   Radio,
   Divider,
+  Checkbox,
 } from 'antd';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -35,6 +36,8 @@ import {
   ArrowLeftOutlined,
   InfoCircleOutlined,
   EditOutlined,
+  AppstoreOutlined,
+  FilterOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import type { UploadFile, UploadProps } from 'antd';
@@ -109,6 +112,12 @@ export default function CreateQuotePage() {
   const [showLprCompensation, setShowLprCompensation] = useState(false);
   const [logisticsMode, setLogisticsMode] = useState<'total' | 'detailed'>('detailed');
   const [showBrokerage, setShowBrokerage] = useState(false);
+  const [columnChooserVisible, setColumnChooserVisible] = useState(false);
+  const [columnVisibilityRefresh, setColumnVisibilityRefresh] = useState(0);
+  const [templateSaveModalVisible, setTemplateSaveModalVisible] = useState(false);
+  const [templateSaveMode, setTemplateSaveMode] = useState<'new' | 'update'>('new');
+  const [templateUpdateId, setTemplateUpdateId] = useState<string>('');
+  const [templateNewName, setTemplateNewName] = useState<string>('');
 
   // Load customers, templates, and admin settings on mount
   useEffect(() => {
@@ -142,11 +151,21 @@ export default function CreateQuotePage() {
   };
 
   const loadTemplates = async () => {
-    const result = await quotesCalcService.listTemplates();
-    if (result.success && result.data) {
-      setTemplates(result.data);
-    } else {
-      message.error(`Ошибка загрузки шаблонов: ${result.error}`);
+    console.log('Loading templates...');
+    try {
+      const result = await quotesCalcService.listTemplates();
+      console.log('Templates list result:', result);
+
+      if (result.success && result.data) {
+        setTemplates(result.data);
+        console.log('Templates loaded:', result.data.length, 'templates');
+      } else {
+        console.error('Templates load failed:', result.error);
+        message.error(`Ошибка загрузки шаблонов: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Templates load error:', error);
+      message.error('Ошибка при загрузке шаблонов');
     }
   };
 
@@ -221,38 +240,95 @@ export default function CreateQuotePage() {
 
   // Template selection handler
   const handleTemplateSelect = async (templateId: string) => {
+    console.log('Template select called with ID:', templateId);
     setSelectedTemplate(templateId);
 
-    const result = await quotesCalcService.getTemplate(templateId);
-    if (result.success && result.data) {
-      // Merge template variables with current form values
-      const templateVars = result.data.variables;
-      form.setFieldsValue(templateVars as any);
-      message.success(`Шаблон "${result.data.name}" загружен`);
-    } else {
-      message.error(`Ошибка загрузки шаблона: ${result.error}`);
+    try {
+      const result = await quotesCalcService.getTemplate(templateId);
+      console.log('Template load result:', result);
+
+      if (result.success && result.data) {
+        // Merge template variables with current form values
+        const templateVars = result.data.variables;
+        console.log('Template variables:', templateVars);
+        form.setFieldsValue(templateVars as any);
+        message.success(`Шаблон "${result.data.name}" загружен`);
+      } else {
+        console.error('Template load failed:', result.error);
+        message.error(`Ошибка загрузки шаблона: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Template select error:', error);
+      message.error('Ошибка при загрузке шаблона');
     }
   };
 
-  // Save current variables as template
-  const handleSaveTemplate = async () => {
-    const templateName = prompt('Введите название шаблона:');
-    if (!templateName) return;
+  // Open template save modal
+  const handleSaveTemplate = () => {
+    console.log('Save template clicked');
+    setTemplateNewName('');
+    setTemplateUpdateId('');
+    setTemplateSaveMode('new');
+    setTemplateSaveModalVisible(true);
+  };
 
+  // Perform template save/update
+  const performTemplateSave = async () => {
     const variables = form.getFieldsValue();
+    console.log('Form values to save:', variables);
 
-    const result = await quotesCalcService.createTemplate({
-      name: templateName,
-      description: `Создано ${new Date().toLocaleDateString()}`,
-      variables: variables,
-      is_default: false,
-    });
+    try {
+      let result;
 
-    if (result.success) {
-      message.success('Шаблон сохранен');
-      loadTemplates();
-    } else {
-      message.error(`Ошибка сохранения: ${result.error}`);
+      if (templateSaveMode === 'update' && templateUpdateId) {
+        // Update existing template
+        const existingTemplate = templates.find((t) => t.id === templateUpdateId);
+        if (!existingTemplate) {
+          message.error('Шаблон не найден');
+          return;
+        }
+
+        result = await quotesCalcService.updateTemplate(templateUpdateId, {
+          name: existingTemplate.name,
+          description: `Обновлено ${new Date().toLocaleDateString()}`,
+          variables: variables,
+          is_default: existingTemplate.is_default,
+        });
+        console.log('Template update result:', result);
+      } else {
+        // Create new template
+        if (!templateNewName.trim()) {
+          message.error('Введите название шаблона');
+          return;
+        }
+
+        result = await quotesCalcService.createTemplate({
+          name: templateNewName,
+          description: `Создано ${new Date().toLocaleDateString()}`,
+          variables: variables,
+          is_default: false,
+        });
+        console.log('Template create result:', result);
+      }
+
+      if (result.success) {
+        message.success(templateSaveMode === 'update' ? 'Шаблон обновлен' : 'Шаблон создан');
+        await loadTemplates(); // Reload templates list
+
+        // Select the saved/updated template
+        if (result.data?.id) {
+          setSelectedTemplate(result.data.id);
+        }
+
+        setTemplateSaveModalVisible(false);
+        console.log('Templates reloaded after save');
+      } else {
+        console.error('Template save failed:', result.error);
+        message.error(`Ошибка сохранения: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Template save error:', error);
+      message.error('Ошибка при сохранении шаблона');
     }
   };
 
@@ -494,6 +570,13 @@ export default function CreateQuotePage() {
       resizable: true,
       sortable: true,
       filter: true,
+      floatingFilter: true, // Enable floating filter row below headers
+      floatingFilterComponentParams: {
+        suppressFilterButton: false, // Show filter menu button
+      },
+      filterParams: {
+        buttons: ['clear'], // Add clear button to filter menu
+      },
       enableCellChangeFlash: true,
     }),
     []
@@ -1211,9 +1294,39 @@ export default function CreateQuotePage() {
                   <Card
                     title="📋 Загруженные товары"
                     extra={
-                      <Button icon={<EditOutlined />} onClick={openBulkEditModal}>
-                        Массовое редактирование
-                      </Button>
+                      <Space>
+                        <Button icon={<EditOutlined />} onClick={openBulkEditModal} size="small">
+                          Массовое редактирование
+                        </Button>
+                        <Button
+                          icon={<FilterOutlined />}
+                          onClick={() => {
+                            // Clear all filters
+                            gridRef.current?.api?.setFilterModel(null);
+                            // Close all filter menus
+                            gridRef.current?.api?.getAllGridColumns()?.forEach((column) => {
+                              const filterInstance = gridRef.current?.api?.getFilterInstance(
+                                column.getColId()
+                              );
+                              if (filterInstance) {
+                                filterInstance.setModel(null);
+                                gridRef.current?.api?.destroyFilter(column.getColId());
+                              }
+                            });
+                            message.success('Фильтры очищены');
+                          }}
+                          size="small"
+                        >
+                          Очистить фильтры
+                        </Button>
+                        <Button
+                          icon={<AppstoreOutlined />}
+                          onClick={() => setColumnChooserVisible(true)}
+                          size="small"
+                        >
+                          Колонки
+                        </Button>
+                      </Space>
                     }
                   >
                     <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
@@ -1495,6 +1608,97 @@ export default function CreateQuotePage() {
               )}
             </Form>
           </Space>
+        </Modal>
+
+        {/* Column Chooser Modal */}
+        <Modal
+          title="Управление колонками"
+          open={columnChooserVisible}
+          onCancel={() => setColumnChooserVisible(false)}
+          onOk={() => setColumnChooserVisible(false)}
+          width={600}
+          okText="Готово"
+          cancelText="Отмена"
+        >
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              {gridRef.current?.api?.getAllGridColumns()?.map((column) => {
+                const colId = column.getColId();
+                const colDef = column.getColDef();
+                const headerName = colDef.headerName || colId;
+                const isVisible = column.isVisible();
+
+                // Skip checkbox column
+                if (colId === 'checkbox') return null;
+
+                return (
+                  <div key={`${colId}-${columnVisibilityRefresh}`} style={{ padding: '4px 0' }}>
+                    <Checkbox
+                      checked={isVisible}
+                      onChange={(e) => {
+                        gridRef.current?.api?.setColumnsVisible([colId], e.target.checked);
+                        setColumnVisibilityRefresh((prev) => prev + 1); // Force re-render
+                      }}
+                    >
+                      <span style={{ fontSize: '13px' }}>{headerName}</span>
+                    </Checkbox>
+                  </div>
+                );
+              })}
+            </Space>
+          </div>
+        </Modal>
+
+        {/* Template Save Modal */}
+        <Modal
+          title="Сохранить шаблон"
+          open={templateSaveModalVisible}
+          onOk={performTemplateSave}
+          onCancel={() => setTemplateSaveModalVisible(false)}
+          okText="Сохранить"
+          cancelText="Отмена"
+          width={500}
+        >
+          <Form layout="vertical">
+            <Form.Item label="Выберите действие">
+              <Radio.Group
+                value={templateSaveMode}
+                onChange={(e) => setTemplateSaveMode(e.target.value)}
+              >
+                <Space direction="vertical">
+                  <Radio value="new">Создать новый шаблон</Radio>
+                  <Radio value="update" disabled={templates.length === 0}>
+                    Обновить существующий шаблон
+                  </Radio>
+                </Space>
+              </Radio.Group>
+            </Form.Item>
+
+            {templateSaveMode === 'new' && (
+              <Form.Item label="Название нового шаблона" required>
+                <Input
+                  value={templateNewName}
+                  onChange={(e) => setTemplateNewName(e.target.value)}
+                  placeholder="Введите название"
+                  onPressEnter={performTemplateSave}
+                />
+              </Form.Item>
+            )}
+
+            {templateSaveMode === 'update' && (
+              <Form.Item label="Выберите шаблон для обновления" required>
+                <Select
+                  value={templateUpdateId}
+                  onChange={setTemplateUpdateId}
+                  placeholder="Выберите шаблон"
+                  options={templates.map((t) => ({
+                    label: t.name,
+                    value: t.id,
+                  }))}
+                />
+              </Form.Item>
+            )}
+          </Form>
         </Modal>
       </div>
     </MainLayout>

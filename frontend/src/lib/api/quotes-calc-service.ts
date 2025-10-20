@@ -325,6 +325,20 @@ export class QuotesCalcService {
   }
 
   /**
+   * Update existing variable template
+   * PUT /api/quotes-calc/variable-templates/{template_id}
+   */
+  async updateTemplate(
+    templateId: string,
+    data: VariableTemplateCreate
+  ): Promise<ApiResponse<VariableTemplate>> {
+    return this.apiRequest<VariableTemplate>(`/api/quotes-calc/variable-templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
    * Delete variable template
    * DELETE /api/quotes-calc/variable-templates/{template_id}
    */
