@@ -1314,12 +1314,12 @@ export default function CreateQuotePage() {
                             gridRef.current?.api?.setFilterModel(null);
                             // Close all filter menus
                             gridRef.current?.api?.getAllGridColumns()?.forEach((column) => {
-                              const filterInstance = gridRef.current?.api?.getFilterInstance(
-                                column.getColId()
-                              );
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              const api = gridRef.current?.api as any;
+                              const filterInstance = api?.getFilterInstance(column.getColId());
                               if (filterInstance) {
                                 filterInstance.setModel(null);
-                                gridRef.current?.api?.destroyFilter(column.getColId());
+                                api?.destroyFilter(column.getColId());
                               }
                             });
                             message.success('Фильтры очищены');
