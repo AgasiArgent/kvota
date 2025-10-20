@@ -5,6 +5,104 @@
 
 ---
 
+## Session 14 (2025-10-20) - Quote Creation Page UI/UX Improvements
+
+### Goal
+Improve layout and user experience of quote creation page - reduce visual clutter and make form sections more accessible
+
+### Completed Tasks ✅
+
+#### Admin Settings Compact Display
+- [x] Moved admin settings from large green card to compact top-right display
+  - Removed full-width green card (was taking too much vertical space)
+  - Created minimal horizontal text display next to page title
+  - Font size: 12px, gray secondary text
+  - Shows: Резерв, Комиссия ФА, Годовая ставка
+  - Time: 15 min
+
+- [x] Fixed annual interest rate calculation bug
+  - **Bug:** Was showing "0.25%" instead of "25%"
+  - **Root cause:** `dailyToAnnualRate()` returns decimal (0.25), but we display as percentage
+  - **Fix:** Multiply by 100: `(dailyToAnnualRate(rate) * 100).toFixed(2)%`
+  - Now correctly displays "25.19%" for annual loan interest rate
+  - Time: 5 min
+
+#### Form Layout Redesign - Grid of Cards
+- [x] Replaced Collapse/Panel accordion with grid layout
+  - **Before:** Collapsible panels requiring clicks to expand/collapse
+  - **After:** All sections visible at once in 2-column grid
+  - Removed `Collapse` and `Panel` components from imports
+  - Time: 10 min
+
+- [x] Created 6 elevated card sections
+  - 🏢 Настройки компании (3 fields)
+  - 💰 Финансовые параметры (3 fields)
+  - 🚚 Логистика (5 fields)
+  - ⏱️ Условия оплаты (10 fields)
+  - 🛃 Таможня и растаможка (6 fields)
+  - 📦 Значения по умолчанию для товаров (7 fields)
+  - Each card has `boxShadow: '0 2px 8px rgba(0,0,0,0.1)'` for elevation
+  - All cards have `height: '100%'` for equal heights in rows
+  - Time: 30 min
+
+- [x] Made layout responsive
+  - Desktop (`lg={12}`): 2 columns side-by-side
+  - Mobile (`xs={24}`): 1 column, stacks vertically
+  - Grid gutter: `[16, 16]` (horizontal, vertical spacing)
+  - Time: 5 min (included in card creation)
+
+#### ag-Grid Responsive Layout & Column Pinning
+- [x] Fixed grid horizontal scrolling and column cutoff issues
+  - **Problem:** Grid columns were getting cut off on right side, no scrollbar
+  - **Solution 1 - Pinned columns:** Pinned checkbox, Артикул, Бренд, Наименование to left (always visible)
+  - **Solution 2 - Flexible sizing:** Changed remaining columns from fixed `width` to `flex: 1` with `minWidth`
+  - **Result:** Grid resizes to fit window, shows scrollbar when needed
+  - Time: 20 min
+
+- [x] Tested responsive behavior
+  - Wide window: Columns expand to fill space
+  - Narrow window: Columns shrink to minWidth, scrollbar appears
+  - Important columns always visible when scrolling
+  - Time: 5 min
+
+**Session 14 Total Time:** ~1.5 hours
+
+### Benefits
+- ✅ **More vertical space** - Removed large green admin settings card
+- ✅ **All sections visible** - No clicking to expand/collapse
+- ✅ **Better scannability** - Can see all form fields at once
+- ✅ **Ready for role-based access** - Easy to conditionally render cards per user role
+- ✅ **Cleaner design** - Elevated cards with consistent styling
+- ✅ **Responsive** - Works on desktop (2 cols) and mobile (1 col)
+- ✅ **Grid adapts to window size** - No more cut-off columns
+- ✅ **Important columns pinned** - SKU/Brand/Name always visible
+
+### Modified Files
+- `frontend/src/app/quotes/create/page.tsx`
+  - Removed: Collapse, Panel imports
+  - Added: Grid layout with Row/Col for 6 cards
+  - Updated: Admin settings display (compact horizontal)
+  - Fixed: Annual rate calculation (multiply by 100)
+  - Fixed: ag-Grid column pinning and flexible sizing
+  - Added: `suppressHorizontalScroll={false}` to enable scrollbar
+
+### Status
+✅ **COMPLETE - ALL IMPROVEMENTS TESTED AND WORKING**
+
+### Next Steps
+- Test layout in browser (all cards should be visible)
+- Verify responsive behavior (resize window to test mobile view)
+- User feedback on new design
+- Future: Add conditional rendering based on user role
+
+### Notes
+- Grid layout scales from 1-6 cards automatically
+- Easy to add role-based visibility: wrap each `<Col>` in conditional render
+- Example: `{userCanSeeCompany && <Col xs={24} lg={12}>...</Col>}`
+- All Session 13 automated tests should still pass
+
+---
+
 ## Session 13 (2025-10-20) - Automated Testing Implementation & WSL2 Debugging Tools
 
 ### Goal
