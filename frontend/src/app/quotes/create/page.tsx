@@ -18,6 +18,8 @@ import {
   Spin,
   Tag,
   Modal,
+  Radio,
+  Divider,
 } from 'antd';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -92,6 +94,10 @@ export default function CreateQuotePage() {
   const [bulkEditModalVisible, setBulkEditModalVisible] = useState(false);
   const [bulkEditField, setBulkEditField] = useState<string>('');
   const [bulkEditValue, setBulkEditValue] = useState<any>('');
+  const [showAdvancedPayment, setShowAdvancedPayment] = useState(false);
+  const [showLprCompensation, setShowLprCompensation] = useState(false);
+  const [logisticsMode, setLogisticsMode] = useState<'total' | 'detailed'>('detailed');
+  const [showBrokerage, setShowBrokerage] = useState(false);
 
   // Load customers, templates, and admin settings on mount
   useEffect(() => {
@@ -103,6 +109,17 @@ export default function CreateQuotePage() {
     const defaultVars = quotesCalcService.getDefaultVariables();
     form.setFieldsValue(defaultVars);
   }, []);
+
+  // Auto-calculate logistics breakdown when in "total" mode
+  const handleLogisticsTotalChange = (value: number | null) => {
+    if (logisticsMode === 'total' && value) {
+      form.setFieldsValue({
+        logistics_supplier_hub: value * 0.5, // 50%
+        logistics_hub_customs: value * 0.3, // 30%
+        logistics_customs_client: value * 0.2, // 20%
+      });
+    }
+  };
 
   const loadCustomers = async () => {
     const result = await customerService.listCustomers();
@@ -429,6 +446,19 @@ export default function CreateQuotePage() {
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
+            field: 'util_fee',
+            headerName: 'Утилизационный сбор (₽)',
+            flex: 1,
+            minWidth: 150,
+            editable: true,
+            type: 'numericColumn',
+            cellStyle: (params) => ({
+              backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
+            }),
+            valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueParser: (params) => parseDecimalInput(params.newValue),
+          },
+          {
             field: 'markup',
             headerName: 'Наценка (%)',
             flex: 1,
@@ -516,6 +546,7 @@ export default function CreateQuotePage() {
     { value: 'customs_code', label: 'Код ТН ВЭД' },
     { value: 'import_tariff', label: 'Пошлина (%)' },
     { value: 'excise_tax', label: 'Акциз (УЕ КП на тонну)' },
+    { value: 'util_fee', label: 'Утилизационный сбор (₽)' },
     { value: 'markup', label: 'Наценка (%)' },
   ];
 
@@ -591,20 +622,30 @@ export default function CreateQuotePage() {
                 </Text>
 
                 <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-                  {/* 1. Company Settings Card */}
+                  {/* 1. Company & Payment Combined Card */}
                   <Col xs={24} lg={12}>
                     <Card
-                      title="🏢 Настройки компании"
+                      title="🏢 Настройки компании и оплата"
                       size="small"
                       style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                      bodyStyle={{ padding: '12px' }}
                     >
-                      <Row gutter={16}>
+                      <Row gutter={[12, 8]}>
+                        {/* Company Settings Section */}
                         <Col span={24}>
+                          <Text
+                            strong
+                            style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}
+                          >
+                            Компания
+                          </Text>
+                        </Col>
+                        <Col span={12}>
                           <Form.Item name="seller_company" label="Компания-продавец">
                             <Input placeholder="МАСТЕР БЭРИНГ ООО" />
                           </Form.Item>
                         </Col>
-                        <Col span={24}>
+                        <Col span={12}>
                           <Form.Item name="offer_sale_type" label="Вид КП">
                             <Select>
                               <Select.Option value="поставка">Поставка</Select.Option>
@@ -612,7 +653,7 @@ export default function CreateQuotePage() {
                             </Select>
                           </Form.Item>
                         </Col>
-                        <Col span={24}>
+                        <Col span={12}>
                           <Form.Item name="currency_of_quote" label="Валюта КП">
                             <Select>
                               <Select.Option value="RUB">RUB (Рубль)</Select.Option>
@@ -621,56 +662,8 @@ export default function CreateQuotePage() {
                             </Select>
                           </Form.Item>
                         </Col>
-                      </Row>
-                    </Card>
-                  </Col>
-
-                  {/* 2. Financial Parameters Card */}
-                  <Col xs={24} lg={12}>
-                    <Card
-                      title="💰 Финансовые параметры"
-                      size="small"
-                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                    >
-                      <Row gutter={16}>
-                        <Col span={24}>
-                          <Form.Item name="markup" label="Наценка (%)">
-                            <InputNumber
-                              min={0}
-                              max={500}
-                              step={1}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={24}>
-                          <Form.Item name="dm_fee_type" label="Тип вознаграждения ЛПР">
-                            <Select>
-                              <Select.Option value="fixed">Фиксированная сумма</Select.Option>
-                              <Select.Option value="percentage">Процент</Select.Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={24}>
-                          <Form.Item name="dm_fee_value" label="Размер вознаграждения">
-                            <InputNumber min={0} step={100} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Card>
-                  </Col>
-
-                  {/* 3. Logistics Card */}
-                  <Col xs={24} lg={12}>
-                    <Card
-                      title="🚚 Логистика"
-                      size="small"
-                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                    >
-                      <Row gutter={16}>
                         <Col span={12}>
-                          <Form.Item name="offer_incoterms" label="Базис поставки (Incoterms)">
+                          <Form.Item name="offer_incoterms" label="Базис поставки">
                             <Select>
                               <Select.Option value="DDP">DDP</Select.Option>
                               <Select.Option value="EXW">EXW</Select.Option>
@@ -689,51 +682,35 @@ export default function CreateQuotePage() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={24}>
-                          <Form.Item name="logistics_supplier_hub" label="Поставщик - Турция (₽)">
+                        <Col span={12}>
+                          <Form.Item name="markup" label="Наценка (%)">
                             <InputNumber
                               min={0}
-                              step={100}
+                              max={500}
+                              step={1}
                               style={{ width: '100%' }}
-                              addonAfter="₽"
+                              addonAfter="%"
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={24}>
-                          <Form.Item name="logistics_hub_customs" label="Турция - Таможня РФ (₽)">
-                            <InputNumber
-                              min={0}
-                              step={100}
-                              style={{ width: '100%' }}
-                              addonAfter="₽"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={24}>
+                        <Col span={12}>
                           <Form.Item
-                            name="logistics_customs_client"
-                            label="Таможня РФ - Клиент (₽)"
+                            name="exchange_rate_base_price_to_quote"
+                            label="Курс к валюте КП"
                           >
-                            <InputNumber
-                              min={0}
-                              step={100}
-                              style={{ width: '100%' }}
-                              addonAfter="₽"
-                            />
+                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
                           </Form.Item>
                         </Col>
-                      </Row>
-                    </Card>
-                  </Col>
 
-                  {/* 4. Payment Terms Card */}
-                  <Col xs={24} lg={12}>
-                    <Card
-                      title="⏱️ Условия оплаты"
-                      size="small"
-                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                    >
-                      <Row gutter={16}>
+                        {/* Payment Terms - Basic (always visible) */}
+                        <Col span={24} style={{ marginTop: 12 }}>
+                          <Text
+                            strong
+                            style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}
+                          >
+                            Условия оплаты
+                          </Text>
+                        </Col>
                         <Col span={12}>
                           <Form.Item name="advance_from_client" label="Аванс от клиента (%)">
                             <InputNumber
@@ -745,81 +722,6 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="time_to_advance" label="Дней до аванса">
-                            <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="advance_to_supplier" label="Аванс поставщику (%)">
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="advance_on_loading" label="Аванс при заборе груза (%)">
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="time_to_advance_loading"
-                            label="Дней от забора до аванса"
-                          >
-                            <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="advance_on_going_to_country_destination"
-                            label="Аванс при отправке в РФ (%)"
-                          >
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="time_to_advance_going_to_country_destination"
-                            label="Дней от отправки до аванса"
-                          >
-                            <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="advance_on_customs_clearance"
-                            label="Аванс при прохождении таможни (%)"
-                          >
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="time_to_advance_on_customs_clearance"
-                            label="Дней от таможни до аванса"
-                          >
-                            <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
                           <Form.Item
                             name="time_to_advance_on_receiving"
                             label="Дней от получения до оплаты"
@@ -827,131 +729,321 @@ export default function CreateQuotePage() {
                             <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
                           </Form.Item>
                         </Col>
+
+                        {/* Advanced Payment Fields Toggle */}
+                        <Col span={24}>
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => setShowAdvancedPayment(!showAdvancedPayment)}
+                            style={{ padding: 0 }}
+                          >
+                            {showAdvancedPayment
+                              ? '▼ Скрыть дополнительные условия оплаты'
+                              : '▶ Показать дополнительные условия оплаты'}
+                          </Button>
+                        </Col>
+
+                        {/* Advanced Payment Fields (conditionally rendered) */}
+                        {showAdvancedPayment && (
+                          <>
+                            <Col span={12}>
+                              <Form.Item name="time_to_advance" label="Дней до аванса">
+                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item name="advance_to_supplier" label="Аванс поставщику (%)">
+                                <InputNumber
+                                  min={0}
+                                  max={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="%"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                name="advance_on_loading"
+                                label="Аванс при заборе груза (%)"
+                              >
+                                <InputNumber
+                                  min={0}
+                                  max={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="%"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                name="time_to_advance_loading"
+                                label="Дней от забора до аванса"
+                              >
+                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                name="advance_on_going_to_country_destination"
+                                label="Аванс при отправке в РФ (%)"
+                              >
+                                <InputNumber
+                                  min={0}
+                                  max={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="%"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                name="time_to_advance_going_to_country_destination"
+                                label="Дней от отправки до аванса"
+                              >
+                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                name="advance_on_customs_clearance"
+                                label="Аванс при прохождении таможни (%)"
+                              >
+                                <InputNumber
+                                  min={0}
+                                  max={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="%"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                name="time_to_advance_on_customs_clearance"
+                                label="Дней от таможни до аванса"
+                              >
+                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
+                              </Form.Item>
+                            </Col>
+                          </>
+                        )}
+
+                        {/* LPR Compensation - Collapsible (at bottom) */}
+                        <Col span={24} style={{ marginTop: 16 }}>
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => setShowLprCompensation(!showLprCompensation)}
+                            style={{ padding: 0 }}
+                          >
+                            {showLprCompensation
+                              ? '▼ Скрыть вознаграждение ЛПР'
+                              : '▶ Показать вознаграждение ЛПР'}
+                          </Button>
+                        </Col>
+
+                        {/* LPR Fields (conditionally rendered) */}
+                        {showLprCompensation && (
+                          <>
+                            <Col span={12}>
+                              <Form.Item name="dm_fee_type" label="Тип вознаграждения ЛПР">
+                                <Select>
+                                  <Select.Option value="fixed">Фиксированная сумма</Select.Option>
+                                  <Select.Option value="percentage">Процент</Select.Option>
+                                </Select>
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item name="dm_fee_value" label="Размер вознаграждения">
+                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
+                              </Form.Item>
+                            </Col>
+                          </>
+                        )}
                       </Row>
                     </Card>
                   </Col>
 
-                  {/* 5. Customs & Clearance Card */}
+                  {/* 2. Logistics & Customs Card */}
                   <Col xs={24} lg={12}>
                     <Card
-                      title="🛃 Таможня и растаможка"
+                      title="🚚 Логистика и таможня"
                       size="small"
                       style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                      bodyStyle={{ padding: '12px' }}
                     >
-                      <Row gutter={16}>
+                      <Row gutter={[12, 8]}>
+                        {/* Logistics Section */}
+                        <Col span={24}>
+                          <Text
+                            strong
+                            style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}
+                          >
+                            Логистика
+                          </Text>
+                        </Col>
+
+                        {/* Toggle between Total and Detailed */}
+                        <Col span={24}>
+                          <Radio.Group
+                            value={logisticsMode}
+                            onChange={(e) => setLogisticsMode(e.target.value)}
+                            size="small"
+                            style={{ marginBottom: 12 }}
+                          >
+                            <Radio.Button value="total">Итого</Radio.Button>
+                            <Radio.Button value="detailed">Детально</Radio.Button>
+                          </Radio.Group>
+                        </Col>
+
+                        {/* Total Logistics Field (when mode = total) */}
+                        {logisticsMode === 'total' && (
+                          <Col span={24}>
+                            <Form.Item name="logistics_total" label="Логистика всего (₽)">
+                              <InputNumber
+                                min={0}
+                                step={100}
+                                style={{ width: '100%' }}
+                                addonAfter="₽"
+                                onChange={handleLogisticsTotalChange}
+                              />
+                            </Form.Item>
+                          </Col>
+                        )}
+
+                        {/* Detailed Logistics Fields (always present, disabled when mode = total) */}
                         <Col span={12}>
-                          <Form.Item name="brokerage_hub" label="Брокерские Турция (₽)">
+                          <Form.Item name="logistics_supplier_hub" label="Поставщик - Турция (50%)">
                             <InputNumber
                               min={0}
                               step={100}
                               style={{ width: '100%' }}
                               addonAfter="₽"
+                              disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="brokerage_customs" label="Брокерские РФ (₽)">
+                          <Form.Item name="logistics_hub_customs" label="Турция - Таможня РФ (30%)">
                             <InputNumber
                               min={0}
                               step={100}
                               style={{ width: '100%' }}
                               addonAfter="₽"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="warehousing_at_customs" label="Расходы на СВХ (₽)">
-                            <InputNumber
-                              min={0}
-                              step={100}
-                              style={{ width: '100%' }}
-                              addonAfter="₽"
+                              disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
                           <Form.Item
-                            name="customs_documentation"
-                            label="Разрешительные документы (₽)"
+                            name="logistics_customs_client"
+                            label="Таможня РФ - Клиент (20%)"
                           >
                             <InputNumber
                               min={0}
                               step={100}
                               style={{ width: '100%' }}
                               addonAfter="₽"
+                              disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={12}>
-                          <Form.Item name="brokerage_extra" label="Прочие расходы (₽)">
-                            <InputNumber
-                              min={0}
-                              step={100}
-                              style={{ width: '100%' }}
-                              addonAfter="₽"
-                            />
-                          </Form.Item>
+
+                        {/* Divider between Logistics and Brokerage */}
+                        <Col span={24}>
+                          <Divider style={{ margin: '12px 0' }} />
                         </Col>
-                        <Col span={12}>
-                          <Form.Item name="util_fee" label="Утилизационный сбор (₽)">
-                            <InputNumber
-                              min={0}
-                              step={0.01}
-                              style={{ width: '100%' }}
-                              addonAfter="₽"
-                            />
-                          </Form.Item>
+
+                        {/* Brokerage Section Toggle */}
+                        <Col span={24}>
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => setShowBrokerage(!showBrokerage)}
+                            style={{ padding: 0 }}
+                          >
+                            {showBrokerage ? '▼ Скрыть брокеридж' : '▶ Показать брокеридж'}
+                          </Button>
                         </Col>
+
+                        {/* Brokerage Fields (conditionally rendered) */}
+                        {showBrokerage && (
+                          <>
+                            <Col span={12}>
+                              <Form.Item name="brokerage_hub" label="Брокерские Турция (₽)">
+                                <InputNumber
+                                  min={0}
+                                  step={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="₽"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item name="brokerage_customs" label="Брокерские РФ (₽)">
+                                <InputNumber
+                                  min={0}
+                                  step={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="₽"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item name="warehousing_at_customs" label="Расходы на СВХ (₽)">
+                                <InputNumber
+                                  min={0}
+                                  step={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="₽"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item
+                                name="customs_documentation"
+                                label="Разрешительные документы (₽)"
+                              >
+                                <InputNumber
+                                  min={0}
+                                  step={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="₽"
+                                />
+                              </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                              <Form.Item name="brokerage_extra" label="Прочие расходы (₽)">
+                                <InputNumber
+                                  min={0}
+                                  step={100}
+                                  style={{ width: '100%' }}
+                                  addonAfter="₽"
+                                />
+                              </Form.Item>
+                            </Col>
+                          </>
+                        )}
                       </Row>
                     </Card>
                   </Col>
 
-                  {/* 6. Product Defaults Card */}
+                  {/* 3. Customs Clearance Card */}
                   <Col xs={24} lg={12}>
                     <Card
-                      title="📦 Значения по умолчанию для товаров"
+                      title="🛃 Таможенная очистка"
                       size="small"
                       style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                      bodyStyle={{ padding: '12px' }}
                     >
-                      <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                        Эти значения можно переопределить для каждого товара в таблице
+                      <Text
+                        type="secondary"
+                        style={{ display: 'block', marginBottom: 8, fontSize: '12px' }}
+                      >
+                        Значения по умолчанию для таможенной очистки
                       </Text>
-                      <Row gutter={16}>
-                        <Col span={12}>
-                          <Form.Item name="currency_of_base_price" label="Валюта цены закупки">
-                            <Select>
-                              <Select.Option value="TRY">TRY (Турецкая лира)</Select.Option>
-                              <Select.Option value="USD">USD (Доллар США)</Select.Option>
-                              <Select.Option value="EUR">EUR (Евро)</Select.Option>
-                              <Select.Option value="CNY">CNY (Юань)</Select.Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="exchange_rate_base_price_to_quote"
-                            label="Курс к валюте КП"
-                          >
-                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="supplier_country" label="Страна закупки">
-                            <Input placeholder="Турция" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="supplier_discount" label="Скидка поставщика (%)">
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              step={0.1}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
+                      <Row gutter={[12, 8]}>
+                        <Col span={24}>
                           <Form.Item name="customs_code" label="Код ТН ВЭД">
                             <Input placeholder="8482102009" />
                           </Form.Item>
@@ -969,6 +1061,51 @@ export default function CreateQuotePage() {
                         </Col>
                         <Col span={12}>
                           <Form.Item name="excise_tax" label="Акциз (УЕ КП на тонну)">
+                            <InputNumber
+                              min={0}
+                              max={100}
+                              step={0.1}
+                              style={{ width: '100%' }}
+                              addonAfter="%"
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </Card>
+                  </Col>
+
+                  {/* 4. Product Defaults Card */}
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title="📦 Значения по умолчанию для товаров"
+                      size="small"
+                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                      bodyStyle={{ padding: '12px' }}
+                    >
+                      <Text
+                        type="secondary"
+                        style={{ display: 'block', marginBottom: 8, fontSize: '12px' }}
+                      >
+                        Эти значения можно переопределить для каждого товара в таблице
+                      </Text>
+                      <Row gutter={[12, 8]}>
+                        <Col span={12}>
+                          <Form.Item name="currency_of_base_price" label="Валюта цены закупки">
+                            <Select>
+                              <Select.Option value="TRY">TRY (Турецкая лира)</Select.Option>
+                              <Select.Option value="USD">USD (Доллар США)</Select.Option>
+                              <Select.Option value="EUR">EUR (Евро)</Select.Option>
+                              <Select.Option value="CNY">CNY (Юань)</Select.Option>
+                            </Select>
+                          </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                          <Form.Item name="supplier_country" label="Страна закупки">
+                            <Input placeholder="Турция" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                          <Form.Item name="supplier_discount" label="Скидка поставщика (%)">
                             <InputNumber
                               min={0}
                               max={100}

@@ -65,26 +65,129 @@ Improve layout and user experience of quote creation page - reduce visual clutte
   - Important columns always visible when scrolling
   - Time: 5 min
 
-**Session 14 Total Time:** ~1.5 hours
+#### Form Field Reorganization & Card Consolidation
+- [x] Reorganized customs and logistics fields
+  - Moved 5 customs fields from separate card to Logistics card
+  - Fields: customs_code, import_tariff, excise_tax, customs_brokerage_fee_turkey, customs_brokerage_fee_russia
+  - Removed standalone "Таможня и растаможка" card
+  - Time: 20 min
+
+- [x] Moved util_fee from card to ag-Grid column
+  - Added "Утилизационный сбор (₽)" column to product grid
+  - Positioned between "Акциз" and "Наценка" columns
+  - Editable with blue highlight when filled (same as other overrides)
+  - Added to bulk edit field options
+  - Time: 10 min
+
+- [x] Combined Company, Financial, and Payment cards into one
+  - **New card:** "🏢 Настройки компании и оплата"
+  - Moved delivery fields to company section (offer_incoterms, delivery_days)
+  - Consolidated all fields filled by the same person
+  - Reduced from 3 cards to 1 unified card
+  - Time: 25 min
+
+- [x] Simplified payment terms with collapsible sections
+  - Main visible fields: Аванс от клиента (%), Дней от получения до оплаты
+  - Advanced payment fields in collapsible section (default hidden)
+  - Button: "Показать расширенные параметры оплаты"
+  - 8 additional fields: prepayment_from_client_days, payment_to_supplier, etc.
+  - Time: 20 min
+
+- [x] Reorganized markup and LPR compensation
+  - Moved "Наценка (%)" to Company section (top of card)
+  - Renamed Financial card to "Вознаграждение ЛПР"
+  - Made LPR compensation collapsible (default hidden)
+  - Fields: dm_fee_type, dm_fee_value
+  - Time: 15 min
+
+- [x] Created new "Таможенная очистка" (Customs Clearance) card
+  - Separated from Product Defaults
+  - 3 fields: customs_code, import_tariff, excise_tax
+  - Independent card for customs-specific data
+  - Time: 10 min
+
+#### Logistics Card Special Features
+- [x] Added visual separator and section grouping
+  - Logistics section on top (5 fields)
+  - Brokerage section on bottom (5 fields) with Divider
+  - Clear visual separation between related field groups
+  - Time: 10 min
+
+- [x] Implemented logistics input mode toggle
+  - **Feature:** Radio buttons - "Итого" vs "Детально"
+  - **Total mode:** Single input field, auto-calculates 3 logistics fields
+  - **Auto-split:** 50% supplier-hub, 30% hub-customs, 20% customs-client
+  - **Detailed mode:** Manual input for each of 3 fields
+  - Default: "Детально" mode (detailed input)
+  - Time: 30 min
+
+- [x] Made brokerage section collapsible
+  - Renamed to "Брокеридж"
+  - Default state: collapsed (hidden)
+  - Toggle button: "Показать брокерские расходы"
+  - 5 fields: customs_brokerage_fee_turkey, customs_brokerage_fee_russia, temporary_storage_cost, permitting_documents_cost, miscellaneous_costs
+  - Time: 15 min
+
+#### Final UI Polish - Compact & Lightweight Styling
+- [x] Moved exchange rate field to Company card
+  - From Product Defaults to "Настройки компании и оплата"
+  - Logical grouping with other company-wide settings
+  - Time: 5 min
+
+- [x] Reduced card padding and spacing throughout
+  - Card body padding: 24px → 12px (`bodyStyle={{ padding: '12px' }}`)
+  - Row gutter: [16, 16] → [12, 8] (tighter spacing)
+  - Section header font: 13px → 12px
+  - Section margins: 8px → 4px (bottom), 16px → 12px (top)
+  - Helper text: reduced to 12px
+  - Result: More compact, lightweight interface
+  - Time: 20 min
+
+**Final Card Structure (4 cards total):**
+1. 🏢 Настройки компании и оплата (Company + Payment combined)
+   - Company section: 5 fields + markup
+   - Payment section: 2 main + 8 collapsible fields
+   - LPR compensation: collapsible, 2 fields
+2. 🚚 Логистика и таможня (Logistics + Brokerage)
+   - Logistics mode toggle (total/detailed): 3 fields
+   - Brokerage collapsible: 5 fields
+3. 📋 Таможенная очистка (Customs Clearance)
+   - 3 fields: customs code, tariff, excise
+4. 📦 Значения по умолчанию для товаров (Product Defaults)
+   - 4 fields (removed util_fee, exchange rate)
+
+**Session 14 Total Time:** ~4 hours
 
 ### Benefits
 - ✅ **More vertical space** - Removed large green admin settings card
-- ✅ **All sections visible** - No clicking to expand/collapse
-- ✅ **Better scannability** - Can see all form fields at once
-- ✅ **Ready for role-based access** - Easy to conditionally render cards per user role
-- ✅ **Cleaner design** - Elevated cards with consistent styling
+- ✅ **Compact interface** - Reduced padding, margins, and font sizes throughout
+- ✅ **Logical field grouping** - Fields grouped by who fills them (same role, same card)
+- ✅ **Smart defaults** - Rarely-used fields hidden by default, easily accessible
+- ✅ **Flexible logistics input** - Toggle between total (auto-split) and detailed modes
+- ✅ **Better scannability** - Clean default view with advanced options available
+- ✅ **Cleaner design** - 4 elevated cards with consistent lightweight styling
 - ✅ **Responsive** - Works on desktop (2 cols) and mobile (1 col)
-- ✅ **Grid adapts to window size** - No more cut-off columns
+- ✅ **Grid adapts to window size** - No more cut-off columns, util_fee as product-level field
 - ✅ **Important columns pinned** - SKU/Brand/Name always visible
+- ✅ **Ready for role-based access** - Easy to conditionally render cards per user role
 
 ### Modified Files
-- `frontend/src/app/quotes/create/page.tsx`
-  - Removed: Collapse, Panel imports
-  - Added: Grid layout with Row/Col for 6 cards
-  - Updated: Admin settings display (compact horizontal)
-  - Fixed: Annual rate calculation (multiply by 100)
-  - Fixed: ag-Grid column pinning and flexible sizing
-  - Added: `suppressHorizontalScroll={false}` to enable scrollbar
+- `frontend/src/app/quotes/create/page.tsx` (764 lines changed)
+  - **Removed:** Collapse, Panel imports; unused Checkbox, Statistic imports
+  - **Added imports:** Radio, Divider components
+  - **Added state:** showAdvancedPayment, showLprCompensation, logisticsMode, showBrokerage
+  - **Added function:** handleLogisticsTotalChange (auto-split logistics 50/30/20)
+  - **Updated:** Admin settings display (compact horizontal top-right)
+  - **Fixed:** Annual rate calculation (multiply by 100)
+  - **Restructured cards:** 6 → 4 cards with logical grouping
+    - Combined Company + Financial + Payment → "Настройки компании и оплата"
+    - Combined Logistics + Customs brokerage → "Логистика и таможня"
+    - Created new "Таможенная очистка" card
+    - Reduced "Значения по умолчанию для товаров" (moved util_fee, exchange_rate out)
+  - **Added collapsible sections:** Advanced payment, LPR compensation, Brokerage
+  - **Added logistics toggle:** Radio buttons for "Итого"/"Детально" mode with auto-calculation
+  - **Fixed ag-Grid:** Column pinning, flexible sizing, added util_fee column
+  - **Styling:** Reduced padding (12px), gutters ([12, 8]), fonts (12px), margins (4-12px)
 
 #### ESLint Configuration Restoration
 - [x] Discovered ESLint config was accidentally removed in Session 13
@@ -96,24 +199,32 @@ Improve layout and user experience of quote creation page - reduce visual clutte
   - Time: 15 min
 
 ### Status
-✅ **COMPLETE - ALL IMPROVEMENTS TESTED AND COMMITTED**
+✅ **READY TO COMMIT** - All improvements completed, awaiting final verification and git push
 
-**Pushed to GitHub:** Commit `e8d9ccd` - "Improve quote creation page UX - compact admin settings and grid card layout"
+**Previous commit:** `e8d9ccd` - "Improve quote creation page UX - compact admin settings and grid card layout" (initial work)
+**Pending commit:** Complete UI/UX redesign with field reorganization, collapsible sections, logistics toggle, and compact styling
 
 ### Deliverables
-1. Compact admin settings display (top-right horizontal text)
-2. Grid of 6 elevated cards for form sections
-3. Responsive ag-Grid with pinned columns and flex sizing
-4. Restored ESLint configuration
-5. Code cleanup (removed unused imports/variables)
-6. Updated documentation
+1. ✅ Compact admin settings display (top-right horizontal text) - COMMITTED
+2. ✅ Responsive ag-Grid with pinned columns and flex sizing - COMMITTED
+3. ✅ Restored ESLint configuration - COMMITTED
+4. ✅ Logical field reorganization (customs → logistics, util_fee → grid) - PENDING COMMIT
+5. ✅ Card consolidation (6 → 4 cards) with role-based grouping - PENDING COMMIT
+6. ✅ Collapsible sections for advanced options - PENDING COMMIT
+7. ✅ Logistics toggle with auto-calculation (50/30/20 split) - PENDING COMMIT
+8. ✅ Compact styling (reduced padding, gutters, fonts) - PENDING COMMIT
+9. ✅ Updated documentation (SESSION_PROGRESS.md) - PENDING COMMIT
 
 ### Notes
-- Grid layout scales from 1-6 cards automatically
+- Final layout: 4 cards (down from 6) with logical role-based grouping
+- Collapsible sections reduce visual clutter while keeping all functionality accessible
+- Logistics toggle provides flexibility: quick input (total) vs detailed control
+- Compact styling makes interface feel lighter and more professional
 - Easy to add role-based visibility: wrap each `<Col>` in conditional render
 - Example: `{userCanSeeCompany && <Col xs={24} lg={12}>...</Col>}`
-- All Session 13 automated tests should still pass
+- All Session 13 automated tests may need updates (card structure changed)
 - ESLint config restored and working correctly
+- Frontend server running on :3000, Backend on :8000
 
 ---
 
