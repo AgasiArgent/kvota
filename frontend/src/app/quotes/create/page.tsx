@@ -67,6 +67,17 @@ const agGridRowSelectionStyles = `
   }
 `;
 
+// CSS for compact form styling
+const compactFormStyles = `
+  .compact-form .ant-form-item {
+    margin-bottom: 12px;
+  }
+  .compact-form .ant-form-item-label > label {
+    font-size: 12px;
+    height: auto;
+  }
+`;
+
 // Helper function to parse decimal input with comma or period separator
 const parseDecimalInput = (value: string): number | null => {
   if (!value || value === '') return null;
@@ -584,33 +595,83 @@ export default function CreateQuotePage() {
         </Row>
 
         <Spin spinning={loading}>
-          <Form form={form} layout="vertical" onFinish={handleCalculate}>
+          <Form
+            form={form}
+            layout="vertical"
+            size="small"
+            className="compact-form"
+            onFinish={handleCalculate}
+          >
             {/* Top Section - Form Cards (Full Width) */}
             <Row gutter={24}>
               <Col span={24}>
-                {/* Template Selector */}
-                <Card
-                  title="📋 Шаблон переменных"
-                  extra={
-                    <Button type="link" icon={<SaveOutlined />} onClick={handleSaveTemplate}>
-                      Сохранить как шаблон
-                    </Button>
-                  }
-                  style={{ marginBottom: 16 }}
+                {/* Template & Customer Selector - Compact Inline */}
+                <Row
+                  gutter={12}
+                  align="middle"
+                  style={{
+                    marginBottom: 16,
+                    padding: '8px 12px',
+                    background: '#fafafa',
+                    borderRadius: '4px',
+                  }}
                 >
-                  <Form.Item label="Загрузить шаблон">
+                  <Col>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      Шаблон:
+                    </Text>
+                  </Col>
+                  <Col flex="auto" style={{ maxWidth: '300px' }}>
                     <Select
-                      placeholder="Выберите шаблон или заполните вручную"
+                      size="small"
+                      placeholder="Выберите шаблон"
                       value={selectedTemplate}
                       onChange={handleTemplateSelect}
                       allowClear
+                      style={{ width: '100%' }}
                       options={templates.map((t) => ({
-                        label: `${t.name} ${t.is_default ? '(по умолчанию)' : ''}`,
+                        label: `${t.name}${t.is_default ? ' (по умолч.)' : ''}`,
                         value: t.id,
                       }))}
                     />
-                  </Form.Item>
-                </Card>
+                  </Col>
+                  <Col>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<SaveOutlined />}
+                      onClick={handleSaveTemplate}
+                    >
+                      Сохранить
+                    </Button>
+                  </Col>
+                  <Col>
+                    <Divider type="vertical" style={{ height: '24px', margin: '0 8px' }} />
+                  </Col>
+                  <Col>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      Клиент:
+                    </Text>
+                  </Col>
+                  <Col flex="auto" style={{ maxWidth: '300px' }}>
+                    <Select
+                      size="small"
+                      showSearch
+                      placeholder="Выберите клиента"
+                      value={selectedCustomer}
+                      onChange={setSelectedCustomer}
+                      optionFilterProp="children"
+                      style={{ width: '100%' }}
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                      options={customers.map((c) => ({
+                        label: `${c.name} (${c.inn || 'без ИНН'})`,
+                        value: c.id,
+                      }))}
+                    />
+                  </Col>
+                </Row>
 
                 {/* Variables Form - Grid of Cards */}
                 <Text
@@ -1122,9 +1183,9 @@ export default function CreateQuotePage() {
               </Col>
             </Row>
 
-            {/* File Upload & Customer Selection Row */}
+            {/* File Upload Row */}
             <Row gutter={24} style={{ marginTop: 24 }}>
-              <Col xs={24} lg={12}>
+              <Col span={24}>
                 {/* File Upload */}
                 <Card title="📁 Загрузить товары">
                   <Dragger {...uploadProps}>
@@ -1139,28 +1200,6 @@ export default function CreateQuotePage() {
                       Загружено товаров: {uploadedProducts.length}
                     </Text>
                   )}
-                </Card>
-              </Col>
-
-              <Col xs={24} lg={12}>
-                {/* Customer Selection */}
-                <Card title="👤 Выбрать клиента">
-                  <Form.Item label="Клиент" required>
-                    <Select
-                      showSearch
-                      placeholder="Выберите клиента"
-                      value={selectedCustomer}
-                      onChange={setSelectedCustomer}
-                      optionFilterProp="children"
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
-                      options={customers.map((c) => ({
-                        label: `${c.name} (${c.inn || 'без ИНН'})`,
-                        value: c.id,
-                      }))}
-                    />
-                  </Form.Item>
                 </Card>
               </Col>
             </Row>
@@ -1181,7 +1220,10 @@ export default function CreateQuotePage() {
                       💡 Совет: Выберите строки, затем используйте &quot;Массовое
                       редактирование&quot; или Ctrl+C/Ctrl+V для копирования из Excel
                     </Text>
-                    <style>{agGridRowSelectionStyles}</style>
+                    <style>
+                      {agGridRowSelectionStyles}
+                      {compactFormStyles}
+                    </style>
                     <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
                       <AgGridReact
                         ref={gridRef}

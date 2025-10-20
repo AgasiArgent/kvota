@@ -128,7 +128,7 @@ Improve layout and user experience of quote creation page - reduce visual clutte
   - 5 fields: customs_brokerage_fee_turkey, customs_brokerage_fee_russia, temporary_storage_cost, permitting_documents_cost, miscellaneous_costs
   - Time: 15 min
 
-#### Final UI Polish - Compact & Lightweight Styling
+#### Final UI Polish - Compact & Lightweight Styling (Phase 2)
 - [x] Moved exchange rate field to Company card
   - From Product Defaults to "Настройки компании и оплата"
   - Logical grouping with other company-wide settings
@@ -143,6 +143,41 @@ Improve layout and user experience of quote creation page - reduce visual clutte
   - Result: More compact, lightweight interface
   - Time: 20 min
 
+#### Ultra-Compact Selectors & Form Fields (Phase 3)
+- [x] Made template selector lightweight and inline
+  - Removed full-width Card wrapper
+  - Changed to compact horizontal row with light gray background (#fafafa)
+  - Small components (`size="small"`)
+  - Compact label: "Шаблон:" (12px font)
+  - Abbreviated text: "(по умолч.)" instead of "(по умолчанию)"
+  - Text button for save (less prominent)
+  - Limited width: 300px
+  - Padding: 8px 12px
+  - Time: 10 min
+
+- [x] Made customer selector lightweight and placed inline
+  - Moved from separate Card to inline next to template selector
+  - Same compact styling as template selector
+  - Small size select with search functionality
+  - Separated by vertical divider
+  - Width: 300px
+  - Time: 10 min
+
+- [x] Reorganized file upload section
+  - Removed customer card (moved to top inline)
+  - File upload now full width instead of half
+  - Cleaner layout with more upload space
+  - Time: 5 min
+
+- [x] Made all form fields compact throughout cards
+  - Applied `size="small"` to Form component (all inputs smaller)
+  - Created custom CSS class `compact-form`:
+    - Form.Item margin: 24px → 12px
+    - Label font size: 12px
+  - Applies to all 4 cards globally
+  - Consistent lightweight feel throughout interface
+  - Time: 10 min
+
 **Final Card Structure (4 cards total):**
 1. 🏢 Настройки компании и оплата (Company + Payment combined)
    - Company section: 5 fields + markup
@@ -156,38 +191,64 @@ Improve layout and user experience of quote creation page - reduce visual clutte
 4. 📦 Значения по умолчанию для товаров (Product Defaults)
    - 4 fields (removed util_fee, exchange rate)
 
-**Session 14 Total Time:** ~4 hours
+**Session 14 Total Time:** ~4.5 hours
 
 ### Benefits
-- ✅ **More vertical space** - Removed large green admin settings card
-- ✅ **Compact interface** - Reduced padding, margins, and font sizes throughout
+- ✅ **More vertical space** - Removed large cards for admin, template, customer sections
+- ✅ **Ultra-compact interface** - Lightweight selectors and small form fields throughout
 - ✅ **Logical field grouping** - Fields grouped by who fills them (same role, same card)
 - ✅ **Smart defaults** - Rarely-used fields hidden by default, easily accessible
 - ✅ **Flexible logistics input** - Toggle between total (auto-split) and detailed modes
 - ✅ **Better scannability** - Clean default view with advanced options available
 - ✅ **Cleaner design** - 4 elevated cards with consistent lightweight styling
+- ✅ **Inline utility controls** - Template and customer selectors in one compact row
+- ✅ **Professional appearance** - Small inputs (size="small") feel modern and efficient
 - ✅ **Responsive** - Works on desktop (2 cols) and mobile (1 col)
 - ✅ **Grid adapts to window size** - No more cut-off columns, util_fee as product-level field
 - ✅ **Important columns pinned** - SKU/Brand/Name always visible
 - ✅ **Ready for role-based access** - Easy to conditionally render cards per user role
 
 ### Modified Files
-- `frontend/src/app/quotes/create/page.tsx` (764 lines changed)
-  - **Removed:** Collapse, Panel imports; unused Checkbox, Statistic imports
-  - **Added imports:** Radio, Divider components
-  - **Added state:** showAdvancedPayment, showLprCompensation, logisticsMode, showBrokerage
-  - **Added function:** handleLogisticsTotalChange (auto-split logistics 50/30/20)
-  - **Updated:** Admin settings display (compact horizontal top-right)
-  - **Fixed:** Annual rate calculation (multiply by 100)
-  - **Restructured cards:** 6 → 4 cards with logical grouping
-    - Combined Company + Financial + Payment → "Настройки компании и оплата"
-    - Combined Logistics + Customs brokerage → "Логистика и таможня"
-    - Created new "Таможенная очистка" card
-    - Reduced "Значения по умолчанию для товаров" (moved util_fee, exchange_rate out)
-  - **Added collapsible sections:** Advanced payment, LPR compensation, Brokerage
-  - **Added logistics toggle:** Radio buttons for "Итого"/"Детально" mode with auto-calculation
-  - **Fixed ag-Grid:** Column pinning, flexible sizing, added util_fee column
-  - **Styling:** Reduced padding (12px), gutters ([12, 8]), fonts (12px), margins (4-12px)
+- `frontend/src/app/quotes/create/page.tsx`
+  - **Phase 1-2 (764 lines):** Card restructuring and compact styling
+  - **Phase 3 (additional changes):** Ultra-compact selectors and form fields
+
+  **Removed:**
+  - Collapse, Panel imports; unused Checkbox, Statistic imports
+  - Template Card wrapper (converted to inline row)
+  - Customer Card wrapper (moved to inline row)
+
+  **Added:**
+  - Imports: Radio, Divider components
+  - State: showAdvancedPayment, showLprCompensation, logisticsMode, showBrokerage
+  - Function: handleLogisticsTotalChange (auto-split logistics 50/30/20)
+  - CSS: compactFormStyles (12px margins, 12px labels)
+  - Form props: size="small", className="compact-form"
+
+  **Restructured:**
+  - Admin settings: compact horizontal top-right display
+  - Template selector: inline compact row (300px, size="small", gray background)
+  - Customer selector: inline next to template (300px, size="small", with divider)
+  - File upload: full width (was half)
+  - Cards: 6 → 4 with logical grouping
+    - Company + Financial + Payment → "Настройки компании и оплата"
+    - Logistics + Customs brokerage → "Логистика и таможня"
+    - New "Таможенная очистка" card
+    - Reduced "Значения по умолчанию для товаров"
+
+  **Features:**
+  - Collapsible sections: Advanced payment, LPR compensation, Brokerage
+  - Logistics toggle: Radio buttons for "Итого"/"Детально" mode with auto-calculation
+  - ag-Grid: Column pinning, flexible sizing, util_fee column
+
+  **Styling:**
+  - All form fields: size="small" (compact inputs throughout)
+  - Card padding: 12px
+  - Gutters: [12, 8]
+  - Fonts: 12px (labels, headers)
+  - Margins: 4-12px
+  - Form.Item margin: 12px
+  - Inline selectors: 8px 12px padding, #fafafa background
 
 #### ESLint Configuration Restoration
 - [x] Discovered ESLint config was accidentally removed in Session 13
@@ -199,22 +260,28 @@ Improve layout and user experience of quote creation page - reduce visual clutte
   - Time: 15 min
 
 ### Status
-✅ **COMPLETE - ALL IMPROVEMENTS COMMITTED AND PUSHED**
+✅ **READY TO COMMIT - Phase 3 complete**
 
-**Initial commit:** `e8d9ccd` - "Improve quote creation page UX - compact admin settings and grid card layout"
-**Final commit:** `d6e7635` - "Complete quote creation page UI/UX redesign - field reorganization and compact layout"
+**Commits:**
+- `e8d9ccd` - Phase 1: Compact admin settings and grid card layout
+- `d6e7635` - Phase 2: Field reorganization and compact layout
+- `d3c04df` - Documentation update
+- **Pending** - Phase 3: Ultra-compact selectors and form fields
 
 ### Deliverables
-1. ✅ Compact admin settings display (top-right horizontal text)
-2. ✅ Responsive ag-Grid with pinned columns and flex sizing
-3. ✅ Restored ESLint configuration
-4. ✅ Logical field reorganization (customs → logistics, util_fee → grid)
-5. ✅ Card consolidation (6 → 4 cards) with role-based grouping
-6. ✅ Collapsible sections for advanced options (payment, LPR, brokerage)
-7. ✅ Logistics toggle with auto-calculation (50/30/20 split)
-8. ✅ Compact styling (reduced padding, gutters, fonts throughout)
-9. ✅ Updated documentation (SESSION_PROGRESS.md)
-10. ✅ All changes pushed to GitHub (commits `e8d9ccd` and `d6e7635`)
+1. ✅ Compact admin settings display (top-right horizontal text) - COMMITTED
+2. ✅ Responsive ag-Grid with pinned columns and flex sizing - COMMITTED
+3. ✅ Restored ESLint configuration - COMMITTED
+4. ✅ Logical field reorganization (customs → logistics, util_fee → grid) - COMMITTED
+5. ✅ Card consolidation (6 → 4 cards) with role-based grouping - COMMITTED
+6. ✅ Collapsible sections for advanced options (payment, LPR, brokerage) - COMMITTED
+7. ✅ Logistics toggle with auto-calculation (50/30/20 split) - COMMITTED
+8. ✅ Compact styling (reduced padding, gutters, fonts throughout) - COMMITTED
+9. ✅ Template selector: inline lightweight row - PENDING COMMIT
+10. ✅ Customer selector: inline next to template - PENDING COMMIT
+11. ✅ All form fields: size="small" with compact CSS - PENDING COMMIT
+12. ✅ File upload: full width layout - PENDING COMMIT
+13. ✅ Updated documentation (SESSION_PROGRESS.md) - PENDING COMMIT
 
 ### Notes
 - Final layout: 4 cards (down from 6) with logical role-based grouping
