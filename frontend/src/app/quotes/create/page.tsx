@@ -13,19 +13,19 @@ import {
   Row,
   Col,
   message,
-  Collapse,
   InputNumber,
   Space,
   Spin,
   Tag,
-  Checkbox,
-  Statistic,
   Modal,
 } from 'antd';
 import { AgGridReact } from 'ag-grid-react';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef, ColGroupDef } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+// Register AG Grid modules (required for v34+)
+ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   InboxOutlined,
   SaveOutlined,
@@ -51,7 +51,28 @@ import {
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
-const { Panel } = Collapse;
+
+// CSS for full row highlighting when selected via checkbox
+const agGridRowSelectionStyles = `
+  .ag-theme-alpine .ag-row-selected {
+    background-color: #e0e0e0 !important;
+  }
+  .ag-theme-alpine .ag-row-selected:hover {
+    background-color: #d4d4d4 !important;
+  }
+  .ag-theme-alpine .ag-row-selected .ag-cell {
+    background-color: transparent !important;
+  }
+`;
+
+// Helper function to parse decimal input with comma or period separator
+const parseDecimalInput = (value: string): number | null => {
+  if (!value || value === '') return null;
+  // Replace comma with period for parsing
+  const normalized = value.toString().replace(',', '.');
+  const parsed = parseFloat(normalized);
+  return isNaN(parsed) ? null : parsed;
+};
 
 export default function CreateQuotePage() {
   const router = useRouter();
@@ -67,7 +88,6 @@ export default function CreateQuotePage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>();
   const [selectedCustomer, setSelectedCustomer] = useState<string | undefined>();
   const [calculationResults, setCalculationResults] = useState<any>(null);
-  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [adminSettings, setAdminSettings] = useState<CalculationSettings | null>(null);
   const [bulkEditModalVisible, setBulkEditModalVisible] = useState(false);
   const [bulkEditField, setBulkEditField] = useState<string>('');
@@ -83,13 +103,6 @@ export default function CreateQuotePage() {
     const defaultVars = quotesCalcService.getDefaultVariables();
     form.setFieldsValue(defaultVars);
   }, []);
-
-  // Debug: Log uploadedProducts when they change
-  useEffect(() => {
-    console.log('=== uploadedProducts changed ===');
-    console.log('Length:', uploadedProducts.length);
-    console.log('Data:', uploadedProducts);
-  }, [uploadedProducts]);
 
   const loadCustomers = async () => {
     const result = await customerService.listCustomers();
@@ -154,19 +167,28 @@ export default function CreateQuotePage() {
     multiple: false,
     maxCount: 1,
     accept: '.xlsx,.xls,.csv',
-    beforeUpload: (file) => {
-      if (!quotesCalcService.isValidFileType(file)) {
+    customRequest: async ({ file, onSuccess, onError }) => {
+      const uploadFile = file as File;
+
+      if (!quotesCalcService.isValidFileType(uploadFile)) {
         message.error('Поддерживаются только файлы Excel (.xlsx, .xls) и CSV (.csv)');
-        return false;
+        if (onError) onError(new Error('Invalid file type'));
+        return;
       }
-      handleFileUpload(file);
-      return false; // Prevent automatic upload
+
+      const success = await handleFileUpload(uploadFile);
+      if (success) {
+        if (onSuccess) onSuccess('ok');
+      } else {
+        if (onError) onError(new Error('Upload failed'));
+      }
     },
     onRemove: () => {
       setUploadedProducts([]);
       setUploadedFile(null);
     },
     fileList: uploadedFile ? [uploadedFile] : [],
+    showUploadList: true,
   };
 
   // Template selection handler
@@ -231,24 +253,6 @@ export default function CreateQuotePage() {
 
       if (result.success && result.data) {
         setCalculationResults(result.data);
-        // Show all columns by default
-        setVisibleColumns([
-          'product_name',
-          'quantity',
-          'base_price_vat',
-          'base_price_no_vat',
-          'purchase_price_rub',
-          'logistics_costs',
-          'cogs',
-          'cogs_with_vat',
-          'import_duties',
-          'customs_fees',
-          'financing_costs',
-          'dm_fee',
-          'total_cost',
-          'sale_price',
-          'margin',
-        ]);
         message.success(`Расчет выполнен! Котировка №${result.data.quote_number}`);
       } else {
         message.error(`Ошибка расчета: ${result.error}`);
@@ -263,6 +267,16 @@ export default function CreateQuotePage() {
   // ag-Grid column definitions with groups
   const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(
     () => [
+      // Checkbox selection column - PINNED LEFT
+      {
+        headerCheckboxSelection: true,
+        checkboxSelection: true,
+        width: 50,
+        pinned: 'left',
+        lockPosition: true,
+        suppressMenu: true,
+        resizable: false,
+      },
       // Group 1: Product Info (Always Editable)
       {
         headerName: 'Информация о товаре',
@@ -271,6 +285,7 @@ export default function CreateQuotePage() {
             field: 'sku',
             headerName: 'Артикул',
             width: 120,
+            pinned: 'left', // Always visible
             editable: true,
             cellStyle: { backgroundColor: '#fff' },
           },
@@ -278,6 +293,7 @@ export default function CreateQuotePage() {
             field: 'brand',
             headerName: 'Бренд',
             width: 120,
+            pinned: 'left', // Always visible
             editable: true,
             cellStyle: { backgroundColor: '#fff' },
           },
@@ -285,13 +301,15 @@ export default function CreateQuotePage() {
             field: 'product_name',
             headerName: 'Наименование',
             width: 200,
+            pinned: 'left', // Always visible
             editable: true,
             cellStyle: { backgroundColor: '#fff' },
           },
           {
             field: 'quantity',
             headerName: 'Кол-во',
-            width: 100,
+            flex: 1,
+            minWidth: 80,
             editable: true,
             type: 'numericColumn',
             cellStyle: { backgroundColor: '#fff' },
@@ -299,20 +317,24 @@ export default function CreateQuotePage() {
           {
             field: 'base_price_vat',
             headerName: 'Цена с НДС',
-            width: 130,
+            flex: 1,
+            minWidth: 110,
             editable: true,
             type: 'numericColumn',
             cellStyle: { backgroundColor: '#fff' },
             valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
             field: 'weight_in_kg',
             headerName: 'Вес (кг)',
-            width: 100,
+            flex: 1,
+            minWidth: 90,
             editable: true,
             type: 'numericColumn',
             cellStyle: { backgroundColor: '#fff' },
             valueFormatter: (params) => params.value?.toFixed(2) || '-',
+            valueParser: (params) => parseDecimalInput(params.newValue),
           },
         ],
       },
@@ -323,7 +345,8 @@ export default function CreateQuotePage() {
           {
             field: 'currency_of_base_price',
             headerName: 'Валюта закупки',
-            width: 120,
+            flex: 1,
+            minWidth: 100,
             editable: true,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: {
@@ -336,7 +359,8 @@ export default function CreateQuotePage() {
           {
             field: 'supplier_country',
             headerName: 'Страна закупки',
-            width: 130,
+            flex: 1,
+            minWidth: 110,
             editable: true,
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
@@ -345,29 +369,34 @@ export default function CreateQuotePage() {
           {
             field: 'supplier_discount',
             headerName: 'Скидка (%)',
-            width: 110,
+            flex: 1,
+            minWidth: 100,
             editable: true,
             type: 'numericColumn',
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
             valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
             field: 'exchange_rate_base_price_to_quote',
             headerName: 'Курс',
-            width: 100,
+            flex: 1,
+            minWidth: 90,
             editable: true,
             type: 'numericColumn',
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
             valueFormatter: (params) => params.value?.toFixed(4) || '',
+            valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
             field: 'customs_code',
             headerName: 'Код ТН ВЭД',
-            width: 130,
+            flex: 1,
+            minWidth: 120,
             editable: true,
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
@@ -376,35 +405,41 @@ export default function CreateQuotePage() {
           {
             field: 'import_tariff',
             headerName: 'Пошлина (%)',
-            width: 120,
+            flex: 1,
+            minWidth: 110,
             editable: true,
             type: 'numericColumn',
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
             valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
             field: 'excise_tax',
-            headerName: 'Акциз (%)',
-            width: 110,
+            headerName: 'Акциз (УЕ КП на тонну)',
+            flex: 1,
+            minWidth: 150,
             editable: true,
             type: 'numericColumn',
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
             valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
             field: 'markup',
             headerName: 'Наценка (%)',
-            width: 120,
+            flex: 1,
+            minWidth: 100,
             editable: true,
             type: 'numericColumn',
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
             valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueParser: (params) => parseDecimalInput(params.newValue),
           },
         ],
       },
@@ -480,7 +515,7 @@ export default function CreateQuotePage() {
     { value: 'exchange_rate_base_price_to_quote', label: 'Курс' },
     { value: 'customs_code', label: 'Код ТН ВЭД' },
     { value: 'import_tariff', label: 'Пошлина (%)' },
-    { value: 'excise_tax', label: 'Акциз (%)' },
+    { value: 'excise_tax', label: 'Акциз (УЕ КП на тонну)' },
     { value: 'markup', label: 'Наценка (%)' },
   ];
 
@@ -499,98 +534,29 @@ export default function CreateQuotePage() {
               </Title>
             </Space>
           </Col>
+          {/* Admin Settings - Minimal Horizontal Display */}
+          {adminSettings && (
+            <Col>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                <InfoCircleOutlined style={{ fontSize: '11px', marginRight: 4 }} />
+                Резерв: {adminSettings.rate_forex_risk.toFixed(2)}% | Комиссия ФА:{' '}
+                {adminSettings.rate_fin_comm.toFixed(2)}% | Годовая ставка:{' '}
+                {(
+                  calculationSettingsService.dailyToAnnualRate(
+                    adminSettings.rate_loan_interest_daily
+                  ) * 100
+                ).toFixed(2)}
+                %
+              </Text>
+            </Col>
+          )}
         </Row>
 
         <Spin spinning={loading}>
           <Form form={form} layout="vertical" onFinish={handleCalculate}>
-            {/* Split Layout */}
+            {/* Top Section - Form Cards (Full Width) */}
             <Row gutter={24}>
-              {/* LEFT COLUMN - File Upload & Customer */}
-              <Col xs={24} lg={10}>
-                {/* File Upload */}
-                <Card title="📁 Загрузить товары" style={{ marginBottom: 16 }}>
-                  <Dragger {...uploadProps}>
-                    <p className="ant-upload-drag-icon">
-                      <InboxOutlined />
-                    </p>
-                    <p className="ant-upload-text">Нажмите или перетащите файл Excel/CSV</p>
-                    <p className="ant-upload-hint">Поддерживаются форматы: .xlsx, .xls, .csv</p>
-                  </Dragger>
-
-                  {uploadedProducts.length > 0 && (
-                    <div style={{ marginTop: 16 }}>
-                      <Space direction="vertical" style={{ width: '100%' }} size="small">
-                        <Row justify="space-between" align="middle">
-                          <Col>
-                            <Text strong>Загружено товаров: {uploadedProducts.length}</Text>
-                          </Col>
-                          <Col>
-                            <Button
-                              icon={<EditOutlined />}
-                              onClick={openBulkEditModal}
-                              size="small"
-                            >
-                              Массовое редактирование
-                            </Button>
-                          </Col>
-                        </Row>
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          💡 Совет: Выберите строки (Shift+клик), затем используйте &quot;Массовое
-                          редактирование&quot; или Ctrl+C/Ctrl+V для копирования из Excel
-                        </Text>
-                      </Space>
-                      <div
-                        className="ag-theme-alpine"
-                        style={{ height: 400, width: '100%', marginTop: 8 }}
-                      >
-                        <AgGridReact
-                          ref={gridRef}
-                          rowData={uploadedProducts}
-                          columnDefs={columnDefs}
-                          defaultColDef={defaultColDef}
-                          animateRows={true}
-                          rowSelection="multiple"
-                          enableRangeSelection={true}
-                          enableCellTextSelection={true}
-                          suppressRowClickSelection={true}
-                          onCellValueChanged={(event) => {
-                            // Update the uploadedProducts state when cells are edited
-                            const updatedProducts = [...uploadedProducts];
-                            const index = event.rowIndex;
-                            if (index !== null && index !== undefined) {
-                              updatedProducts[index] = event.data;
-                              setUploadedProducts(updatedProducts);
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </Card>
-
-                {/* Customer Selection */}
-                <Card title="👤 Выбрать клиента" style={{ marginBottom: 16 }}>
-                  <Form.Item label="Клиент" required>
-                    <Select
-                      showSearch
-                      placeholder="Выберите клиента"
-                      value={selectedCustomer}
-                      onChange={setSelectedCustomer}
-                      optionFilterProp="children"
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
-                      options={customers.map((c) => ({
-                        label: `${c.name} (${c.inn || 'без ИНН'})`,
-                        value: c.id,
-                      }))}
-                    />
-                  </Form.Item>
-                </Card>
-              </Col>
-
-              {/* RIGHT COLUMN - Template & Variables */}
-              <Col xs={24} lg={14}>
+              <Col span={24}>
                 {/* Template Selector */}
                 <Card
                   title="📋 Шаблон переменных"
@@ -615,72 +581,30 @@ export default function CreateQuotePage() {
                   </Form.Item>
                 </Card>
 
-                {/* Variables Form - Part 1 (to be continued in next command) */}
-                {/* Admin Settings Info Box */}
-                {adminSettings && (
-                  <Card
-                    title={
-                      <Space>
-                        <InfoCircleOutlined /> Настройки администратора (только чтение)
-                      </Space>
-                    }
-                    size="small"
-                    style={{ marginBottom: 16, backgroundColor: '#f6ffed', borderColor: '#b7eb8f' }}
-                  >
-                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        Эти параметры установлены администратором и применяются ко всем котировкам:
-                      </Text>
-                      <Row gutter={16}>
-                        <Col span={8}>
-                          <Statistic
-                            title="Резерв на потери на курсовой разнице (%)"
-                            value={adminSettings.rate_forex_risk}
-                            suffix="%"
-                            precision={2}
-                            valueStyle={{ fontSize: '14px' }}
-                          />
-                        </Col>
-                        <Col span={8}>
-                          <Statistic
-                            title="Комиссия ФинАгента (%)"
-                            value={adminSettings.rate_fin_comm}
-                            suffix="%"
-                            precision={2}
-                            valueStyle={{ fontSize: '14px' }}
-                          />
-                        </Col>
-                        <Col span={8}>
-                          <Statistic
-                            title="Дневная стоимость денег (%)"
-                            value={adminSettings.rate_loan_interest_daily}
-                            suffix="%"
-                            precision={8}
-                            valueStyle={{ fontSize: '14px' }}
-                          />
-                        </Col>
-                      </Row>
-                    </Space>
-                  </Card>
-                )}
+                {/* Variables Form - Grid of Cards */}
+                <Text
+                  type="secondary"
+                  style={{ display: 'block', marginBottom: 16, fontSize: '14px' }}
+                >
+                  🔧 Параметры котировки по умолчанию - эти значения будут применены ко всем
+                  товарам. Вы сможете переопределить их для отдельных товаров в таблице.
+                </Text>
 
-                {/* Variables Form - Organized into 6 Cards */}
-                <Card title="🔧 Параметры котировки по умолчанию" style={{ marginBottom: 16 }}>
-                  <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                    Эти значения будут применены ко всем товарам. Вы сможете переопределить их для
-                    отдельных товаров в таблице.
-                  </Text>
-
-                  <Collapse defaultActiveKey={['company', 'financial']}>
-                    {/* 1. Company Settings */}
-                    <Panel header="🏢 Настройки компании (3 поля)" key="company">
+                <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                  {/* 1. Company Settings Card */}
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title="🏢 Настройки компании"
+                      size="small"
+                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                    >
                       <Row gutter={16}>
-                        <Col span={12}>
+                        <Col span={24}>
                           <Form.Item name="seller_company" label="Компания-продавец">
                             <Input placeholder="МАСТЕР БЭРИНГ ООО" />
                           </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col span={24}>
                           <Form.Item name="offer_sale_type" label="Вид КП">
                             <Select>
                               <Select.Option value="поставка">Поставка</Select.Option>
@@ -688,7 +612,7 @@ export default function CreateQuotePage() {
                             </Select>
                           </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col span={24}>
                           <Form.Item name="currency_of_quote" label="Валюта КП">
                             <Select>
                               <Select.Option value="RUB">RUB (Рубль)</Select.Option>
@@ -698,12 +622,18 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                       </Row>
-                    </Panel>
+                    </Card>
+                  </Col>
 
-                    {/* 2. Financial Parameters */}
-                    <Panel header="💰 Финансовые параметры (3 поля)" key="financial">
+                  {/* 2. Financial Parameters Card */}
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title="💰 Финансовые параметры"
+                      size="small"
+                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                    >
                       <Row gutter={16}>
-                        <Col span={12}>
+                        <Col span={24}>
                           <Form.Item name="markup" label="Наценка (%)">
                             <InputNumber
                               min={0}
@@ -714,7 +644,7 @@ export default function CreateQuotePage() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col span={24}>
                           <Form.Item name="dm_fee_type" label="Тип вознаграждения ЛПР">
                             <Select>
                               <Select.Option value="fixed">Фиксированная сумма</Select.Option>
@@ -722,16 +652,22 @@ export default function CreateQuotePage() {
                             </Select>
                           </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col span={24}>
                           <Form.Item name="dm_fee_value" label="Размер вознаграждения">
                             <InputNumber min={0} step={100} style={{ width: '100%' }} />
                           </Form.Item>
                         </Col>
                       </Row>
-                    </Panel>
+                    </Card>
+                  </Col>
 
-                    {/* 3. Logistics */}
-                    <Panel header="🚚 Логистика (5 полей)" key="logistics">
+                  {/* 3. Logistics Card */}
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title="🚚 Логистика"
+                      size="small"
+                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                    >
                       <Row gutter={16}>
                         <Col span={12}>
                           <Form.Item name="offer_incoterms" label="Базис поставки (Incoterms)">
@@ -753,11 +689,8 @@ export default function CreateQuotePage() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={8}>
-                          <Form.Item
-                            name="logistics_supplier_hub"
-                            label="Логистика Поставщик-Хаб (₽)"
-                          >
+                        <Col span={24}>
+                          <Form.Item name="logistics_supplier_hub" label="Поставщик - Турция (₽)">
                             <InputNumber
                               min={0}
                               step={100}
@@ -766,8 +699,8 @@ export default function CreateQuotePage() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={8}>
-                          <Form.Item name="logistics_hub_customs" label="Логистика Хаб-РФ (₽)">
+                        <Col span={24}>
+                          <Form.Item name="logistics_hub_customs" label="Турция - Таможня РФ (₽)">
                             <InputNumber
                               min={0}
                               step={100}
@@ -776,10 +709,10 @@ export default function CreateQuotePage() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={8}>
+                        <Col span={24}>
                           <Form.Item
                             name="logistics_customs_client"
-                            label="Логистика Таможня-Клиент (₽)"
+                            label="Таможня РФ - Клиент (₽)"
                           >
                             <InputNumber
                               min={0}
@@ -790,12 +723,18 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                       </Row>
-                    </Panel>
+                    </Card>
+                  </Col>
 
-                    {/* 4. Payment Terms */}
-                    <Panel header="⏱️ Условия оплаты (10 полей)" key="payment">
+                  {/* 4. Payment Terms Card */}
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title="⏱️ Условия оплаты"
+                      size="small"
+                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                    >
                       <Row gutter={16}>
-                        <Col span={8}>
+                        <Col span={12}>
                           <Form.Item name="advance_from_client" label="Аванс от клиента (%)">
                             <InputNumber
                               min={0}
@@ -805,12 +744,12 @@ export default function CreateQuotePage() {
                             />
                           </Form.Item>
                         </Col>
-                        <Col span={8}>
+                        <Col span={12}>
                           <Form.Item name="time_to_advance" label="Дней до аванса">
                             <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
                           </Form.Item>
                         </Col>
-                        <Col span={8}>
+                        <Col span={12}>
                           <Form.Item name="advance_to_supplier" label="Аванс поставщику (%)">
                             <InputNumber
                               min={0}
@@ -889,10 +828,16 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                       </Row>
-                    </Panel>
+                    </Card>
+                  </Col>
 
-                    {/* 5. Customs & Clearance */}
-                    <Panel header="🛃 Таможня и растаможка (6 полей)" key="customs">
+                  {/* 5. Customs & Clearance Card */}
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title="🛃 Таможня и растаможка"
+                      size="small"
+                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                    >
                       <Row gutter={16}>
                         <Col span={12}>
                           <Form.Item name="brokerage_hub" label="Брокерские Турция (₽)">
@@ -958,12 +903,15 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                       </Row>
-                    </Panel>
+                    </Card>
+                  </Col>
 
-                    {/* 6. Product Defaults */}
-                    <Panel
-                      header="📦 Значения по умолчанию для товаров (7 полей)"
-                      key="product-defaults"
+                  {/* 6. Product Defaults Card */}
+                  <Col xs={24} lg={12}>
+                    <Card
+                      title="📦 Значения по умолчанию для товаров"
+                      size="small"
+                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
                     >
                       <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
                         Эти значения можно переопределить для каждого товара в таблице
@@ -1020,7 +968,7 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="excise_tax" label="Акциз (%)">
+                          <Form.Item name="excise_tax" label="Акциз (УЕ КП на тонну)">
                             <InputNumber
                               min={0}
                               max={100}
@@ -1031,11 +979,103 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                       </Row>
-                    </Panel>
-                  </Collapse>
-                </Card>
+                    </Card>
+                  </Col>
+                </Row>
+              </Col>
+            </Row>
 
-                {/* Calculate Button */}
+            {/* File Upload & Customer Selection Row */}
+            <Row gutter={24} style={{ marginTop: 24 }}>
+              <Col xs={24} lg={12}>
+                {/* File Upload */}
+                <Card title="📁 Загрузить товары">
+                  <Dragger {...uploadProps}>
+                    <p className="ant-upload-drag-icon">
+                      <InboxOutlined />
+                    </p>
+                    <p className="ant-upload-text">Нажмите или перетащите файл Excel/CSV</p>
+                    <p className="ant-upload-hint">Поддерживаются форматы: .xlsx, .xls, .csv</p>
+                  </Dragger>
+                  {uploadedProducts.length > 0 && (
+                    <Text strong style={{ display: 'block', marginTop: 16 }}>
+                      Загружено товаров: {uploadedProducts.length}
+                    </Text>
+                  )}
+                </Card>
+              </Col>
+
+              <Col xs={24} lg={12}>
+                {/* Customer Selection */}
+                <Card title="👤 Выбрать клиента">
+                  <Form.Item label="Клиент" required>
+                    <Select
+                      showSearch
+                      placeholder="Выберите клиента"
+                      value={selectedCustomer}
+                      onChange={setSelectedCustomer}
+                      optionFilterProp="children"
+                      filterOption={(input, option) =>
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                      }
+                      options={customers.map((c) => ({
+                        label: `${c.name} (${c.inn || 'без ИНН'})`,
+                        value: c.id,
+                      }))}
+                    />
+                  </Form.Item>
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Products Grid Section (Full Width) */}
+            {uploadedProducts.length > 0 && (
+              <Row gutter={24} style={{ marginTop: 24 }}>
+                <Col span={24}>
+                  <Card
+                    title="📋 Загруженные товары"
+                    extra={
+                      <Button icon={<EditOutlined />} onClick={openBulkEditModal}>
+                        Массовое редактирование
+                      </Button>
+                    }
+                  >
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+                      💡 Совет: Выберите строки, затем используйте &quot;Массовое
+                      редактирование&quot; или Ctrl+C/Ctrl+V для копирования из Excel
+                    </Text>
+                    <style>{agGridRowSelectionStyles}</style>
+                    <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
+                      <AgGridReact
+                        ref={gridRef}
+                        rowData={uploadedProducts}
+                        columnDefs={columnDefs}
+                        defaultColDef={defaultColDef}
+                        animateRows={true}
+                        rowSelection="multiple"
+                        enableCellTextSelection={true}
+                        suppressRowClickSelection={true}
+                        suppressHorizontalScroll={false}
+                        onCellValueChanged={(event) => {
+                          setUploadedProducts((prevProducts) => {
+                            const updatedProducts = [...prevProducts];
+                            const index = event.rowIndex;
+                            if (index !== null && index !== undefined) {
+                              updatedProducts[index] = event.data;
+                            }
+                            return updatedProducts;
+                          });
+                        }}
+                      />
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+            )}
+
+            {/* Calculate Button */}
+            <Row gutter={24} style={{ marginTop: 24 }}>
+              <Col span={24}>
                 <Card>
                   <Button
                     type="primary"
@@ -1220,6 +1260,7 @@ export default function CreateQuotePage() {
           okText="Применить"
           cancelText="Отмена"
           width={500}
+          keyboard={true}
         >
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <Text type="secondary">
@@ -1258,6 +1299,7 @@ export default function CreateQuotePage() {
                       value={bulkEditValue}
                       onChange={(e) => setBulkEditValue(e.target.value)}
                       placeholder="Введите значение"
+                      onPressEnter={applyBulkEdit}
                     />
                   ) : (
                     <InputNumber
@@ -1267,6 +1309,7 @@ export default function CreateQuotePage() {
                       placeholder="Введите числовое значение"
                       min={0}
                       step={bulkEditField.includes('rate') ? 0.0001 : 0.01}
+                      onPressEnter={applyBulkEdit}
                     />
                   )}
                 </Form.Item>
