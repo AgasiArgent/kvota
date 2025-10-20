@@ -23,7 +23,15 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-chrome-devtools"
+        "chrome-devtools-mcp@latest",
+        "--browser-url=http://127.0.0.1:9222"
+      ]
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "puppeteer-mcp-server"
       ]
     }
   }

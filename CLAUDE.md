@@ -154,14 +154,25 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - GitHub MCP not functional (using direct API calls via curl as workaround)
 - TypeScript strict unused checks temporarily disabled
 
+**Development Environment:**
+- **Use WSL2 for everything** - Frontend + Backend both run in WSL2
+- ⚠️ **Do NOT migrate to native Windows** - Multiple issues with native modules (lightningcss, weasyprint requires GTK)
+- All dependencies and libraries work correctly in WSL2
+- Windows VS Code can connect to WSL2 and edit files normally
+
 **Ready for Development:**
 - Infrastructure is solid
 - CI pipeline is stable
 - Can focus on implementing features without CI blocking
 
 **Servers Running:**
-- Frontend: `npm run dev` on :3000
+- Frontend: `npm run dev` on :3000 (or :3001 if 3000 in use)
 - Backend: `uvicorn main:app --reload` on :8000
+
+**Test User Credentials:**
+- Email: `andrey@masterbearingsales.ru`
+- Password: `password`
+- Organization: МАСТЕР БЭРИНГ ООО (Master Bearing LLC)
 
 ---
 
@@ -207,11 +218,16 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ## Debugging Tools Available
 
-- **Browser Console:** Add `console.log()` for frontend debugging
+- **Browser Console Reader:** ✅ Playwright-based console monitor
+  - **Location:** `frontend/.claude-read-console.js`
+  - **Usage:** `cd frontend && node .claude-read-console.js http://localhost:3001`
+  - **Features:** Color-coded console logs (ERROR/WARNING/INFO/LOG), file paths, line numbers
+  - **Note:** Launches Chromium browser and captures all console output in real-time
 - **Backend Logs:** Check uvicorn output via BashOutput tool
-- **Database:** Direct SQL via Supabase dashboard
-- **Playwright MCP:** Can interact with browser for visual debugging
-- **Chrome DevTools:** When Chrome running with `--remote-debugging-port=9222`
+- **Database:** Direct SQL via Supabase dashboard or Postgres MCP
+- **Chrome DevTools:** ❌ Not working from WSL2 (networking issues between WSL2 and Windows Chrome)
+  - Attempted fixes: mirrored networking, firewall rules, --remote-debugging-address=0.0.0.0
+  - Use Browser Console Reader script instead
 
 ---
 
@@ -262,8 +278,24 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ### MCP Servers (Model Context Protocol)
 - **postgres** - Direct Supabase database queries and schema inspection ✅ Working
-- **github** - GitHub issue and PR management from Claude (Token configured, testing after reload)
-- **chrome-devtools** - Browser debugging via remote debugging port 9222
+- **github** - ❌ Not functional (returns empty resources)
+  - **Workaround:** Use curl commands with GitHub API directly
+  - Token: `***REMOVED***`
+  - Example commands:
+    ```bash
+    # Get repo info
+    curl -H "Authorization: token ***REMOVED***" https://api.github.com/repos/AgasiArgent/kvota
+
+    # List issues
+    curl -H "Authorization: token ***REMOVED***" https://api.github.com/repos/AgasiArgent/kvota/issues
+
+    # Create issue
+    curl -X POST -H "Authorization: token ***REMOVED***" \
+      -d '{"title":"Issue title","body":"Issue description"}' \
+      https://api.github.com/repos/AgasiArgent/kvota/issues
+    ```
+- **chrome-devtools** - Browser debugging via remote debugging port 9222 (not tested)
+- **puppeteer** - Browser automation (not tested)
 - **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers)
 - **See:** `.claude/RECOMMENDED_MCP_SERVERS.md` for configuration details and additional optional servers
 

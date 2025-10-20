@@ -4,6 +4,7 @@
   "enabledMcpjsonServers": [
     "postgres",
     "github",
-    "chrome-devtools"
+    "chrome-devtools",
+    "puppeteer"
   ]
 }
