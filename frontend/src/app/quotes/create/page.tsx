@@ -12,7 +12,7 @@ import {
   Typography,
   Row,
   Col,
-  message,
+  App,
   InputNumber,
   Space,
   Spin,
@@ -94,6 +94,7 @@ const parseDecimalInput = (value: string): number | null => {
 export default function CreateQuotePage() {
   const router = useRouter();
   const [form] = Form.useForm<CalculationVariables>();
+  const { message } = App.useApp();
   const gridRef = useRef<AgGridReact>(null);
 
   // State
