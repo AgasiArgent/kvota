@@ -239,11 +239,43 @@ pytest tests/test_quotes_calc*.py -v
 # Expected: 23 passed in ~8s
 ```
 
+### CI/CD Troubleshooting & Fixes (30 min)
+
+#### Issue Investigation
+- [x] Discovered CI test failures after implementation
+  - Tests passing locally: 30 passed, 2 skipped
+  - Tests failing in GitHub Actions: "ValueError: Missing required Supabase environment variables"
+  - Error occurred in auth.py at line 26 during import time
+  - Time: 10 min
+
+#### Root Cause Analysis
+- [x] Identified missing environment variables in CI workflow
+  - auth.py requires 3 environment variables at import:
+    - SUPABASE_URL ✅
+    - SUPABASE_SERVICE_ROLE_KEY ✅
+    - SUPABASE_ANON_KEY ❌ (missing)
+  - Initial fix only added 2 of 3 required variables
+  - Time: 10 min
+
+#### Fix Implementation
+- [x] Updated .github/workflows/ci.yml (twice)
+  - First update: Added SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL
+  - Second update: Added missing SUPABASE_ANON_KEY environment variable
+  - User added all required GitHub repository secrets
+  - Time: 10 min
+
+- [x] Pushed CI fix to GitHub
+  - Commit: `12b9267` - "Fix CI: Add missing SUPABASE_ANON_KEY environment variable"
+  - CI now running with all required environment variables
+  - Status: ⏳ Awaiting CI test results
+
 ### Next Steps (Future Sessions)
-1. Test quote creation workflow end-to-end with real data
-2. Monitor for edge cases in production
-3. Consider adding integration tests with calculation engine
-4. Build quote workflow pages (list, detail, approval) - now unblocked!
+1. ✅ Verify CI tests pass with environment variables fix
+2. Test quote creation workflow end-to-end with real data
+3. Create manual testing checklist for quote creation
+4. Monitor for edge cases in production
+5. Consider adding integration tests with calculation engine
+6. Build quote workflow pages (list, detail, approval) - now unblocked!
 
 ### Notes
 - **Breaking Changes:** None - this fixes incomplete code
@@ -251,7 +283,7 @@ pytest tests/test_quotes_calc*.py -v
 - **Backend:** Fully backward compatible
 - **Performance:** Admin settings fetched once per quote (not per product)
 - **Validation:** User sees all errors at once (better UX)
-- **Session Efficiency:** Completed in ~5 hours (2.5h planning + 2.5h implementation)
+- **Session Efficiency:** Completed in ~5.5 hours (2.5h planning + 2.5h implementation + 0.5h CI fixes)
 
 ---
 
