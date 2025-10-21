@@ -136,30 +136,40 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ---
 
-## Current Status (Session 15 - CALCULATION ENGINE INTEGRATION PLANNED)
+## Current Status (Session 15 - CALCULATION ENGINE INTEGRATED ✅)
 
-**CI/CD Status:** ✅ **ALL CHECKS PASSING**
-- ✅ Backend Tests
+**CI/CD Status:** ⚠️ **Waiting for GitHub Secrets** (Backend tests failing)
+- ❌ Backend Tests (need GitHub secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL)
 - ✅ Frontend Lint & Type Check (0 errors, 108 warnings)
 - ✅ Frontend Build
 - ✅ TypeScript (0 errors)
+- ✅ **Tests pass locally:** 30 passed, 2 skipped
 
-**Session 15 Deliverables (2025-10-21):**
-- ✅ Created PLAN_CALCULATION_ENGINE_CONNECTION.md (500+ lines)
-  - 6-phase implementation plan for connecting quote creation to calculation engine
-  - Variable requirements: 10 required, 32 optional with defaults
-  - Business logic rules and validation strategy documented
-  - Estimated time: 4.5 hours
-- ✅ Created TESTING_WORKFLOW.md
-  - Automated testing guide with TDD workflow
-  - Quick command reference for pytest and npm test
-  - Coverage goals and debugging tips
-- ✅ Key architectural decisions:
-  - Keep flat dict on frontend, backend transforms to nested
-  - Fetch admin settings every request (no cache)
-  - Return all validation errors at once
-  - currency_of_quote default: USD (not RUB)
-  - delivery_time default: 60 days
+**Session 15 Deliverables (2025-10-21) - CALCULATION ENGINE INTEGRATED:**
+
+**Planning Phase (~2.5 hours):**
+- ✅ PLAN_CALCULATION_ENGINE_CONNECTION.md (500+ lines) - Complete implementation roadmap
+- ✅ TESTING_WORKFLOW.md (150+ lines) - Automated testing guide with TDD workflow
+- ✅ Key architectural decisions documented
+
+**Implementation Phase (~2.5 hours):**
+- ✅ **Backend Code** (~300 lines new code in routes/quotes_calc.py):
+  - map_variables_to_calculation_input() - Maps 42 variables to 7 nested Pydantic models
+  - fetch_admin_settings() - Fetches rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
+  - validate_calculation_input() - Validates 10 required fields + business rules
+  - Helper functions: safe_decimal(), safe_str(), safe_int(), get_value()
+- ✅ **Automated Tests** (23/23 passing ✅):
+  - test_quotes_calc_mapper.py (13 tests) - Variable mapper with two-tier logic
+  - test_quotes_calc_validation.py (10 tests) - Required fields + business rules
+  - Coverage: routes/quotes_calc.py 38% → 49% (+11%)
+- ✅ **Fixed broken integration** at line 804-815 (replaced TODO with working code)
+- ✅ **Git commits:** b512346, 117c831, 54b6621 - All pushed to main
+
+**Key Features:**
+- Two-tier variable system: product override > quote default > fallback
+- Validation prevents invalid calculations (all errors returned at once)
+- Admin settings auto-fetched from database
+- Defaults: USD currency, 60-day delivery, 100% advance payments
 
 **Sessions 8-14 Deliverables:**
 - ✅ Quote creation page UI complete with ag-Grid
@@ -169,11 +179,13 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - ✅ All manual testing passed and bugs fixed
 
 **Known Technical Debt:**
-- ❗ **Quote creation NOT connected to calculation engine** (line 568-579 in quotes_calc.py has incomplete TODO)
-  - **Next:** Follow PLAN_CALCULATION_ENGINE_CONNECTION.md to fix integration
-- Quote-related pages have temporary stubs (need organizationId context implementation)
+- ✅ **Quote creation NOW CONNECTED to calculation engine** (Session 15 - COMPLETE!)
+- Quote-related pages have temporary stubs (NOW UNBLOCKED - can build list/detail/approval pages)
   - customers/[id], dashboard, quotes/*, quotes/approval pages
   - See TODOs in code for details
+- ⚠️ **CI tests failing** - need GitHub secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL)
+  - Tests pass locally (30 passed, 2 skipped)
+  - Add secrets at: https://github.com/AgasiArgent/kvota/settings/secrets/actions
 - GitHub MCP not functional (using direct API calls via curl as workaround)
 - TypeScript strict unused checks temporarily disabled
 
