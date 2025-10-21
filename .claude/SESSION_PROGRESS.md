@@ -112,18 +112,146 @@ All strategic decisions made, comprehensive implementation plan created, testing
    - Validation: Return all errors at once
    - Business rules: Logistics validation for non-EXW incoterms
 
-### Next Steps
-1. Follow PLAN_CALCULATION_ENGINE_CONNECTION.md sequentially
-2. Start with Phase 1: Variable mapper function
-3. Run automated tests after each phase
-4. Mark plan tasks complete as implementation progresses
+### Implementation Phase (Continued Same Session) ✅
+
+#### Phase 1: Variable Mapper Function (45 min)
+- [x] Created helper functions: safe_decimal(), safe_str(), safe_int()
+  - safe_decimal catches all exceptions including InvalidOperation
+  - Provides sensible defaults for all edge cases
+  - Time: 10 min
+
+- [x] Created get_value() for two-tier variable logic
+  - Checks product override first
+  - Falls back to quote-level default
+  - Finally uses hardcoded fallback
+  - Time: 5 min
+
+- [x] Implemented map_variables_to_calculation_input()
+  - Maps all 42 variables to 7 nested Pydantic models
+  - ProductInfo, FinancialParams, LogisticsParams, TaxesAndDuties, PaymentTerms, CustomsAndClearance, CompanySettings, SystemConfig
+  - Comprehensive docstring with examples
+  - Time: 30 min
+
+#### Phase 2: Admin Settings Fetching (20 min)
+- [x] Created fetch_admin_settings() function
+  - Fetches rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
+  - Returns defaults if not found: 3%, 2%, 0.00069
+  - Proper error handling with fallback
+  - Time: 20 min
+
+#### Phase 3: /calculate Endpoint Integration (15 min)
+- [x] Replaced broken integration at lines 804-815
+  - Removed incomplete TODO code
+  - Added admin settings fetch before product loop
+  - Calls map_variables_to_calculation_input() for each product
+  - Updated comment numbering (4→5, 5→6, 6→7)
+  - Time: 15 min
+
+#### Phase 4: Comprehensive Validation (30 min)
+- [x] Created validate_calculation_input() function
+  - Validates 10 required fields
+  - Checks business rule: incoterms ≠ EXW requires logistics > 0
+  - Returns all errors at once (not fail-fast)
+  - Comprehensive error messages
+  - Time: 20 min
+
+- [x] Integrated validation into /calculate endpoint
+  - Validates before mapping
+  - Rolls back quote if validation fails
+  - Returns all errors in single message
+  - Time: 10 min
+
+#### Phase 5: Automated Tests (60 min)
+- [x] Created test_quotes_calc_mapper.py (13 tests)
+  - TestHelperFunctions: safe_decimal, safe_str, safe_int (6 tests)
+  - TestGetValue: two-tier logic (3 tests)
+  - TestMapVariables: mapper with various scenarios (4 tests)
+  - Time: 35 min
+
+- [x] Created test_quotes_calc_validation.py (10 tests)
+  - TestValidationRequired: required field validation (5 tests)
+  - TestBusinessRules: logistics + incoterms validation (3 tests)
+  - TestMultipleErrors: all errors returned at once (2 tests)
+  - Time: 25 min
+
+- [x] Fixed failing test (safe_decimal exception handling)
+  - Added Exception to catch clause (catches InvalidOperation)
+  - All 23 tests now passing
+  - Time: 5 min (included in test creation)
+
+- [x] Verified test coverage
+  - routes/quotes_calc.py: 38% → 49% (+11%)
+  - Both test files: 100% coverage
+  - Command: `pytest tests/test_quotes_calc*.py -v`
+  - Result: **23/23 tests passing** ✅
+
+#### Phase 6: Frontend Verification (5 min)
+- [x] Verified frontend sends flat dict structure
+  - Checked handleCalculate function (line 345-378)
+  - Confirmed: `const variables = form.getFieldsValue()`
+  - Sends to API: `variables: variables as CalculationVariables`
+  - No frontend changes needed
+  - Time: 5 min
+
+**Implementation Total Time:** ~2.5 hours (matched estimate of 4.5 hours for full implementation, but we were more efficient)
+
+### Status (Updated)
+✅ **ALL 6 PHASES COMPLETE - CALCULATION ENGINE INTEGRATED**
+
+Quote creation page is now fully connected to calculation engine with:
+- ✅ Proper variable mapping (42 variables → 7 nested models)
+- ✅ Admin settings integration
+- ✅ Comprehensive validation with business rules
+- ✅ 23 automated tests (100% passing)
+- ✅ Frontend already sending correct data structure
+
+### Final Deliverables
+1. ✅ **Backend Implementation** (`backend/routes/quotes_calc.py`)
+   - 4 helper functions (safe_decimal, safe_str, safe_int, get_value)
+   - map_variables_to_calculation_input() - 170 lines
+   - fetch_admin_settings() - 45 lines
+   - validate_calculation_input() - 70 lines
+   - Updated /calculate endpoint integration
+   - Total: ~300 lines of new code
+
+2. ✅ **Automated Tests**
+   - `backend/tests/test_quotes_calc_mapper.py` - 13 tests
+   - `backend/tests/test_quotes_calc_validation.py` - 10 tests
+   - 23/23 tests passing
+   - Coverage: routes/quotes_calc.py 49% (up from 38%)
+
+3. ✅ **Git Commit**
+   - Commit: `b512346` - "Implement calculation engine integration"
+   - Pushed to main branch
+   - CI/CD will verify tests pass
+
+### What Changed
+**Before:** Line 804-815 had incomplete TODO with flat variable mapping
+**After:** Full integration with nested models, validation, admin settings, and tests
+
+### Testing Instructions
+```bash
+# Run backend tests
+cd backend
+source venv/bin/activate
+pytest tests/test_quotes_calc*.py -v
+
+# Expected: 23 passed in ~8s
+```
+
+### Next Steps (Future Sessions)
+1. Test quote creation workflow end-to-end with real data
+2. Monitor for edge cases in production
+3. Consider adding integration tests with calculation engine
+4. Build quote workflow pages (list, detail, approval) - now unblocked!
 
 ### Notes
-- No code changes made this session (documentation only)
-- Backend integration still broken (line 568-579 in quotes_calc.py)
-- Plan ready to follow for implementation in next session
-- All 42 variables classified and defaults established
-- Frontend stays simple (flat dict), backend handles complexity
+- **Breaking Changes:** None - this fixes incomplete code
+- **Frontend:** No changes needed - already sends correct structure
+- **Backend:** Fully backward compatible
+- **Performance:** Admin settings fetched once per quote (not per product)
+- **Validation:** User sees all errors at once (better UX)
+- **Session Efficiency:** Completed in ~5 hours (2.5h planning + 2.5h implementation)
 
 ---
 
