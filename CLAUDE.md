@@ -122,8 +122,10 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - **`backend/CLAUDE.md`** - Backend patterns and conventions
 
 ### Implementation Plans
-- `.claude/IMPLEMENTATION_PLAN_AG_GRID.md` - Current ag-Grid restructure plan
+- **`.claude/PLAN_CALCULATION_ENGINE_CONNECTION.md`** ⭐ - Quote creation to calculation engine integration (Session 15)
+- `.claude/IMPLEMENTATION_PLAN_AG_GRID.md` - ag-Grid restructure plan (Sessions 8-14 COMPLETE)
 - `.claude/calculation_engine_summary.md` - Calculation engine (13 phases)
+- `.claude/TESTING_WORKFLOW.md` - Automated testing workflow and TDD guide
 
 ### Key Source Files
 - `frontend/src/app/quotes/create/page.tsx` - Quote creation (RESTRUCTURING)
@@ -134,7 +136,7 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ---
 
-## Current Status (Session 10 - READY FOR DEVELOPMENT)
+## Current Status (Session 15 - CALCULATION ENGINE INTEGRATION PLANNED)
 
 **CI/CD Status:** ✅ **ALL CHECKS PASSING**
 - ✅ Backend Tests
@@ -142,12 +144,33 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - ✅ Frontend Build
 - ✅ TypeScript (0 errors)
 
-**Recent Critical Fix (Session 10):**
-- Fixed .gitignore bug that was blocking 19 source files from being committed
-- All API services, AuthProvider, types, and validation now in repository
-- CI pipeline is green and stable
+**Session 15 Deliverables (2025-10-21):**
+- ✅ Created PLAN_CALCULATION_ENGINE_CONNECTION.md (500+ lines)
+  - 6-phase implementation plan for connecting quote creation to calculation engine
+  - Variable requirements: 10 required, 32 optional with defaults
+  - Business logic rules and validation strategy documented
+  - Estimated time: 4.5 hours
+- ✅ Created TESTING_WORKFLOW.md
+  - Automated testing guide with TDD workflow
+  - Quick command reference for pytest and npm test
+  - Coverage goals and debugging tips
+- ✅ Key architectural decisions:
+  - Keep flat dict on frontend, backend transforms to nested
+  - Fetch admin settings every request (no cache)
+  - Return all validation errors at once
+  - currency_of_quote default: USD (not RUB)
+  - delivery_time default: 60 days
+
+**Sessions 8-14 Deliverables:**
+- ✅ Quote creation page UI complete with ag-Grid
+- ✅ 4-card compact layout with role-based grouping
+- ✅ Template system with save/update functionality
+- ✅ Grid features: filters, column chooser, bulk edit
+- ✅ All manual testing passed and bugs fixed
 
 **Known Technical Debt:**
+- ❗ **Quote creation NOT connected to calculation engine** (line 568-579 in quotes_calc.py has incomplete TODO)
+  - **Next:** Follow PLAN_CALCULATION_ENGINE_CONNECTION.md to fix integration
 - Quote-related pages have temporary stubs (need organizationId context implementation)
   - customers/[id], dashboard, quotes/*, quotes/approval pages
   - See TODOs in code for details
@@ -204,6 +227,93 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ---
 
+## Automated Testing Workflow
+
+**See `.claude/TESTING_WORKFLOW.md` for comprehensive guide.**
+
+### Quick Commands
+
+**Backend - Run All Tests:**
+```bash
+cd backend
+pytest -v
+
+# With coverage
+pytest --cov=. --cov-report=term-missing
+```
+
+**Backend - Specific Tests:**
+```bash
+# Single test file
+pytest tests/test_quotes_calc_mapper.py -v
+
+# Specific test function
+pytest tests/test_file.py::test_function_name -v
+
+# Watch mode (auto-rerun on changes)
+ptw -v  # Requires: pip install pytest-watch
+```
+
+**Frontend - Run All Tests:**
+```bash
+cd frontend
+npm test
+
+# With coverage
+npm test -- --coverage
+```
+
+**Frontend - Watch Mode:**
+```bash
+cd frontend
+npm test -- --watch
+```
+
+### Test-Driven Development (TDD) Workflow
+
+**Red → Green → Refactor:**
+1. **Write test first** (fails - RED)
+2. **Implement feature** (passes - GREEN)
+3. **Refactor code** (tests protect against breaking changes)
+4. **Check coverage** (aim for 80%+)
+
+**Example:**
+```bash
+# Step 1: Write test (RED)
+pytest tests/test_quotes_calc_mapper.py::test_mapper_with_minimal_data -v
+# Output: FAILED - function doesn't exist
+
+# Step 2: Implement feature (GREEN)
+# ... implement map_variables_to_calculation_input() ...
+pytest tests/test_quotes_calc_mapper.py::test_mapper_with_minimal_data -v
+# Output: PASSED
+
+# Step 3: Check coverage
+pytest tests/test_quotes_calc_mapper.py --cov=routes.quotes_calc --cov-report=term-missing
+# Should show 80%+ coverage
+```
+
+### Coverage Goals
+
+- **Backend:** 80%+ (critical business logic 95%+)
+- **Frontend:** 60%+ (services 80%+, utils 90%+)
+
+### Before Pushing to GitHub
+
+```bash
+# Ensure all tests pass locally
+cd backend && pytest
+cd frontend && npm test
+
+# Ensure CI checks will pass
+cd frontend && npm run lint && npm run type-check && npm run build
+
+# If all green, safe to push
+git push
+```
+
+---
+
 ## Variable Quick Reference
 
 **Total:** 42 variables
@@ -233,7 +343,7 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ## Installed Tools & Dependencies
 
-**Last Updated:** 2025-10-19
+**Last Updated:** 2025-10-21
 
 ### Frontend (package.json)
 - **Next.js:** 15.5.4 (App Router with Turbopack)
