@@ -117,6 +117,48 @@
 
 **Results Table Improvements Total Time:** ~1.5 hours
 
+#### Deprecation Warning Fixes (Part 4)
+- [x] Fixed ag-Grid v32+ API deprecations
+  - **Issue:** 5 deprecation warnings in console breaking future compatibility
+  - **Changes** (`frontend/src/app/quotes/create/page.tsx`):
+    - Line 415-422: Removed deprecated `headerCheckboxSelection`, `checkboxSelection`, `suppressMenu`
+    - Line 415-422: Added `suppressHeaderMenuButton: true` (renamed from suppressMenu)
+    - Line 1400-1422: Changed `rowSelection="multiple"` to object configuration:
+      ```typescript
+      rowSelection={{
+        mode: 'multiRow',
+        checkboxes: true,
+        headerCheckbox: true,
+        enableClickSelection: false,
+      }}
+      ```
+    - Removed `suppressRowClickSelection` prop (replaced by `enableClickSelection: false`)
+  - **Warnings fixed:**
+    - ✅ `rowSelection` string value deprecated
+    - ✅ `suppressRowClickSelection` deprecated
+    - ✅ `suppressMenu` invalid property
+    - ✅ `headerCheckboxSelection` deprecated
+    - ✅ `checkboxSelection` deprecated
+  - Time: 25 min
+
+- [x] Fixed Ant Design Table rowKey deprecation
+  - **Issue:** Warning about index parameter in rowKey function being deprecated
+  - **Change** (`frontend/src/app/quotes/create/page.tsx:1476`):
+    - Before: `rowKey={(record, index) => index?.toString() || '0'}`
+    - After: `rowKey={(record) => record.item_id || record.product_code || record.product_name || '0'}`
+  - Uses unique record properties for stable keys across renders
+  - Time: 5 min
+
+- [x] Verified all fixes in browser
+  - Uploaded test file to trigger ag-Grid rendering
+  - Checked console messages - all deprecation warnings gone ✅
+  - Only 2 informational warnings remain (non-blocking):
+    - Ant Design message.success() context warning (requires App wrapper)
+    - React 19 compatibility note (informational only)
+  - Time: 10 min
+
+**Deprecation Fixes Total Time:** ~40 min
+
 ### Deliverables
 
 #### Agent System (Infrastructure)
