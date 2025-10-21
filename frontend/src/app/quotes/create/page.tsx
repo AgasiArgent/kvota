@@ -414,12 +414,10 @@ export default function CreateQuotePage() {
     () => [
       // Checkbox selection column - PINNED LEFT
       {
-        headerCheckboxSelection: true,
-        checkboxSelection: true,
         width: 50,
         pinned: 'left',
         lockPosition: true,
-        suppressMenu: true,
+        suppressHeaderMenuButton: true,
         resizable: false,
       },
       // Group 1: Product Info (Always Editable)
@@ -1403,9 +1401,13 @@ export default function CreateQuotePage() {
                         columnDefs={columnDefs}
                         defaultColDef={defaultColDef}
                         animateRows={true}
-                        rowSelection="multiple"
+                        rowSelection={{
+                          mode: 'multiRow',
+                          checkboxes: true,
+                          headerCheckbox: true,
+                          enableClickSelection: false,
+                        }}
                         enableCellTextSelection={true}
-                        suppressRowClickSelection={true}
                         suppressHorizontalScroll={false}
                         onCellValueChanged={(event) => {
                           setUploadedProducts((prevProducts) => {
@@ -1471,7 +1473,9 @@ export default function CreateQuotePage() {
                 {/* Results Table */}
                 <Table
                   dataSource={calculationResults.items || []}
-                  rowKey={(record, index) => index?.toString() || '0'}
+                  rowKey={(record) =>
+                    record.item_id || record.product_code || record.product_name || '0'
+                  }
                   scroll={{ x: 1500 }}
                   pagination={false}
                   size="small"
