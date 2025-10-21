@@ -19,7 +19,23 @@ from decimal import Decimal
 
 # Import calculation engine
 from calculation_engine import calculate_single_product_quote
-from calculation_models import QuoteCalculationInput
+from calculation_models import (
+    QuoteCalculationInput,
+    ProductInfo,
+    FinancialParams,
+    LogisticsParams,
+    TaxesAndDuties,
+    PaymentTerms,
+    CustomsAndClearance,
+    CompanySettings,
+    SystemConfig,
+    Currency,
+    SupplierCountry,
+    SellerCompany,
+    OfferSaleType,
+    Incoterms,
+    DMFeeType
+)
 
 
 # ============================================================================
@@ -104,6 +120,298 @@ class QuoteCalculationResult(BaseModel):
     items: List[Dict[str, Any]]  # List of products with all calculation results
     totals: Dict[str, Any]
     calculated_at: str
+
+
+# ============================================================================
+# HELPER FUNCTIONS - Variable Mapping
+# ============================================================================
+
+def safe_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    """Safely convert value to Decimal"""
+    if value is None or value == "":
+        return default
+    try:
+        return Decimal(str(value))
+    except (ValueError, TypeError, Exception):  # Catch InvalidOperation and others
+        return default
+
+
+def safe_str(value: Any, default: str = "") -> str:
+    """Safely convert value to string"""
+    if value is None or value == "":
+        return default
+    return str(value)
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    """Safely convert value to int"""
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def get_value(field_name: str, product: ProductFromFile, variables: Dict[str, Any], default: Any = None) -> Any:
+    """
+    Get value using two-tier logic: product override > quote default > fallback default
+
+    Args:
+        field_name: Name of the field to retrieve
+        product: ProductFromFile object with potential overrides
+        variables: Quote-level default variables dict
+        default: Fallback default if not found anywhere
+
+    Returns:
+        Value from product override, quote default, or fallback (in that order)
+    """
+    # Check product override first
+    product_value = getattr(product, field_name, None)
+    if product_value is not None and product_value != "":
+        return product_value
+
+    # Check quote-level default
+    quote_value = variables.get(field_name)
+    if quote_value is not None and quote_value != "":
+        return quote_value
+
+    # Return fallback default
+    return default
+
+
+def map_variables_to_calculation_input(
+    product: ProductFromFile,
+    variables: Dict[str, Any],
+    admin_settings: Dict[str, Decimal]
+) -> QuoteCalculationInput:
+    """
+    Transform flat variables dict + product into nested QuoteCalculationInput.
+
+    Implements two-tier variable system:
+    - Product-level values override quote-level defaults
+    - Quote-level defaults override hardcoded fallbacks
+
+    Args:
+        product: Product from Excel/CSV with potential field overrides
+        variables: Quote-level default variables (flat dict from frontend)
+        admin_settings: Admin settings with rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
+
+    Returns:
+        QuoteCalculationInput with all nested models populated
+
+    Raises:
+        ValueError: If required fields are missing
+    """
+
+    # ========== ProductInfo (5 fields) ==========
+    product_info = ProductInfo(
+        base_price_VAT=safe_decimal(product.base_price_vat),
+        quantity=product.quantity,
+        weight_in_kg=safe_decimal(product.weight_in_kg, Decimal("0")),
+        currency_of_base_price=Currency(get_value('currency_of_base_price', product, variables, 'USD')),
+        customs_code=safe_str(get_value('customs_code', product, variables, '0000000000'))
+    )
+
+    # ========== FinancialParams (7 fields) ==========
+    financial = FinancialParams(
+        currency_of_quote=Currency(variables.get('currency_of_quote', 'USD')),
+        exchange_rate_base_price_to_quote=safe_decimal(variables.get('exchange_rate'), Decimal("1")),
+        supplier_discount=safe_decimal(variables.get('supplier_discount'), Decimal("0")),
+        markup=safe_decimal(variables.get('markup'), Decimal("15")),  # Required in validation
+        rate_forex_risk=admin_settings.get('rate_forex_risk', Decimal("3")),
+        dm_fee_type=DMFeeType(variables.get('dm_fee_type', 'fixed')),
+        dm_fee_value=safe_decimal(variables.get('dm_fee_value'), Decimal("0"))
+    )
+
+    # ========== LogisticsParams (6 fields) ==========
+    logistics = LogisticsParams(
+        supplier_country=SupplierCountry(get_value('supplier_country', product, variables, 'Турция')),
+        offer_incoterms=Incoterms(variables.get('offer_incoterms', 'DDP')),
+        delivery_time=safe_int(variables.get('delivery_time'), 60),  # Default 60 days
+        logistics_supplier_hub=safe_decimal(variables.get('logistics_supplier_hub'), Decimal("0")),
+        logistics_hub_customs=safe_decimal(variables.get('logistics_hub_customs'), Decimal("0")),
+        logistics_customs_client=safe_decimal(variables.get('logistics_customs_client'), Decimal("0"))
+    )
+
+    # ========== TaxesAndDuties (3 fields) ==========
+    taxes = TaxesAndDuties(
+        import_tariff=safe_decimal(get_value('import_tariff', product, variables), Decimal("0")),
+        excise_tax=safe_decimal(get_value('excise_tax', product, variables), Decimal("0")),
+        util_fee=safe_decimal(get_value('util_fee', product, variables), Decimal("0"))
+    )
+
+    # ========== PaymentTerms (10 fields) ==========
+    payment = PaymentTerms(
+        advance_from_client=safe_decimal(variables.get('advance_from_client'), Decimal("100")),
+        advance_to_supplier=safe_decimal(variables.get('advance_to_supplier'), Decimal("100")),
+        time_to_advance=safe_int(variables.get('time_to_advance'), 0),
+        advance_on_loading=safe_decimal(variables.get('advance_on_loading'), Decimal("0")),
+        time_to_advance_loading=safe_int(variables.get('time_to_advance_loading'), 0),
+        advance_on_going_to_country_destination=safe_decimal(
+            variables.get('advance_on_going_to_country_destination'), Decimal("0")
+        ),
+        time_to_advance_going_to_country_destination=safe_int(
+            variables.get('time_to_advance_going_to_country_destination'), 0
+        ),
+        advance_on_customs_clearance=safe_decimal(variables.get('advance_on_customs_clearance'), Decimal("0")),
+        time_to_advance_on_customs_clearance=safe_int(variables.get('time_to_advance_on_customs_clearance'), 0),
+        time_to_advance_on_receiving=safe_int(variables.get('time_to_advance_on_receiving'), 0)
+    )
+
+    # ========== CustomsAndClearance (5 fields) ==========
+    customs = CustomsAndClearance(
+        brokerage_hub=safe_decimal(variables.get('customs_brokerage_fee_turkey'), Decimal("0")),
+        brokerage_customs=safe_decimal(variables.get('customs_brokerage_fee_russia'), Decimal("0")),
+        warehousing_at_customs=safe_decimal(variables.get('temporary_storage_cost'), Decimal("0")),
+        customs_documentation=safe_decimal(variables.get('permitting_documents_cost'), Decimal("0")),
+        brokerage_extra=safe_decimal(variables.get('miscellaneous_costs'), Decimal("0"))
+    )
+
+    # ========== CompanySettings (2 fields) ==========
+    company = CompanySettings(
+        seller_company=SellerCompany(variables.get('seller_company', 'МАСТЕР БЭРИНГ ООО')),
+        offer_sale_type=OfferSaleType(variables.get('offer_sale_type', 'поставка'))
+    )
+
+    # ========== SystemConfig (3 fields from admin) ==========
+    system = SystemConfig(
+        rate_fin_comm=admin_settings.get('rate_fin_comm', Decimal("2")),
+        rate_loan_interest_daily=admin_settings.get('rate_loan_interest_daily', Decimal("0.00069")),
+        rate_insurance=safe_decimal(variables.get('rate_insurance'), Decimal("0.00047"))
+    )
+
+    # ========== Construct final input ==========
+    return QuoteCalculationInput(
+        product=product_info,
+        financial=financial,
+        logistics=logistics,
+        taxes=taxes,
+        payment=payment,
+        customs=customs,
+        company=company,
+        system=system
+    )
+
+
+async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
+    """
+    Fetch admin calculation settings for organization.
+
+    Args:
+        organization_id: Organization UUID
+
+    Returns:
+        Dict with rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
+        Returns defaults if settings not found in database
+
+    Default values:
+        - rate_forex_risk: 3%
+        - rate_fin_comm: 2%
+        - rate_loan_interest_daily: 0.00069 (25.19% annual)
+    """
+    try:
+        # Fetch from calculation_settings table
+        response = supabase.table("calculation_settings")\
+            .select("rate_forex_risk, rate_fin_comm, rate_loan_interest_daily")\
+            .eq("organization_id", organization_id)\
+            .execute()
+
+        if response.data and len(response.data) > 0:
+            settings = response.data[0]
+            return {
+                'rate_forex_risk': Decimal(str(settings.get('rate_forex_risk', "3"))),
+                'rate_fin_comm': Decimal(str(settings.get('rate_fin_comm', "2"))),
+                'rate_loan_interest_daily': Decimal(str(settings.get('rate_loan_interest_daily', "0.00069")))
+            }
+        else:
+            # Return defaults if no settings found
+            return {
+                'rate_forex_risk': Decimal("3"),
+                'rate_fin_comm': Decimal("2"),
+                'rate_loan_interest_daily': Decimal("0.00069")
+            }
+
+    except Exception as e:
+        # Log error and return defaults
+        print(f"Error fetching admin settings: {e}")
+        return {
+            'rate_forex_risk': Decimal("3"),
+            'rate_fin_comm': Decimal("2"),
+            'rate_loan_interest_daily': Decimal("0.00069")
+        }
+
+
+def validate_calculation_input(
+    product: ProductFromFile,
+    variables: Dict[str, Any]
+) -> List[str]:
+    """
+    Validate calculation input before processing.
+    Returns list of all validation errors (empty list if valid).
+
+    Business rules:
+    - If incoterms ≠ EXW, at least one logistics field must be > 0
+    - Required fields must be present
+    - Markup must be provided and > 0
+
+    Args:
+        product: Product from Excel/CSV
+        variables: Quote-level variables dict
+
+    Returns:
+        List of error messages (empty if valid)
+    """
+    errors = []
+
+    # Required fields validation
+    if not product.base_price_vat or product.base_price_vat <= 0:
+        errors.append("base_price_vat is required and must be > 0")
+
+    if not product.quantity or product.quantity <= 0:
+        errors.append("quantity is required and must be > 0")
+
+    if not variables.get('seller_company'):
+        errors.append("seller_company is required")
+
+    if not variables.get('offer_incoterms'):
+        errors.append("offer_incoterms is required")
+
+    if not variables.get('currency_of_base_price'):
+        errors.append("currency_of_base_price is required")
+
+    if not variables.get('currency_of_quote'):
+        errors.append("currency_of_quote is required")
+
+    if not variables.get('exchange_rate'):
+        errors.append("exchange_rate is required")
+    elif safe_decimal(variables.get('exchange_rate')) <= 0:
+        errors.append("exchange_rate must be > 0")
+
+    if not variables.get('markup'):
+        errors.append("markup is required")
+    elif safe_decimal(variables.get('markup')) <= 0:
+        errors.append("markup must be > 0")
+
+    # Get supplier_country (can be product-level or quote-level)
+    supplier_country = get_value('supplier_country', product, variables, None)
+    if not supplier_country:
+        errors.append("supplier_country is required")
+
+    # Business rule: If incoterms ≠ EXW, at least one logistics field must be > 0
+    incoterms = variables.get('offer_incoterms')
+    if incoterms and incoterms != 'EXW':
+        logistics_supplier_hub = safe_decimal(variables.get('logistics_supplier_hub'), Decimal("0"))
+        logistics_hub_customs = safe_decimal(variables.get('logistics_hub_customs'), Decimal("0"))
+        logistics_customs_client = safe_decimal(variables.get('logistics_customs_client'), Decimal("0"))
+
+        if logistics_supplier_hub == 0 and logistics_hub_customs == 0 and logistics_customs_client == 0:
+            errors.append(
+                f"For incoterms '{incoterms}', at least one logistics cost field must be > 0 "
+                "(logistics_supplier_hub, logistics_hub_customs, or logistics_customs_client)"
+            )
+
+    return errors
 
 
 # ============================================================================
@@ -556,26 +864,31 @@ async def calculate_quote(
             .insert(variables_data)\
             .execute()
 
-        # 4. Run calculation engine for each product
+        # 4. Fetch admin settings for organization
+        admin_settings = await fetch_admin_settings(str(user.current_organization_id))
+
+        # 5. Run calculation engine for each product
         calculation_results = []
         total_subtotal = Decimal("0")
         total_amount = Decimal("0")
 
         for idx, (product, item_record) in enumerate(zip(request.products, items_response.data)):
             try:
-                # Prepare calculation input
-                # Note: This is simplified - you need to map all 39 variables properly
-                calc_input = QuoteCalculationInput(
-                    # Product info
-                    base_price_VAT=Decimal(str(product.base_price_vat)),
-                    quantity=product.quantity,
-                    weight_in_kg=Decimal(str(product.weight_in_kg or 0)),
+                # Validate input before processing
+                validation_errors = validate_calculation_input(product, request.variables)
+                if validation_errors:
+                    # Roll back quote and return all errors
+                    supabase.table("quotes").delete().eq("id", quote_id).execute()
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Validation failed for product '{product.product_name}': " + "; ".join(validation_errors)
+                    )
 
-                    # Pull variables from request
-                    currency_of_base_price=request.variables.get('currency_of_base_price', 'USD'),
-                    supplier_country=product.supplier_country or request.variables.get('supplier_country', 'Турция'),
-                    # ... (map all 39 variables from request.variables)
-                    # For brevity, showing just a few
+                # Map variables to nested calculation input using helper function
+                calc_input = map_variables_to_calculation_input(
+                    product=product,
+                    variables=request.variables,
+                    admin_settings=admin_settings
                 )
 
                 # Calculate using engine
@@ -612,13 +925,13 @@ async def calculate_quote(
                     detail=f"Calculation failed for product {product.product_name}: {str(e)}"
                 )
 
-        # 5. Update quote totals
+        # 6. Update quote totals
         supabase.table("quotes").update({
             "subtotal": float(total_subtotal),
             "total_amount": float(total_amount)
         }).eq("id", quote_id).execute()
 
-        # 6. Return complete result
+        # 7. Return complete result
         return QuoteCalculationResult(
             quote_id=quote_id,
             quote_number=quote_number,
