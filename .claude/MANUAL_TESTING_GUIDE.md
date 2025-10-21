@@ -242,6 +242,148 @@
 
 ---
 
+## Test 15: Calculation Engine Integration (Session 15)
+
+**Goal:** Verify that the quote calculation engine properly processes all 42 variables and validates input correctly.
+
+### Prerequisites
+- ✅ Upload `sample_products.csv` (5 products)
+- ✅ Select customer: "ООО Ромашка'П"
+
+### Test 15.1: Successful Calculation with Minimal Data
+
+1. **Fill ONLY required fields:**
+   - Компания-продавец: "МАСТЕР БЭРИНГ ООО" (should be pre-filled)
+   - Базис поставки: "EXW" (Ex Works - no logistics required)
+   - Наценка: "15"
+
+2. **Leave all optional fields empty/default**
+
+3. **Click** "Рассчитать котировку" button
+
+4. **Verify:**
+   - ✅ NO validation errors
+   - ✅ Loading spinner appears
+   - ✅ Quote created successfully
+   - ✅ Success message shown or redirect to quote details
+
+**Why this works:**
+- EXW incoterms allow zero logistics costs
+- All other fields use sensible defaults (currency=USD, delivery=60 days, etc.)
+
+### Test 15.2: Validation Error - Missing Required Fields
+
+1. **Clear the "Наценка" field** (remove value)
+
+2. **Click** "Рассчитать котировку"
+
+3. **Verify:**
+   - ✅ Error message appears
+   - ✅ Error mentions "markup" is required
+   - ✅ Quote is NOT created
+
+4. **Fix:** Enter "15" in Наценка field
+
+5. **Click** "Рассчитать котировку" again
+
+6. **Verify:** Now succeeds
+
+### Test 15.3: Business Rule Validation - Logistics Required for Non-EXW
+
+1. **Set Базис поставки** to "DDP" (Delivered Duty Paid)
+
+2. **Ensure ALL logistics fields are 0 or empty:**
+   - Поставщик - Турция: (empty)
+   - Турция - Таможня РФ: (empty)
+   - Таможня РФ - Клиент: (empty)
+
+3. **Click** "Рассчитать котировку"
+
+4. **Verify:**
+   - ✅ Error message appears
+   - ✅ Error says "For incoterms 'DDP', at least one logistics cost field must be > 0"
+   - ✅ Quote is NOT created
+
+5. **Fix:** Enter "1500" in "Поставщик - Турция"
+
+6. **Click** "Рассчитать котировку" again
+
+7. **Verify:** Now succeeds ✅
+
+**Business Rule Tested:**
+> If incoterms ≠ EXW, at least one logistics field must be > 0
+
+### Test 15.4: Product-Level Overrides Take Precedence
+
+1. **Fill quote-level defaults:**
+   - Код ТН ВЭД (ТНВЭД): "1234567890" (quote default)
+   - Вес (кг): "10" (quote default)
+
+2. **In grid, edit first product:**
+   - Double-click "Код ТН ВЭД" column for first row
+   - Enter: "9999999999" (product override)
+
+3. **Click** "Рассчитать котировку"
+
+4. **Check backend logs** (in terminal running `uvicorn main:app --reload`)
+   - Look for calculation input logs
+   - **Verify:** First product uses customs_code "9999999999" (product override)
+   - **Verify:** Other products use "1234567890" (quote default)
+
+**Two-Tier System Tested:**
+> product override > quote default > fallback default
+
+### Test 15.5: Admin Settings Applied Correctly
+
+1. **Note admin settings** displayed at top of page:
+   - Резерв валютного риска: X%
+   - Комиссия ФА: Y%
+   - Годовая ставка кредита: Z%
+
+2. **Click** "Рассчитать котировку"
+
+3. **Check backend logs:**
+   - Look for "Admin settings fetched" or similar log
+   - **Verify:** Admin settings values match what's displayed
+
+4. **Optional:** Check database directly via Supabase dashboard:
+   ```sql
+   SELECT rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
+   FROM calculation_settings
+   WHERE organization_id = 'МАСТЕР БЭРИНГ ООО organization id';
+   ```
+
+### Test 15.6: Multiple Errors Returned at Once
+
+1. **Create multiple validation errors:**
+   - Clear "Наценка" field (required)
+   - Set Базис поставки to "DDP" (non-EXW)
+   - Leave all logistics fields empty
+
+2. **Click** "Рассчитать котировку"
+
+3. **Verify error message contains:**
+   - ✅ "markup is required"
+   - ✅ "at least one logistics cost field must be > 0"
+   - ✅ BOTH errors shown in single message (not one at a time)
+
+**Better UX:** User can fix all issues in one round-trip instead of discovering errors one by one.
+
+---
+
+## Success Criteria - Calculation Engine
+
+✅ **ALL of the following MUST work:**
+
+1. Calculation succeeds with minimal required fields (EXW + markup)
+2. Validation errors shown for missing required fields
+3. Business rule enforced: DDP/FCA/CIF requires logistics > 0
+4. Product overrides take precedence over quote defaults
+5. Admin settings fetched and applied correctly
+6. Multiple validation errors returned at once
+
+---
+
 ## Known Issues (Not Bugs)
 
 - ⚠️ rc-collapse warning about `children` prop - will fix in future
@@ -263,17 +405,18 @@
 
 ---
 
-## Quick Smoke Test (2 minutes)
+## Quick Smoke Test (3 minutes)
 
-If you're in a hurry, just test these 5 things:
+If you're in a hurry, just test these 6 things:
 
 1. ✅ Upload file → Grid appears
 2. ✅ Click checkbox → Row turns grey
 3. ✅ Select 2 rows → Batch edit button → Enter value → Rows updated
 4. ✅ Check field name: "Акциз (УЕ КП на тонну)" (NOT "Акциз (%)")
 5. ✅ No red errors in console
+6. ✅ **NEW:** Set Базис="EXW", Наценка="15", click "Рассчитать" → Quote created successfully
 
-If all 5 pass → **Page is working correctly!** 🎉
+If all 6 pass → **Page is working correctly!** 🎉
 
 ---
 
