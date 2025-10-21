@@ -93,6 +93,12 @@ jobs:
       - name: Run pytest
         working-directory: backend
         run: python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=term
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SECRET_KEY: test-secret-key
+          ENVIRONMENT: test
 
       - name: Upload coverage to artifacts
         uses: actions/upload-artifact@v4
