@@ -5,6 +5,128 @@
 
 ---
 
+## Session 15 (2025-10-21) - Calculation Engine Integration Planning
+
+### Goal
+Connect quote creation page to calculation engine with proper variable mapping and validation
+
+### Completed Tasks ✅
+
+#### Strategic Planning & Analysis
+- [x] Analyzed current state and identified broken integration
+  - Frontend sends flat dict: `{markup: 15, import_tariff: 5, ...}`
+  - Backend expects nested: `QuoteCalculationInput(product=..., financial=...)`
+  - Line 568-579 in quotes_calc.py has incomplete mapping with TODO
+  - **Decision:** Connect calculation engine BEFORE building other quote pages
+  - Time: 20 min
+
+- [x] Researched best practices for implementation
+  - Web search: Pydantic nested models validation (2024-2025)
+  - Web search: FastAPI validation error handling patterns
+  - Findings: Use `@model_validator`, return all errors at once for better UX
+  - Time: 15 min
+
+#### Variable Requirements & Business Logic
+- [x] Defined variable requirements (42 total)
+  - **Required (10):** base_price_VAT, quantity, seller_company, offer_incoterms, currency_of_base_price, currency_of_quote, exchange_rate, markup, supplier_country, logistics (conditional)
+  - **Optional with defaults (32):** All other variables have sensible fallbacks
+  - **Key defaults decided:**
+    - `currency_of_quote: USD` (not RUB)
+    - `delivery_time: 60 days`
+    - `advance_from_client: 100%`, `advance_to_supplier: 100%`
+    - All taxes default to 0
+  - Time: 45 min
+
+- [x] Established business validation rules
+  - If `incoterms ≠ EXW`, at least one logistics field must be > 0
+  - Two-tier variable system: quote defaults can be overridden per product
+  - Value priority: product override > quote default > fallback default
+  - Time: 15 min
+
+#### Architecture Decisions
+- [x] Frontend-Backend data contract
+  - **Decision:** Keep flat dict on frontend (simple), backend transforms to nested
+  - **Benefit:** Frontend code stays simple, backend handles complexity once
+  - **Alternative rejected:** Frontend sends nested structure (more complex)
+  - Time: 10 min
+
+- [x] Admin settings strategy
+  - **Decision:** Fetch from DB every request (no caching)
+  - **Rationale:** Settings change rarely, premature optimization avoided
+  - **Defaults:** rate_forex_risk=3%, rate_fin_comm=2%, rate_loan_interest_daily=0.00069
+  - Time: 5 min
+
+- [x] Validation strategy
+  - **Decision:** Return ALL validation errors at once (better UX)
+  - **Alternative rejected:** Fail fast on first error
+  - User can fix multiple issues in one round-trip
+  - Time: 5 min
+
+#### Documentation Creation
+- [x] Created PLAN_CALCULATION_ENGINE_CONNECTION.md (500+ lines)
+  - 6-phase implementation plan (4.5 hours estimated)
+  - Phase 1: Variable mapper function with two-tier logic
+  - Phase 2: Admin settings fetching with defaults
+  - Phase 3: Update /calculate endpoint with proper integration
+  - Phase 4: Validation with comprehensive error messages
+  - Phase 5: Testing with specific test scenarios
+  - Phase 6: Frontend updates and E2E verification
+  - Includes code examples, test commands, success criteria
+  - Time: 60 min
+
+- [x] Created TESTING_WORKFLOW.md (150+ lines)
+  - Comprehensive automated testing guide
+  - TDD workflow: Red → Green → Refactor cycle
+  - Quick commands for backend (pytest) and frontend (npm test)
+  - Phase-by-phase testing after each feature
+  - Coverage goals: Backend 80%+, Critical logic 95%+
+  - Debugging tips and common scenarios
+  - Time: 40 min
+
+**Session 15 Total Time:** ~2.5 hours (planning & documentation)
+
+### Status
+✅ **PLAN COMPLETE - READY FOR IMPLEMENTATION**
+
+All strategic decisions made, comprehensive implementation plan created, testing workflow established.
+
+### Deliverables
+1. ✅ **PLAN_CALCULATION_ENGINE_CONNECTION.md** - Complete implementation roadmap
+   - 6 phases with detailed tasks
+   - Variable requirements documented (10 required, 32 optional)
+   - Business logic rules defined
+   - Code examples for each phase
+   - Test commands and success criteria
+   - Estimated time: 4.5 hours
+
+2. ✅ **TESTING_WORKFLOW.md** - Automated testing guide
+   - TDD workflow documentation
+   - Quick command reference
+   - Coverage goals and strategies
+   - Debugging tips
+
+3. ✅ **Key Decisions Documented:**
+   - Variable defaults: USD currency, 60-day delivery
+   - Architecture: Flat dict → nested transformation in backend
+   - Admin settings: Fetch every time (no cache)
+   - Validation: Return all errors at once
+   - Business rules: Logistics validation for non-EXW incoterms
+
+### Next Steps
+1. Follow PLAN_CALCULATION_ENGINE_CONNECTION.md sequentially
+2. Start with Phase 1: Variable mapper function
+3. Run automated tests after each phase
+4. Mark plan tasks complete as implementation progresses
+
+### Notes
+- No code changes made this session (documentation only)
+- Backend integration still broken (line 568-579 in quotes_calc.py)
+- Plan ready to follow for implementation in next session
+- All 42 variables classified and defaults established
+- Frontend stays simple (flat dict), backend handles complexity
+
+---
+
 ## Session 14 (2025-10-20) - Quote Creation Page UI/UX Improvements
 
 ### Goal
