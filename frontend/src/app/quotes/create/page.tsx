@@ -829,7 +829,7 @@ export default function CreateQuotePage() {
                       title="🏢 Настройки компании и оплата"
                       size="small"
                       style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      bodyStyle={{ padding: '12px' }}
+                      styles={{ body: { padding: '12px' } }}
                     >
                       <Row gutter={[12, 8]}>
                         {/* Company Settings Section */}
@@ -1071,7 +1071,7 @@ export default function CreateQuotePage() {
                       title="🚚 Логистика и таможня"
                       size="small"
                       style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      bodyStyle={{ padding: '12px' }}
+                      styles={{ body: { padding: '12px' } }}
                     >
                       <Row gutter={[12, 8]}>
                         {/* Logistics Section */}
@@ -1235,7 +1235,7 @@ export default function CreateQuotePage() {
                       title="🛃 Таможенная очистка"
                       size="small"
                       style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      bodyStyle={{ padding: '12px' }}
+                      styles={{ body: { padding: '12px' } }}
                     >
                       <Text
                         type="secondary"
@@ -1281,7 +1281,7 @@ export default function CreateQuotePage() {
                       title="📦 Значения по умолчанию для товаров"
                       size="small"
                       style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      bodyStyle={{ padding: '12px' }}
+                      styles={{ body: { padding: '12px' } }}
                     >
                       <Text
                         type="secondary"
