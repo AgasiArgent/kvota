@@ -88,6 +88,148 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ---
 
+## Specialized Agent Team
+
+**8 specialized agents for automated workflow orchestration.**
+
+The project uses specialized AI agents that work in parallel to ensure quality, security, and consistency. Agents automatically trigger when features are complete.
+
+### Agent Overview
+
+**Tier 1: Orchestration**
+- **DevOps/Project Manager** (`/finalize`) - Coordinates all agents, updates docs, manages git workflow
+
+**Tier 2: Builders**
+- **Frontend Developer** (`/build-frontend`) - Implements Next.js/React features
+- **Backend Developer** (`/build-backend`) - Implements FastAPI endpoints
+
+**Tier 3: Quality Assurance**
+- **QA/Tester** (`/qa-check`) - Writes automated tests, checks coverage
+- **Security Auditor** (`/security-check`) - Audits RLS policies, permissions, SQL injection
+- **Code Reviewer** (`/review-code`) - Reviews patterns, quality, performance
+
+**Tier 4: User Experience**
+- **UX/Design** (`/review-ux`) - Checks UI consistency, accessibility, responsive design
+- **Integration Tester** (`/integration-test`) - E2E testing with Chrome DevTools MCP
+
+### Typical Workflow
+
+**When you complete a feature, the orchestrator asks:**
+> "Feature looks complete. Run quality checks and finalize? [Yes/No]"
+
+**If you say "Yes", orchestrator automatically:**
+
+1. **Parallel Quality Checks** (~2-3 min)
+   - Launches QA, Security, and Code Review agents simultaneously
+   - All run in parallel in separate contexts
+
+2. **Review Findings**
+   - ✅ Auto-fixes minor issues (formatting, missing comments)
+   - ⚠️ Reports important issues (needs review)
+   - 🔴 Creates GitHub Issues for critical/security bugs
+
+3. **Update Documentation**
+   - Updates SESSION_PROGRESS.md
+   - Updates CLAUDE.md (if packages/architecture changed)
+   - Updates test docs (if new tests)
+
+4. **Git Workflow**
+   - Asks: "Commit and push?"
+   - Runs tests one final time
+   - Generates commit message (follows repo style)
+   - Commits with proper format
+   - Pushes to GitHub
+   - Monitors CI/CD
+
+5. **Final Report**
+   - Summary of all checks
+   - Test results (X/X passing)
+   - Security status
+   - Documentation updates
+   - Git commit hash
+   - CI/CD status
+
+### GitHub Issue Creation
+
+**Agents auto-create GitHub Issues for:**
+- 🔴 Security vulnerabilities (RLS bypass, SQL injection, auth bypass)
+- 🔴 Data integrity risks (missing validation, incorrect calculations)
+- 🔴 Breaking changes without migration
+- 🔴 Failed tests that can't be auto-fixed
+
+**Issues are labeled:** `security`, `critical`, `agent-found`
+
+**Minor issues (formatting, comments, style) are reported locally only.**
+
+### Agent Commands
+
+**Manual invocation:**
+- `/finalize` - Full orchestration workflow (recommended after features)
+- `/build-frontend [description]` - Build frontend feature
+- `/build-backend [description]` - Build backend feature
+- `/qa-check` - Just run QA agent (tests + coverage)
+- `/security-check` - Just run security audit
+- `/review-code` - Run code review agents
+- `/review-ux` - Check UI consistency
+- `/integration-test [description]` - E2E workflow testing
+
+**Automatic triggers:**
+The orchestrator detects when features are complete and asks if you want to finalize.
+
+### Agent Configuration
+
+**Location:** `.claude/commands/*.md` (8 agent files)
+
+**Parallel execution:**
+Agents run in parallel using single message with multiple Task tool calls for maximum efficiency.
+
+**Example:**
+```
+Feature complete → Orchestrator asks → You say "Yes" →
+  ├─ QA Agent (writes tests)
+  ├─ Security Agent (checks RLS)  } All run simultaneously (~2-3 min)
+  └─ Code Review (checks patterns)
+→ Findings reviewed → Docs updated → Committed → Pushed
+```
+
+### Best Practices
+
+1. **Always run `/finalize` after completing features** - Ensures quality, tests, and docs
+2. **Review critical issues** - Before auto-fixing, agent shows you critical problems
+3. **Trust the agents** - They follow project patterns and best practices
+4. **Check GitHub Issues** - Critical findings are tracked there
+5. **Verify CI/CD** - Agents report CI status, check if tests pass
+
+### Benefits
+
+- ✅ **Automated testing** - QA agent writes tests for every feature
+- ✅ **Security guaranteed** - Security agent catches RLS/permission bugs
+- ✅ **Consistency enforced** - Code review ensures patterns match
+- ✅ **Docs always updated** - SESSION_PROGRESS.md stays current
+- ✅ **Parallel efficiency** - 3 agents run together in ~3 min vs 10 min sequential
+- ✅ **GitHub tracking** - Critical issues auto-filed
+- ✅ **Quality safety net** - Nothing reaches production without checks
+- ✅ **Pre-tested for user** - Integration tests run before asking user to manually test (saves user time)
+
+### Testing Workflow
+
+**Before asking user to manually test UI features:**
+
+1. ✅ Run unit tests (pytest/jest)
+2. ✅ Run integration tests (Chrome DevTools MCP)
+3. ✅ Check console for errors
+4. ✅ Verify happy path works
+5. ✅ Fix obvious bugs found
+6. **THEN** ask user to test edge cases and UX
+
+**Why:** Catches 80% of bugs automatically. User only tests the tricky 20% that matters (UX, edge cases, business logic).
+
+**Tool:** Chrome DevTools MCP (priority tool in WSL2)
+- See `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`
+- Automatically runs during `/finalize` for UI features
+
+---
+
 ## Project Architecture
 
 ### Two-Tier Variable System
@@ -125,7 +267,11 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 - **`.claude/PLAN_CALCULATION_ENGINE_CONNECTION.md`** ⭐ - Quote creation to calculation engine integration (Session 15)
 - `.claude/IMPLEMENTATION_PLAN_AG_GRID.md` - ag-Grid restructure plan (Sessions 8-14 COMPLETE)
 - `.claude/calculation_engine_summary.md` - Calculation engine (13 phases)
+
+### Testing Documentation
+- **`.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`** ⭐ **PRIORITY TOOL** - Complete guide for Chrome DevTools MCP testing
 - `.claude/TESTING_WORKFLOW.md` - Automated testing workflow and TDD guide
+- `.claude/MANUAL_TESTING_GUIDE.md` - Manual + automated testing scenarios for quote creation
 
 ### Key Source Files
 - `frontend/src/app/quotes/create/page.tsx` - Quote creation (RESTRUCTURING)
@@ -340,22 +486,69 @@ git push
 
 ## Debugging Tools Available
 
+### 🤖 Chrome DevTools MCP (✅ PRIORITY TOOL for Testing)
+
+**The PRIMARY tool for automated browser testing in WSL2.**
+
+- **Status:** ✅ **FULLY WORKING** with WSLg (Windows 11 X server)
+- **Documentation:** `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`
+- **Tiered Testing Guide:** `.claude/TIERED_TESTING_GUIDE.md` ⭐ **Prevent WSL2 freezing**
+- **Capabilities:**
+  - Full browser automation (login, file upload, form filling, clicks)
+  - Console monitoring and network inspection
+  - Screenshots (full page or specific elements)
+  - JavaScript execution in page context
+  - Accessibility tree snapshots for element selection
+- **Quick Start (Resource-Optimized):**
+  ```bash
+  # Use optimized launch script (prevents freezing)
+  ./.claude/launch-chrome-testing.sh full http://localhost:3001/quotes/create
+
+  # Or headless mode (60% less memory)
+  ./.claude/launch-chrome-testing.sh headless
+
+  # Monitor resources in separate terminal
+  ./.claude/monitor-wsl-resources.sh
+
+  # Kill Chrome when done
+  ./.claude/launch-chrome-testing.sh kill
+  ```
+- **Tiered Testing (Fastest to Slowest):**
+  1. **Backend Unit Tests** (100 MB, 5s) - `cd backend && pytest -v`
+  2. **Backend API Tests** (200 MB, 30s) - `./.claude/test-backend-only.sh`
+  3. **Headless Browser** (500 MB, 60s) - `./.claude/launch-chrome-testing.sh headless`
+  4. **Full Browser** (1.2 GB, 120s) - `./.claude/launch-chrome-testing.sh full` (only when needed!)
+- **🎯 Golden Rule:** Always start with the fastest tier that covers what you need
+- **Resource Management:**
+  - ⚠️ **WSL2 can freeze** if Chrome uses too much memory
+  - ✅ **Configure .wslconfig:** Limit WSL2 to 6GB RAM (see `.wslconfig` in Windows user folder)
+  - ✅ **Monitor resources:** Use `./.claude/monitor-wsl-resources.sh`
+  - ✅ **Use tiered testing:** Start with backend tests, only use browser when needed
+  - **See:** `.claude/TIERED_TESTING_GUIDE.md` for preventing freezes
+- **Permission Configuration:**
+  - **Location:** `.claude/settings.json`
+  - **Required:** Explicit permission list (wildcards alone don't work)
+  - **Pre-approved actions:** All 27 Chrome DevTools MCP tools + common Bash commands
+  - **Safety:** Dangerous operations (rm -rf, shutdown, etc.) explicitly denied
+  - **Reload required:** After editing settings.json, reload VS Code window (Ctrl+Shift+P → "Reload Window")
+  - **See:** `.claude/settings.json` for complete permission list
+
+### Other Debugging Tools
+
 - **Browser Console Reader:** ✅ Playwright-based console monitor
   - **Location:** `frontend/.claude-read-console.js`
   - **Usage:** `cd frontend && node .claude-read-console.js http://localhost:3001`
   - **Features:** Color-coded console logs (ERROR/WARNING/INFO/LOG), file paths, line numbers
-  - **Note:** Launches Chromium browser and captures all console output in real-time
+  - **Note:** Read-only monitoring (can't interact with page)
+  - **Best For:** Watching console logs during manual testing
 - **Backend Logs:** Check uvicorn output via BashOutput tool
 - **Database:** Direct SQL via Supabase dashboard or Postgres MCP
-- **Chrome DevTools:** ❌ Not working from WSL2 (networking issues between WSL2 and Windows Chrome)
-  - Attempted fixes: mirrored networking, firewall rules, --remote-debugging-address=0.0.0.0
-  - Use Browser Console Reader script instead
 
 ---
 
 ## Installed Tools & Dependencies
 
-**Last Updated:** 2025-10-21
+**Last Updated:** 2025-10-21 (Session 16 - Resource management tools to prevent WSL2 freezing)
 
 ### Frontend (package.json)
 - **Next.js:** 15.5.4 (App Router with Turbopack)
@@ -399,6 +592,12 @@ git push
 - **Pre-commit hooks:** Auto-format and lint before commits
 
 ### MCP Servers (Model Context Protocol)
+- **chrome-devtools** ✅ **PRIORITY TOOL** - Browser automation via Chrome DevTools Protocol
+  - **Status:** FULLY WORKING with WSLg (Windows 11 X server)
+  - **Usage:** See `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md` for complete guide
+  - **Launch:** `DISPLAY=:0 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-wsl-profile "http://localhost:3001" &`
+  - **Tools:** `mcp__chrome-devtools__*` (take_snapshot, click, fill, upload_file, evaluate_script, etc.)
+  - **Best For:** Automated testing, file uploads, console monitoring, screenshots
 - **postgres** - Direct Supabase database queries and schema inspection ✅ Working
 - **github** - ❌ Not functional (returns empty resources)
   - **Workaround:** Use curl commands with GitHub API directly
@@ -416,9 +615,8 @@ git push
       -d '{"title":"Issue title","body":"Issue description"}' \
       https://api.github.com/repos/AgasiArgent/kvota/issues
     ```
-- **chrome-devtools** - Browser debugging via remote debugging port 9222 (not tested)
-- **puppeteer** - Browser automation (not tested)
-- **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers)
+- **puppeteer** - Browser automation (not recommended, use chrome-devtools instead)
+- **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers + permissions)
 - **See:** `.claude/RECOMMENDED_MCP_SERVERS.md` for configuration details and additional optional servers
 
 ### Database

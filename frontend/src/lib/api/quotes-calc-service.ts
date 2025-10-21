@@ -142,6 +142,7 @@ export interface QuoteCalculationRequest {
 export interface ProductCalculationResult {
   product_name: string;
   product_code?: string;
+  quantity: number;
 
   // Phase results
   base_price_vat: number;
@@ -220,6 +221,7 @@ export class QuotesCalcService {
         return {
           success: false,
           error:
+            errorData.message || // Backend uses 'message' field
             errorData.error ||
             errorData.detail ||
             `HTTP ${response.status}: ${response.statusText}`,
@@ -273,6 +275,7 @@ export class QuotesCalcService {
         return {
           success: false,
           error:
+            errorData.message || // Backend uses 'message' field
             errorData.error ||
             errorData.detail ||
             `HTTP ${response.status}: ${response.statusText}`,

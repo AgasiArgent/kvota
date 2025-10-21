@@ -10,6 +10,46 @@
 
 ---
 
+## 🤖 Automated Testing (RECOMMENDED)
+
+**For Claude/AI-assisted testing, use Chrome DevTools MCP as the primary tool.**
+
+**Benefits:**
+- ✅ Full browser automation (login, file upload, form filling, clicks)
+- ✅ Works perfectly in WSL2 with WSLg X server support
+- ✅ Console monitoring, screenshots, network inspection
+- ✅ Step-by-step verification with snapshots
+
+**See comprehensive guide:** [.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md](.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md)
+
+**Quick Start for Automated Testing:**
+
+1. **Launch Chrome with remote debugging:**
+   ```bash
+   DISPLAY=:0 google-chrome \
+     --remote-debugging-port=9222 \
+     --user-data-dir=/tmp/chrome-wsl-profile \
+     "http://localhost:3001/quotes/create" &
+   ```
+
+2. **Use Chrome DevTools MCP tools:**
+   - `mcp__chrome-devtools__take_snapshot()` - Get page structure with element UIDs
+   - `mcp__chrome-devtools__fill(uid, value)` - Fill form inputs
+   - `mcp__chrome-devtools__click(uid)` - Click buttons/elements
+   - `mcp__chrome-devtools__upload_file(uid, filePath)` - Upload files
+   - `mcp__chrome-devtools__list_console_messages()` - Check for errors
+
+3. **Verify Chrome is connected:**
+   ```bash
+   curl -s http://localhost:9222/json | head -20
+   ```
+
+**All automated testing workflows are documented in AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md**
+
+---
+
+## Manual Testing (Human Tester)
+
 ## Test 1: Page Load & Initial State
 
 1. **Navigate to:** http://localhost:3000/quotes/create
