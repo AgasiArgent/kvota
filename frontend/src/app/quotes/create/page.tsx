@@ -48,6 +48,7 @@ import {
   Product,
   VariableTemplate,
   CalculationVariables,
+  ProductCalculationResult,
 } from '@/lib/api/quotes-calc-service';
 import { customerService, Customer } from '@/lib/api/customer-service';
 import {
@@ -1472,15 +1473,15 @@ export default function CreateQuotePage() {
                 </Text>
 
                 {/* Results Table */}
-                <Table
+                <Table<ProductCalculationResult>
                   dataSource={calculationResults.items || []}
-                  rowKey={(record) =>
-                    record.item_id || record.product_code || record.product_name || '0'
+                  rowKey={(record: ProductCalculationResult) =>
+                    record.product_code || record.product_name || '0'
                   }
                   scroll={{ x: 1500 }}
                   pagination={false}
                   size="small"
-                  summary={(pageData) => {
+                  summary={(pageData: readonly ProductCalculationResult[]) => {
                     const totals = {
                       quantity: pageData.reduce((sum, item) => sum + (item.quantity || 0), 0),
                       purchase_price_rub: pageData.reduce(

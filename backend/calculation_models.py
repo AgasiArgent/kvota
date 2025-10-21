@@ -20,6 +20,7 @@ class Currency(str, Enum):
     CNY = "CNY"
     RUB = "RUB"
     AED = "AED"
+    TRY = "TRY"  # Turkish Lira
 
 
 class SupplierCountry(str, Enum):

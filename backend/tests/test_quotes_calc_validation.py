@@ -19,7 +19,7 @@ class TestValidationRequired:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "15"
         }
 
@@ -38,7 +38,7 @@ class TestValidationRequired:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "15"
         }
 
@@ -57,7 +57,7 @@ class TestValidationRequired:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "15"
         }
 
@@ -76,7 +76,7 @@ class TestValidationRequired:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0"
+            "exchange_rate_base_price_to_quote": "1.0"
             # Missing markup
         }
 
@@ -95,13 +95,16 @@ class TestValidationRequired:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "0",  # Invalid - must be > 0
-            "markup": "15"
+            "exchange_rate_base_price_to_quote": "0",  # Invalid - must be > 0
+            "markup": "15",
+            "supplier_country": "Турция"  # Add required field
         }
 
         errors = validate_calculation_input(product, variables)
         assert len(errors) > 0
-        assert any("exchange_rate" in err and "> 0" in err for err in errors)
+        # Check for Russian error message with user-friendly guidance
+        # Error message should use Russian label "Курс к валюте КП" and say "больше нуля"
+        assert any("Курс к валюте КП" in err and "больше нуля" in err for err in errors)
 
 
 class TestBusinessRules:
@@ -120,7 +123,7 @@ class TestBusinessRules:
             "offer_incoterms": "DDP",  # Not EXW
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "15",
             # All logistics costs are 0 or missing
             "logistics_supplier_hub": "0",
@@ -130,7 +133,8 @@ class TestBusinessRules:
 
         errors = validate_calculation_input(product, variables)
         assert len(errors) > 0
-        assert any("logistics" in err.lower() for err in errors)
+        # Check for Russian logistics error message
+        assert any("логистическая" in err.lower() or "логистика" in err.lower() for err in errors)
 
     def test_non_exw_passes_with_at_least_one_logistics_cost(self):
         """If incoterms = DDP and logistics_supplier_hub > 0, should pass"""
@@ -145,7 +149,7 @@ class TestBusinessRules:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "15",
             "logistics_supplier_hub": "1500.00",  # Has logistics cost
             "logistics_hub_customs": "0",
@@ -154,7 +158,7 @@ class TestBusinessRules:
 
         errors = validate_calculation_input(product, variables)
         # Should not have logistics-related errors
-        assert not any("logistics" in err.lower() for err in errors)
+        assert not any("логистическая" in err.lower() or "логистика" in err.lower() for err in errors)
 
     def test_exw_allows_zero_logistics_costs(self):
         """If incoterms = EXW, logistics costs can all be 0"""
@@ -169,7 +173,7 @@ class TestBusinessRules:
             "offer_incoterms": "EXW",  # EXW allows zero logistics
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "15",
             "logistics_supplier_hub": "0",
             "logistics_hub_customs": "0",
@@ -178,7 +182,7 @@ class TestBusinessRules:
 
         errors = validate_calculation_input(product, variables)
         # Should not have logistics-related errors
-        assert not any("logistics" in err.lower() for err in errors)
+        assert not any("логистическая" in err.lower() or "логистика" in err.lower() for err in errors)
 
 
 class TestMultipleErrors:
@@ -217,7 +221,7 @@ class TestMultipleErrors:
             "offer_incoterms": "EXW",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "15"
         }
 

@@ -53,6 +53,8 @@ class Currency(str, Enum):
     CNY = "CNY"  # Chinese Yuan
     USD = "USD"  # US Dollar
     EUR = "EUR"  # Euro
+    AED = "AED"  # UAE Dirham
+    TRY = "TRY"  # Turkish Lira
 
 
 class DiscountType(str, Enum):

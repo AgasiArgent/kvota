@@ -146,7 +146,7 @@ class TestMapVariables:
             "offer_incoterms": "EXW",
             "currency_of_base_price": "USD",
             "currency_of_quote": "RUB",
-            "exchange_rate": "95.5",
+            "exchange_rate_base_price_to_quote": "95.5",
             "markup": "20",
             "supplier_country": "Турция",  # Quote default
             "customs_code": "9999999999"   # Quote default
