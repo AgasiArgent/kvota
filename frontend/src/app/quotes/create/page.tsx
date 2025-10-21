@@ -21,6 +21,7 @@ import {
   Radio,
   Divider,
   Checkbox,
+  Alert,
 } from 'antd';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -341,6 +342,34 @@ export default function CreateQuotePage() {
     }
   };
 
+  // Apply quote-level defaults to products before sending to API
+  // Two-tier system: product override > quote default > fallback
+  const applyQuoteDefaultsToProducts = (
+    products: Product[],
+    quoteDefaults: CalculationVariables
+  ): Product[] => {
+    return products.map((product) => ({
+      ...product,
+      // Financial defaults (both Product and CalculationVariables have these)
+      currency_of_base_price:
+        product.currency_of_base_price || quoteDefaults.currency_of_base_price || 'USD',
+      exchange_rate_base_price_to_quote:
+        product.exchange_rate_base_price_to_quote ||
+        quoteDefaults.exchange_rate_base_price_to_quote ||
+        1.0,
+      supplier_discount: product.supplier_discount ?? 0, // Product-only field, default to 0 if not set
+      markup: product.markup ?? quoteDefaults.markup ?? 0,
+
+      // Logistics defaults
+      supplier_country: product.supplier_country || quoteDefaults.supplier_country || 'Турция',
+
+      // Customs defaults
+      customs_code: product.customs_code || quoteDefaults.customs_code || '',
+      import_tariff: product.import_tariff ?? quoteDefaults.import_tariff ?? 0,
+      excise_tax: product.excise_tax ?? quoteDefaults.excise_tax ?? 0,
+    }));
+  };
+
   // Calculate quote
   const handleCalculate = async () => {
     if (!selectedCustomer) {
@@ -357,9 +386,12 @@ export default function CreateQuotePage() {
     try {
       const variables = form.getFieldsValue();
 
+      // Apply quote-level defaults to products BEFORE sending to API
+      const productsWithDefaults = applyQuoteDefaultsToProducts(uploadedProducts, variables);
+
       const result = await quotesCalcService.calculateQuote({
         customer_id: selectedCustomer,
-        products: uploadedProducts,
+        products: productsWithDefaults,
         variables: variables as CalculationVariables,
         title: `Коммерческое предложение от ${new Date().toLocaleDateString()}`,
       });
@@ -685,6 +717,24 @@ export default function CreateQuotePage() {
             </Col>
           )}
         </Row>
+
+        {/* Requirements Alert - Show when customer or products are missing */}
+        {(!selectedCustomer || uploadedProducts.length === 0) && !calculationResults && (
+          <Alert
+            message="Чтобы рассчитать котировку"
+            description={
+              <div>
+                {!selectedCustomer && <div>• Выберите клиента из списка ниже</div>}
+                {uploadedProducts.length === 0 && (
+                  <div>• Загрузите файл с товарами (Excel или CSV)</div>
+                )}
+              </div>
+            }
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
 
         <Spin spinning={loading}>
           <Form
@@ -1425,6 +1475,94 @@ export default function CreateQuotePage() {
                   scroll={{ x: 1500 }}
                   pagination={false}
                   size="small"
+                  summary={(pageData) => {
+                    const totals = {
+                      quantity: pageData.reduce((sum, item) => sum + (item.quantity || 0), 0),
+                      purchase_price_rub: pageData.reduce(
+                        (sum, item) => sum + (item.purchase_price_rub || 0),
+                        0
+                      ),
+                      logistics_costs: pageData.reduce(
+                        (sum, item) => sum + (item.logistics_costs || 0),
+                        0
+                      ),
+                      cogs: pageData.reduce((sum, item) => sum + (item.cogs || 0), 0),
+                      cogs_with_vat: pageData.reduce(
+                        (sum, item) => sum + (item.cogs_with_vat || 0),
+                        0
+                      ),
+                      import_duties: pageData.reduce(
+                        (sum, item) => sum + (item.import_duties || 0),
+                        0
+                      ),
+                      customs_fees: pageData.reduce(
+                        (sum, item) => sum + (item.customs_fees || 0),
+                        0
+                      ),
+                      financing_costs: pageData.reduce(
+                        (sum, item) => sum + (item.financing_costs || 0),
+                        0
+                      ),
+                      dm_fee: pageData.reduce((sum, item) => sum + (item.dm_fee || 0), 0),
+                      total_cost: pageData.reduce((sum, item) => sum + (item.total_cost || 0), 0),
+                      sale_price: pageData.reduce((sum, item) => sum + (item.sale_price || 0), 0),
+                      margin: pageData.reduce((sum, item) => sum + (item.margin || 0), 0),
+                    };
+
+                    return (
+                      <Table.Summary fixed>
+                        <Table.Summary.Row
+                          style={{ backgroundColor: '#fafafa', fontWeight: 'bold' }}
+                        >
+                          <Table.Summary.Cell index={0}>
+                            <strong>ИТОГО СБС</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={1}>
+                            <strong>{totals.quantity}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={2}>—</Table.Summary.Cell>
+                          <Table.Summary.Cell index={3}>—</Table.Summary.Cell>
+                          <Table.Summary.Cell index={4}>
+                            <strong>{totals.purchase_price_rub.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={5}>
+                            <strong>{totals.logistics_costs.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={6}>
+                            <strong>{totals.cogs.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={7}>
+                            <strong>{totals.cogs_with_vat.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={8}>
+                            <strong>{totals.import_duties.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={9}>
+                            <strong>{totals.customs_fees.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={10}>
+                            <strong>{totals.financing_costs.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={11}>
+                            <strong>{totals.dm_fee.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={12}>
+                            <strong>{totals.total_cost.toFixed(2)}</strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={13}>
+                            <strong style={{ color: '#1890ff' }}>
+                              {totals.sale_price.toFixed(2)}
+                            </strong>
+                          </Table.Summary.Cell>
+                          <Table.Summary.Cell index={14}>
+                            <strong style={{ color: totals.margin > 0 ? 'green' : 'red' }}>
+                              {totals.margin.toFixed(2)}
+                            </strong>
+                          </Table.Summary.Cell>
+                        </Table.Summary.Row>
+                      </Table.Summary>
+                    );
+                  }}
                   columns={[
                     {
                       title: 'Товар',
@@ -1489,10 +1627,10 @@ export default function CreateQuotePage() {
                       render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
                     },
                     {
-                      title: 'Таможня',
+                      title: 'Акциз+Утиль',
                       dataIndex: 'customs_fees',
                       key: 'customs_fees',
-                      width: 100,
+                      width: 110,
                       render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
                     },
                     {
@@ -1510,7 +1648,7 @@ export default function CreateQuotePage() {
                       render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
                     },
                     {
-                      title: 'Итого',
+                      title: 'Итого СБС',
                       dataIndex: 'total_cost',
                       key: 'total_cost',
                       width: 110,

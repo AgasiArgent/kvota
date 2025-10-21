@@ -216,7 +216,7 @@ def map_variables_to_calculation_input(
     # ========== FinancialParams (7 fields) ==========
     financial = FinancialParams(
         currency_of_quote=Currency(variables.get('currency_of_quote', 'USD')),
-        exchange_rate_base_price_to_quote=safe_decimal(variables.get('exchange_rate'), Decimal("1")),
+        exchange_rate_base_price_to_quote=safe_decimal(variables.get('exchange_rate_base_price_to_quote'), Decimal("1")),
         supplier_discount=safe_decimal(variables.get('supplier_discount'), Decimal("0")),
         markup=safe_decimal(variables.get('markup'), Decimal("15")),  # Required in validation
         rate_forex_risk=admin_settings.get('rate_forex_risk', Decimal("3")),
@@ -360,43 +360,86 @@ def validate_calculation_input(
         variables: Quote-level variables dict
 
     Returns:
-        List of error messages (empty if valid)
+        List of user-friendly error messages with Russian field names (empty if valid)
     """
     errors = []
 
+    # Get product identifier for error messages
+    product_id = product.product_name
+    if product.sku:
+        product_id = f"{product.sku} ({product.product_name})"
+
     # Required fields validation
     if not product.base_price_vat or product.base_price_vat <= 0:
-        errors.append("base_price_vat is required and must be > 0")
+        errors.append(
+            f"Товар '{product_id}': отсутствует цена закупки (base_price_vat). "
+            "Укажите цену в файле или в таблице."
+        )
 
     if not product.quantity or product.quantity <= 0:
-        errors.append("quantity is required and must be > 0")
+        errors.append(
+            f"Товар '{product_id}': отсутствует количество (quantity). "
+            "Укажите количество в файле или в таблице."
+        )
 
+    # Quote-level required fields
     if not variables.get('seller_company'):
-        errors.append("seller_company is required")
+        errors.append(
+            "Отсутствует 'Компания-продавец' (seller_company). "
+            "Укажите значение в карточке 'Настройки компании'."
+        )
 
     if not variables.get('offer_incoterms'):
-        errors.append("offer_incoterms is required")
+        errors.append(
+            "Отсутствует 'Базис поставки' (offer_incoterms). "
+            "Укажите значение в карточке 'Настройки компании'."
+        )
 
-    if not variables.get('currency_of_base_price'):
-        errors.append("currency_of_base_price is required")
+    # Currency validation
+    currency_base = get_value('currency_of_base_price', product, variables, None)
+    if not currency_base:
+        errors.append(
+            f"Товар '{product_id}': отсутствует 'Валюта цены закупки' (currency_of_base_price). "
+            "Укажите значение в карточке 'Переменные для расчетов' или в таблице для конкретного товара."
+        )
 
     if not variables.get('currency_of_quote'):
-        errors.append("currency_of_quote is required")
+        errors.append(
+            "Отсутствует 'Валюта КП' (currency_of_quote). "
+            "Укажите значение в карточке 'Финансовые параметры'."
+        )
 
-    if not variables.get('exchange_rate'):
-        errors.append("exchange_rate is required")
-    elif safe_decimal(variables.get('exchange_rate')) <= 0:
-        errors.append("exchange_rate must be > 0")
+    # Exchange rate validation (fix variable name: exchange_rate -> exchange_rate_base_price_to_quote)
+    exchange_rate = get_value('exchange_rate_base_price_to_quote', product, variables, None)
+    if not exchange_rate:
+        errors.append(
+            f"Товар '{product_id}': отсутствует 'Курс к валюте КП' (exchange_rate_base_price_to_quote). "
+            "Укажите значение в карточке 'Переменные для расчетов' или в таблице для конкретного товара."
+        )
+    elif safe_decimal(exchange_rate) <= 0:
+        errors.append(
+            f"Товар '{product_id}': 'Курс к валюте КП' должен быть больше нуля (текущее значение: {exchange_rate})."
+        )
 
-    if not variables.get('markup'):
-        errors.append("markup is required")
-    elif safe_decimal(variables.get('markup')) <= 0:
-        errors.append("markup must be > 0")
+    # Markup validation
+    markup = get_value('markup', product, variables, None)
+    if not markup:
+        errors.append(
+            f"Товар '{product_id}': отсутствует 'Наценка (%)' (markup). "
+            "Укажите значение в карточке 'Финансовые параметры' или в таблице для конкретного товара."
+        )
+    elif safe_decimal(markup) <= 0:
+        errors.append(
+            f"Товар '{product_id}': 'Наценка (%)' должна быть больше нуля (текущее значение: {markup})."
+        )
 
-    # Get supplier_country (can be product-level or quote-level)
+    # Supplier country validation
     supplier_country = get_value('supplier_country', product, variables, None)
     if not supplier_country:
-        errors.append("supplier_country is required")
+        errors.append(
+            f"Товар '{product_id}': отсутствует 'Страна закупки' (supplier_country). "
+            "Укажите значение в карточке 'Переменные для расчетов' или в таблице для конкретного товара."
+        )
 
     # Business rule: If incoterms ≠ EXW, at least one logistics field must be > 0
     incoterms = variables.get('offer_incoterms')
@@ -407,8 +450,9 @@ def validate_calculation_input(
 
         if logistics_supplier_hub == 0 and logistics_hub_customs == 0 and logistics_customs_client == 0:
             errors.append(
-                f"For incoterms '{incoterms}', at least one logistics cost field must be > 0 "
-                "(logistics_supplier_hub, logistics_hub_customs, or logistics_customs_client)"
+                f"Для базиса поставки '{incoterms}' должна быть указана хотя бы одна логистическая стоимость: "
+                "'Логистика Поставщик-Турция', 'Логистика Турция-РФ' или 'Логистика Таможня-Клиент'. "
+                "Укажите значения в карточке 'Логистика'."
             )
 
     return errors
@@ -769,6 +813,24 @@ async def delete_variable_template(
 
 
 # ============================================================================
+# HELPER FUNCTIONS - JSON SERIALIZATION
+# ============================================================================
+
+def convert_decimals_to_float(obj):
+    """
+    Recursively convert all Decimal objects to float for JSON serialization
+    """
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_decimals_to_float(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_decimals_to_float(item) for item in obj]
+    else:
+        return obj
+
+
+# ============================================================================
 # QUOTE CALCULATION ENDPOINT
 # ============================================================================
 
@@ -898,7 +960,7 @@ async def calculate_quote(
                 results_data = {
                     "quote_id": quote_id,
                     "quote_item_id": item_record['id'],
-                    "phase_results": result.dict()  # All 13 phases as JSON
+                    "phase_results": convert_decimals_to_float(result.dict())  # Convert Decimals for JSON
                 }
 
                 results_response = supabase.table("quote_calculation_results")\
@@ -906,15 +968,59 @@ async def calculate_quote(
                     .execute()
 
                 # Accumulate totals
-                total_subtotal += result.S16  # Purchase price
-                total_amount += result.AK16  # Final sales price total
+                total_subtotal += result.purchase_price_total_quote_currency  # S16 - Purchase price
+                total_amount += result.sales_price_total_no_vat  # AK16 - Final sales price total
 
-                # Add to response
+                # Calculate import duties (tariff only)
+                import_duties_total = result.customs_fee  # Y16 - Import tariff
+
+                # Calculate excise + util fees (Акциз + Утиль)
+                util_fee_value = Decimal(str(request.variables.get('util_fee', 0)))
+                excise_and_util = result.excise_tax_amount + util_fee_value  # Z16 + util_fee
+
+                # Calculate financing costs
+                financing_costs_total = result.financing_cost_initial + result.financing_cost_credit
+
+                # Calculate brokerage costs (distributed per product) - these are included in COGS/operational costs
+                total_brokerage = (
+                    Decimal(str(request.variables.get('brokerage_hub', 0))) +
+                    Decimal(str(request.variables.get('brokerage_customs', 0))) +
+                    Decimal(str(request.variables.get('warehousing_at_customs', 0))) +
+                    Decimal(str(request.variables.get('customs_documentation', 0))) +
+                    Decimal(str(request.variables.get('brokerage_extra', 0)))
+                )
+                brokerage_per_product = total_brokerage * result.distribution_base
+
+                # Calculate comprehensive total cost (COGS + duties + excise/util + financing + brokerage)
+                total_cost_comprehensive = (
+                    result.cogs_per_product +
+                    import_duties_total +
+                    excise_and_util +
+                    financing_costs_total +
+                    brokerage_per_product +
+                    result.dm_fee
+                )
+
+                # Add to response - map backend field names to frontend interface
                 calculation_results.append({
                     "item_id": item_record['id'],
                     "product_name": product.product_name,
+                    "product_code": product.product_code,
                     "quantity": product.quantity,
-                    "calculations": result.dict()
+                    # Map backend fields to frontend interface (ProductCalculationResult in quotes-calc-service.ts)
+                    "base_price_vat": float(product.base_price_vat),
+                    "base_price_no_vat": float(result.purchase_price_no_vat),
+                    "purchase_price_rub": float(result.purchase_price_total_quote_currency),  # S16 - Total purchase in quote currency
+                    "logistics_costs": float(result.logistics_total),  # V16 - Total logistics (transport only, not brokerage)
+                    "cogs": float(result.cogs_per_product),  # AB16 - Cost of goods sold
+                    "cogs_with_vat": float(result.cogs_per_product * Decimal("1.2")),  # COGS + 20% VAT estimate
+                    "import_duties": float(import_duties_total),  # Y16 - Import tariff (Пошлина)
+                    "customs_fees": float(excise_and_util),  # Z16 + util_fee - Excise tax + Utilization fee (Акциз + Утиль)
+                    "financing_costs": float(financing_costs_total),  # BA16 + BB16 - Supplier + operational financing
+                    "dm_fee": float(result.dm_fee),  # AG16 - Decision maker fee
+                    "total_cost": float(total_cost_comprehensive),  # COGS + duties + excise/util + financing + brokerage + DM fee
+                    "sale_price": float(result.sales_price_total_no_vat),  # AK16 - Final sales price
+                    "margin": float(result.profit)  # AF16 - Profit margin
                 })
 
             except Exception as e:
