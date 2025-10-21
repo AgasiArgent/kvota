@@ -96,6 +96,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SECRET_KEY: test-secret-key
           ENVIRONMENT: test
