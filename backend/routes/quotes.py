@@ -340,13 +340,34 @@ async def get_quote(
         
         # Get quote items
         items_rows = await conn.fetch("""
-            SELECT * FROM quote_items 
-            WHERE quote_id = $1 
+            SELECT * FROM quote_items
+            WHERE quote_id = $1
             ORDER BY sort_order ASC, created_at ASC
         """, quote_id)
-        
+
         items = [QuoteItem(**dict(row)) for row in items_rows]
-        
+
+        # Get calculation results for all items
+        calc_results_rows = await conn.fetch("""
+            SELECT qcr.quote_item_id, qcr.phase_results, qcr.calculated_at
+            FROM quote_calculation_results qcr
+            WHERE qcr.quote_id = $1
+        """, quote_id)
+
+        # Create a map of item_id -> calculation results
+        calc_results_map = {str(row['quote_item_id']): dict(row) for row in calc_results_rows}
+
+        # Attach calculation results to each item
+        for item in items:
+            item_id_str = str(item.id)
+            if item_id_str in calc_results_map:
+                # Add calculation results as extra attributes
+                item.calculation_results = calc_results_map[item_id_str]['phase_results']
+                item.calculated_at = calc_results_map[item_id_str]['calculated_at']
+            else:
+                item.calculation_results = None
+                item.calculated_at = None
+
         # Get approval information
         approvals_rows = await conn.fetch("""
             SELECT qa.*, 
