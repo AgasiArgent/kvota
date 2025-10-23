@@ -30,6 +30,7 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 008 | `008_calculation_settings.sql` | Admin calculation settings | ✅ Done | 2025-10-18 | Session 7 |
 | 009 | `009_add_sku_brand_to_quote_items.sql` | Add SKU and Brand columns | ✅ Done | 2025-10-19 | Session 8 |
 | 010 | `010_add_inn_to_organizations.sql` | Add INN to organizations | ✅ Done | 2025-10-XX | Session X |
+| 011 | `011_soft_delete_and_dates.sql` | Add soft delete + quote dates | ⏳ Pending | 2025-10-23 | Session 20 |
 
 ---
 
@@ -50,11 +51,39 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 
 ---
 
-## Next Migration Number: 011
+## Next Migration Number: 012
 
 Create new migration:
 ```bash
-touch backend/migrations/011_your_migration_name.sql
+touch backend/migrations/012_your_migration_name.sql
 ```
 
 Then update this log!
+
+---
+
+## Migration 011 Details: Soft Delete & Quote Dates
+
+**What it does:**
+1. Adds `quote_date` column (DATE, NOT NULL, default: CURRENT_DATE)
+2. Adds `deleted_at` column (TIMESTAMP, nullable) for soft deletes
+3. Updates all existing quotes to populate `quote_date` from `created_at`
+4. Updates all NULL `valid_until` values to `created_at + 7 days`
+5. Makes `valid_until` NOT NULL with default `CURRENT_DATE + 7 days`
+6. Creates indexes on `deleted_at` for performance
+7. Updates RLS policies to filter out soft-deleted quotes (deleted_at IS NULL)
+8. Adds helper functions: `soft_delete_quote(uuid)` and `restore_quote(uuid)`
+
+**Post-migration setup required:**
+- Schedule cron job to permanently delete quotes after 7 days of soft deletion
+- See migration file for pg_cron example
+- Can be implemented via Supabase Edge Functions or pg_cron
+
+**Testing checklist:**
+- [ ] All 9 existing quotes have quote_date populated from created_at
+- [ ] All 9 existing quotes have valid_until = created_at + 7 days
+- [ ] New quotes get quote_date = CURRENT_DATE automatically
+- [ ] New quotes get valid_until = CURRENT_DATE + 7 days automatically
+- [ ] RLS policies filter deleted quotes (deleted_at IS NULL)
+- [ ] soft_delete_quote() function works
+- [ ] restore_quote() function works

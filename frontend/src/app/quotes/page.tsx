@@ -16,6 +16,10 @@ import {
   Col,
   Statistic,
   DatePicker,
+  Drawer,
+  Descriptions,
+  Spin,
+  Divider,
 } from 'antd';
 import {
   PlusOutlined,
@@ -30,9 +34,10 @@ import {
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
-import { QuoteService } from '@/lib/api/quote-service';
+import { QuoteService, QuoteDetailsResponse } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import dayjs, { Dayjs } from 'dayjs';
+import { QuoteItem } from '@/lib/types/platform';
 
 const { Title } = Typography;
 const { Search } = Input;
@@ -65,13 +70,30 @@ export default function QuotesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
 
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
+  const [drawerData, setDrawerData] = useState<QuoteDetailsResponse | null>(null);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+
   const quoteService = new QuoteService();
 
   useEffect(() => {
-    fetchQuotes();
-  }, [currentPage, pageSize, searchTerm, statusFilter, dateRange]);
+    console.log('[useEffect] Triggered - profile:', profile?.organization_id, 'page:', currentPage);
+    if (profile?.organization_id) {
+      fetchQuotes();
+    } else {
+      console.log('[useEffect] BLOCKED - no organization_id');
+    }
+  }, [currentPage, pageSize, searchTerm, statusFilter, dateRange, profile]);
 
   const fetchQuotes = async () => {
+    console.log(
+      '[fetchQuotes] START - profile:',
+      profile?.email,
+      'org_id:',
+      profile?.organization_id
+    );
     setLoading(true);
     try {
       const filters: Record<string, any> = {};
@@ -97,6 +119,7 @@ export default function QuotesPage() {
         page: currentPage,
         limit: pageSize,
       });
+      console.log('[fetchQuotes] API response:', response);
       if (response.success && response.data) {
         setQuotes((response.data.quotes || []) as unknown as QuoteListItem[]);
         setTotalCount(response.data.pagination?.total_items || 0);
@@ -120,7 +143,7 @@ export default function QuotesPage() {
 
       const response = await quoteService.deleteQuote(id, organizationId);
       if (response.success) {
-        message.success('КП успешно удалено');
+        message.success('КП перемещено в корзину');
         fetchQuotes();
       } else {
         message.error(response.error || 'Ошибка удаления');
@@ -128,6 +151,43 @@ export default function QuotesPage() {
     } catch (error: any) {
       message.error(`Ошибка удаления: ${error.message}`);
     }
+  };
+
+  const openDrawer = async (quoteId: string) => {
+    setSelectedQuoteId(quoteId);
+    setDrawerOpen(true);
+    setDrawerLoading(true);
+
+    try {
+      const organizationId = profile?.organization_id || '';
+      if (!organizationId) {
+        message.error('Не удалось определить организацию');
+        return;
+      }
+
+      const response = await quoteService.getQuoteDetails(quoteId, organizationId);
+      if (response.success && response.data) {
+        setDrawerData(response.data);
+      } else {
+        message.error(response.error || 'Ошибка загрузки данных КП');
+      }
+    } catch (error: any) {
+      message.error(`Ошибка загрузки: ${error.message}`);
+    } finally {
+      setDrawerLoading(false);
+    }
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setSelectedQuoteId(null);
+    setDrawerData(null);
+  };
+
+  const handleDrawerDelete = async () => {
+    if (!selectedQuoteId) return;
+    await handleDelete(selectedQuoteId);
+    closeDrawer();
   };
 
   const getStatusTag = (status: string) => {
@@ -168,7 +228,16 @@ export default function QuotesPage() {
       key: 'quote_number',
       width: 150,
       render: (text: string, record: QuoteListItem) => (
-        <a onClick={() => router.push(`/quotes/${record.id}`)} style={{ fontWeight: 500 }}>
+        <a
+          onClick={() => openDrawer(record.id)}
+          style={{
+            fontWeight: 500,
+            color: '#1890ff',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+        >
           {text}
         </a>
       ),
@@ -249,7 +318,7 @@ export default function QuotesPage() {
           {record.status === 'draft' && (
             <Popconfirm
               title="Удалить КП?"
-              description="Это действие нельзя отменить"
+              description="КП будет перемещено в корзину"
               onConfirm={() => handleDelete(record.id)}
               okText="Удалить"
               cancelText="Отмена"
@@ -424,6 +493,194 @@ export default function QuotesPage() {
             }}
           />
         </Card>
+
+        {/* Quick View Drawer */}
+        <Drawer
+          title={drawerData?.quote?.quote_number || 'Загрузка...'}
+          placement="right"
+          width={680}
+          onClose={closeDrawer}
+          open={drawerOpen}
+        >
+          {drawerLoading ? (
+            <div style={{ textAlign: 'center', padding: '50px 0' }}>
+              <Spin size="large" />
+            </div>
+          ) : drawerData ? (
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+              {/* Section 1: Quote Summary */}
+              <div>
+                <Descriptions
+                  title="Информация о КП"
+                  bordered
+                  column={1}
+                  size="small"
+                  labelStyle={{ fontWeight: 500, width: '40%' }}
+                >
+                  <Descriptions.Item label="Клиент">
+                    {drawerData.customer?.company_name || 'Не указан'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Статус">
+                    {getStatusTag(drawerData.quote.status)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Дата КП">
+                    {drawerData.quote.created_at
+                      ? new Date(drawerData.quote.created_at).toLocaleDateString('ru-RU')
+                      : '—'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Действительно до">
+                    {drawerData.quote.valid_until
+                      ? new Date(drawerData.quote.valid_until).toLocaleDateString('ru-RU')
+                      : '—'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Дата создания">
+                    {drawerData.quote.created_at
+                      ? new Date(drawerData.quote.created_at).toLocaleDateString('ru-RU', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '—'}
+                  </Descriptions.Item>
+                </Descriptions>
+              </div>
+
+              <Divider />
+
+              {/* Section 2: Products Summary Table */}
+              <div>
+                <Typography.Title level={5}>Продукты</Typography.Title>
+                <Table
+                  dataSource={drawerData.items || []}
+                  rowKey="id"
+                  pagination={false}
+                  scroll={{ y: 300 }}
+                  size="small"
+                  columns={[
+                    {
+                      title: 'Название',
+                      dataIndex: 'name',
+                      key: 'name',
+                      ellipsis: true,
+                      width: 200,
+                    },
+                    {
+                      title: 'Артикул',
+                      dataIndex: 'sku',
+                      key: 'sku',
+                      width: 120,
+                    },
+                    {
+                      title: 'Кол-во',
+                      dataIndex: 'quantity',
+                      key: 'quantity',
+                      width: 80,
+                      align: 'right' as const,
+                    },
+                    {
+                      title: 'Цена',
+                      dataIndex: 'final_price',
+                      key: 'final_price',
+                      width: 100,
+                      align: 'right' as const,
+                      render: (price: number) =>
+                        price ? formatCurrency(price, drawerData.quote.currency) : '—',
+                    },
+                    {
+                      title: 'Сумма',
+                      key: 'total',
+                      width: 120,
+                      align: 'right' as const,
+                      render: (_: any, record: QuoteItem) =>
+                        record.final_price && record.quantity
+                          ? formatCurrency(
+                              record.final_price * record.quantity,
+                              drawerData.quote.currency
+                            )
+                          : '—',
+                    },
+                  ]}
+                />
+              </div>
+
+              <Divider />
+
+              {/* Section 3: Totals */}
+              <div>
+                <Typography.Title level={5}>Итого</Typography.Title>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Statistic
+                      title="Подытог"
+                      value={drawerData.quote.subtotal}
+                      formatter={(value) =>
+                        formatCurrency(Number(value), drawerData.quote.currency)
+                      }
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Statistic
+                      title="Общая сумма"
+                      value={drawerData.quote.total}
+                      formatter={(value) =>
+                        formatCurrency(Number(value), drawerData.quote.currency)
+                      }
+                      valueStyle={{ color: '#3f8600', fontWeight: 'bold' }}
+                    />
+                  </Col>
+                </Row>
+              </div>
+
+              <Divider />
+
+              {/* Section 4: Action Buttons */}
+              <Space style={{ width: '100%', justifyContent: 'center' }} size="middle">
+                <Button
+                  type="primary"
+                  icon={<EyeOutlined />}
+                  onClick={() => {
+                    closeDrawer();
+                    router.push(`/quotes/${selectedQuoteId}`);
+                  }}
+                >
+                  Полная страница
+                </Button>
+                {(drawerData.quote.status === 'draft' ||
+                  drawerData.quote.status === 'revision_needed') && (
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => {
+                      closeDrawer();
+                      router.push(`/quotes/${selectedQuoteId}?mode=edit`);
+                    }}
+                  >
+                    Редактировать
+                  </Button>
+                )}
+                {drawerData.quote.status === 'draft' && (
+                  <Popconfirm
+                    title="Удалить КП?"
+                    description="КП будет перемещено в корзину"
+                    onConfirm={handleDrawerDelete}
+                    okText="Удалить"
+                    cancelText="Отмена"
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Button danger icon={<DeleteOutlined />}>
+                      Удалить
+                    </Button>
+                  </Popconfirm>
+                )}
+              </Space>
+            </Space>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '50px 0' }}>
+              <Typography.Text type="secondary">Нет данных</Typography.Text>
+            </div>
+          )}
+        </Drawer>
       </Space>
     </MainLayout>
   );

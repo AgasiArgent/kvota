@@ -89,7 +89,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
 
-      return data;
+      // Map database fields to UserProfile interface
+      // The database has 'last_active_organization_id', we map it to 'organization_id'
+      const profile: UserProfile = {
+        id: data.user_id,
+        email: data.email || '',
+        full_name: data.full_name,
+        avatar_url: data.avatar_url,
+        phone: data.phone,
+        organization_id: data.last_active_organization_id, // Map last_active to organization_id
+        role: data.role || 'sales_manager',
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+
+      console.log('[fetchProfile] Mapped profile:', profile);
+      return profile;
     } catch (error) {
       console.error('Error fetching profile:', error);
       return null;
