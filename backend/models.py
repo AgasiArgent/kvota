@@ -538,29 +538,40 @@ class QuoteUpdate(BaseModel):
     approval_type: Optional[ApprovalType] = None
 
 
-class Quote(QuoteBase):
-    """Complete quote model with database fields"""
+class Quote(BaseModel):
+    """Complete quote model matching actual database schema"""
+    # Core fields that exist in database
     id: UUID
     quote_number: str
-    user_id: UUID  # Sales person who created the quote
+    organization_id: UUID
+    customer_id: Optional[UUID]
+    created_by: UUID  # Maps to user_id in forms, but stored as created_by in DB
+
+    # Quote information
+    title: Optional[str]
+    description: Optional[str]
     status: QuoteStatus
-    
-    # Calculated totals (computed by database triggers)
+
+    # Dates (Session 21 fields)
+    quote_date: date
+    valid_until: Optional[date]
+
+    # Financial fields (matching actual DB columns)
     subtotal: Decimal
-    discount_amount: Decimal  # Calculated discount
-    vat_amount: Decimal  # Calculated VAT
-    import_duty_amount: Decimal  # Calculated import duty
-    credit_amount: Decimal  # Calculated credit cost
-    total_amount: Decimal  # Final total
-    
-    # Workflow timestamps
-    submitted_for_approval_at: Optional[datetime]
-    final_approval_at: Optional[datetime]
-    sent_at: Optional[datetime]
-    
-    # Standard timestamps
+    discount_percentage: Optional[Decimal]
+    discount_amount: Optional[Decimal]
+    tax_rate: Optional[Decimal]
+    tax_amount: Optional[Decimal]
+    total_amount: Decimal
+
+    # Terms
+    notes: Optional[str]
+    terms_conditions: Optional[str]
+
+    # Timestamps
     created_at: datetime
     updated_at: datetime
+    deleted_at: Optional[datetime]  # Session 21: soft delete support
 
     class Config:
         from_attributes = True
@@ -573,7 +584,7 @@ class Quote(QuoteBase):
 class QuoteItemBase(BaseModel):
     """Base quote item fields"""
     # Product Information
-    description: str = Field(..., min_length=1, description="Product description")
+    description: Optional[str] = Field(None, description="Product description")
     product_code: Optional[str] = Field(None, max_length=100, description="Product/SKU code")
     category: Optional[str] = Field(None, max_length=100, description="Product category")
     brand: Optional[str] = Field(None, max_length=100, description="Brand name")
@@ -584,10 +595,10 @@ class QuoteItemBase(BaseModel):
     manufacturer: Optional[str] = Field(None, max_length=255, description="Manufacturer name")
     
     # Quantities and Pricing
-    quantity: Decimal = Field(..., gt=0, description="Quantity")
-    unit: str = Field(default="шт", max_length=20, description="Unit of measure (шт = pieces)")
+    quantity: Optional[Decimal] = Field(None, gt=0, description="Quantity")
+    unit: Optional[str] = Field(None, max_length=20, description="Unit of measure (шт = pieces)")
     unit_cost: Optional[Decimal] = Field(None, ge=0, description="Internal cost for margin calculation")
-    unit_price: Decimal = Field(..., gt=0, description="Unit selling price")
+    unit_price: Optional[Decimal] = Field(None, gt=0, description="Unit selling price")
     
     # Item-level discounts
     discount_type: DiscountType = Field(default=DiscountType.PERCENTAGE)
@@ -601,9 +612,9 @@ class QuoteItemBase(BaseModel):
     # Delivery Information
     lead_time_days: Optional[int] = Field(None, ge=0, description="Lead time in days")
     delivery_notes: Optional[str] = Field(None, description="Item-specific delivery notes")
-    
+
     # Organization
-    sort_order: int = Field(default=0, description="Display order in quote")
+    position: int = Field(default=0, description="Display order in quote")
     notes: Optional[str] = Field(None, description="Item notes")
 
 
@@ -632,7 +643,7 @@ class QuoteItemUpdate(BaseModel):
     import_duty_rate: Optional[Decimal] = Field(None, ge=0, le=50)
     lead_time_days: Optional[int] = Field(None, ge=0)
     delivery_notes: Optional[str] = None
-    sort_order: Optional[int] = None
+    position: Optional[int] = None
     notes: Optional[str] = None
 
 
@@ -640,14 +651,22 @@ class QuoteItem(QuoteItemBase):
     """Complete quote item with calculated fields"""
     id: UUID
     quote_id: UUID
-    
-    # Calculated totals (computed by database triggers)
-    line_subtotal: Decimal
-    line_discount: Decimal
-    vat_amount: Decimal
-    import_duty_amount: Decimal
-    line_total: Decimal
-    
+
+    # Frontend compatibility fields (mapped from DB fields)
+    name: Optional[str] = None  # Maps from description
+    final_price: Optional[Decimal] = None  # Maps from unit_price
+
+    # Calculated totals (these don't exist in database yet - stub feature)
+    line_subtotal: Optional[Decimal] = None
+    line_discount: Optional[Decimal] = None
+    vat_amount: Optional[Decimal] = None
+    import_duty_amount: Optional[Decimal] = None
+    line_total: Optional[Decimal] = None
+
+    # Calculation engine results (from quote_item_calculation_results table)
+    calculation_results: Optional[dict] = None
+    calculated_at: Optional[datetime] = None
+
     created_at: datetime
     updated_at: datetime
 
@@ -712,9 +731,25 @@ class CustomerListResponse(BaseModel):
     has_more: bool
 
 
+class QuoteListItem(BaseModel):
+    """Simplified quote model for list view"""
+    id: UUID
+    quote_number: str
+    customer_name: str
+    title: Optional[str]
+    status: QuoteStatus
+    total_amount: Decimal
+    quote_date: Optional[date]
+    valid_until: Optional[date]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class QuoteListResponse(BaseModel):
     """Quote list response"""
-    quotes: List[Quote]
+    quotes: List[QuoteListItem]
     total: int
     page: int
     limit: int
@@ -724,6 +759,7 @@ class QuoteListResponse(BaseModel):
 class QuoteWithItems(Quote):
     """Quote with all associated items"""
     items: List[QuoteItem] = []
+    customer: Optional[dict] = None  # Customer information from customers table
     approvals: List[QuoteApproval] = []
 
 
