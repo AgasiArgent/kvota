@@ -6,7 +6,6 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, date
 
-import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import JSONResponse
 
@@ -41,23 +40,20 @@ router = APIRouter(
 # DATABASE HELPER FUNCTIONS
 # ============================================================================
 
-async def get_db_connection():
-    """Get database connection with proper error handling"""
-    try:
-        return await asyncpg.connect(os.getenv("DATABASE_URL"))
-    except Exception as e:
+def get_supabase_client():
+    """Get Supabase client for database operations"""
+    from supabase import create_client, Client
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+    if not supabase_url or not supabase_key:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database connection failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Supabase configuration missing"
         )
 
-
-async def set_rls_context(conn, user: User):
-    """Set Row Level Security context for database queries"""
-    await conn.execute(
-        "SELECT set_config('request.jwt.claims', $1, true)", 
-        f'{{"sub": "{user.id}", "role": "authenticated"}}'
-    )
+    return create_client(supabase_url, supabase_key)
 
 
 async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = "view"):
@@ -97,7 +93,7 @@ async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = 
 # QUOTE CRUD OPERATIONS
 # ============================================================================
 
-@router.get("/", response_model=QuoteListResponse)
+@router.get("/")
 async def list_quotes(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -108,135 +104,84 @@ async def list_quotes(
     currency: Optional[str] = Query(None, description="Filter by currency"),
     min_amount: Optional[float] = Query(None, description="Minimum total amount"),
     max_amount: Optional[float] = Query(None, description="Maximum total amount"),
+    search: Optional[str] = Query(None, description="Search in quote number, customer name, or title"),
     user: User = Depends(get_current_user)
 ):
     """
     List quotes with filtering and pagination
-    
-    Users see:
-    - Sales managers: Their own quotes
-    - Other managers: Quotes they created + quotes requiring their approval
-    - Directors/Admin: All quotes
+
+    Uses Supabase client for database operations (RLS enforced automatically)
     """
-    conn = await get_db_connection()
     try:
-        await set_rls_context(conn, user)
-        
-        # Build WHERE clause based on filters and user permissions
-        where_conditions = []
-        params = []
-        param_count = 0
-        
-        # Status filter
-        if status:
-            param_count += 1
-            where_conditions.append(f"q.status = ${param_count}")
-            params.append(quote_status)
-        
-        # Customer filter
+        supabase = get_supabase_client()
+
+        # Build query with joins
+        query = supabase.table("quotes").select(
+            "*, customers(name)",
+            count="exact"
+        ).eq("organization_id", user.current_organization_id)
+
+        # Apply filters
+        if quote_status:
+            query = query.eq("status", quote_status)
         if customer_id:
-            param_count += 1
-            where_conditions.append(f"q.customer_id = ${param_count}")
-            params.append(customer_id)
-        
-        # Date range filters
+            query = query.eq("customer_id", str(customer_id))
         if date_from:
-            param_count += 1
-            where_conditions.append(f"q.quote_date >= ${param_count}")
-            params.append(date_from)
-            
+            query = query.gte("quote_date", date_from.isoformat())
         if date_to:
-            param_count += 1
-            where_conditions.append(f"q.quote_date <= ${param_count}")
-            params.append(date_to)
-        
-        # Currency filter
+            query = query.lte("quote_date", date_to.isoformat())
         if currency:
-            param_count += 1
-            where_conditions.append(f"q.currency = ${param_count}")
-            params.append(currency)
-        
-        # Amount range filters
+            query = query.eq("currency", currency)
         if min_amount:
-            param_count += 1
-            where_conditions.append(f"q.total_amount >= ${param_count}")
-            params.append(min_amount)
-            
+            query = query.gte("total_amount", min_amount)
         if max_amount:
-            param_count += 1
-            where_conditions.append(f"q.total_amount <= ${param_count}")
-            params.append(max_amount)
-        
-        # Build WHERE clause
-        where_clause = ""
-        if where_conditions:
-            where_clause = "WHERE " + " AND ".join(where_conditions)
-        
-        # Count total records (RLS will automatically filter)
-        count_query = f"""
-            SELECT COUNT(*) 
-            FROM quotes q 
-            {where_clause}
-        """
-        total = await conn.fetchval(count_query, *params)
-        
-        # Get paginated results
+            query = query.lte("total_amount", max_amount)
+        if search:
+            # Search in quote_number, customer name, or title
+            query = query.or_(
+                f"quote_number.ilike.%{search}%,"
+                f"title.ilike.%{search}%"
+            )
+
+        # Apply pagination
         offset = (page - 1) * limit
-        param_count += 1
-        limit_param = param_count
-        param_count += 1
-        offset_param = param_count
-        
-        query = f"""
-            SELECT q.id, q.quote_number, q.user_id, q.customer_id, q.customer_name,
-                   q.title, q.description, q.status, q.currency, q.total_amount,
-                   q.quote_date, q.valid_until, q.delivery_date, q.requires_approval,
-                   q.submitted_for_approval_at, q.final_approval_at, q.sent_at,
-                   q.created_at, q.updated_at,
-                   -- Additional calculated fields
-                   (SELECT COUNT(*) FROM quote_items WHERE quote_id = q.id) as item_count,
-                   (SELECT COUNT(*) FROM quote_approvals WHERE quote_id = q.id AND approval_status = 'approved') as approved_count,
-                   (SELECT COUNT(*) FROM quote_approvals WHERE quote_id = q.id AND approval_status = 'pending') as pending_approvals
-            FROM quotes q 
-            {where_clause}
-            ORDER BY q.created_at DESC, q.quote_number DESC
-            LIMIT ${limit_param} OFFSET ${offset_param}
-        """
-        
-        params.extend([limit, offset])
-        rows = await conn.fetch(query, *params)
-        
-        # Convert to response format
-        quotes = []
-        for row in rows:
-            quote_dict = dict(row)
-            # Remove computed fields that aren't part of Quote model
-            item_count = quote_dict.pop('item_count')
-            approved_count = quote_dict.pop('approved_count') 
-            pending_approvals = quote_dict.pop('pending_approvals')
-            
-            quote = Quote(**quote_dict)
-            # Add computed fields as extra attributes for frontend
-            quote.item_count = item_count
-            quote.approved_count = approved_count
-            quote.pending_approvals = pending_approvals
-            quotes.append(quote)
-        
-        return QuoteListResponse(
-            quotes=quotes,
-            total=total,
-            page=page,
-            limit=limit,
-            has_more=offset + limit < total
-        )
-        
+        query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+
+        # Execute query
+        result = query.execute()
+
+        total = result.count if result.count is not None else 0
+        total_pages = (total + limit - 1) // limit if total > 0 else 0
+
+        # Transform data for response
+        quotes_data = []
+        for quote in result.data:
+            quotes_data.append({
+                "id": quote["id"],
+                "quote_number": quote["quote_number"],
+                "customer_name": quote["customers"]["name"] if quote.get("customers") else "",
+                "title": quote.get("title", ""),
+                "status": quote["status"],
+                "total_amount": quote.get("total_amount", 0),
+                "currency": quote.get("currency", "RUB"),
+                "quote_date": quote.get("quote_date"),
+                "valid_until": quote.get("valid_until"),
+                "created_at": quote["created_at"]
+            })
+
+        return {
+            "quotes": quotes_data,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "has_more": page < total_pages
+        }
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve quotes: {str(e)}"
+            detail=f"Failed to fetch quotes: {str(e)}"
         )
-    finally:
-        await conn.close()
 
 
 @router.post("/", response_model=Quote)
