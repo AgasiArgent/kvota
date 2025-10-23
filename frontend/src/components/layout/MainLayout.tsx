@@ -24,6 +24,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ApartmentOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -67,6 +68,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
           {
             key: '/quotes/drafts',
             label: 'Черновики',
+          },
+          {
+            key: '/quotes/bin',
+            label: 'Корзина',
           },
         ],
       },

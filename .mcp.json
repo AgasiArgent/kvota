@@ -6,7 +6,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgresql://postgres.wstwwmiihkzlgvlymfd:xbV3K59uQpfYt6qP@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+        "postgresql://postgres:***REMOVED***@db.wstwwmiihkzlgvlymlfd.supabase.co:5432/postgres"
       ]
     },
     "github": {

@@ -35,7 +35,6 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 import {
   InboxOutlined,
   SaveOutlined,
-  CalculatorOutlined,
   ArrowLeftOutlined,
   InfoCircleOutlined,
   EditOutlined,
@@ -43,7 +42,7 @@ import {
   FilterOutlined,
   CloseCircleOutlined,
 } from '@ant-design/icons';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import type { UploadFile, UploadProps } from 'antd';
 import MainLayout from '@/components/layout/MainLayout';
 import {
@@ -54,6 +53,7 @@ import {
   ProductCalculationResult,
 } from '@/lib/api/quotes-calc-service';
 import { customerService, Customer } from '@/lib/api/customer-service';
+import { quoteService } from '@/lib/api/quote-service';
 import {
   calculationSettingsService,
   CalculationSettings,
@@ -95,14 +95,18 @@ const parseDecimalInput = (value: string): number | null => {
   return isNaN(parsed) ? null : parsed;
 };
 
-export default function CreateQuotePage() {
+export default function EditQuotePage() {
   const router = useRouter();
+  const params = useParams();
+  const quoteId = params?.id as string;
   const [form] = Form.useForm<CalculationVariables>();
   const { message } = App.useApp();
   const gridRef = useRef<AgGridReact>(null);
 
   // State
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [quoteTitle, setQuoteTitle] = useState<string>('');
   const [uploadedProducts, setUploadedProducts] = useState<Product[]>([]);
   const [uploadedFile, setUploadedFile] = useState<UploadFile | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -125,20 +129,75 @@ export default function CreateQuotePage() {
   const [templateUpdateId, setTemplateUpdateId] = useState<string>('');
   const [templateNewName, setTemplateNewName] = useState<string>('');
 
-  // Load customers, templates, and admin settings on mount
+  // Load quote data, customers, templates, and admin settings on mount
   useEffect(() => {
+    loadQuoteData();
     loadCustomers();
     loadTemplates();
     loadAdminSettings();
+  }, [quoteId]);
 
-    // Set default values
-    const defaultVars = quotesCalcService.getDefaultVariables();
-    form.setFieldsValue({
-      ...defaultVars,
-      quote_date: dayjs(),
-      valid_until: dayjs().add(7, 'day'),
-    });
-  }, []);
+  // Load existing quote data
+  const loadQuoteData = async () => {
+    if (!quoteId) return;
+
+    setInitialLoading(true);
+    try {
+      // Fetch quote details from backend
+      const orgId = ''; // Will be handled by backend via RLS
+      const result = await quoteService.getQuoteDetails(quoteId, orgId);
+
+      if (result.success && result.data) {
+        const { quote, items } = result.data;
+
+        // Set customer
+        setSelectedCustomer(quote.customer_id || undefined);
+
+        // Set quote title
+        setQuoteTitle(quote.title || '');
+
+        // Convert items to Product format
+        const products: Product[] = items.map((item) => ({
+          sku: item.sku || '',
+          brand: item.brand || '',
+          product_name: item.product_name || '',
+          product_code: item.product_code || '',
+          base_price_vat: item.unit_price || 0,
+          quantity: item.quantity || 0,
+          weight_in_kg: item.weight_kg,
+          customs_code: item.custom_fields?.customs_code,
+          supplier_country: item.custom_fields?.supplier_country,
+          currency_of_base_price: item.custom_fields?.currency_of_base_price,
+          supplier_discount: item.custom_fields?.supplier_discount,
+          exchange_rate_base_price_to_quote: item.custom_fields?.exchange_rate,
+          import_tariff: item.custom_fields?.import_tariff,
+          excise_tax: item.custom_fields?.excise_tax,
+          markup: item.custom_fields?.markup,
+        }));
+
+        setUploadedProducts(products);
+
+        // Set form values from quote
+        form.setFieldsValue({
+          quote_date: quote.quote_date ? dayjs(quote.quote_date) : dayjs(),
+          valid_until: quote.valid_until ? dayjs(quote.valid_until) : dayjs().add(7, 'day'),
+          currency_of_quote: quote.currency || 'RUB',
+          // Additional fields would be populated from calculation_variables if stored
+          ...(quote.calculation_variables || {}),
+        });
+
+        message.success('Котировка загружена');
+      } else {
+        message.error(`Ошибка загрузки котировки: ${result.error}`);
+        router.push('/quotes');
+      }
+    } catch (error: any) {
+      message.error(`Ошибка: ${error.message}`);
+      router.push('/quotes');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   // Auto-calculate logistics breakdown when in "total" mode
   const handleLogisticsTotalChange = (value: number | null) => {
@@ -385,8 +444,8 @@ export default function CreateQuotePage() {
     message.success('Все переменные очищены');
   };
 
-  // Calculate quote
-  const handleCalculate = async () => {
+  // Save changes to existing quote
+  const handleSaveChanges = async () => {
     if (!selectedCustomer) {
       message.error('Выберите клиента');
       return;
@@ -416,14 +475,19 @@ export default function CreateQuotePage() {
         customer_id: selectedCustomer,
         products: productsWithDefaults,
         variables: variables as CalculationVariables,
-        title: `Коммерческое предложение от ${new Date().toLocaleDateString()}`,
+        title: quoteTitle || `Коммерческое предложение от ${new Date().toLocaleDateString()}`,
         quote_date,
         valid_until,
       });
 
       if (result.success && result.data) {
         setCalculationResults(result.data);
-        message.success(`Расчет выполнен! Котировка №${result.data.quote_number}`);
+        message.success(`Котировка пересчитана! Котировка №${result.data.quote_number}`);
+
+        // Navigate back to detail page after short delay
+        setTimeout(() => {
+          router.push(`/quotes/${quoteId}`);
+        }, 1500);
       } else {
         message.error(`Ошибка расчета: ${result.error}`);
       }
@@ -708,6 +772,16 @@ export default function CreateQuotePage() {
     { value: 'markup', label: 'Наценка (%)' },
   ];
 
+  if (initialLoading) {
+    return (
+      <MainLayout>
+        <div style={{ padding: '24px', textAlign: 'center' }}>
+          <Spin size="large" tip="Загрузка котировки..." />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       <div style={{ padding: '24px' }}>
@@ -715,11 +789,14 @@ export default function CreateQuotePage() {
         <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
           <Col>
             <Space>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={() => router.push(`/quotes/${quoteId}`)}
+              >
                 Назад
               </Button>
               <Title level={2} style={{ margin: 0 }}>
-                Создать котировку
+                Редактировать котировку
               </Title>
             </Space>
           </Col>
@@ -765,7 +842,7 @@ export default function CreateQuotePage() {
             layout="vertical"
             size="small"
             className="compact-form"
-            onFinish={handleCalculate}
+            onFinish={handleSaveChanges}
           >
             {/* Top Section - Form Cards (Full Width) */}
             <Row gutter={24}>
@@ -783,10 +860,26 @@ export default function CreateQuotePage() {
                 >
                   <Col>
                     <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Шаблон:
+                      Название КП:
                     </Text>
                   </Col>
                   <Col flex="auto" style={{ maxWidth: '300px' }}>
+                    <Input
+                      size="small"
+                      value={quoteTitle}
+                      onChange={(e) => setQuoteTitle(e.target.value)}
+                      placeholder="Введите название котировки"
+                    />
+                  </Col>
+                  <Col>
+                    <Divider type="vertical" style={{ height: '24px', margin: '0 8px' }} />
+                  </Col>
+                  <Col>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      Шаблон:
+                    </Text>
+                  </Col>
+                  <Col flex="auto" style={{ maxWidth: '250px' }}>
                     <Select
                       size="small"
                       placeholder="Выберите шаблон"
@@ -1503,22 +1596,22 @@ export default function CreateQuotePage() {
                   <Space direction="vertical" style={{ width: '100%' }} size="middle">
                     <Button
                       type="primary"
-                      icon={<CalculatorOutlined />}
+                      icon={<SaveOutlined />}
                       size="large"
                       block
-                      onClick={handleCalculate}
+                      onClick={handleSaveChanges}
                       disabled={!selectedCustomer || uploadedProducts.length === 0}
                       loading={loading}
                     >
-                      Рассчитать котировку
+                      Сохранить изменения
                     </Button>
                     <Button
                       block
                       size="large"
                       icon={<CloseCircleOutlined />}
-                      onClick={handleClearVariables}
+                      onClick={() => router.push(`/quotes/${quoteId}`)}
                     >
-                      Очистить все переменные
+                      Отмена
                     </Button>
                   </Space>
                   {(!selectedCustomer || uploadedProducts.length === 0) && (

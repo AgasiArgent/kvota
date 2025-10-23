@@ -56,6 +56,26 @@ def get_supabase_client():
     return create_client(supabase_url, supabase_key)
 
 
+async def get_db_connection():
+    """Get database connection with proper error handling"""
+    import asyncpg
+    try:
+        return await asyncpg.connect(os.getenv("DATABASE_URL"))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Database connection failed: {str(e)}"
+        )
+
+
+async def set_rls_context(conn, user: User):
+    """Set Row Level Security context for database queries"""
+    await conn.execute(
+        "SELECT set_config('request.jwt.claims', $1, true)",
+        f'{{"sub": "{user.id}", "role": "authenticated"}}'
+    )
+
+
 async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = "view"):
     """
     Validate user access to quote based on RLS and business rules
@@ -115,11 +135,11 @@ async def list_quotes(
     try:
         supabase = get_supabase_client()
 
-        # Build query with joins
+        # Build query with joins, exclude soft-deleted quotes
         query = supabase.table("quotes").select(
             "*, customers(name)",
             count="exact"
-        ).eq("organization_id", user.current_organization_id)
+        ).eq("organization_id", user.current_organization_id).is_("deleted_at", "null")
 
         # Apply filters
         if quote_status:
@@ -434,40 +454,40 @@ async def delete_quote(
 ):
     """
     Delete quote
-    
+
     Only quote creators can delete quotes in draft status
     """
     conn = await get_db_connection()
     try:
         await set_rls_context(conn, user)
-        
+
         # Validate access
         quote_data = await validate_quote_access(conn, quote_id, user, "edit")
-        
+
         # Only allow deletion of draft quotes
         if quote_data['status'] != 'draft':
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Can only delete quotes in draft status"
             )
-        
+
         # Only quote creator can delete
         if quote_data['user_id'] != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only quote creator can delete quote"
             )
-        
+
         # Delete quote (CASCADE will delete items and approvals)
         deleted = await conn.fetchval(
             "DELETE FROM quotes WHERE id = $1 RETURNING id",
             quote_id
         )
-        
+
         return SuccessResponse(
             message=f"Quote {quote_data['quote_number']} deleted successfully"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -477,6 +497,243 @@ async def delete_quote(
         )
     finally:
         await conn.close()
+
+
+# ============================================================================
+# SOFT DELETE & RESTORATION
+# ============================================================================
+
+@router.patch("/{quote_id}/soft-delete", response_model=SuccessResponse)
+async def soft_delete_quote(
+    quote_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Soft delete quote (move to bin)
+
+    Sets deleted_at timestamp without permanently removing data
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Verify quote exists and user has access
+        result = supabase.table("quotes").select("id, quote_number, organization_id, deleted_at").eq("id", str(quote_id)).execute()
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Quote not found or access denied"
+            )
+
+        quote = result.data[0]
+
+        # Verify organization access
+        if quote["organization_id"] != str(user.current_organization_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+
+        # Check if already soft-deleted
+        if quote.get("deleted_at"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Quote is already in bin"
+            )
+
+        # Soft delete by setting deleted_at
+        update_result = supabase.table("quotes").update({
+            "deleted_at": datetime.utcnow().isoformat()
+        }).eq("id", str(quote_id)).execute()
+
+        return SuccessResponse(
+            message="Quote moved to bin"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to soft delete quote: {str(e)}"
+        )
+
+
+@router.patch("/{quote_id}/restore", response_model=SuccessResponse)
+async def restore_quote(
+    quote_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Restore soft-deleted quote from bin
+
+    Clears deleted_at timestamp to restore access
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Verify quote exists and user has access
+        result = supabase.table("quotes").select("id, quote_number, organization_id, deleted_at").eq("id", str(quote_id)).execute()
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Quote not found or access denied"
+            )
+
+        quote = result.data[0]
+
+        # Verify organization access
+        if quote["organization_id"] != str(user.current_organization_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+
+        # Check if quote is actually soft-deleted
+        if not quote.get("deleted_at"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Quote is not in bin"
+            )
+
+        # Restore by clearing deleted_at
+        update_result = supabase.table("quotes").update({
+            "deleted_at": None
+        }).eq("id", str(quote_id)).execute()
+
+        return SuccessResponse(
+            message="Quote restored"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to restore quote: {str(e)}"
+        )
+
+
+@router.delete("/{quote_id}/permanent", response_model=SuccessResponse)
+async def permanently_delete_quote(
+    quote_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Permanently delete quote
+
+    Only allowed for quotes that are already soft-deleted (in bin)
+    This operation cannot be undone
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Verify quote exists and user has access
+        result = supabase.table("quotes").select("id, quote_number, organization_id, deleted_at").eq("id", str(quote_id)).execute()
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Quote not found or access denied"
+            )
+
+        quote = result.data[0]
+
+        # Verify organization access
+        if quote["organization_id"] != str(user.current_organization_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
+            )
+
+        # Only allow permanent deletion if quote is soft-deleted
+        if not quote.get("deleted_at"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Quote must be in bin before permanent deletion. Use soft-delete first."
+            )
+
+        # Permanently delete quote (CASCADE will delete quote_items and quote_approvals)
+        delete_result = supabase.table("quotes").delete().eq("id", str(quote_id)).execute()
+
+        return SuccessResponse(
+            message="Quote permanently deleted"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to permanently delete quote: {str(e)}"
+        )
+
+
+@router.get("/bin")
+async def list_bin_quotes(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    user: User = Depends(get_current_user)
+):
+    """
+    List soft-deleted quotes (bin)
+
+    Shows quotes that have been moved to bin and can be restored or permanently deleted
+
+    NOTE: Soft-deleted quotes older than 7 days are automatically cleaned up.
+    This is handled by a scheduled cron job or Supabase Edge Function that runs:
+    DELETE FROM quotes WHERE deleted_at < NOW() - INTERVAL '7 days'
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Build query for soft-deleted quotes
+        query = supabase.table("quotes").select(
+            "*, customers(name)",
+            count="exact"
+        ).eq("organization_id", user.current_organization_id).not_.is_("deleted_at", "null")
+
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = query.order("deleted_at", desc=True).range(offset, offset + limit - 1)
+
+        # Execute query
+        result = query.execute()
+
+        total = result.count if result.count is not None else 0
+        total_pages = (total + limit - 1) // limit if total > 0 else 0
+
+        # Transform data for response
+        quotes_data = []
+        for quote in result.data:
+            quotes_data.append({
+                "id": quote["id"],
+                "quote_number": quote["quote_number"],
+                "customer_name": quote["customers"]["name"] if quote.get("customers") else "",
+                "title": quote.get("title", ""),
+                "status": quote["status"],
+                "total_amount": quote.get("total_amount", 0),
+                "currency": quote.get("currency", "RUB"),
+                "quote_date": quote.get("quote_date"),
+                "valid_until": quote.get("valid_until"),
+                "created_at": quote["created_at"],
+                "deleted_at": quote["deleted_at"]  # Include deletion timestamp
+            })
+
+        return {
+            "quotes": quotes_data,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "has_more": page < total_pages
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch bin quotes: {str(e)}"
+        )
 
 
 # ============================================================================

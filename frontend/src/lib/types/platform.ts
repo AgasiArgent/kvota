@@ -36,6 +36,18 @@ export type Currency = 'RUB' | 'CNY' | 'USD' | 'EUR' | 'GBP' | 'JPY';
 
 export type QuoteStatus =
   | 'draft'
+  | 'pending_approval'
+  | 'partially_approved'
+  | 'approved'
+  | 'revision_needed'
+  | 'rejected_internal'
+  | 'ready_to_send'
+  | 'sent'
+  | 'viewed'
+  | 'accepted'
+  | 'rejected'
+  | 'expired'
+  | 'cancelled'
   | 'procurement_pending'
   | 'customs_pending'
   | 'logistics_pending'
@@ -45,12 +57,7 @@ export type QuoteStatus =
   | 'materials_pending'
   | 'quality_pending'
   | 'sales_completion'
-  | 'approval_pending'
-  | 'approved'
-  | 'rejected'
-  | 'sent'
-  | 'accepted'
-  | 'expired';
+  | 'approval_pending';
 
 // ============================================================================
 // ORGANIZATION & USER TYPES

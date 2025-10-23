@@ -98,6 +98,10 @@ export interface CalculationVariables {
   // Company Settings (2 fields)
   seller_company: string;
   offer_sale_type: string;
+
+  // Quote Dates (optional)
+  quote_date?: any; // dayjs object or string
+  valid_until?: any; // dayjs object or string
 }
 
 /**
@@ -134,6 +138,8 @@ export interface QuoteCalculationRequest {
   variables: CalculationVariables;
   title?: string;
   notes?: string;
+  quote_date?: string; // YYYY-MM-DD format
+  valid_until?: string; // YYYY-MM-DD format
 }
 
 /**

@@ -68,6 +68,8 @@ export class QuoteService extends BaseApiService {
     } = await supabase.auth.getSession();
     const token = session?.access_token;
 
+    console.log('[quote-service] Auth token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+
     return {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -202,7 +204,7 @@ export class QuoteService extends BaseApiService {
       if (filters?.date_to) params.append('date_to', filters.date_to as string);
       if (filters?.search) params.append('search', filters.search as string);
 
-      const endpoint = `/api/quotes?${params.toString()}`;
+      const endpoint = `/api/quotes/?${params.toString()}`;
       const result = await this.backendRequest<{
         quotes: Quote[];
         total: number;
@@ -275,11 +277,122 @@ export class QuoteService extends BaseApiService {
   }
 
   /**
-   * Delete quote
+   * Delete quote (soft delete)
    */
   async deleteQuote(quoteId: string, organizationId: string): Promise<ApiResponse<void>> {
-    // TODO: Also delete related quote_items and role_assignments
-    return this.delete('quotes', quoteId, organizationId);
+    try {
+      const endpoint = `/api/quotes/${quoteId}`;
+      const result = await this.backendRequest<void>(endpoint, {
+        method: 'DELETE',
+      });
+
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete quote',
+      };
+    }
+  }
+
+  /**
+   * Get deleted quotes (bin/trash)
+   */
+  async getBinQuotes(
+    organizationId: string,
+    filters?: SearchFilters,
+    pagination?: { page: number; limit: number }
+  ): Promise<ApiResponse<QuoteListResponse>> {
+    try {
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (pagination?.page) params.append('page', pagination.page.toString());
+      if (pagination?.limit) params.append('limit', pagination.limit.toString());
+      if (filters?.status) params.append('quote_status', filters.status as string);
+      if (filters?.customer_id) params.append('customer_id', filters.customer_id as string);
+      if (filters?.date_from) params.append('date_from', filters.date_from as string);
+      if (filters?.date_to) params.append('date_to', filters.date_to as string);
+      if (filters?.search) params.append('search', filters.search as string);
+
+      const endpoint = `/api/quotes/bin?${params.toString()}`;
+      const result = await this.backendRequest<{
+        quotes: Quote[];
+        total: number;
+        page: number;
+        limit: number;
+        has_more: boolean;
+      }>(endpoint);
+
+      if (!result.success) {
+        return result;
+      }
+
+      const page = result.data?.page || 1;
+      const limit = result.data?.limit || 20;
+      const total = result.data?.total || 0;
+      const total_pages = Math.ceil(total / limit);
+
+      return {
+        success: true,
+        data: {
+          quotes: result.data?.quotes || [],
+          pagination: {
+            current_page: page,
+            total_pages: total_pages,
+            total_items: total,
+            items_per_page: limit,
+            has_next: page < total_pages,
+            has_prev: page > 1,
+          },
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get bin quotes',
+      };
+    }
+  }
+
+  /**
+   * Restore quote from bin
+   */
+  async restoreQuote(quoteId: string, organizationId: string): Promise<ApiResponse<void>> {
+    try {
+      const endpoint = `/api/quotes/${quoteId}/restore`;
+      const result = await this.backendRequest<void>(endpoint, {
+        method: 'PATCH',
+      });
+
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to restore quote',
+      };
+    }
+  }
+
+  /**
+   * Permanently delete quote from bin
+   */
+  async permanentlyDeleteQuote(
+    quoteId: string,
+    organizationId: string
+  ): Promise<ApiResponse<void>> {
+    try {
+      const endpoint = `/api/quotes/${quoteId}/permanent`;
+      const result = await this.backendRequest<void>(endpoint, {
+        method: 'DELETE',
+      });
+
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to permanently delete quote',
+      };
+    }
   }
 
   // ============================================================================
