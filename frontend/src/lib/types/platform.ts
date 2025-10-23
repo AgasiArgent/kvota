@@ -437,6 +437,7 @@ export interface PaginationInfo {
 }
 
 export interface SearchFilters {
+  search?: string;
   industry?: Industry;
   status?: QuoteStatus;
   currency?: Currency;

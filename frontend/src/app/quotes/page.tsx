@@ -38,7 +38,7 @@ const { Title } = Typography;
 const { Search } = Input;
 const { RangePicker } = DatePicker;
 
-interface Quote {
+interface QuoteListItem {
   id: string;
   quote_number: string;
   customer_name: string;
@@ -55,7 +55,7 @@ export default function QuotesPage() {
   const router = useRouter();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [quotes, setQuotes] = useState<QuoteListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -87,15 +87,22 @@ export default function QuotesPage() {
         filters.date_to = dateRange[1].format('YYYY-MM-DD');
       }
 
-      // TODO: Implement with organizationId from auth context
-      // const organizationId = profile?.organization_id || '';
-      // const response = await quoteService.getQuotes(organizationId, filters, { page: currentPage, limit: pageSize });
-      // if (response.success && response.data) {
-      //   setQuotes(response.data.quotes || []);
-      //   setTotalCount(response.data.pagination?.total_items || 0);
-      // }
-      setQuotes([]); // Temporary: empty list
-      setTotalCount(0);
+      const organizationId = profile?.organization_id || '';
+      if (!organizationId) {
+        message.error('Не удалось определить организацию');
+        return;
+      }
+
+      const response = await quoteService.getQuotes(organizationId, filters, {
+        page: currentPage,
+        limit: pageSize,
+      });
+      if (response.success && response.data) {
+        setQuotes((response.data.quotes || []) as unknown as QuoteListItem[]);
+        setTotalCount(response.data.pagination?.total_items || 0);
+      } else {
+        message.error(response.error || 'Ошибка загрузки КП');
+      }
     } catch (error: any) {
       message.error(`Ошибка загрузки КП: ${error.message}`);
     } finally {
@@ -105,11 +112,19 @@ export default function QuotesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      // TODO: Implement with organizationId from auth context
-      // const organizationId = profile?.organization_id || '';
-      // await quoteService.deleteQuote(id, organizationId);
-      message.success('КП успешно удалено');
-      fetchQuotes();
+      const organizationId = profile?.organization_id || '';
+      if (!organizationId) {
+        message.error('Не удалось определить организацию');
+        return;
+      }
+
+      const response = await quoteService.deleteQuote(id, organizationId);
+      if (response.success) {
+        message.success('КП успешно удалено');
+        fetchQuotes();
+      } else {
+        message.error(response.error || 'Ошибка удаления');
+      }
     } catch (error: any) {
       message.error(`Ошибка удаления: ${error.message}`);
     }
@@ -152,7 +167,7 @@ export default function QuotesPage() {
       dataIndex: 'quote_number',
       key: 'quote_number',
       width: 150,
-      render: (text: string, record: Quote) => (
+      render: (text: string, record: QuoteListItem) => (
         <a onClick={() => router.push(`/quotes/${record.id}`)} style={{ fontWeight: 500 }}>
           {text}
         </a>
@@ -178,7 +193,7 @@ export default function QuotesPage() {
       key: 'total_amount',
       width: 150,
       align: 'right' as const,
-      render: (amount: number, record: Quote) => formatCurrency(amount, record.currency),
+      render: (amount: number, record: QuoteListItem) => formatCurrency(amount, record.currency),
     },
     {
       title: 'Статус',
@@ -215,7 +230,7 @@ export default function QuotesPage() {
       key: 'actions',
       width: 150,
       fixed: 'right' as const,
-      render: (_: any, record: Quote) => (
+      render: (_: any, record: QuoteListItem) => (
         <Space size="small">
           <Button
             type="text"

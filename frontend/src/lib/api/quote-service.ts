@@ -11,7 +11,7 @@ import {
   ProductListItem,
 } from '@/lib/workflow/role-input-service';
 import { formulaEngine, FormulaContext } from '@/lib/formulas/formula-engine';
-import { Database } from '@/lib/supabase/client';
+import { Database, createClient } from '@/lib/supabase/client';
 import {
   Quote,
   QuoteItem,
@@ -24,6 +24,8 @@ import {
   PaginationInfo,
   RoleInput,
 } from '@/lib/types/platform';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 type Customer = Database['public']['Tables']['customers']['Row'];
 
@@ -52,6 +54,65 @@ export interface QuoteDetailsResponse {
 }
 
 export class QuoteService extends BaseApiService {
+  // ============================================================================
+  // BACKEND API HELPERS
+  // ============================================================================
+
+  /**
+   * Get authorization headers with JWT token from Supabase session
+   */
+  private async getAuthHeaders(): Promise<HeadersInit> {
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+  }
+
+  /**
+   * Make authenticated request to FastAPI backend
+   */
+  private async backendRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const headers = await this.getAuthHeaders();
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          ...headers,
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        return {
+          success: false,
+          error:
+            errorData.message || errorData.error || errorData.detail || `HTTP ${response.status}`,
+        };
+      }
+
+      const data = await response.json();
+      return {
+        success: true,
+        data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Network request failed',
+      };
+    }
+  }
+
   // ============================================================================
   // QUOTE CRUD OPERATIONS
   // ============================================================================
@@ -123,6 +184,7 @@ export class QuoteService extends BaseApiService {
 
   /**
    * Get quote list with filtering and pagination
+   * Calls FastAPI backend /api/quotes
    */
   async getQuotes(
     organizationId: string,
@@ -130,27 +192,46 @@ export class QuoteService extends BaseApiService {
     pagination?: { page: number; limit: number }
   ): Promise<ApiResponse<QuoteListResponse>> {
     try {
-      const options = {
-        filters: filters as Record<string, unknown>,
-        pagination,
-        organizationId,
-        orderBy: { field: 'created_at', ascending: false },
-      };
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (pagination?.page) params.append('page', pagination.page.toString());
+      if (pagination?.limit) params.append('limit', pagination.limit.toString());
+      if (filters?.status) params.append('quote_status', filters.status as string);
+      if (filters?.customer_id) params.append('customer_id', filters.customer_id as string);
+      if (filters?.date_from) params.append('date_from', filters.date_from as string);
+      if (filters?.date_to) params.append('date_to', filters.date_to as string);
+      if (filters?.search) params.append('search', filters.search as string);
 
-      const result = await this.findMany<Quote>('quotes', options);
+      const endpoint = `/api/quotes?${params.toString()}`;
+      const result = await this.backendRequest<{
+        quotes: Quote[];
+        total: number;
+        page: number;
+        limit: number;
+        has_more: boolean;
+      }>(endpoint);
 
       if (!result.success) {
-        return {
-          success: false,
-          error: result.error,
-        };
+        return result;
       }
+
+      const page = result.data?.page || 1;
+      const limit = result.data?.limit || 20;
+      const total = result.data?.total || 0;
+      const total_pages = Math.ceil(total / limit);
 
       return {
         success: true,
         data: {
-          quotes: result.data || [],
-          pagination: result.pagination,
+          quotes: result.data?.quotes || [],
+          pagination: {
+            current_page: page,
+            total_pages: total_pages,
+            total_items: total,
+            items_per_page: limit,
+            has_next: page < total_pages,
+            has_prev: page > 1,
+          },
         },
       };
     } catch (error) {
@@ -163,47 +244,17 @@ export class QuoteService extends BaseApiService {
 
   /**
    * Get quote details with all related data
+   * Calls FastAPI backend /api/quotes/{id}
    */
   async getQuoteDetails(
     quoteId: string,
     organizationId: string
   ): Promise<ApiResponse<QuoteDetailsResponse>> {
     try {
-      // Get quote
-      const quoteResult = await this.findById<Quote>('quotes', quoteId, organizationId);
-      if (!quoteResult.success || !quoteResult.data) {
-        return {
-          success: false,
-          error: quoteResult.error || 'Quote not found',
-        };
-      }
+      const endpoint = `/api/quotes/${quoteId}`;
+      const result = await this.backendRequest<QuoteDetailsResponse>(endpoint);
 
-      // Get quote items
-      const { data: items } = await this.supabase
-        .from('quote_items')
-        .select('*')
-        .eq('quote_id', quoteId)
-        .order('created_at');
-
-      // Get customer
-      const customerResult = await this.findById<Customer>(
-        'customers',
-        quoteResult.data.customer_id,
-        organizationId
-      );
-
-      // Get workflow state
-      const workflowResult = await workflowEngine.getWorkflowState(quoteId);
-
-      return {
-        success: true,
-        data: {
-          quote: quoteResult.data,
-          items: (items as QuoteItem[]) || [],
-          customer: customerResult.data as Customer,
-          workflow: workflowResult.data as WorkflowContext,
-        },
-      };
+      return result;
     } catch (error) {
       return {
         success: false,
