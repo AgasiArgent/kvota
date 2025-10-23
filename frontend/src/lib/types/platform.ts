@@ -194,6 +194,8 @@ export interface Quote {
   price_breakdown: PriceBreakdown;
 
   // Metadata
+  title?: string; // Quote title/name
+  quote_date: string; // Date when quote was created
   valid_until: string;
   notes?: string;
   tags?: string[];
@@ -213,6 +215,18 @@ export interface QuoteItem {
   quantity: number;
   base_price?: number;
   final_price?: number;
+
+  // Product identification fields
+  sku?: string;
+  brand?: string;
+  product_name: string;
+  product_code?: string;
+
+  // Pricing fields
+  unit_price?: number;
+
+  // Physical properties
+  weight_kg?: number;
 
   // Dynamic industry-specific fields
   custom_fields: Record<string, unknown>;

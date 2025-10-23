@@ -165,14 +165,16 @@ export default function EditQuotePage() {
           base_price_vat: item.unit_price || 0,
           quantity: item.quantity || 0,
           weight_in_kg: item.weight_kg,
-          customs_code: item.custom_fields?.customs_code,
-          supplier_country: item.custom_fields?.supplier_country,
-          currency_of_base_price: item.custom_fields?.currency_of_base_price,
-          supplier_discount: item.custom_fields?.supplier_discount,
-          exchange_rate_base_price_to_quote: item.custom_fields?.exchange_rate,
-          import_tariff: item.custom_fields?.import_tariff,
-          excise_tax: item.custom_fields?.excise_tax,
-          markup: item.custom_fields?.markup,
+          customs_code: item.custom_fields?.customs_code as string | undefined,
+          supplier_country: item.custom_fields?.supplier_country as string | undefined,
+          currency_of_base_price: item.custom_fields?.currency_of_base_price as string | undefined,
+          supplier_discount: item.custom_fields?.supplier_discount as number | undefined,
+          exchange_rate_base_price_to_quote: item.custom_fields?.exchange_rate as
+            | number
+            | undefined,
+          import_tariff: item.custom_fields?.import_tariff as number | undefined,
+          excise_tax: item.custom_fields?.excise_tax as number | undefined,
+          markup: item.custom_fields?.markup as number | undefined,
         }));
 
         setUploadedProducts(products);
