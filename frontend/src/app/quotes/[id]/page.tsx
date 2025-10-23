@@ -112,14 +112,28 @@ export default function QuoteDetailPage() {
   const fetchQuote = async () => {
     setLoading(true);
     try {
-      // TODO: Implement with organizationId from auth context
-      // const organizationId = profile?.organization_id || '';
-      // const response = await quoteService.getQuoteDetails(quoteId, organizationId);
-      // if (response.success && response.data) {
-      //   setQuote(response.data.quote);
-      // }
-      message.info('Quote detail view not yet implemented');
-      router.push('/quotes');
+      const organizationId = profile?.organization_id || '';
+      if (!organizationId) {
+        message.error('Не удалось определить организацию');
+        router.push('/quotes');
+        return;
+      }
+
+      const response = await quoteService.getQuoteDetails(quoteId, organizationId);
+      if (response.success && response.data) {
+        // Map the backend response to the local Quote interface
+        const quoteData = response.data.quote as any;
+        setQuote({
+          ...quoteData,
+          customer_name: response.data.customer?.company_name || '',
+          customer_email: response.data.customer?.email || '',
+          items: response.data.items || [],
+          approvals: [], // TODO: Map approvals when implemented
+        });
+      } else {
+        message.error(response.error || 'Ошибка загрузки КП');
+        router.push('/quotes');
+      }
     } catch (error: any) {
       message.error(`Ошибка загрузки КП: ${error.message}`);
       router.push('/quotes');
@@ -130,11 +144,19 @@ export default function QuoteDetailPage() {
 
   const handleDelete = async () => {
     try {
-      // TODO: Implement with organizationId from auth context
-      // const organizationId = profile?.organization_id || '';
-      // await quoteService.deleteQuote(quoteId, organizationId);
-      message.success('КП успешно удалено');
-      router.push('/quotes');
+      const organizationId = profile?.organization_id || '';
+      if (!organizationId) {
+        message.error('Не удалось определить организацию');
+        return;
+      }
+
+      const response = await quoteService.deleteQuote(quoteId, organizationId);
+      if (response.success) {
+        message.success('КП успешно удалено');
+        router.push('/quotes');
+      } else {
+        message.error(response.error || 'Ошибка удаления');
+      }
     } catch (error: any) {
       message.error(`Ошибка удаления: ${error.message}`);
     }

@@ -39,6 +39,7 @@ import {
   EditOutlined,
   AppstoreOutlined,
   FilterOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import type { UploadFile, UploadProps } from 'antd';
@@ -370,6 +371,12 @@ export default function CreateQuotePage() {
       import_tariff: product.import_tariff ?? quoteDefaults.import_tariff ?? 0,
       excise_tax: product.excise_tax ?? quoteDefaults.excise_tax ?? 0,
     }));
+  };
+
+  // Clear all quote-level variables
+  const handleClearVariables = () => {
+    form.resetFields();
+    message.success('Все переменные очищены');
   };
 
   // Calculate quote
@@ -1428,21 +1435,31 @@ export default function CreateQuotePage() {
               </Row>
             )}
 
-            {/* Calculate Button */}
+            {/* Calculate and Clear Buttons */}
             <Row gutter={24} style={{ marginTop: 24 }}>
               <Col span={24}>
                 <Card>
-                  <Button
-                    type="primary"
-                    icon={<CalculatorOutlined />}
-                    size="large"
-                    block
-                    onClick={handleCalculate}
-                    disabled={!selectedCustomer || uploadedProducts.length === 0}
-                    loading={loading}
-                  >
-                    Рассчитать котировку
-                  </Button>
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <Button
+                      type="primary"
+                      icon={<CalculatorOutlined />}
+                      size="large"
+                      block
+                      onClick={handleCalculate}
+                      disabled={!selectedCustomer || uploadedProducts.length === 0}
+                      loading={loading}
+                    >
+                      Рассчитать котировку
+                    </Button>
+                    <Button
+                      block
+                      size="large"
+                      icon={<CloseCircleOutlined />}
+                      onClick={handleClearVariables}
+                    >
+                      Очистить все переменные
+                    </Button>
+                  </Space>
                   {(!selectedCustomer || uploadedProducts.length === 0) && (
                     <Text
                       type="secondary"
