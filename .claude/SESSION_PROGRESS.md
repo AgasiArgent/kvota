@@ -5,6 +5,104 @@
 
 ---
 
+## Session 20 (2025-10-23) - Fix Empty Quotes Table ✅
+
+### Goal
+Fix the empty quotes table issue on `/quotes` page - backend returning 500 errors
+
+### Status: QUOTES TABLE WORKING ✅
+
+### Problem Identified
+- Quote list page showing "Нет данных" (No data) despite 9 quotes in database
+- Backend returning 500 Internal Server Error for `GET /api/quotes/`
+- Root causes:
+  1. ❌ `user.organization_id` doesn't exist (should be `user.current_organization_id`)
+  2. ❌ Pydantic response validation failing (returning simplified dict but expecting full Quote model)
+
+### Completed Tasks ✅
+
+#### Backend Migration to Supabase Client
+- [x] Migrated `list_quotes()` endpoint from asyncpg to Supabase client
+  - **Already done in Session 19** - Used `get_supabase_client()` helper
+  - **Pattern:** `supabase.table("quotes").select("*, customers(name)")`
+  - RLS enforced automatically via Supabase client
+  - Time: 0 min (already completed)
+
+#### Bug Fix #1: Organization ID Field Name
+- [x] Fixed User object attribute reference
+  - **File:** `backend/routes/quotes.py:122`
+  - **Changed:** `user.organization_id` → `user.current_organization_id`
+  - **Reason:** User model uses `current_organization_id`, not `organization_id`
+  - Time: 5 min
+
+#### Bug Fix #2: Response Model Validation
+- [x] Removed strict Pydantic response validation
+  - **File:** `backend/routes/quotes.py:96`
+  - **Changed:** `@router.get("/", response_model=QuoteListResponse)` → `@router.get("/")`
+  - **Reason:** Endpoint returns simplified dict (10 fields) but QuoteListResponse expects full Quote model (20+ fields)
+  - **Alternative considered:** Create separate `QuoteSummary` model for list views
+  - **Decision:** Remove validation for now (dict structure already matches frontend expectations)
+  - Time: 5 min
+
+#### Verification
+- [x] Tested with Chrome DevTools MCP
+  - Logged in as `andrey@masterbearingsales.ru`
+  - Navigated to `/quotes` page
+  - **Result:** ✅ 9 quotes displayed in table
+  - **Counter:** Shows "Всего КП: 9"
+  - **Table rows:** КП25-0009, КП25-0008, КП25-0007, КП25-0006, КП25-0005 visible
+  - **Backend logs:** `🌐 GET /api/quotes/ - 200 (0.592s)` ✅
+  - Time: 10 min
+
+### Deliverables
+
+1. ✅ **Working Quote List Endpoint**
+   - Returns 200 OK (was 500 error)
+   - Shows all 9 quotes from database
+   - Proper organization filtering working
+
+2. ✅ **Fixed Files**
+   - `backend/routes/quotes.py` - 2 line changes:
+     - Line 96: Removed `response_model=QuoteListResponse`
+     - Line 122: Changed to `user.current_organization_id`
+
+### Technical Details
+
+**User Model Structure:**
+```python
+class User(BaseModel):
+    id: UUID
+    email: str
+    current_organization_id: Optional[UUID]  # ✅ Correct field
+    current_role: Optional[str]
+    # organization_id does NOT exist ❌
+```
+
+**Response Validation Issue:**
+- Endpoint returns: `{id, quote_number, customer_name, title, status, total_amount, currency, quote_date, valid_until, created_at}`
+- Full Quote model requires: `organization_id, user_id, subtotal, discount_amount, vat_amount, import_duty_amount, credit_amount, submitted_for_approval_at, final_approval_at, sent_at, updated_at` + 10 returned fields
+- Solution: Skip response_model validation, return dict directly
+
+### Files Modified
+- `backend/routes/quotes.py` (2 lines changed)
+
+### Time Breakdown
+- Problem diagnosis: 15 min
+- Bug fix #1 (organization_id): 5 min
+- Bug fix #2 (response model): 5 min
+- Testing with Chrome DevTools: 10 min
+- Documentation: 10 min
+
+**Total session time:** ~45 min
+
+### Next Steps
+- Test search, filters, pagination functionality
+- Test quote detail page
+- Test delete functionality
+- Consider creating separate `QuoteSummary` Pydantic model for proper response validation
+
+---
+
 ## Session 19 (2025-10-22) - Frontend Integration Complete ✅
 
 ### Goals
