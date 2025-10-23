@@ -5,6 +5,7 @@ Multi-manager approval workflow with status transitions
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, date
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import JSONResponse
@@ -60,7 +61,9 @@ async def get_db_connection():
     """Get database connection with proper error handling"""
     import asyncpg
     try:
-        return await asyncpg.connect(os.getenv("DATABASE_URL"))
+        # Use POSTGRES_DIRECT_URL for asyncpg (pooler URL has parsing issues)
+        db_url = os.getenv("POSTGRES_DIRECT_URL") or os.getenv("DATABASE_URL")
+        return await asyncpg.connect(db_url)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -81,14 +84,20 @@ async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = 
     Validate user access to quote based on RLS and business rules
     Returns quote data if access is granted
     """
+    # Select all fields explicitly to ensure new columns are included
     query = """
-        SELECT q.*, 
-               EXISTS(SELECT 1 FROM quote_approvals WHERE quote_id = q.id AND approver_id = $2) as is_approver
-        FROM quotes q 
+        SELECT q.id, q.organization_id, q.customer_id, q.created_by,
+               q.quote_number, q.title, q.description, q.status,
+               q.quote_date, q.valid_until,
+               q.subtotal, q.discount_percentage, q.discount_amount,
+               q.tax_rate, q.tax_amount, q.total_amount,
+               q.notes, q.terms_conditions,
+               q.created_at, q.updated_at, q.deleted_at
+        FROM quotes q
         WHERE q.id = $1
     """
-    
-    row = await conn.fetchrow(query, quote_id, user.id)
+
+    row = await conn.fetchrow(query, quote_id)
     
     if not row:
         raise HTTPException(
@@ -98,14 +107,14 @@ async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = 
     
     # Additional business rule validations
     quote_data = dict(row)
-    
+
     if action == "edit" and quote_data['status'] not in ['draft', 'revision_needed']:
-        if quote_data['user_id'] != user.id:  # Not the quote creator
+        if quote_data['created_by'] != user.id:  # Not the quote creator (database field is created_by, not user_id)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Can only edit quotes in draft or revision_needed status"
             )
-    
+
     return quote_data
 
 
@@ -136,8 +145,13 @@ async def list_quotes(
         supabase = get_supabase_client()
 
         # Build query with joins, exclude soft-deleted quotes
+        # Explicitly list fields to ensure new columns are included
         query = supabase.table("quotes").select(
-            "*, customers(name)",
+            "id, quote_number, customer_id, title, description, status, "
+            "quote_date, valid_until, "
+            "subtotal, discount_percentage, discount_amount, tax_rate, tax_amount, total_amount, "
+            "notes, terms_conditions, created_at, updated_at, deleted_at, "
+            "customers(name)",
             count="exact"
         ).eq("organization_id", user.current_organization_id).is_("deleted_at", "null")
 
@@ -183,7 +197,6 @@ async def list_quotes(
                 "title": quote.get("title", ""),
                 "status": quote["status"],
                 "total_amount": quote.get("total_amount", 0),
-                "currency": quote.get("currency", "RUB"),
                 "quote_date": quote.get("quote_date"),
                 "valid_until": quote.get("valid_until"),
                 "created_at": quote["created_at"]
@@ -302,15 +315,59 @@ async def get_quote(
         # Validate access and get quote
         quote_data = await validate_quote_access(conn, quote_id, user, "view")
         quote = Quote(**quote_data)
-        
-        # Get quote items
+
+        # Get customer information if customer_id exists
+        customer = None
+        if quote.customer_id:
+            customer_row = await conn.fetchrow("""
+                SELECT id, name, email, phone, address, city, region, country,
+                       inn, kpp, ogrn, company_type, industry, notes,
+                       created_at, updated_at
+                FROM customers
+                WHERE id = $1
+            """, quote.customer_id)
+            if customer_row:
+                customer_dict = dict(customer_row)
+                # Map 'name' to 'company_name' for frontend compatibility
+                customer_dict['company_name'] = customer_dict.get('name')
+                customer = customer_dict
+
+        # Get quote items with field mapping
         items_rows = await conn.fetch("""
-            SELECT * FROM quote_items
+            SELECT
+                id, quote_id, position,
+                product_name as description,
+                product_code,
+                brand,
+                sku,
+                quantity::numeric as quantity,
+                unit,
+                base_price_vat as unit_price,
+                weight_in_kg,
+                supplier_country as country_of_origin,
+                customs_code,
+                created_at, updated_at
+            FROM quote_items
             WHERE quote_id = $1
-            ORDER BY sort_order ASC, created_at ASC
+            ORDER BY position ASC, created_at ASC
         """, quote_id)
 
-        items = [QuoteItem(**dict(row)) for row in items_rows]
+        # Map database rows to QuoteItem model with defaults for missing fields
+        items = []
+        for row in items_rows:
+            item_dict = dict(row)
+            # Add required fields with defaults if missing
+            item_dict.setdefault('discount_type', 'percentage')
+            item_dict.setdefault('discount_rate', 0)
+            item_dict.setdefault('discount_amount', 0)
+            item_dict.setdefault('vat_rate', 20)
+            item_dict.setdefault('import_duty_rate', 0)
+
+            # Add frontend-compatible fields
+            item_dict['name'] = item_dict.get('description')  # Frontend expects 'name'
+            item_dict['final_price'] = item_dict.get('unit_price')  # Frontend expects 'final_price'
+
+            items.append(QuoteItem(**item_dict))
 
         # Get calculation results for all items
         calc_results_rows = await conn.fetch("""
@@ -322,51 +379,76 @@ async def get_quote(
         # Create a map of item_id -> calculation results
         calc_results_map = {str(row['quote_item_id']): dict(row) for row in calc_results_rows}
 
-        # Attach calculation results to each item
+        # Attach calculation results to each item and extract final selling price
         for item in items:
             item_id_str = str(item.id)
             if item_id_str in calc_results_map:
                 # Add calculation results as extra attributes
-                item.calculation_results = calc_results_map[item_id_str]['phase_results']
+                phase_results_raw = calc_results_map[item_id_str]['phase_results']
+
+                # Parse JSON string to dict if needed
+                import json
+                if isinstance(phase_results_raw, str):
+                    phase_results = json.loads(phase_results_raw)
+                else:
+                    phase_results = phase_results_raw
+
+                item.calculation_results = phase_results
                 item.calculated_at = calc_results_map[item_id_str]['calculated_at']
+
+                # Extract final selling price from calculation results
+                # The selling price is stored as 'sales_price_per_unit_with_vat' at root level
+                if phase_results and isinstance(phase_results, dict):
+                    selling_price = phase_results.get('sales_price_per_unit_with_vat')
+                    if selling_price is not None:
+                        item.final_price = Decimal(str(selling_price))
             else:
                 item.calculation_results = None
                 item.calculated_at = None
 
-        # Get approval information
-        approvals_rows = await conn.fetch("""
-            SELECT qa.*, 
-                   u.email as approver_email,
-                   up.raw_user_meta_data->>'full_name' as approver_name
-            FROM quote_approvals qa
-            JOIN auth.users u ON qa.approver_id = u.id
-            LEFT JOIN auth.users up ON qa.approver_id = up.id
-            WHERE qa.quote_id = $1 
-            ORDER BY qa.approval_order ASC, qa.assigned_at ASC
-        """, quote_id)
-        
+        # Get approval information (if quote_approvals table exists)
         approvals = []
-        for row in approvals_rows:
-            approval_dict = dict(row)
-            # Remove non-model fields
-            approval_dict.pop('approver_email', None)
-            approval_dict.pop('approver_name', None)
-            approval = QuoteApproval(**approval_dict)
-            # Add extra info for frontend
-            approval.approver_email = row['approver_email']
-            approval.approver_name = row['approver_name']
-            approvals.append(approval)
+        try:
+            approvals_rows = await conn.fetch("""
+                SELECT qa.*,
+                       u.email as approver_email,
+                       up.raw_user_meta_data->>'full_name' as approver_name
+                FROM quote_approvals qa
+                JOIN auth.users u ON qa.approver_id = u.id
+                LEFT JOIN auth.users up ON qa.approver_id = up.id
+                WHERE qa.quote_id = $1
+                ORDER BY qa.approval_order ASC, qa.assigned_at ASC
+            """, quote_id)
+
+            for row in approvals_rows:
+                approval_dict = dict(row)
+                # Remove non-model fields
+                approval_dict.pop('approver_email', None)
+                approval_dict.pop('approver_name', None)
+                approval = QuoteApproval(**approval_dict)
+                # Add extra info for frontend
+                approval.approver_email = row['approver_email']
+                approval.approver_name = row['approver_name']
+                approvals.append(approval)
+        except Exception:
+            # quote_approvals table doesn't exist yet (stub feature)
+            pass
         
-        # Create response with items and approvals
+        # Create response with items, customer, and approvals
         quote_response = QuoteWithItems(**quote.dict())
         quote_response.items = items
+        quote_response.customer = customer
         quote_response.approvals = approvals
-        
+
         return quote_response
         
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"ERROR in get_quote: {str(e)}")
+        print(f"Traceback:\n{error_traceback}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve quote: {str(e)}"
@@ -472,7 +554,7 @@ async def delete_quote(
             )
 
         # Only quote creator can delete
-        if quote_data['user_id'] != user.id:
+        if quote_data['created_by'] != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only quote creator can delete quote"
@@ -689,8 +771,13 @@ async def list_bin_quotes(
         supabase = get_supabase_client()
 
         # Build query for soft-deleted quotes
+        # Explicitly list fields to ensure new columns are included
         query = supabase.table("quotes").select(
-            "*, customers(name)",
+            "id, quote_number, customer_id, title, description, status, "
+            "quote_date, valid_until, "
+            "subtotal, discount_percentage, discount_amount, tax_rate, tax_amount, total_amount, "
+            "notes, terms_conditions, created_at, updated_at, deleted_at, "
+            "customers(name)",
             count="exact"
         ).eq("organization_id", user.current_organization_id).not_.is_("deleted_at", "null")
 
@@ -714,7 +801,6 @@ async def list_bin_quotes(
                 "title": quote.get("title", ""),
                 "status": quote["status"],
                 "total_amount": quote.get("total_amount", 0),
-                "currency": quote.get("currency", "RUB"),
                 "quote_date": quote.get("quote_date"),
                 "valid_until": quote.get("valid_until"),
                 "created_at": quote["created_at"],
@@ -768,7 +854,7 @@ async def add_quote_item(
                 quote_id, description, product_code, category, brand, model,
                 country_of_origin, manufacturer, quantity, unit, unit_cost, unit_price,
                 discount_type, discount_rate, discount_amount, vat_rate, import_duty_rate,
-                lead_time_days, delivery_notes, sort_order, notes
+                lead_time_days, delivery_notes, position, notes
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
             ) RETURNING *
@@ -788,14 +874,14 @@ async def add_quote_item(
             item_data.unit, 
             item_data.unit_cost, 
             item_data.unit_price,
-            item_data.discount_type, 
-            item_data.discount_rate, 
+            item_data.discount_type,
+            item_data.discount_rate,
             item_data.discount_amount,
-            item_data.vat_rate, 
+            item_data.vat_rate,
             item_data.import_duty_rate,
-            item_data.lead_time_days, 
-            item_data.delivery_notes, 
-            item_data.sort_order, 
+            item_data.lead_time_days,
+            item_data.delivery_notes,
+            item_data.position,
             item_data.notes
         )
         
@@ -949,8 +1035,8 @@ async def submit_quote_for_approval(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Can only submit draft quotes for approval"
             )
-        
-        if quote_data['user_id'] != user.id:
+
+        if quote_data['created_by'] != user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only quote creator can submit for approval"
@@ -1262,7 +1348,7 @@ async def generate_quote_pdf(
                 u.email as manager_email
             FROM quotes q
             LEFT JOIN customers c ON q.customer_id = c.id
-            LEFT JOIN auth.users u ON q.user_id::text = u.id::text
+            LEFT JOIN auth.users u ON q.created_by::text = u.id::text
             WHERE q.id = $1
         """
 
