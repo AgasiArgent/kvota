@@ -15,6 +15,27 @@ from weasyprint import HTML, CSS
 from models import Quote, QuoteItem, Customer, QuoteWithItems
 
 
+def parse_iso_date(value) -> str:
+    """
+    Parse ISO date string to DD.MM.YYYY format.
+    Handles: ISO strings from Supabase, datetime objects, date objects
+    """
+    if isinstance(value, str):
+        # Try to parse ISO date
+        try:
+            value = datetime.fromisoformat(value.replace('Z', '+00:00')).date()
+        except:
+            return value
+
+    if isinstance(value, datetime):
+        value = value.date()
+
+    if isinstance(value, date):
+        return value.strftime('%d.%m.%Y')
+
+    return str(value) if value else ''
+
+
 class QuotePDFService:
     """Service for generating professional Russian business quote PDFs"""
 
@@ -40,7 +61,6 @@ class QuotePDFService:
     def _register_filters(self):
         """Register custom Jinja2 filters for Russian formatting"""
 
-        @self.jinja_env.filter('ru_currency')
         def ru_currency(value: Decimal, currency: str = 'RUB') -> str:
             """Format currency in Russian style"""
             if value is None:
@@ -61,7 +81,6 @@ class QuotePDFService:
             else:
                 return f"{formatted} {currency}"
 
-        @self.jinja_env.filter('ru_date')
         def ru_date(value) -> str:
             """Format date in Russian style (DD.MM.YYYY)"""
             if isinstance(value, str):
@@ -79,7 +98,6 @@ class QuotePDFService:
 
             return str(value) if value else ''
 
-        @self.jinja_env.filter('ru_number')
         def ru_number(value: Decimal) -> str:
             """Format number with Russian decimal separator"""
             if value is None:
@@ -87,10 +105,15 @@ class QuotePDFService:
 
             return f"{float(value):,.2f}".replace(',', ' ').replace('.', ',')
 
-        @self.jinja_env.filter('vat_label')
         def vat_label(vat_included: bool) -> str:
             """Return VAT label based on inclusion"""
             return "в т.ч. НДС" if vat_included else "НДС"
+
+        # Register filters
+        self.jinja_env.filters['ru_currency'] = ru_currency
+        self.jinja_env.filters['ru_date'] = ru_date
+        self.jinja_env.filters['ru_number'] = ru_number
+        self.jinja_env.filters['vat_label'] = vat_label
 
     def _create_templates(self):
         """Create HTML and CSS templates for Russian business documents"""
@@ -675,3 +698,395 @@ body {
         clean_customer = ''.join(c for c in quote.customer_name if c.isalnum() or c in '-_. ')[:30]
 
         return f"KP_{clean_number}_{clean_customer}.pdf"
+
+    # ========================================================================
+    # NEW EXPORT FORMATS (Session 23)
+    # ========================================================================
+
+    @staticmethod
+    def format_russian_currency(value) -> str:
+        """Format Decimal/float as Russian currency: 1 234,56 ₽"""
+        if value is None:
+            return "0,00 ₽"
+
+        # Convert to float if Decimal
+        if isinstance(value, Decimal):
+            value = float(value)
+
+        # Format with thousand separator and 2 decimals
+        str_val = f"{value:,.2f}"
+        # Replace comma with space (thousands) and period with comma (decimals)
+        str_val = str_val.replace(',', ' ').replace('.', ',')
+        return f"{str_val} ₽"
+
+    def render_template(self, template_name: str, context: dict) -> str:
+        """Render Jinja2 template with context"""
+        template = self.jinja_env.get_template(template_name)
+        return template.render(**context)
+
+    def html_to_pdf(self, html: str) -> bytes:
+        """Convert HTML string to PDF bytes using WeasyPrint"""
+        html_doc = HTML(string=html, encoding='utf-8')
+        return html_doc.write_pdf()
+
+    def generate_supply_pdf(self, export_data) -> bytes:
+        """
+        Generate КП поставка (9-column supply quote)
+
+        Args:
+            export_data: ExportData object from export_data_mapper
+
+        Returns:
+            PDF bytes
+        """
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+
+        # Get helper info
+        manager = get_manager_info(export_data)
+        contact = get_contact_info(export_data)
+
+        # Build context for template
+        context = {
+            # Seller block
+            'seller_company': export_data.variables.get('seller_company', ''),
+            'manager_name': manager.get('name', ''),
+            'manager_phone': manager.get('phone', ''),
+            'manager_email': manager.get('email', ''),
+
+            # Client block
+            'customer_company_name': export_data.customer.get('name', '') if export_data.customer else '',
+            'contact_person_name': contact.get('name', ''),
+            'contact_phone': contact.get('phone', ''),
+            'contact_email': contact.get('email', ''),
+
+            # Quote info
+            'delivery_address': export_data.quote.get('delivery_address', ''),
+            'offer_incoterms': export_data.variables.get('offer_incoterms', ''),
+            'payment_terms': format_payment_terms(export_data.variables),
+            'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
+            'delivery_time': export_data.variables.get('delivery_time', 60),
+            'delivery_description': format_delivery_description(export_data.variables),
+
+            # Items and totals
+            'items': [],
+            'totals': {}
+        }
+
+        # Build items list with 9 columns
+        totals = {'quantity': 0, 'total_vat': Decimal('0')}
+
+        for item in export_data.items:
+            calc = item.get('calculation_results', {})
+
+            item_data = {
+                'brand': item.get('brand', ''),
+                'sku': item.get('sku', ''),
+                'product_name': item.get('product_name', ''),
+                'quantity': item.get('quantity', 0),
+                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
+                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
+                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
+                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
+                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+            }
+
+            context['items'].append(item_data)
+
+            # Accumulate totals
+            totals['quantity'] += item.get('quantity', 0)
+            totals['total_vat'] += Decimal(str(calc.get('sales_price_total_with_vat', 0)))
+
+        context['totals'] = {
+            'quantity': totals['quantity'],
+            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+        }
+
+        # Render HTML template
+        html = self.render_template('supply_quote.html', context)
+
+        # Convert to PDF
+        return self.html_to_pdf(html)
+
+    def generate_openbook_pdf(self, export_data) -> bytes:
+        """
+        Generate КП open book (21-column detailed quote)
+
+        Args:
+            export_data: ExportData object from export_data_mapper
+
+        Returns:
+            PDF bytes
+        """
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+
+        # Get helper info
+        manager = get_manager_info(export_data)
+        contact = get_contact_info(export_data)
+
+        # Build context for template
+        context = {
+            # Seller block
+            'seller_company': export_data.variables.get('seller_company', ''),
+            'manager_name': manager.get('name', ''),
+            'manager_phone': manager.get('phone', ''),
+            'manager_email': manager.get('email', ''),
+
+            # Client block
+            'customer_company_name': export_data.customer.get('name', '') if export_data.customer else '',
+            'contact_person_name': contact.get('name', ''),
+            'contact_phone': contact.get('phone', ''),
+            'contact_email': contact.get('email', ''),
+
+            # Quote info
+            'delivery_address': export_data.quote.get('delivery_address', ''),
+            'offer_incoterms': export_data.variables.get('offer_incoterms', ''),
+            'payment_terms': format_payment_terms(export_data.variables),
+            'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
+            'delivery_time': export_data.variables.get('delivery_time', 60),
+            'delivery_description': format_delivery_description(export_data.variables),
+
+            # Items and totals
+            'items': [],
+            'totals': {}
+        }
+
+        # Build items list with 21 columns
+        totals = {'quantity': 0, 'total_vat': Decimal('0')}
+
+        for item in export_data.items:
+            calc = item.get('calculation_results', {})
+
+            # Calculate invoice amount (purchase price × quantity)
+            purchase_price_no_vat = Decimal(str(calc.get('purchase_price_no_vat', 0)))
+            quantity = item.get('quantity', 0)
+            invoice_amount = purchase_price_no_vat * Decimal(str(quantity))
+
+            item_data = {
+                # Columns 1-4: Basic info
+                'brand': item.get('brand', ''),
+                'sku': item.get('sku', ''),
+                'product_name': item.get('product_name', ''),
+                'quantity': quantity,
+
+                # Columns 5-15: Purchase & cost details
+                'currency': export_data.variables.get('currency_of_base_price', 'USD'),
+                'purchase_price_no_vat': self.format_russian_currency(purchase_price_no_vat),
+                'invoice_amount': self.format_russian_currency(invoice_amount),
+                'purchase_price_quote_currency': self.format_russian_currency(calc.get('purchase_price_total_quote_currency', 0)),
+                'logistics': self.format_russian_currency(calc.get('logistics_total', 0)),
+                'customs_code': item.get('customs_code', ''),
+                'import_tariff': f"{calc.get('import_tariff', 0)}%",
+                'customs_fee': self.format_russian_currency(calc.get('customs_fee', 0)),
+                'excise_tax': self.format_russian_currency(calc.get('excise_tax', 0)),
+                'util_fee': self.format_russian_currency(calc.get('util_fee', 0)),
+                'transit_commission': self.format_russian_currency(calc.get('transit_commission', 0)),
+
+                # Columns 16-21: Selling prices
+                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
+                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
+                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
+                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
+                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+            }
+
+            context['items'].append(item_data)
+
+            # Accumulate totals
+            totals['quantity'] += quantity
+            totals['total_vat'] += Decimal(str(calc.get('sales_price_total_with_vat', 0)))
+
+        context['totals'] = {
+            'quantity': totals['quantity'],
+            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+        }
+
+        # Render HTML template
+        html = self.render_template('openbook_quote.html', context)
+
+        # Convert to PDF
+        return self.html_to_pdf(html)
+
+    def generate_supply_letter_pdf(self, export_data) -> bytes:
+        """
+        Generate КП поставка письмо (formal letter + 9-column grid)
+
+        Args:
+            export_data: ExportData object from export_data_mapper
+
+        Returns:
+            PDF bytes
+        """
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+
+        # Get helper info
+        manager = get_manager_info(export_data)
+        contact = get_contact_info(export_data)
+
+        # Build context (same as supply_pdf + letter-specific fields)
+        context = {
+            # Seller block
+            'seller_company': export_data.variables.get('seller_company', ''),
+            'manager_name': manager.get('name', ''),
+            'manager_phone': manager.get('phone', ''),
+            'manager_email': manager.get('email', ''),
+
+            # Client block
+            'customer_company_name': export_data.customer.get('name', '') if export_data.customer else '',
+            'contact_person_name': contact.get('name', ''),
+            'contact_phone': contact.get('phone', ''),
+            'contact_email': contact.get('email', ''),
+
+            # Quote info
+            'delivery_address': export_data.quote.get('delivery_address', ''),
+            'offer_incoterms': export_data.variables.get('offer_incoterms', ''),
+            'payment_terms': format_payment_terms(export_data.variables),
+            'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
+            'delivery_time': export_data.variables.get('delivery_time', 60),
+            'delivery_description': format_delivery_description(export_data.variables),
+
+            # Letter-specific fields
+            'letter_greeting': f"Уважаемый {contact.get('name', '')}!" if contact.get('name') else "Уважаемые партнеры!",
+            'ceo_title': export_data.organization.get('ceo_title', 'Генеральный директор'),
+            'ceo_name': export_data.organization.get('ceo_name', 'Не указано'),
+
+            # Items and totals
+            'items': [],
+            'totals': {}
+        }
+
+        # Build items list (same as supply_pdf)
+        totals = {'quantity': 0, 'total_vat': Decimal('0')}
+
+        for item in export_data.items:
+            calc = item.get('calculation_results', {})
+
+            item_data = {
+                'brand': item.get('brand', ''),
+                'sku': item.get('sku', ''),
+                'product_name': item.get('product_name', ''),
+                'quantity': item.get('quantity', 0),
+                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
+                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
+                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
+                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
+                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+            }
+
+            context['items'].append(item_data)
+
+            totals['quantity'] += item.get('quantity', 0)
+            totals['total_vat'] += Decimal(str(calc.get('sales_price_total_with_vat', 0)))
+
+        context['totals'] = {
+            'quantity': totals['quantity'],
+            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+        }
+
+        # Render HTML template
+        html = self.render_template('supply_letter.html', context)
+
+        # Convert to PDF
+        return self.html_to_pdf(html)
+
+    def generate_openbook_letter_pdf(self, export_data) -> bytes:
+        """
+        Generate КП open book письмо (formal letter + 21-column grid)
+
+        Args:
+            export_data: ExportData object from export_data_mapper
+
+        Returns:
+            PDF bytes
+        """
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+
+        # Get helper info
+        manager = get_manager_info(export_data)
+        contact = get_contact_info(export_data)
+
+        # Build context (same as openbook_pdf + letter-specific fields)
+        context = {
+            # Seller block
+            'seller_company': export_data.variables.get('seller_company', ''),
+            'manager_name': manager.get('name', ''),
+            'manager_phone': manager.get('phone', ''),
+            'manager_email': manager.get('email', ''),
+
+            # Client block
+            'customer_company_name': export_data.customer.get('name', '') if export_data.customer else '',
+            'contact_person_name': contact.get('name', ''),
+            'contact_phone': contact.get('phone', ''),
+            'contact_email': contact.get('email', ''),
+
+            # Quote info
+            'delivery_address': export_data.quote.get('delivery_address', ''),
+            'offer_incoterms': export_data.variables.get('offer_incoterms', ''),
+            'payment_terms': format_payment_terms(export_data.variables),
+            'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
+            'delivery_time': export_data.variables.get('delivery_time', 60),
+            'delivery_description': format_delivery_description(export_data.variables),
+
+            # Letter-specific fields
+            'letter_greeting': f"Уважаемый {contact.get('name', '')}!" if contact.get('name') else "Уважаемые партнеры!",
+            'ceo_title': export_data.organization.get('ceo_title', 'Генеральный директор'),
+            'ceo_name': export_data.organization.get('ceo_name', 'Не указано'),
+
+            # Items and totals
+            'items': [],
+            'totals': {}
+        }
+
+        # Build items list (same as openbook_pdf)
+        totals = {'quantity': 0, 'total_vat': Decimal('0')}
+
+        for item in export_data.items:
+            calc = item.get('calculation_results', {})
+
+            # Calculate invoice amount
+            purchase_price_no_vat = Decimal(str(calc.get('purchase_price_no_vat', 0)))
+            quantity = item.get('quantity', 0)
+            invoice_amount = purchase_price_no_vat * Decimal(str(quantity))
+
+            item_data = {
+                # Columns 1-4: Basic info
+                'brand': item.get('brand', ''),
+                'sku': item.get('sku', ''),
+                'product_name': item.get('product_name', ''),
+                'quantity': quantity,
+
+                # Columns 5-15: Purchase & cost details
+                'currency': export_data.variables.get('currency_of_base_price', 'USD'),
+                'purchase_price_no_vat': self.format_russian_currency(purchase_price_no_vat),
+                'invoice_amount': self.format_russian_currency(invoice_amount),
+                'purchase_price_quote_currency': self.format_russian_currency(calc.get('purchase_price_total_quote_currency', 0)),
+                'logistics': self.format_russian_currency(calc.get('logistics_total', 0)),
+                'customs_code': item.get('customs_code', ''),
+                'import_tariff': f"{calc.get('import_tariff', 0)}%",
+                'customs_fee': self.format_russian_currency(calc.get('customs_fee', 0)),
+                'excise_tax': self.format_russian_currency(calc.get('excise_tax', 0)),
+                'util_fee': self.format_russian_currency(calc.get('util_fee', 0)),
+                'transit_commission': self.format_russian_currency(calc.get('transit_commission', 0)),
+
+                # Columns 16-21: Selling prices
+                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
+                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
+                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
+                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
+                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+            }
+
+            context['items'].append(item_data)
+
+            totals['quantity'] += quantity
+            totals['total_vat'] += Decimal(str(calc.get('sales_price_total_with_vat', 0)))
+
+        context['totals'] = {
+            'quantity': totals['quantity'],
+            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+        }
+
+        # Render HTML template
+        html = self.render_template('openbook_letter.html', context)
+
+        # Convert to PDF
+        return self.html_to_pdf(html)

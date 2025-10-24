@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>КП поставка - письмо</title>
+    <style>
+        @page { size: A4 landscape; margin: 1cm; }
+        body {
+            font-family: 'DejaVu Sans', Arial, sans-serif;
+            font-size: 10pt;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .header-block {
+            margin-bottom: 12px;
+            padding: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        .header-block h3 {
+            margin: 0 0 4px 0;
+            color: #2C5AA0;
+            font-size: 11pt;
+        }
+        .header-block p {
+            margin: 2px 0;
+            line-height: 1.4;
+            font-size: 9pt;
+        }
+        .letter-section {
+            margin: 15px 0;
+            line-height: 1.6;
+            font-size: 10pt;
+        }
+        .letter-greeting {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 8pt;
+        }
+        th {
+            background: #2C5AA0;
+            color: white;
+            padding: 7px 3px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #2C5AA0;
+        }
+        td {
+            border: 1px solid #ddd;
+            padding: 5px 3px;
+        }
+        .totals {
+            font-weight: bold;
+            background: #e0e0e0;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .signature-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+        .signature-box {
+            margin-top: 30px;
+            text-align: right;
+        }
+        .signature-line {
+            display: inline-block;
+            width: 150px;
+            border-bottom: 1px solid #333;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Seller Block -->
+    <div class="header-block">
+        <h3>Продавец</h3>
+        <p><strong>Компания:</strong> {{ seller_company }} | <strong>Менеджер:</strong> {{ manager_name }} | <strong>Телефон:</strong> {{ manager_phone }} | <strong>Email:</strong> {{ manager_email }}</p>
+    </div>
+
+    <!-- Client Block -->
+    <div class="header-block">
+        <h3>Покупатель</h3>
+        <p><strong>Компания:</strong> {{ customer_company_name }} | <strong>Контактное лицо:</strong> {{ contact_person_name }} | <strong>Телефон:</strong> {{ contact_phone }} | <strong>Email:</strong> {{ contact_email }}</p>
+    </div>
+
+    <!-- Quote Info Block -->
+    <div class="header-block">
+        <h3>Информация о поставке</h3>
+        <p><strong>Адрес доставки:</strong> {{ delivery_address }} | <strong>Базис поставки:</strong> {{ offer_incoterms }} | <strong>Условия оплаты:</strong> {{ payment_terms }} | <strong>Дата КП:</strong> {{ quote_date }} | <strong>Срок поставки:</strong> {{ delivery_time }} дней</p>
+        <p>{{ delivery_description }}</p>
+    </div>
+
+    <!-- Letter Introduction -->
+    <div class="letter-section">
+        <p class="letter-greeting">{{ letter_greeting }}</p>
+        <p>Мы рады предложить Вам наше коммерческое предложение по поставке промышленного оборудования. Компания {{ seller_company }} имеет многолетний опыт работы на рынке поставок качественного оборудования и комплектующих.</p>
+        <p>Мы ценим плодотворное сотрудничество с компанией {{ customer_company_name }} и стремимся предложить Вам наилучшие условия поставки и конкурентоспособные цены.</p>
+        <p><strong>Предлагаем Вашему вниманию следующее коммерческое предложение:</strong></p>
+    </div>
+
+    <!-- Products Table (9 columns) -->
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 8%;">Бренд</th>
+                <th style="width: 10%;">Артикул</th>
+                <th style="width: 25%;">Наименование</th>
+                <th style="width: 6%;">Кол-во</th>
+                <th style="width: 12%;">Цена за ед. (₽)</th>
+                <th style="width: 12%;">Сумма (₽)</th>
+                <th style="width: 10%;">НДС (₽)</th>
+                <th style="width: 12%;">Цена с НДС за ед. (₽)</th>
+                <th style="width: 12%;">Сумма с НДС (₽)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.brand }}</td>
+                <td>{{ item.sku }}</td>
+                <td>{{ item.product_name }}</td>
+                <td class="text-center">{{ item.quantity }}</td>
+                <td class="text-right">{{ item.selling_price_per_unit }}</td>
+                <td class="text-right">{{ item.selling_price_total }}</td>
+                <td class="text-right">{{ item.vat_from_sales }}</td>
+                <td class="text-right">{{ item.selling_price_with_vat_per_unit }}</td>
+                <td class="text-right">{{ item.selling_price_with_vat_total }}</td>
+            </tr>
+            {% endfor %}
+
+            <tr class="totals">
+                <td colspan="3"><strong>ИТОГО</strong></td>
+                <td class="text-center"><strong>{{ totals.quantity }}</strong></td>
+                <td colspan="4"></td>
+                <td class="text-right"><strong>{{ totals.total_with_vat }}</strong></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Signature Section -->
+    <div class="signature-section">
+        <div class="signature-box">
+            <p>С уважением,</p>
+            <p><strong>{{ ceo_title }}</strong></p>
+            <p style="margin-top: 30px;">[Место для подписи]</p>
+            <p><strong>{{ ceo_name }}</strong></p>
+        </div>
+    </div>
+</body>
+</html>
