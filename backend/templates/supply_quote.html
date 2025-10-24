@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>КП поставка</title>
+    <style>
+        @page { size: A4 landscape; margin: 1cm; }
+        body {
+            font-family: 'DejaVu Sans', Arial, sans-serif;
+            font-size: 10pt;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .header-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .header-block {
+            flex: 1;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        .header-block h3 {
+            margin: 0 0 5px 0;
+            color: #2C5AA0;
+            font-size: 11pt;
+        }
+        .header-block p {
+            margin: 3px 0;
+            line-height: 1.3;
+            font-size: 9pt;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 9pt;
+        }
+        th {
+            background: #2C5AA0;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #2C5AA0;
+        }
+        td {
+            border: 1px solid #ddd;
+            padding: 6px 4px;
+        }
+        .totals {
+            font-weight: bold;
+            background: #e0e0e0;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .text-center {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- 3-Column Header Container -->
+    <div class="header-container">
+        <!-- Seller Block -->
+        <div class="header-block">
+            <h3>Продавец</h3>
+            <p><strong>Компания:</strong> {{ seller_company }}</p>
+            <p><strong>Менеджер:</strong> {{ manager_name }}</p>
+            <p><strong>Телефон:</strong> {{ manager_phone }}</p>
+            <p><strong>Email:</strong> {{ manager_email }}</p>
+        </div>
+
+        <!-- Client Block -->
+        <div class="header-block">
+            <h3>Покупатель</h3>
+            <p><strong>Компания:</strong> {{ customer_company_name }}</p>
+            <p><strong>Контактное лицо:</strong> {{ contact_person_name }}</p>
+            <p><strong>Телефон:</strong> {{ contact_phone }}</p>
+            <p><strong>Email:</strong> {{ contact_email }}</p>
+        </div>
+
+        <!-- Quote Info Block -->
+        <div class="header-block">
+            <h3>Информация о поставке</h3>
+            <p><strong>Дата КП:</strong> {{ quote_date }}</p>
+            <p><strong>Срок поставки:</strong> {{ delivery_time }} дней</p>
+            <p><strong>Базис:</strong> {{ offer_incoterms }}</p>
+            <p><strong>Оплата:</strong> {{ payment_terms }}</p>
+            <p><strong>Сумма с НДС:</strong> <span style="color: #2C5AA0; font-weight: bold;">{{ totals.total_with_vat }}</span></p>
+            <p style="font-size: 8pt; margin-top: 5px;">{{ delivery_description }}</p>
+        </div>
+    </div>
+
+    <!-- Products Table (9 columns) -->
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 6%;">Бренд</th>
+                <th style="width: 8%;">Артикул</th>
+                <th style="width: 20%;">Наименование</th>
+                <th style="width: 5%;">Кол-во</th>
+                <th style="width: 12%;">Цена за ед. (₽)</th>
+                <th style="width: 12%;">Сумма (₽)</th>
+                <th style="width: 10%;">НДС (₽)</th>
+                <th style="width: 13%;">Цена с НДС за ед. (₽)</th>
+                <th style="width: 14%;">Сумма с НДС (₽)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.brand }}</td>
+                <td>{{ item.sku }}</td>
+                <td>{{ item.product_name }}</td>
+                <td class="text-center">{{ item.quantity }}</td>
+                <td class="text-right">{{ item.selling_price_per_unit }}</td>
+                <td class="text-right">{{ item.selling_price_total }}</td>
+                <td class="text-right">{{ item.vat_from_sales }}</td>
+                <td class="text-right">{{ item.selling_price_with_vat_per_unit }}</td>
+                <td class="text-right">{{ item.selling_price_with_vat_total }}</td>
+            </tr>
+            {% endfor %}
+
+            <tr class="totals">
+                <td colspan="3"><strong>ИТОГО</strong></td>
+                <td class="text-center"><strong>{{ totals.quantity }}</strong></td>
+                <td colspan="4"></td>
+                <td class="text-right"><strong>{{ totals.total_with_vat }}</strong></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

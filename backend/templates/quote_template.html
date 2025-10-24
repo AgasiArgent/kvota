@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>{{ quote.quote_number }} - {{ quote.customer_name }}</title>
+    <style>
+        {{ css_content }}
+    </style>
+</head>
+<body>
+    <div class="document">
+        <!-- Header with company info -->
+        <header class="company-header">
+            <div class="company-logo">
+                <h1>{{ company.name }}</h1>
+                <p class="company-slogan">{{ company.slogan or 'Поставщик качественного оборудования' }}</p>
+            </div>
+            <div class="company-info">
+                <div class="company-details">
+                    <strong>{{ company.legal_name or company.name }}</strong><br>
+                    {% if company.inn %}ИНН: {{ company.inn }}<br>{% endif %}
+                    {% if company.kpp %}КПП: {{ company.kpp }}<br>{% endif %}
+                    {% if company.ogrn %}ОГРН: {{ company.ogrn }}<br>{% endif %}
+                    {% if company.address %}{{ company.address }}<br>{% endif %}
+                    {% if company.phone %}Тел: {{ company.phone }}<br>{% endif %}
+                    {% if company.email %}Email: {{ company.email }}{% endif %}
+                </div>
+            </div>
+        </header>
+
+        <!-- Quote title and number -->
+        <div class="quote-title">
+            <h2>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ № {{ quote.quote_number }}</h2>
+            <p class="quote-date">от {{ quote.quote_date|ru_date }} г.</p>
+        </div>
+
+        <!-- Customer information -->
+        <div class="customer-section">
+            <h3>Заказчик:</h3>
+            <div class="customer-info">
+                <strong>{{ quote.customer_name }}</strong><br>
+                {% if quote.customer_address %}{{ quote.customer_address }}<br>{% endif %}
+                {% if quote.customer_email %}Email: {{ quote.customer_email }}{% endif %}
+            </div>
+        </div>
+
+        <!-- Quote details -->
+        {% if quote.title or quote.description %}
+        <div class="quote-details">
+            {% if quote.title %}<h3>{{ quote.title }}</h3>{% endif %}
+            {% if quote.description %}<p>{{ quote.description }}</p>{% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Items table -->
+        <div class="items-section">
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th class="col-no">№</th>
+                        <th class="col-description">Наименование товара</th>
+                        <th class="col-quantity">Кол-во</th>
+                        <th class="col-unit">Ед.</th>
+                        <th class="col-price">Цена</th>
+                        <th class="col-total">Сумма</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in quote.items %}
+                    <tr>
+                        <td class="col-no">{{ loop.index }}</td>
+                        <td class="col-description">
+                            <strong>{{ item.description }}</strong>
+                            {% if item.product_code %}<br><small>Артикул: {{ item.product_code }}</small>{% endif %}
+                            {% if item.brand %}<br><small>Производитель: {{ item.brand }}</small>{% endif %}
+                            {% if item.model %}<br><small>Модель: {{ item.model }}</small>{% endif %}
+                            {% if item.country_of_origin %}<br><small>Страна: {{ item.country_of_origin }}</small>{% endif %}
+                            {% if item.lead_time_days %}<br><small>Срок поставки: {{ item.lead_time_days }} дн.</small>{% endif %}
+                        </td>
+                        <td class="col-quantity">{{ item.quantity|ru_number }}</td>
+                        <td class="col-unit">{{ item.unit }}</td>
+                        <td class="col-price">{{ item.unit_price|ru_currency(quote.currency) }}</td>
+                        <td class="col-total">{{ item.line_total|ru_currency(quote.currency) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Totals section -->
+        <div class="totals-section">
+            <div class="totals-table">
+                <table>
+                    <tr>
+                        <td>Итого без НДС:</td>
+                        <td class="amount">{{ quote.subtotal|ru_currency(quote.currency) }}</td>
+                    </tr>
+                    {% if quote.discount_amount > 0 %}
+                    <tr>
+                        <td>Скидка{% if quote.discount_type == 'percentage' %} ({{ quote.discount_rate|ru_number }}%){% endif %}:</td>
+                        <td class="amount discount">-{{ quote.discount_amount|ru_currency(quote.currency) }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="vat-row">
+                        <td>{{ quote.vat_included|vat_label }} ({{ quote.vat_rate|ru_number }}%):</td>
+                        <td class="amount">{{ quote.vat_amount|ru_currency(quote.currency) }}</td>
+                    </tr>
+                    {% if quote.import_duty_amount > 0 %}
+                    <tr>
+                        <td>Таможенная пошлина ({{ quote.import_duty_rate|ru_number }}%):</td>
+                        <td class="amount">{{ quote.import_duty_amount|ru_currency(quote.currency) }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="total-row">
+                        <td><strong>ИТОГО к оплате:</strong></td>
+                        <td class="amount"><strong>{{ quote.total_amount|ru_currency(quote.currency) }}</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Terms and conditions -->
+        <div class="terms-section">
+            <div class="terms-grid">
+                <div class="terms-column">
+                    <h4>Условия поставки:</h4>
+                    <ul>
+                        <li><strong>Срок действия:</strong> до {{ quote.valid_until|ru_date or 'не ограничен' }}</li>
+                        <li><strong>Условия оплаты:</strong> {{ quote.payment_terms }} дн. с момента поставки</li>
+                        {% if quote.delivery_date %}<li><strong>Срок поставки:</strong> {{ quote.delivery_date|ru_date }}</li>{% endif %}
+                        {% if quote.delivery_terms %}<li><strong>Условия поставки:</strong> {{ quote.delivery_terms }}</li>{% endif %}
+                        {% if quote.warranty_terms %}<li><strong>Гарантия:</strong> {{ quote.warranty_terms }}</li>{% endif %}
+                    </ul>
+                </div>
+                <div class="terms-column">
+                    <h4>Дополнительная информация:</h4>
+                    <ul>
+                        <li>Цены указаны в {{ currency_names[quote.currency] or quote.currency }}</li>
+                        <li>НДС {% if quote.vat_included %}включен в стоимость{% else %}не включен в стоимость{% endif %}</li>
+                        {% if quote.currency != 'RUB' %}
+                        <li>Курс валют: 1 {{ quote.currency }} = {{ quote.exchange_rate|ru_number }} ₽</li>
+                        {% endif %}
+                        <li>Оплата по безналичному расчету</li>
+                    </ul>
+                </div>
+            </div>
+
+            {% if quote.notes %}
+            <div class="notes-section">
+                <h4>Примечания:</h4>
+                <p>{{ quote.notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <footer class="document-footer">
+            <div class="signature-section">
+                <div class="signature-left">
+                    <p>С уважением,<br>
+                    <strong>{{ company.name }}</strong></p>
+
+                    {% if manager_info %}
+                    <div class="manager-info">
+                        <p>{{ manager_info.title or 'Менеджер по продажам' }}: {{ manager_info.name }}<br>
+                        {% if manager_info.phone %}Тел: {{ manager_info.phone }}<br>{% endif %}
+                        {% if manager_info.email %}Email: {{ manager_info.email }}{% endif %}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="signature-right">
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <p class="signature-label">Подпись</p>
+                    </div>
+                    <div class="date-box">
+                        <div class="date-line">{{ today|ru_date }}</div>
+                        <p class="date-label">Дата</p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

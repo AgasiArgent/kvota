@@ -1450,6 +1450,97 @@ async def generate_quote_pdf(
         await conn.close()
 
 
+@router.get("/{quote_id}/export/pdf")
+async def export_quote_pdf(
+    quote_id: UUID,
+    format: str = Query(..., regex="^(supply|openbook|supply-letter|openbook-letter)$"),
+    user: User = Depends(get_current_user)
+):
+    """
+    Export quote as PDF with specified format
+
+    Format options:
+    - supply: КП поставка (9-column supply quote)
+    - openbook: КП open book (21-column detailed quote)
+    - supply-letter: КП поставка письмо (formal letter + 9-column grid)
+    - openbook-letter: КП open book письмо (formal letter + 21-column grid)
+    """
+    import tempfile
+    from fastapi.responses import FileResponse
+    from starlette.background import BackgroundTask
+    from services.export_data_mapper import fetch_export_data
+
+    try:
+        # Fetch all export data
+        export_data = await fetch_export_data(str(quote_id), str(user.current_organization_id))
+
+        # Initialize PDF service
+        pdf_service = QuotePDFService()
+
+        # Generate PDF based on format
+        if format == "supply":
+            pdf_bytes = pdf_service.generate_supply_pdf(export_data)
+            format_name = "supply"
+        elif format == "openbook":
+            pdf_bytes = pdf_service.generate_openbook_pdf(export_data)
+            format_name = "openbook"
+        elif format == "supply-letter":
+            pdf_bytes = pdf_service.generate_supply_letter_pdf(export_data)
+            format_name = "supply_letter"
+        else:  # openbook-letter
+            pdf_bytes = pdf_service.generate_openbook_letter_pdf(export_data)
+            format_name = "openbook_letter"
+
+        # Generate filename
+        # Parse created_at (comes from Supabase as ISO string)
+        quote_date = ''
+        if export_data.quote.get('created_at'):
+            from datetime import datetime
+            created_at_str = export_data.quote['created_at']
+            if isinstance(created_at_str, str):
+                # Parse ISO format: "2025-10-21T19:44:04.236Z"
+                created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                quote_date = created_at.strftime('%Y%m%d')
+            else:
+                # Already datetime object
+                quote_date = created_at_str.strftime('%Y%m%d')
+
+        customer_name = export_data.customer.get('name', 'customer')[:20] if export_data.customer else 'customer'
+        # Clean customer name for filename (transliterate Cyrillic)
+        customer_name_clean = ''.join(c if c.isalnum() or c in '-_' else '_' for c in customer_name)
+        quote_number = export_data.quote.get('quote_number', 'quote')
+        # Clean quote number (remove 'КП-' prefix if present)
+        quote_number_clean = quote_number.replace('КП-', '').replace('КП', '')
+        filename = f"kvota_{format_name}_{quote_date}_{quote_number_clean}_{customer_name_clean}.pdf"
+
+        # Write to temp file and return
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            tmp.write(pdf_bytes)
+            tmp_path = tmp.name
+
+        return FileResponse(
+            tmp_path,
+            media_type='application/pdf',
+            filename=filename,
+            background=BackgroundTask(os.unlink, tmp_path)
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"ERROR in export_quote_pdf: {str(e)}")
+        print(f"Traceback:\n{error_traceback}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PDF export failed: {str(e)}"
+        )
+
+
 # ============================================================================
 # FILE UPLOAD & PROCESSING
 # ============================================================================
@@ -1574,3 +1665,94 @@ async def import_items_to_quote(
     finally:
         await conn.close()
 
+
+# ============================================================================
+# EXCEL EXPORT ENDPOINTS
+# ============================================================================
+
+@router.get("/{quote_id}/export/excel")
+async def export_quote_excel(
+    quote_id: str,
+    format: str = Query(..., regex="^(validation|grid)$", description="Export format: 'validation' or 'grid'"),
+    user: User = Depends(get_current_user)
+):
+    """
+    Export quote as Excel file
+
+    Args:
+        quote_id: Quote UUID
+        format: Export format ('validation' or 'grid')
+            - validation: Input/Output comparison format for checking against old Excel
+            - grid: Professional 2-sheet export (КП поставка + КП open book)
+        user: Current authenticated user
+
+    Returns:
+        Excel file (.xlsx)
+
+    Raises:
+        404: Quote not found
+        500: Export generation failed
+    """
+    from fastapi.responses import FileResponse
+    from services.excel_service import QuoteExcelService
+    from services.export_data_mapper import fetch_export_data
+    import tempfile
+
+    try:
+        # Fetch data
+        export_data = await fetch_export_data(quote_id, user.current_organization_id)
+
+        # Generate Excel based on format
+        if format == "validation":
+            excel_bytes = QuoteExcelService.generate_validation_export(export_data)
+            format_suffix = "validation"
+        else:  # grid
+            excel_bytes = QuoteExcelService.generate_grid_export(export_data)
+            format_suffix = "grid"
+
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+            tmp.write(excel_bytes)
+            tmp_path = tmp.name
+
+        # Generate filename
+        # Parse created_at for date
+        from datetime import datetime
+        quote_date = ''
+        if export_data.quote.get('created_at'):
+            created_at_str = export_data.quote['created_at']
+            if isinstance(created_at_str, str):
+                created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                quote_date = created_at.strftime('%Y%m%d')
+            else:
+                quote_date = created_at_str.strftime('%Y%m%d')
+
+        quote_number = export_data.quote.get('quote_number', 'quote')
+        # Clean quote number (remove 'КП-' prefix if present)
+        quote_number_clean = quote_number.replace('КП-', '').replace('КП', '')
+
+        customer_name = export_data.customer.get('name', 'customer')[:20] if export_data.customer else 'customer'
+        # Clean customer name for filename (remove special characters)
+        import re
+        clean_customer = re.sub(r'[^\w\s-]', '', customer_name).strip().replace(' ', '_')
+
+        filename = f"kvota_{format_suffix}_{quote_date}_{quote_number_clean}_{clean_customer}.xlsx"
+
+        from starlette.background import BackgroundTask
+        return FileResponse(
+            tmp_path,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            filename=filename,
+            background=BackgroundTask(os.unlink, tmp_path)
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Excel export failed: {str(e)}"
+        )

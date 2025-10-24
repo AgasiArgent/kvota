@@ -103,6 +103,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  # Allow JavaScript to read filename from export responses
 )
 
 # Trusted host middleware for security

@@ -64,7 +64,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // If authenticated but accessing auth pages, redirect based on organization status
-  if (user && request.nextUrl.pathname.startsWith('/auth/')) {
+  // EXCLUDE /auth/callback to avoid breaking Supabase auth flow
+  if (
+    user &&
+    request.nextUrl.pathname.startsWith('/auth/') &&
+    !request.nextUrl.pathname.startsWith('/auth/callback')
+  ) {
     // Check if user has any organization memberships
     const { data: memberships } = await supabase
       .from('organization_members')
@@ -75,9 +80,19 @@ export async function middleware(request: NextRequest) {
 
     const url = request.nextUrl.clone();
 
-    // If user has no organization, send to onboarding
-    // Otherwise send to dashboard
-    url.pathname = memberships && memberships.length > 0 ? '/dashboard' : '/onboarding';
+    // Check for redirectTo parameter in the URL
+    const redirectTo = request.nextUrl.searchParams.get('redirectTo');
+
+    if (redirectTo && memberships && memberships.length > 0) {
+      // User has organization and wants to go to specific page
+      url.pathname = redirectTo;
+      url.searchParams.delete('redirectTo'); // Clean up URL
+    } else {
+      // Default redirect logic
+      // If user has no organization, send to onboarding
+      // Otherwise send to dashboard
+      url.pathname = memberships && memberships.length > 0 ? '/dashboard' : '/onboarding';
+    }
 
     return NextResponse.redirect(url);
   }
@@ -91,17 +106,11 @@ export async function middleware(request: NextRequest) {
       .eq('status', 'active')
       .limit(1);
 
-    console.log('[Middleware] Dashboard check - User ID:', user.id);
-    console.log('[Middleware] Memberships:', memberships);
-    console.log('[Middleware] Error:', membershipError);
-
     if (!memberships || memberships.length === 0) {
-      console.log('[Middleware] No organizations found, redirecting to onboarding');
       const url = request.nextUrl.clone();
       url.pathname = '/onboarding';
       return NextResponse.redirect(url);
     }
-    console.log('[Middleware] Organizations found, allowing dashboard access');
   }
 
   // If user is on onboarding but already has an organization, redirect to dashboard

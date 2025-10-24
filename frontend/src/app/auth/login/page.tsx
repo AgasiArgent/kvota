@@ -26,14 +26,15 @@ function LoginForm() {
 
       if (error) {
         setError(error.message);
+        setLoading(false);
         return;
       }
 
-      // Use full page redirect to let middleware determine correct destination
+      // Refresh the page to trigger middleware check
+      // Middleware will redirect authenticated users from /auth/* to appropriate page
       window.location.href = redirectTo;
     } catch {
       setError('Произошла неожиданная ошибка');
-    } finally {
       setLoading(false);
     }
   };

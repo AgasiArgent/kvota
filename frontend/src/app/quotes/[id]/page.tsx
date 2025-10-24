@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
   Descriptions,
@@ -13,17 +13,20 @@ import {
   Popconfirm,
   Row,
   Col,
+  Dropdown,
+  Menu,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,
-  FilePdfOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { useRouter, useParams } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
 import { QuoteService } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { getAuthToken } from '@/lib/auth/auth-helper';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef } from 'ag-grid-community';
@@ -69,6 +72,7 @@ export default function QuoteDetailPage() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const quoteService = new QuoteService();
   const quoteId = params?.id as string;
@@ -92,9 +96,9 @@ export default function QuoteDetailPage() {
       console.log('[QuoteDetail] API response:', response);
 
       if (response.success && response.data) {
-        // Transform the response to match our interface
-        const quoteData = response.data.quote as any;
-        const items = response.data.items || [];
+        // Backend returns quote data at top level with items as property
+        const quoteData = response.data as any;
+        const items = quoteData.items || [];
 
         setQuote({
           id: quoteData.id,
@@ -143,6 +147,120 @@ export default function QuoteDetailPage() {
     }
   };
 
+  const handleExport = useCallback(
+    async (format: string, type: 'pdf' | 'excel') => {
+      // Check if quote has calculation results
+      if (!quote?.items || quote.items.length === 0) {
+        message.warning('Котировка пустая. Добавьте товары для экспорта.');
+        return;
+      }
+
+      setExportLoading(true);
+
+      try {
+        const token = await getAuthToken();
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+        const response = await fetch(
+          `${API_URL}/api/quotes/${quoteId}/export/${type}?format=${format}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || errorData.detail || 'Export failed');
+        }
+
+        // Get filename from Content-Disposition header or generate
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename = `quote_${quoteId}_${format}.${type === 'pdf' ? 'pdf' : 'xlsx'}`;
+
+        if (contentDisposition) {
+          console.log('[Export] Content-Disposition:', contentDisposition);
+
+          // Try filename*= format first (RFC 5987)
+          let filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;\n]*)/i);
+          if (filenameMatch && filenameMatch[1]) {
+            filename = decodeURIComponent(filenameMatch[1]);
+          } else {
+            // Try standard filename= format (with or without quotes)
+            filenameMatch = contentDisposition.match(
+              /filename=["']([^"']+)["']|filename=([^;\s]+)/i
+            );
+            if (filenameMatch) {
+              // Group 1 = quoted filename, Group 2 = unquoted filename
+              filename = (filenameMatch[1] || filenameMatch[2]).trim();
+            }
+          }
+
+          console.log('[Export] Extracted filename:', filename);
+        }
+
+        // Download file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+
+        message.success('Файл успешно загружен');
+      } catch (error: any) {
+        console.error('Export error:', error);
+        message.error('Ошибка экспорта: ' + (error.message || 'Попробуйте снова'));
+      } finally {
+        setExportLoading(false);
+      }
+    },
+    [quote?.items, quoteId]
+  );
+
+  // Create export menu (memoized to prevent recreation on state changes)
+  // Must be before early returns to satisfy Rules of Hooks
+  const exportMenu = useMemo(
+    () => (
+      <Menu>
+        <Menu.ItemGroup title="PDF Экспорт">
+          <Menu.Item key="pdf-supply" onClick={() => handleExport('supply', 'pdf')}>
+            КП поставка (9 колонок)
+          </Menu.Item>
+          <Menu.Item key="pdf-openbook" onClick={() => handleExport('openbook', 'pdf')}>
+            КП open book (21 колонка)
+          </Menu.Item>
+          <Menu.Item key="pdf-supply-letter" onClick={() => handleExport('supply-letter', 'pdf')}>
+            КП поставка письмо
+          </Menu.Item>
+          <Menu.Item
+            key="pdf-openbook-letter"
+            onClick={() => handleExport('openbook-letter', 'pdf')}
+          >
+            КП open book письмо
+          </Menu.Item>
+        </Menu.ItemGroup>
+
+        <Menu.Divider />
+
+        <Menu.ItemGroup title="Excel Экспорт">
+          <Menu.Item key="excel-validation" onClick={() => handleExport('validation', 'excel')}>
+            Проверка расчетов
+          </Menu.Item>
+          <Menu.Item key="excel-grid" onClick={() => handleExport('grid', 'excel')}>
+            Таблицы (2 листа)
+          </Menu.Item>
+        </Menu.ItemGroup>
+      </Menu>
+    ),
+    [handleExport]
+  );
+
   const getStatusTag = (status: string) => {
     const statusMap = {
       draft: { color: 'default', text: 'Черновик' },
@@ -183,9 +301,9 @@ export default function QuoteDetailPage() {
   // ag-Grid column definitions for products table
   const columnDefs: ColDef[] = [
     {
-      field: 'sku',
+      field: 'product_code',
       headerName: 'Артикул',
-      width: 120,
+      width: 150,
       pinned: 'left',
     },
     {
@@ -195,9 +313,9 @@ export default function QuoteDetailPage() {
       pinned: 'left',
     },
     {
-      field: 'product_name',
+      field: 'description',
       headerName: 'Наименование',
-      width: 250,
+      width: 300,
       pinned: 'left',
     },
     {
@@ -207,37 +325,42 @@ export default function QuoteDetailPage() {
       type: 'numericColumn',
     },
     {
-      field: 'base_price_vat',
-      headerName: 'Цена с НДС',
-      width: 130,
-      type: 'numericColumn',
-      valueFormatter: (params) => (params.value ? params.value.toFixed(2) : '—'),
+      field: 'unit',
+      headerName: 'Ед. изм.',
+      width: 100,
     },
     {
-      field: 'currency',
-      headerName: 'Валюта',
-      width: 100,
+      field: 'final_price',
+      headerName: 'Цена продажи',
+      width: 150,
+      type: 'numericColumn',
+      valueFormatter: (params) => (params.value ? Number(params.value).toFixed(2) + ' ₽' : '—'),
+      cellStyle: { fontWeight: 'bold', color: '#1890ff' },
+    },
+    {
+      field: 'country_of_origin',
+      headerName: 'Страна',
+      width: 120,
     },
     {
       field: 'weight_in_kg',
       headerName: 'Вес (кг)',
       width: 110,
       type: 'numericColumn',
-      valueFormatter: (params) => (params.value ? params.value.toFixed(2) : '—'),
+      valueFormatter: (params) => (params.value ? Number(params.value).toFixed(2) : '—'),
     },
     {
-      field: 'unit_price',
-      headerName: 'Цена за ед.',
-      width: 130,
-      type: 'numericColumn',
-      valueFormatter: (params) => (params.value ? params.value.toFixed(2) : '—'),
-    },
-    {
-      field: 'total_price',
+      field: 'total',
       headerName: 'Сумма',
-      width: 130,
+      width: 150,
       type: 'numericColumn',
-      valueFormatter: (params) => (params.value ? params.value.toFixed(2) : '—'),
+      valueGetter: (params) => {
+        const finalPrice = params.data?.final_price;
+        const quantity = params.data?.quantity;
+        return finalPrice && quantity ? Number(finalPrice) * Number(quantity) : null;
+      },
+      valueFormatter: (params) => (params.value ? Number(params.value).toFixed(2) + ' ₽' : '—'),
+      cellStyle: { fontWeight: 'bold', color: '#52c41a' },
     },
   ];
 
@@ -285,9 +408,11 @@ export default function QuoteDetailPage() {
           </Col>
           <Col>
             <Space>
-              <Button icon={<FilePdfOutlined />} disabled>
-                Экспорт PDF
-              </Button>
+              <Dropdown overlay={exportMenu} trigger={['click']} disabled={exportLoading}>
+                <Button icon={<DownloadOutlined />} loading={exportLoading}>
+                  Экспорт
+                </Button>
+              </Dropdown>
               {(quote.status === 'draft' || quote.status === 'revision_needed') && (
                 <Button
                   type="primary"
