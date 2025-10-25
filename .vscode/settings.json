@@ -1,0 +1,64 @@
+{
+  // VS Code Remote WSL Extension Settings
+  // Purpose: Improve connection stability and prevent timeouts
+
+  // Increase connection timeout from default 30s to 60s
+  "remote.WSL.connectionTimeout": 60000,
+
+  // Enable auto-reconnect attempts
+  "remote.autoForwardPorts": false,
+  "remote.restoreForwardedPorts": true,
+
+  // File watcher settings - reduce load on WSL2
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.git/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.next/**": true,
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/chrome-wsl-profile/**": true
+  },
+
+  // TypeScript server memory limit
+  "typescript.tsserver.maxTsServerMemory": 4096,
+
+  // Disable unnecessary watchers
+  "search.followSymlinks": false,
+
+  // Editor settings
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // File associations
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+
+  // Git settings
+  "git.enableSmartCommit": true,
+  "git.confirmSync": false,
+
+  // Terminal settings
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.scrollback": 5000
+}

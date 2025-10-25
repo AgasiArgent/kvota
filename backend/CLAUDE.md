@@ -193,6 +193,113 @@ result = supabase.table("quotes") \
     .execute()
 ```
 
+### ⚠️ asyncpg vs Supabase Client - When to Use Each
+
+**IMPORTANT:** Prefer Supabase client for reliability. Only use asyncpg when absolutely necessary.
+
+#### ✅ Use Supabase Client For:
+- **Simple CRUD operations** (create, read, update, delete)
+- **Single-table queries** with filtering and sorting
+- **Pagination** with `.range(start, end)`
+- **Count queries** with `count="exact"`
+- **Most endpoint implementations**
+
+**Why:** Supabase client uses REST API which is more reliable than direct database connections. Network errors are much less common.
+
+**Pattern:**
+```python
+@router.get("/{customer_id}")
+async def get_customer(
+    customer_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    result = supabase.table("customers").select("*")\
+        .eq("id", str(customer_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    if not result.data or len(result.data) == 0:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    return Customer(**result.data[0])
+```
+
+#### ⚙️ Use asyncpg ONLY For:
+- **Complex aggregations** (COUNT, SUM, AVG with FILTER clause)
+- **Multi-step transactions** requiring `async with conn.transaction()`
+- **JOIN queries with auth.users** (not exposed via REST API)
+- **Advanced PostgreSQL features** (CTEs, window functions, custom SQL)
+- **Database migrations and schema changes**
+
+**Why:** These operations aren't well-supported by Supabase REST API.
+
+**Pattern:**
+```python
+@router.get("/stats/overview")
+async def get_customer_stats(user: User = Depends(get_current_user)):
+    # Complex aggregation with FILTER - requires asyncpg
+    conn = await get_db_connection()
+    try:
+        await set_rls_context(conn, user)
+
+        stats = await conn.fetchrow("""
+            SELECT
+                COUNT(*) as total_customers,
+                COUNT(*) FILTER (WHERE status = 'active') as active_customers,
+                AVG(credit_limit) as avg_credit_limit
+            FROM customers
+        """)
+
+        return {"overview": dict(stats)}
+    finally:
+        await conn.close()
+```
+
+#### 🚨 Common Mistakes to Avoid:
+
+1. **❌ WRONG:** Using asyncpg for simple CRUD
+   ```python
+   # DON'T DO THIS - prone to network errors
+   conn = await get_db_connection()
+   row = await conn.fetchrow("SELECT * FROM customers WHERE id = $1", customer_id)
+   ```
+
+   **✅ CORRECT:** Use Supabase client
+   ```python
+   result = supabase.table("customers").select("*").eq("id", str(customer_id)).execute()
+   ```
+
+2. **❌ WRONG:** Forgetting organization_id filter in Supabase queries
+   ```python
+   # SECURITY BUG - bypasses RLS, returns data from all organizations
+   result = supabase.table("customers").select("*").eq("id", customer_id).execute()
+   ```
+
+   **✅ CORRECT:** Always filter by organization_id
+   ```python
+   result = supabase.table("customers").select("*")\
+       .eq("id", str(customer_id))\
+       .eq("organization_id", str(user.current_organization_id))\
+       .execute()
+   ```
+
+#### 📋 Conversion Checklist:
+
+When converting asyncpg to Supabase client:
+- [ ] Replace `conn = await get_db_connection()` with `supabase = create_client(...)`
+- [ ] Replace `await conn.fetchrow(...)` with `supabase.table(...).select(...).execute()`
+- [ ] Add `.eq("organization_id", str(user.current_organization_id))` to ALL queries
+- [ ] Convert UUID to string with `str(uuid_value)`
+- [ ] Check `result.data` and `len(result.data)` instead of checking if `row` is None
+- [ ] Access data with `result.data[0]` instead of `dict(row)`
+- [ ] Remove `try/finally` with `conn.close()` (Supabase client doesn't need it)
+- [ ] For count queries, use `.select("*", count="exact")` and check `result.count`
+
 ---
 
 ## Database Migrations

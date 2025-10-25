@@ -1,5 +1,7 @@
 #!/bin/bash
-# Optimized Chrome launch script for testing with resource management
+
+# Chrome Testing Launch Script
+# Purpose: Launch Chrome with remote debugging in different modes (full GUI, headless, or kill)
 # Prevents WSL2 freezing by limiting Chrome memory usage
 
 set -e
@@ -7,46 +9,91 @@ set -e
 # Configuration
 CHROME_PORT=9222
 CHROME_PROFILE="/tmp/chrome-wsl-profile"
-DEFAULT_URL="http://localhost:3001/quotes/create"
+DEFAULT_URL="http://localhost:3000/quotes/create"
 CHROME_LOG="/tmp/chrome-wsl.log"
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Function to print colored messages
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ $1${NC}"
+}
+
+# Function: Check if Chrome is installed
+check_chrome_installed() {
+    if ! command -v google-chrome &> /dev/null; then
+        print_error "Chrome is not installed"
+        print_info "Install Chrome in WSL2 with:"
+        echo "  wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+        echo "  sudo apt install ./google-chrome-stable_current_amd64.deb"
+        exit 1
+    fi
+}
 
 # Function: Kill existing Chrome instances
 kill_chrome() {
-  echo -e "${YELLOW}Killing existing Chrome instances...${NC}"
-  pkill -9 chrome 2>/dev/null || true
+  local chrome_pids=$(pgrep -f "chrome.*remote-debugging-port=$CHROME_PORT" 2>/dev/null || true)
+
+  if [ -z "$chrome_pids" ]; then
+    print_warning "No Chrome instances with remote debugging on port $CHROME_PORT found"
+    return 0
+  fi
+
+  print_info "Killing Chrome processes: $chrome_pids"
+  echo "$chrome_pids" | xargs kill -9 2>/dev/null || true
   sleep 2
+
+  # Verify they're dead
+  if pgrep -f "chrome.*remote-debugging-port=$CHROME_PORT" > /dev/null 2>&1; then
+    print_error "Failed to kill some Chrome processes"
+    return 1
+  else
+    print_success "All Chrome processes killed"
+    return 0
+  fi
 }
 
 # Function: Clear old Chrome profile to free memory
 clear_profile() {
-  echo -e "${YELLOW}Clearing old Chrome profile...${NC}"
-  rm -rf "$CHROME_PROFILE"
+  if [ -d "$CHROME_PROFILE" ]; then
+    print_info "Cleaning up user data directory..."
+    rm -rf "$CHROME_PROFILE"
+  fi
   mkdir -p "$CHROME_PROFILE"
 }
 
 # Function: Check if DISPLAY is set
 check_display() {
   if [ -z "$DISPLAY" ]; then
-    echo -e "${YELLOW}DISPLAY not set. Setting to :0${NC}"
+    print_warning "DISPLAY not set. Setting to :0"
     export DISPLAY=:0
   fi
 }
 
-# Function: Launch Chrome with memory limits
+# Function: Launch Chrome in full GUI mode with memory limits
 launch_chrome() {
   local url="${1:-$DEFAULT_URL}"
 
-  echo -e "${GREEN}Launching Chrome with resource limits...${NC}"
-  echo "  URL: $url"
-  echo "  Debug Port: $CHROME_PORT"
-  echo "  Profile: $CHROME_PROFILE"
-  echo "  Log: $CHROME_LOG"
+  echo -e "${BLUE}🚀 Launching Chrome in full GUI mode...${NC}"
+  print_info "URL: $url"
+  print_info "Remote debugging port: $CHROME_PORT"
 
   DISPLAY=:0 google-chrome \
     --remote-debugging-port=$CHROME_PORT \
@@ -66,23 +113,19 @@ launch_chrome() {
     > "$CHROME_LOG" 2>&1 &
 
   local chrome_pid=$!
-  echo -e "${GREEN}Chrome launched with PID: $chrome_pid${NC}"
 
   # Wait for Chrome to be ready
-  echo -e "${YELLOW}Waiting for Chrome to start...${NC}"
   sleep 3
 
   # Verify Chrome is running
-  if curl -s http://localhost:$CHROME_PORT/json > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Chrome is ready for testing${NC}"
-    echo ""
-    echo "Chrome DevTools Protocol: http://localhost:$CHROME_PORT"
-    echo "To view pages: curl -s http://localhost:$CHROME_PORT/json | jq"
-    echo "To kill Chrome: pkill -9 chrome"
+  if ps -p $chrome_pid > /dev/null 2>&1 && curl -s http://localhost:$CHROME_PORT/json > /dev/null 2>&1; then
+    print_success "Chrome started successfully"
+    echo -e "${GREEN}🔗 Remote debugging: http://localhost:$CHROME_PORT${NC}"
+    print_warning "Memory usage: ~1.2 GB"
     return 0
   else
-    echo -e "${RED}✗ Chrome failed to start. Check log: $CHROME_LOG${NC}"
-    tail -20 "$CHROME_LOG"
+    print_error "Chrome failed to start"
+    print_info "Check logs: tail -f $CHROME_LOG"
     return 1
   fi
 }
@@ -91,25 +134,43 @@ launch_chrome() {
 launch_chrome_headless() {
   local url="${1:-$DEFAULT_URL}"
 
-  echo -e "${GREEN}Launching Chrome in headless mode (lower memory)...${NC}"
-  echo "  URL: $url"
-  echo "  Debug Port: $CHROME_PORT"
+  echo -e "${BLUE}🚀 Launching Chrome in headless mode...${NC}"
+  print_info "URL: $url"
+  print_info "Remote debugging port: $CHROME_PORT"
 
-  google-chrome \
+  DISPLAY=:0 google-chrome \
     --headless=new \
     --remote-debugging-port=$CHROME_PORT \
     --user-data-dir="$CHROME_PROFILE" \
     --disable-dev-shm-usage \
     --no-sandbox \
     --disable-gpu \
+    --disable-software-rasterizer \
     --js-flags="--max-old-space-size=256" \
     --disable-extensions \
+    --disable-background-networking \
+    --disable-sync \
+    --no-first-run \
+    --no-default-browser-check \
     "$url" \
     > "$CHROME_LOG" 2>&1 &
 
   local chrome_pid=$!
-  echo -e "${GREEN}Headless Chrome launched with PID: $chrome_pid${NC}"
-  sleep 2
+
+  # Wait for Chrome to be ready
+  sleep 3
+
+  # Verify Chrome is running
+  if ps -p $chrome_pid > /dev/null 2>&1 && curl -s http://localhost:$CHROME_PORT/json > /dev/null 2>&1; then
+    print_success "Chrome started successfully"
+    echo -e "${GREEN}🔗 Remote debugging: http://localhost:$CHROME_PORT${NC}"
+    print_success "Memory usage: ~500 MB (60% less than full GUI)"
+    return 0
+  else
+    print_error "Chrome failed to start"
+    print_info "Check logs: tail -f $CHROME_LOG"
+    return 1
+  fi
 }
 
 # Function: Show memory usage
@@ -123,17 +184,39 @@ show_memory() {
 
 # Main script
 main() {
-  local mode="${1:-full}"
+  local mode="${1:-}"
   local url="${2:-$DEFAULT_URL}"
+
+  # Show usage if no arguments
+  if [ -z "$mode" ]; then
+    echo "Chrome Testing Launch Script"
+    echo ""
+    echo "Usage:"
+    echo "  $0 full [url]      - Launch Chrome with full GUI"
+    echo "  $0 headless [url]  - Launch Chrome in headless mode (60% less memory)"
+    echo "  $0 kill            - Kill all Chrome processes"
+    echo "  $0 status          - Show memory usage and Chrome processes"
+    echo ""
+    echo "Default URL: $DEFAULT_URL"
+    echo "Remote debugging port: $CHROME_PORT"
+    echo ""
+    echo "Examples:"
+    echo "  $0 full http://localhost:3001/quotes/create"
+    echo "  $0 headless"
+    echo "  $0 kill"
+    exit 0
+  fi
 
   case "$mode" in
     full)
+      check_chrome_installed
       kill_chrome
       clear_profile
       check_display
       launch_chrome "$url"
       ;;
     headless)
+      check_chrome_installed
       kill_chrome
       clear_profile
       launch_chrome_headless "$url"
@@ -143,20 +226,11 @@ main() {
       ;;
     kill)
       kill_chrome
-      echo -e "${GREEN}Chrome killed${NC}"
+      clear_profile
       ;;
     *)
-      echo "Usage: $0 [full|headless|status|kill] [url]"
-      echo ""
-      echo "  full       - Launch Chrome with GUI (default)"
-      echo "  headless   - Launch Chrome in headless mode (60% less memory)"
-      echo "  status     - Show memory usage and Chrome processes"
-      echo "  kill       - Kill all Chrome instances"
-      echo ""
-      echo "Examples:"
-      echo "  $0 full http://localhost:3001/quotes/create"
-      echo "  $0 headless"
-      echo "  $0 status"
+      print_error "Invalid mode: $mode"
+      echo "Valid modes: full, headless, kill, status"
       exit 1
       ;;
   esac

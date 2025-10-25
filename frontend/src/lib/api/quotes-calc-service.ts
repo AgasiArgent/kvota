@@ -134,6 +134,7 @@ export interface VariableTemplateCreate {
  */
 export interface QuoteCalculationRequest {
   customer_id: string;
+  contact_id?: string; // Customer contact person
   products: Product[];
   variables: CalculationVariables;
   title?: string;

@@ -47,7 +47,53 @@ After completing significant work (30+ min):
 - `[x]` Completed and verified by user
 - `[!]` Blocked/has issues
 
-### 4. AUTO-UPDATE DOCUMENTATION
+### 4. ANALYZE TASKS FOR PARALLEL EXECUTION
+
+**CRITICAL:** Before starting work, analyze which tasks can run in parallel using specialized agents.
+
+**On every task list or plan:**
+1. Identify independent tasks (no dependencies between them)
+2. Group tasks by agent type (frontend, backend, testing, documentation)
+3. Use Task tool with multiple agents in a SINGLE message for parallel execution
+4. **Rule:** If 2+ tasks are independent, ALWAYS run them in parallel
+
+**Example Analysis:**
+```
+Task List:
+1. Create Chrome launch script
+2. Create backend test script
+3. Create resource monitor script
+4. Update documentation
+
+Analysis:
+- Tasks 1-3: Independent (different files, no shared state) → Run in parallel ✅
+- Task 4: Depends on 1-3 completion → Run after parallel tasks complete
+```
+
+**How to Execute Parallel Tasks:**
+```python
+# ✅ CORRECT: Single message with 3 Task tool calls
+<invoke name="Task">...</invoke>  # Script 1
+<invoke name="Task">...</invoke>  # Script 2
+<invoke name="Task">...</invoke>  # Script 3
+
+# ❌ WRONG: Sequential messages
+<message>Creating script 1...</message>
+<message>Creating script 2...</message>
+<message>Creating script 3...</message>
+```
+
+**Benefits:**
+- 3x faster completion (3 scripts in 2 min vs 6 min)
+- Better resource utilization
+- Demonstrates efficiency to user
+
+**When NOT to parallelize:**
+- Tasks have dependencies (output of Task A needed for Task B)
+- Tasks modify the same file (merge conflicts)
+- Tasks require sequential verification
+
+### 5. AUTO-UPDATE DOCUMENTATION
 
 **Keep CLAUDE.md files synchronized with codebase changes.**
 
@@ -282,14 +328,31 @@ Feature complete → Orchestrator asks → You say "Yes" →
 
 ---
 
-## Current Status (Session 15 - CALCULATION ENGINE INTEGRATED ✅)
+## Current Status (Session 23 - EXPORT SYSTEM COMPLETE ✅)
 
 **CI/CD Status:** ⚠️ **Waiting for GitHub Secrets** (Backend tests failing)
 - ❌ Backend Tests (need GitHub secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL)
 - ✅ Frontend Lint & Type Check (0 errors, 108 warnings)
 - ✅ Frontend Build
 - ✅ TypeScript (0 errors)
-- ✅ **Tests pass locally:** 30 passed, 2 skipped
+- ✅ **Tests pass locally:** 51/51 passing
+
+**Session 23 Deliverables (2025-10-24) - EXPORT SYSTEM COMPLETE:**
+
+**Export System Features:**
+- ✅ 6 export formats (4 PDF + 2 Excel)
+- ✅ Customer contact management
+- ✅ Manager info auto-fill
+- ✅ Russian text support (UTF-8)
+- ✅ Professional styling
+
+**Files:** ~2,800 lines of code + tests
+**Tests:** 51/51 passing (88% data mapper, 99% excel, 73% pdf coverage)
+**Time:** ~4 hours with parallelization
+
+**See `.claude/SESSION_PROGRESS.md` for full implementation details**
+
+---
 
 **Session 15 Deliverables (2025-10-21) - CALCULATION ENGINE INTEGRATED:**
 
@@ -546,6 +609,124 @@ git push
 
 ---
 
+## Troubleshooting
+
+### VS Code Remote WSL Disconnection During Testing
+
+**Problem:** VS Code loses connection to WSL2 and shows "Connection timeout" when trying to reconnect. This usually happens after running Chrome DevTools MCP tests for extended periods.
+
+**Root Cause:** Chrome browser accumulates memory over time, pushing WSL2 close to its memory limit. When memory usage exceeds ~85%, WSL2 becomes unresponsive and VS Code Remote WSL extension can't maintain connection.
+
+**Prevention (Recommended Approach):**
+
+1. **Use Safe Test Session Manager** (automatically handles cleanup):
+   ```bash
+   # Run tests with automatic resource management
+   ./.claude/safe-test-session.sh headless http://localhost:3001 10
+
+   # Parameters: [mode] [url] [timeout_minutes]
+   # - mode: headless (500MB) or full (1.2GB)
+   # - url: page to test (default: localhost:3000/quotes/create)
+   # - timeout: auto-stop after N minutes (default: 10)
+   ```
+
+   **What it does:**
+   - ✅ Automatically monitors memory usage
+   - ✅ Kills Chrome if memory exceeds 85%
+   - ✅ Ensures cleanup even if interrupted (Ctrl+C)
+   - ✅ Shows memory usage summary
+   - ✅ Prevents WSL2 freeze before it happens
+
+2. **Manual Monitoring** (if not using safe session):
+   ```bash
+   # Terminal 1: Monitor resources
+   ./.claude/monitor-wsl-resources.sh
+
+   # Terminal 2: Run tests normally
+   ./.claude/launch-chrome-testing.sh headless
+
+   # Kill Chrome when memory hits 75%
+   ./.claude/launch-chrome-testing.sh kill
+   ```
+
+3. **Auto-Cleanup Script** (background protection):
+   ```bash
+   # Runs in background, auto-kills Chrome at 85% memory
+   ./.claude/auto-cleanup-chrome.sh 85 &
+
+   # Then run tests normally
+   ./.claude/launch-chrome-testing.sh full
+
+   # Cleanup script will automatically kill Chrome if needed
+   ```
+
+**Recovery (If VS Code Already Disconnected):**
+
+1. **Check WSL2 Health:**
+   ```bash
+   # From a new WSL2 terminal (if VS Code frozen)
+   wsl bash /home/novi/quotation-app/.claude/wsl2-health-check.sh
+
+   # Or from Windows PowerShell
+   wsl bash /home/novi/quotation-app/.claude/wsl2-health-check.sh
+   ```
+
+2. **If WSL2 Responsive (memory < 85%):**
+   ```bash
+   # Kill Chrome processes
+   pkill -9 chrome
+
+   # Clear Chrome profile
+   rm -rf /tmp/chrome-wsl-profile
+
+   # Restart VS Code (close and reopen)
+   ```
+
+3. **If WSL2 Unresponsive (memory > 85%):**
+   ```powershell
+   # From Windows PowerShell
+   wsl --shutdown
+
+   # Wait 8 seconds
+   Start-Sleep -Seconds 8
+
+   # Restart WSL2
+   wsl
+
+   # Then restart VS Code
+   ```
+
+**Configuration:**
+
+- **WSL2 Memory Limit:** `.wslconfig` at `C:\Users\Lenovo\.wslconfig`
+  - Currently: 6GB RAM, 4 CPU cores, 2GB swap
+  - Adjust if needed (use 50-75% of total RAM)
+
+- **VS Code Remote WSL Settings:** `.vscode/settings.json`
+  - Connection timeout: 60s (increased from default 30s)
+  - Auto-reconnect: enabled
+  - File watchers: optimized to reduce load
+
+**Best Practices:**
+
+1. ✅ **Always use tiered testing** - Start with backend tests (Tier 1-2) before browser tests (Tier 3-4)
+2. ✅ **Use headless mode** when possible (60% less memory than full Chrome)
+3. ✅ **Kill Chrome after tests** - Don't leave it running idle
+4. ✅ **Monitor memory** during long sessions
+5. ✅ **Prefer safe-test-session.sh** for automated cleanup
+
+**Scripts Summary:**
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `safe-test-session.sh` | All-in-one wrapper with auto-cleanup | Recommended for all testing |
+| `auto-cleanup-chrome.sh` | Background memory monitor | Auto-kills Chrome at threshold |
+| `wsl2-health-check.sh` | Diagnose WSL2 issues | Run when VS Code disconnects |
+| `monitor-wsl-resources.sh` | Real-time resource display | Monitor during manual testing |
+| `launch-chrome-testing.sh` | Chrome launcher | Direct Chrome control |
+
+---
+
 ## Installed Tools & Dependencies
 
 **Last Updated:** 2025-10-21 (Session 16 - Resource management tools to prevent WSL2 freezing)
@@ -615,7 +796,12 @@ git push
       -d '{"title":"Issue title","body":"Issue description"}' \
       https://api.github.com/repos/AgasiArgent/kvota/issues
     ```
-- **puppeteer** - Browser automation (not recommended, use chrome-devtools instead)
+- **puppeteer** - ⚠️ **NOT RECOMMENDED** - Browser automation with limitations
+  - **Issues:** Cannot reliably interact with Ant Design dropdowns (portal rendering, React synthetic events)
+  - **File upload:** Doesn't work with WSL2 file paths
+  - **Timing:** No built-in waiting for React state updates
+  - **Use instead:** Chrome DevTools MCP (better React support, accessibility tree, network waiting)
+  - **See:** `.claude/SESSION_17_AUTOMATION_FINDINGS.md` for detailed analysis
 - **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers + permissions)
 - **See:** `.claude/RECOMMENDED_MCP_SERVERS.md` for configuration details and additional optional servers
 

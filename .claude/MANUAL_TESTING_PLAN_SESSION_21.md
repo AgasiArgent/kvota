@@ -1,8 +1,8 @@
-# Manual Testing Plan - Session 19: Frontend Integration
+# Manual Testing Plan - Session 21: Quote Management System
 
-**Created:** 2025-10-22
-**Session:** 19 - Backend-Frontend Integration Complete
-**Features:** Quote list, quote detail, search/filter, pagination, delete operations
+**Created:** 2025-10-23 (Updated from Session 19)
+**Session:** 21 - Quote Management Complete with Soft Delete & Date Fields
+**Features:** Quote list with drawer, detail page, edit page, bin page, date fields, soft delete
 
 ---
 
@@ -10,26 +10,30 @@
 
 **Prerequisites:**
 - ✅ Backend running on http://localhost:8000
-- ✅ Frontend running on http://localhost:3001
-- ✅ Chrome with debugging (port 9222)
+- ✅ Frontend running on http://localhost:3001 (or 3000)
 - ✅ User logged in: `andrey@masterbearingsales.ru` / `password`
+- ✅ Database migration 011 executed (soft delete + date fields)
 
 ---
 
-## Untested Features
+## Session 21 New Features
 
-**Session 18 - Backend Quote Detail Enhancement:**
-- ✅ Backend tested via database queries
-- ❌ **Not tested through frontend**
+**✅ Implemented (Ready to Test):**
+- ✅ Date fields in create form (quote_date, valid_until) with calendar dropdowns
+- ✅ Quote detail page (`/quotes/[id]`)
+- ✅ Quote edit page (`/quotes/[id]/edit`)
+- ✅ Quote bin page (`/quotes/bin`)
+- ✅ Soft delete system (7-day retention)
+- ✅ Drawer quick-view on quote list
+- ✅ Restore from bin
+- ✅ Permanent delete from bin
+- ✅ TypeScript types fixed (CI passing)
 
-**Session 19 - Frontend Integration:**
-- ❌ Quote list page (`/quotes`)
-- ❌ Quote detail page (`/quotes/[id]`)
-- ❌ Search/filter functionality
-- ❌ Pagination
-- ❌ Delete operations
-- ❌ Calculation results display
-- ❌ Navigation flow (create → list → detail)
+**From Session 19-20 (Previously Built):**
+- ✅ Quote list page (`/quotes`)
+- ✅ Search/filter functionality
+- ✅ Pagination
+- ✅ Calculation results display
 
 ---
 
@@ -366,20 +370,224 @@
 
 ---
 
+## Test Suite 9: Date Fields (Session 21) ⭐ NEW
+
+**Objective:** Verify quote_date and valid_until fields work correctly
+
+### Test 9.1: Date Fields in Create Form
+1. Navigate to `/quotes/create`
+2. **Expected:**
+   - Two date pickers visible at top: "Дата КП" and "Действительно до"
+   - "Дата КП" defaults to today
+   - "Действительно до" defaults to today + 7 days
+3. Change "Дата КП" to a different date
+4. **Expected:**
+   - "Действительно до" auto-updates to selected date + 7 days
+5. Manually change "Действительно до"
+6. **Expected:**
+   - Manual change preserved (not overwritten)
+
+### Test 9.2: Date Fields Saved with Quote
+1. Create a new quote with custom dates
+2. Submit quote
+3. Navigate to quote list
+4. **Expected:**
+   - New quote shows correct "Дата КП" and "Действительно до" columns
+5. Open quote detail
+6. **Expected:**
+   - Dates match what was entered
+
+**✅ Pass Criteria:**
+- Date pickers appear and work
+- Auto-calculation works (date + 7 days)
+- Dates persist to database
+- Dates display correctly in list and detail
+
+---
+
+## Test Suite 10: Drawer Quick-View (Session 21) ⭐ NEW
+
+**Objective:** Verify drawer opens from quote list for quick viewing
+
+### Test 10.1: Open Drawer
+1. On quote list page, click on a quote number (blue link)
+2. **Expected:**
+   - Drawer slides in from right (680px wide)
+   - Shows quote header with quote number
+   - Loading spinner initially
+   - Then displays quote data
+
+### Test 10.2: Drawer Content
+1. Verify drawer shows:
+   - Quote summary (customer, dates, status, title)
+   - Products table with columns: Наименование, Количество, Цена, Сумма
+   - Totals section: Подытог and Общая сумма (Statistic cards)
+   - Action buttons: "Полная страница", "Редактировать", "Удалить"
+
+### Test 10.3: Drawer Actions
+1. Click "Полная страница" → should navigate to `/quotes/[id]`
+2. Go back to list, open drawer again
+3. Click "Редактировать" → should navigate to `/quotes/[id]/edit`
+4. Go back to list, open drawer again
+5. Click "Удалить" → confirmation modal → delete → drawer closes, list refreshes
+
+### Test 10.4: Close Drawer
+1. Open drawer
+2. Click X button in top-right → drawer closes
+3. Open drawer
+4. Click outside drawer (on backdrop) → drawer closes
+
+**✅ Pass Criteria:**
+- Drawer opens with correct quote data
+- Products table displays correctly
+- Totals calculate correctly
+- All action buttons work
+- Drawer closes properly
+
+---
+
+## Test Suite 11: Edit Page (Session 21) ⭐ NEW
+
+**Objective:** Verify quote editing works correctly
+
+### Test 11.1: Navigate to Edit Page
+1. From quote list, click "✏ Edit" button (for draft quote)
+2. **Expected:** Navigate to `/quotes/[id]/edit`
+3. Alternatively: From detail page, click "Редактировать" button
+4. Or from drawer, click "Редактировать"
+
+### Test 11.2: Edit Page Pre-Population
+1. Verify form is pre-filled with existing quote data:
+   - Customer selected in dropdown
+   - Quote title filled
+   - Date fields show existing dates
+   - All variable cards filled with saved values
+   - Products table loaded with all items (SKU, brand, name, quantity, price, etc.)
+
+### Test 11.3: Make Changes
+1. Change customer
+2. Change quote title
+3. Change dates
+4. Modify a product (quantity or price)
+5. Add a new product row
+6. Delete a product row
+7. Change variables (e.g., delivery_time_days)
+
+### Test 11.4: Save Changes
+1. Click "Сохранить изменения" button
+2. **Expected:**
+   - API call: `PUT /api/quotes/<id>`
+   - Success message appears
+   - Redirects to quote detail or list (TBD)
+   - Changes persisted in database
+
+### Test 11.5: Edit Page for Non-Draft Quotes
+1. Try to edit a quote with status "approved" or "sent"
+2. **Expected:**
+   - Edit button should be hidden (not available for non-drafts)
+   - Or edit page should show "read-only" mode
+
+**✅ Pass Criteria:**
+- Edit page loads with pre-filled data
+- All fields editable
+- Changes save correctly
+- Redirects after save
+- Only drafts can be edited
+
+---
+
+## Test Suite 12: Bin Page (Session 21) ⭐ NEW
+
+**Objective:** Verify soft delete bin system works
+
+### Test 12.1: Navigate to Bin
+1. Click "Корзина" in sidebar menu
+2. **Expected:**
+   - Navigate to `/quotes/bin`
+   - Page title: "Корзина КП"
+   - Info banner at top: "Автоматическое удаление" with 7-day message
+
+### Test 12.2: Bin Page Display
+1. Verify table columns:
+   - Номер КП
+   - Клиент
+   - Название
+   - Сумма
+   - Статус
+   - Дата КП
+   - Действительно до
+   - **Удалено** (with relative time, e.g., "2 дня назад")
+   - Действия
+2. Verify action buttons: "Восстановить" (green) and "Удалить навсегда" (red)
+
+### Test 12.3: Soft Delete → Bin Flow
+1. From quote list, delete a draft quote
+2. **Expected:**
+   - Quote removed from main list
+   - API call: `PATCH /api/quotes/<id>/soft-delete`
+3. Navigate to bin
+4. **Expected:**
+   - Deleted quote appears in bin
+   - "Удалено" column shows "несколько секунд назад" or similar
+
+### Test 12.4: Restore from Bin
+1. In bin, find a soft-deleted quote
+2. Click "Восстановить" button
+3. **Expected:**
+   - Confirmation or immediate action
+   - API call: `PATCH /api/quotes/<id>/restore`
+   - Success message: "КП восстановлено"
+   - Quote removed from bin
+4. Navigate to main quote list
+5. **Expected:**
+   - Restored quote appears in list
+   - `deleted_at` = NULL in database
+
+### Test 12.5: Permanent Delete from Bin
+1. In bin, find a soft-deleted quote
+2. Click "Удалить навсегда" button
+3. **Expected:**
+   - Confirmation modal: "Безвозвратно удалить КП?" with warning
+4. Confirm deletion
+5. **Expected:**
+   - API call: `DELETE /api/quotes/<id>/permanent`
+   - Success message: "КП удалено безвозвратно"
+   - Quote removed from bin
+   - Quote permanently deleted from database
+
+### Test 12.6: Bin Empty State
+1. Restore or permanently delete all quotes in bin
+2. **Expected:**
+   - Empty table state
+   - Message: "Корзина пуста" or similar
+
+**✅ Pass Criteria:**
+- Bin page displays soft-deleted quotes
+- "Удалено" column shows relative time
+- Restore works (quote returns to main list)
+- Permanent delete works (quote gone forever)
+- Empty state displays correctly
+
+---
+
 ## Testing Execution Order
 
-**Recommended order (most important first):**
+**Recommended order (Session 21 focus):**
 
-1. ⭐ **Test Suite 6.1** (E2E workflow) - 5 min
-2. **Test Suite 1** (Basic list) - 5 min
-3. **Test Suite 4** (Detail page) - 10 min
-4. **Test Suite 2** (Search/filter) - 5 min
-5. **Test Suite 3** (Pagination) - 3 min
-6. **Test Suite 5** (Delete) - 5 min
-7. **Test Suite 6.2** (Navigation) - 2 min
-8. **Test Suite 7** (Error handling) - 5 min
+1. ⭐ **Test Suite 9** (Date fields) - 5 min
+2. ⭐ **Test Suite 10** (Drawer quick-view) - 5 min
+3. ⭐ **Test Suite 11** (Edit page) - 10 min
+4. ⭐ **Test Suite 12** (Bin page) - 10 min
+5. **Test Suite 6.1** (E2E workflow) - 5 min
+6. **Test Suite 1** (Basic list) - 5 min
+7. **Test Suite 4** (Detail page) - 10 min
+8. **Test Suite 2** (Search/filter) - 5 min
+9. **Test Suite 3** (Pagination) - 3 min
+10. **Test Suite 5** (Delete) - 5 min
+11. **Test Suite 6.2** (Navigation) - 2 min
+12. **Test Suite 7** (Error handling) - 5 min
 
-**Total estimated time:** 40 minutes
+**Total estimated time:** 70 minutes
 
 ---
 
@@ -433,21 +641,33 @@
 
 ## Success Criteria
 
-**Session 19 considered successful if:**
+**Session 21 considered successful if:**
 
+**Core Features (Session 19-20):**
 ✅ Quote list loads and displays quotes
 ✅ Search and filters work
 ✅ Pagination works
 ✅ Quote detail page loads with all data
 ✅ Calculation results present in API response
-✅ Delete operations work
-✅ E2E workflow (create → list → detail) works
+
+**New Features (Session 21):**
+✅ Date fields work (auto-calculation, persistence)
+✅ Drawer quick-view opens and displays correctly
+✅ Edit page loads with pre-filled data
+✅ Edit page saves changes correctly
+✅ Bin page displays soft-deleted quotes
+✅ Restore from bin works
+✅ Permanent delete from bin works
+✅ Soft delete flow works (list → bin)
+
+**Technical:**
 ✅ No critical console errors
 ✅ All API calls return 200
+✅ TypeScript CI passes
 
 **Minor issues acceptable:**
 - Cosmetic styling issues
-- Missing calculation results visualization (data is there, just not displayed)
+- Missing calculation results visualization in detail/edit pages
 - Missing features (approval workflow, PDF export)
 
 ---

@@ -5,7 +5,8 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-postgres",
+        "mcp-postgres-full-access",
+        "--connection-string",
         "postgresql://postgres:***REMOVED***@db.wstwwmiihkzlgvlymlfd.supabase.co:5432/postgres"
       ]
     },

@@ -18,11 +18,18 @@ import {
   Table,
   Tag,
   Popconfirm,
+  Modal,
+  Checkbox,
 } from 'antd';
 import { SaveOutlined, ArrowLeftOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
-import { customerService, Customer } from '@/lib/api/customer-service';
+import {
+  customerService,
+  Customer,
+  CustomerContact,
+  ContactCreate,
+} from '@/lib/api/customer-service';
 import { quoteService } from '@/lib/api/quote-service';
 import { validateINN, validateKPP, validateOGRN } from '@/lib/validation/russian-business';
 
@@ -46,16 +53,21 @@ export default function CustomerDetailPage() {
   const customerId = params.id as string;
 
   const [form] = Form.useForm();
+  const [contactForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [contacts, setContacts] = useState<CustomerContact[]>([]);
   const [isEditMode, setIsEditMode] = useState(searchParams.get('mode') === 'edit');
   const [companyType, setCompanyType] = useState<string>('organization');
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [editingContact, setEditingContact] = useState<CustomerContact | null>(null);
 
   useEffect(() => {
     fetchCustomer();
     fetchCustomerQuotes();
+    fetchContacts();
   }, [customerId]);
 
   const fetchCustomer = async () => {
@@ -78,14 +90,25 @@ export default function CustomerDetailPage() {
   };
 
   const fetchCustomerQuotes = async () => {
-    // TODO: Implement quote fetching with proper organizationId context
-    // Need to get organizationId from auth context/profile
-    // const organizationId = profile?.organization_id || '';
-    // const response = await quoteService.getQuotes(organizationId, { customer_id: customerId }, { page: 1, limit: 10 });
-    // if (response.success && response.data) {
-    //   setQuotes(response.data.quotes || []);
-    // }
-    setQuotes([]); // Temporary: empty quotes list
+    try {
+      const response = await customerService.getCustomerQuotes(customerId, 1, 100);
+      if (response.success && response.data) {
+        setQuotes(response.data.quotes || []);
+      }
+    } catch (error: any) {
+      console.error('Error fetching quotes:', error);
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const response = await customerService.listContacts(customerId);
+      if (response.success && response.data) {
+        setContacts(response.data.contacts || []);
+      }
+    } catch (error: any) {
+      console.error('Error fetching contacts:', error);
+    }
   };
 
   const handleUpdate = async (values: any) => {
@@ -110,6 +133,45 @@ export default function CustomerDetailPage() {
     } catch (error: any) {
       message.error(`Ошибка удаления: ${error.message}`);
     }
+  };
+
+  const handleContactSubmit = async (values: ContactCreate) => {
+    try {
+      if (editingContact) {
+        await customerService.updateContact(customerId, editingContact.id, values);
+        message.success('Контакт успешно обновлен');
+      } else {
+        await customerService.createContact(customerId, values);
+        message.success('Контакт успешно создан');
+      }
+      setContactModalVisible(false);
+      setEditingContact(null);
+      contactForm.resetFields();
+      fetchContacts();
+    } catch (error: any) {
+      message.error(`Ошибка: ${error.message}`);
+    }
+  };
+
+  const handleContactDelete = async (contactId: string) => {
+    try {
+      await customerService.deleteContact(customerId, contactId);
+      message.success('Контакт успешно удален');
+      fetchContacts();
+    } catch (error: any) {
+      message.error(`Ошибка удаления: ${error.message}`);
+    }
+  };
+
+  const openContactModal = (contact?: CustomerContact) => {
+    if (contact) {
+      setEditingContact(contact);
+      contactForm.setFieldsValue(contact);
+    } else {
+      setEditingContact(null);
+      contactForm.resetFields();
+    }
+    setContactModalVisible(true);
   };
 
   // Custom validators (same as create page)
@@ -203,6 +265,68 @@ export default function CustomerDetailPage() {
       dataIndex: 'created_at',
       key: 'created_at',
       render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
+    },
+  ];
+
+  const contactColumns = [
+    {
+      title: 'Имя',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text: string, record: CustomerContact) => (
+        <>
+          {text}
+          {record.last_name ? ` ${record.last_name}` : ''}
+          {record.is_primary && (
+            <Tag color="blue" style={{ marginLeft: 8 }}>
+              Основной
+            </Tag>
+          )}
+        </>
+      ),
+    },
+    {
+      title: 'Должность',
+      dataIndex: 'position',
+      key: 'position',
+    },
+    {
+      title: 'Телефон',
+      dataIndex: 'phone',
+      key: 'phone',
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+    },
+    {
+      title: 'Примечания',
+      dataIndex: 'notes',
+      key: 'notes',
+      ellipsis: true,
+      width: 200,
+    },
+    {
+      title: 'Действия',
+      key: 'actions',
+      render: (_: any, record: CustomerContact) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openContactModal(record)}>
+            Изменить
+          </Button>
+          <Popconfirm
+            title="Удалить контакт?"
+            onConfirm={() => handleContactDelete(record.id)}
+            okText="Удалить"
+            cancelText="Отмена"
+          >
+            <Button size="small" danger icon={<DeleteOutlined />}>
+              Удалить
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 
@@ -477,8 +601,75 @@ export default function CustomerDetailPage() {
                 </Card>
               ),
             },
+            {
+              key: 'contacts',
+              label: `Контакты (${contacts.length})`,
+              children: (
+                <Card
+                  extra={
+                    <Button type="primary" onClick={() => openContactModal()}>
+                      Добавить контакт
+                    </Button>
+                  }
+                >
+                  <Table
+                    columns={contactColumns}
+                    dataSource={contacts}
+                    rowKey="id"
+                    pagination={{ pageSize: 10 }}
+                  />
+                </Card>
+              ),
+            },
           ]}
         />
+
+        {/* Contact Modal */}
+        <Modal
+          title={editingContact ? 'Редактировать контакт' : 'Добавить контакт'}
+          open={contactModalVisible}
+          onCancel={() => {
+            setContactModalVisible(false);
+            setEditingContact(null);
+            contactForm.resetFields();
+          }}
+          onOk={() => contactForm.submit()}
+          okText={editingContact ? 'Сохранить' : 'Добавить'}
+          cancelText="Отмена"
+        >
+          <Form
+            form={contactForm}
+            layout="vertical"
+            onFinish={handleContactSubmit}
+            style={{ marginTop: 20 }}
+          >
+            <Form.Item
+              name="name"
+              label="Имя"
+              rules={[{ required: true, message: 'Введите имя контакта' }]}
+            >
+              <Input />
+            </Form.Item>
+            <Form.Item name="last_name" label="Фамилия">
+              <Input />
+            </Form.Item>
+            <Form.Item name="position" label="Должность">
+              <Input />
+            </Form.Item>
+            <Form.Item name="phone" label="Телефон">
+              <Input />
+            </Form.Item>
+            <Form.Item name="email" label="Email" rules={[{ type: 'email' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="is_primary" valuePropName="checked">
+              <Checkbox>Основной контакт</Checkbox>
+            </Form.Item>
+            <Form.Item name="notes" label="Примечания">
+              <TextArea rows={3} />
+            </Form.Item>
+          </Form>
+        </Modal>
       </Space>
     </MainLayout>
   );

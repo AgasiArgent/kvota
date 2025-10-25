@@ -539,3 +539,19 @@ export interface ExternalIntegration {
   enabled: boolean;
   last_sync?: string;
 }
+
+// ============================================================================
+// EXPORT TYPES
+// ============================================================================
+
+export type ExportFormat = 'supply' | 'openbook' | 'supply-letter' | 'openbook-letter';
+
+export type ExportType = 'pdf' | 'excel';
+
+export type ExcelExportFormat = 'validation' | 'grid';
+
+export interface ExportOptions {
+  format: ExportFormat | ExcelExportFormat;
+  type: ExportType;
+  quoteId: string;
+}

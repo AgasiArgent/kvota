@@ -104,6 +104,7 @@ class VariableTemplate(BaseModel):
 class QuoteCalculationRequest(BaseModel):
     """Request to calculate a quote"""
     customer_id: str
+    contact_id: Optional[str] = None  # Customer contact person
     title: str
     description: Optional[str] = None
     products: List[ProductFromFile]
@@ -872,11 +873,14 @@ async def calculate_quote(
         quote_data = {
             "organization_id": str(user.current_organization_id),
             "customer_id": request.customer_id,
+            "contact_id": request.contact_id,  # Customer contact person
             "quote_number": quote_number,
             "title": request.title,
             "description": request.description,
             "status": "draft",
             "created_by": str(user.id),
+            "manager_name": user.full_name,  # Manager info from user
+            "manager_email": user.email,
             "subtotal": 0,  # Will be updated after calculations
             "total_amount": 0  # Will be updated after calculations
         }
