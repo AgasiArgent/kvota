@@ -719,6 +719,22 @@ body {
         str_val = str_val.replace(',', ' ').replace('.', ',')
         return f"{str_val} ₽"
 
+    @staticmethod
+    def format_russian_number(value) -> str:
+        """Format Decimal/float as Russian number without currency: 1 234,56"""
+        if value is None:
+            return "0,00"
+
+        # Convert to float if Decimal
+        if isinstance(value, Decimal):
+            value = float(value)
+
+        # Format with thousand separator and 2 decimals
+        str_val = f"{value:,.2f}"
+        # Replace comma with space (thousands) and period with comma (decimals)
+        str_val = str_val.replace(',', ' ').replace('.', ',')
+        return str_val
+
     def render_template(self, template_name: str, context: dict) -> str:
         """Render Jinja2 template with context"""
         template = self.jinja_env.get_template(template_name)
@@ -870,23 +886,23 @@ body {
 
                 # Columns 5-15: Purchase & cost details
                 'currency': export_data.variables.get('currency_of_base_price', 'USD'),
-                'purchase_price_no_vat': self.format_russian_currency(purchase_price_no_vat),
-                'invoice_amount': self.format_russian_currency(invoice_amount),
-                'purchase_price_quote_currency': self.format_russian_currency(calc.get('purchase_price_total_quote_currency', 0)),
-                'logistics': self.format_russian_currency(calc.get('logistics_total', 0)),
+                'purchase_price_no_vat': self.format_russian_number(purchase_price_no_vat),
+                'invoice_amount': self.format_russian_number(invoice_amount),
+                'purchase_price_quote_currency': self.format_russian_number(calc.get('purchase_price_total_quote_currency', 0)),
+                'logistics': self.format_russian_number(calc.get('logistics_total', 0)),
                 'customs_code': item.get('customs_code', ''),
-                'import_tariff': f"{calc.get('import_tariff', 0)}%",
-                'customs_fee': self.format_russian_currency(calc.get('customs_fee', 0)),
-                'excise_tax': self.format_russian_currency(calc.get('excise_tax', 0)),
-                'util_fee': self.format_russian_currency(calc.get('util_fee', 0)),
-                'transit_commission': self.format_russian_currency(calc.get('transit_commission', 0)),
+                'import_tariff': f"{export_data.variables.get('import_tariff', 0)}%",
+                'customs_fee': self.format_russian_number(calc.get('customs_fee', 0)),
+                'excise_tax': self.format_russian_number(calc.get('excise_tax', 0)),
+                'util_fee': self.format_russian_number(calc.get('util_fee', 0)),
+                'transit_commission': self.format_russian_number(calc.get('transit_commission', 0)),
 
                 # Columns 16-21: Selling prices
-                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
-                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
-                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
-                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
-                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+                'selling_price_per_unit': self.format_russian_number(calc.get('sales_price_per_unit_no_vat', 0)),
+                'selling_price_total': self.format_russian_number(calc.get('sales_price_total_no_vat', 0)),
+                'vat_from_sales': self.format_russian_number(calc.get('vat_from_sales', 0)),
+                'selling_price_with_vat_per_unit': self.format_russian_number(calc.get('sales_price_per_unit_with_vat', 0)),
+                'selling_price_with_vat_total': self.format_russian_number(calc.get('sales_price_total_with_vat', 0))
             }
 
             context['items'].append(item_data)
@@ -1061,7 +1077,7 @@ body {
                 'purchase_price_quote_currency': self.format_russian_currency(calc.get('purchase_price_total_quote_currency', 0)),
                 'logistics': self.format_russian_currency(calc.get('logistics_total', 0)),
                 'customs_code': item.get('customs_code', ''),
-                'import_tariff': f"{calc.get('import_tariff', 0)}%",
+                'import_tariff': f"{export_data.variables.get('import_tariff', 0)}%",
                 'customs_fee': self.format_russian_currency(calc.get('customs_fee', 0)),
                 'excise_tax': self.format_russian_currency(calc.get('excise_tax', 0)),
                 'util_fee': self.format_russian_currency(calc.get('util_fee', 0)),

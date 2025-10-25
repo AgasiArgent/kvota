@@ -12,8 +12,13 @@
             margin: 0;
             padding: 0;
         }
-        .header-block {
+        .header-container {
+            display: flex;
+            gap: 10px;
             margin-bottom: 10px;
+        }
+        .header-block {
+            flex: 1;
             padding: 8px;
             background: #f0f0f0;
             border-radius: 4px;
@@ -32,7 +37,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 8px;
-            font-size: 7pt;
+            font-size: 6.5pt;
         }
         th {
             background: #2C5AA0;
@@ -59,48 +64,63 @@
     </style>
 </head>
 <body>
-    <!-- Seller Block -->
-    <div class="header-block">
-        <h3>Продавец</h3>
-        <p><strong>Компания:</strong> {{ seller_company }} | <strong>Менеджер:</strong> {{ manager_name }} | <strong>Тел:</strong> {{ manager_phone }} | <strong>Email:</strong> {{ manager_email }}</p>
-    </div>
+    <!-- 3-Column Header Container -->
+    <div class="header-container">
+        <!-- Seller Block -->
+        <div class="header-block">
+            <h3>Продавец</h3>
+            <p><strong>Компания:</strong> {{ seller_company }}</p>
+            <p><strong>Менеджер:</strong> {{ manager_name }}</p>
+            <p><strong>Тел:</strong> {{ manager_phone }}</p>
+            <p><strong>Email:</strong> {{ manager_email }}</p>
+        </div>
 
-    <!-- Client Block -->
-    <div class="header-block">
-        <h3>Покупатель</h3>
-        <p><strong>Компания:</strong> {{ customer_company_name }} | <strong>Контакт:</strong> {{ contact_person_name }} | <strong>Тел:</strong> {{ contact_phone }} | <strong>Email:</strong> {{ contact_email }}</p>
-    </div>
+        <!-- Client Block -->
+        <div class="header-block">
+            <h3>Покупатель</h3>
+            <p><strong>Компания:</strong> {{ customer_company_name }}</p>
+            <p><strong>Контакт:</strong> {{ contact_person_name }}</p>
+            <p><strong>Тел:</strong> {{ contact_phone }}</p>
+            <p><strong>Email:</strong> {{ contact_email }}</p>
+        </div>
 
-    <!-- Quote Info Block -->
-    <div class="header-block">
-        <h3>Информация о поставке</h3>
-        <p><strong>Адрес:</strong> {{ delivery_address }} | <strong>Базис:</strong> {{ offer_incoterms }} | <strong>Оплата:</strong> {{ payment_terms }} | <strong>Дата КП:</strong> {{ quote_date }} | <strong>Срок:</strong> {{ delivery_time }} дн. | {{ delivery_description }}</p>
+        <!-- Quote Info Block -->
+        <div class="header-block">
+            <h3>Информация о поставке</h3>
+            <p><strong>Адрес:</strong> {{ delivery_address }}</p>
+            <p><strong>Базис:</strong> {{ offer_incoterms }}</p>
+            <p><strong>Оплата:</strong> {{ payment_terms }}</p>
+            <p><strong>Дата КП:</strong> {{ quote_date }}</p>
+            <p><strong>Срок:</strong> {{ delivery_time }} дн.</p>
+            <p><strong>Сумма с НДС:</strong> <span style="color: #2C5AA0; font-weight: bold;">{{ totals.total_with_vat }}</span></p>
+            <p style="font-size: 7pt; margin-top: 3px;">{{ delivery_description }}</p>
+        </div>
     </div>
 
     <!-- Products Table (21 columns) -->
     <table>
         <thead>
             <tr>
-                <th style="width: 4%;">Бренд</th>
-                <th style="width: 5%;">Артикул</th>
-                <th style="width: 12%;">Наименование</th>
+                <th style="width: 3.5%;">Бренд</th>
+                <th style="width: 4.5%;">Артикул</th>
+                <th style="width: 10%;">Наименование</th>
                 <th style="width: 3%;">Кол</th>
                 <th style="width: 3%;">Вал</th>
-                <th style="width: 6%;">Цена б/НДС</th>
-                <th style="width: 6%;">Сумма инв.</th>
-                <th style="width: 6%;">Цена КП (₽)</th>
-                <th style="width: 6%;">Логистика</th>
-                <th style="width: 6%;">ТН ВЭД</th>
+                <th style="width: 5.5%;">Цена б/НДС (₽)</th>
+                <th style="width: 5.5%;">Сумма инв. (₽)</th>
+                <th style="width: 5.5%;">Цена КП (₽)</th>
+                <th style="width: 5%;">Логистика (₽)</th>
+                <th style="width: 5%;">ТН ВЭД</th>
                 <th style="width: 3%;">Пош%</th>
-                <th style="width: 5%;">Там.сбор</th>
-                <th style="width: 4%;">Акциз</th>
-                <th style="width: 4%;">Утиль</th>
-                <th style="width: 5%;">Транзит</th>
-                <th style="width: 5%;">Цена/ед</th>
-                <th style="width: 5%;">Сумма</th>
-                <th style="width: 4%;">НДС</th>
-                <th style="width: 5%;">Цена+НДС</th>
-                <th style="width: 6%;">Итого+НДС</th>
+                <th style="width: 5%;">Там.сбор (₽)</th>
+                <th style="width: 4%;">Акциз (₽)</th>
+                <th style="width: 4%;">Утиль (₽)</th>
+                <th style="width: 5%;">Транзит (₽)</th>
+                <th style="width: 5%;">Цена/ед (₽)</th>
+                <th style="width: 5%;">Сумма (₽)</th>
+                <th style="width: 4%;">НДС (₽)</th>
+                <th style="width: 5.5%;">Цена+НДС (₽)</th>
+                <th style="width: 6%;">Итого+НДС (₽)</th>
             </tr>
         </thead>
         <tbody>

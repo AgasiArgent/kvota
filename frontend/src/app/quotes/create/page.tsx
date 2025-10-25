@@ -109,6 +109,8 @@ export default function CreateQuotePage() {
   const [templates, setTemplates] = useState<VariableTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>();
   const [selectedCustomer, setSelectedCustomer] = useState<string | undefined>();
+  const [customerContacts, setCustomerContacts] = useState<any[]>([]);
+  const [selectedContact, setSelectedContact] = useState<string | undefined>();
   const [calculationResults, setCalculationResults] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<CalculationSettings | null>(null);
   const [bulkEditModalVisible, setBulkEditModalVisible] = useState(false);
@@ -140,6 +142,16 @@ export default function CreateQuotePage() {
     });
   }, []);
 
+  // Load contacts when customer changes
+  useEffect(() => {
+    if (selectedCustomer) {
+      loadCustomerContacts(selectedCustomer);
+    } else {
+      setCustomerContacts([]);
+      setSelectedContact(undefined);
+    }
+  }, [selectedCustomer]);
+
   // Auto-calculate logistics breakdown when in "total" mode
   const handleLogisticsTotalChange = (value: number | null) => {
     if (logisticsMode === 'total' && value) {
@@ -157,6 +169,43 @@ export default function CreateQuotePage() {
       setCustomers(result.data.customers);
     } else {
       message.error(`Ошибка загрузки клиентов: ${result.error}`);
+    }
+  };
+
+  const loadCustomerContacts = async (customerId: string) => {
+    try {
+      const supabase = await import('@/lib/supabase/client').then((m) => m.createClient());
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        message.error('Не авторизован');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:8000/api/customers/${customerId}/contacts`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка загрузки контактов');
+      }
+
+      const data = await response.json();
+      setCustomerContacts(data.contacts);
+
+      // Auto-select primary contact if exists
+      const primaryContact = data.contacts.find((c: any) => c.is_primary);
+      if (primaryContact) {
+        setSelectedContact(primaryContact.id);
+      }
+    } catch (error) {
+      console.error('Failed to load contacts:', error);
+      setCustomerContacts([]);
     }
   };
 
@@ -414,6 +463,7 @@ export default function CreateQuotePage() {
 
       const result = await quotesCalcService.calculateQuote({
         customer_id: selectedCustomer,
+        contact_id: selectedContact,
         products: productsWithDefaults,
         variables: variables as CalculationVariables,
         title: `Коммерческое предложение от ${new Date().toLocaleDateString()}`,
@@ -836,6 +886,37 @@ export default function CreateQuotePage() {
                       }))}
                     />
                   </Col>
+                  {selectedCustomer && customerContacts.length > 0 && (
+                    <>
+                      <Col>
+                        <Divider type="vertical" style={{ height: '24px', margin: '0 8px' }} />
+                      </Col>
+                      <Col>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          Контакт:
+                        </Text>
+                      </Col>
+                      <Col flex="auto" style={{ maxWidth: '250px' }}>
+                        <Select
+                          size="small"
+                          showSearch
+                          placeholder="Контактное лицо"
+                          value={selectedContact}
+                          onChange={setSelectedContact}
+                          optionFilterProp="children"
+                          style={{ width: '100%' }}
+                          allowClear
+                          filterOption={(input, option) =>
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                          }
+                          options={customerContacts.map((contact) => ({
+                            label: `${contact.name}${contact.position ? ` (${contact.position})` : ''}${contact.is_primary ? ' ★' : ''}`,
+                            value: contact.id,
+                          }))}
+                        />
+                      </Col>
+                    </>
+                  )}
                   <Col>
                     <Divider type="vertical" style={{ height: '24px', margin: '0 8px' }} />
                   </Col>

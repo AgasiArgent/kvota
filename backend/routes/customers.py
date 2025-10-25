@@ -8,6 +8,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import JSONResponse
+from supabase import create_client, Client
 
 from auth import get_current_user, get_auth_context, User, AuthContext, require_permission
 from models import (
@@ -217,23 +218,33 @@ async def get_customer(
     user: User = Depends(require_permission("customers:read"))
 ):
     """Get customer by ID"""
-    conn = await get_db_connection()
     try:
-        await set_rls_context(conn, user)
-        
-        row = await conn.fetchrow(
-            "SELECT * FROM customers WHERE id = $1",
-            customer_id
+        from supabase import create_client, Client
+
+        # Create Supabase client with service role key
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         )
-        
-        if not row:
+
+        # Check if user has an organization
+        if not user.current_organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not associated with any organization"
+            )
+
+        # Query customer by ID with organization check (RLS)
+        result = supabase.table("customers").select("*").eq("id", str(customer_id)).eq("organization_id", str(user.current_organization_id)).execute()
+
+        if not result.data or len(result.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer {customer_id} not found"
             )
-        
-        return Customer(**dict(row))
-        
+
+        return Customer(**result.data[0])
+
     except HTTPException:
         raise
     except Exception as e:
@@ -241,8 +252,7 @@ async def get_customer(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve customer: {str(e)}"
         )
-    finally:
-        await conn.close()
+
 
 
 @router.put("/{customer_id}", response_model=Customer)
@@ -253,68 +263,64 @@ async def update_customer(
 ):
     """
     Update customer information with Russian business validation
-    
+
     Only updates provided fields, preserves existing values for omitted fields
     """
-    conn = await get_db_connection()
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
     try:
-        await set_rls_context(conn, user)
-        
         # Check if customer exists
-        existing = await conn.fetchrow(
-            "SELECT * FROM customers WHERE id = $1",
-            customer_id
-        )
-        
-        if not existing:
+        existing_result = supabase.table("customers").select("*")\
+            .eq("id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not existing_result.data or len(existing_result.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer {customer_id} not found"
             )
-        
+
+        existing = existing_result.data[0]
+
         # Check for INN conflict if INN is being updated
-        if customer_update.inn and customer_update.inn != existing['inn']:
-            inn_conflict = await conn.fetchval(
-                "SELECT id FROM customers WHERE inn = $1 AND id != $2",
-                customer_update.inn, customer_id
-            )
-            if inn_conflict:
+        if customer_update.inn and customer_update.inn != existing.get('inn'):
+            inn_conflict = supabase.table("customers").select("id")\
+                .eq("inn", customer_update.inn)\
+                .eq("organization_id", str(user.current_organization_id))\
+                .neq("id", str(customer_id))\
+                .execute()
+
+            if inn_conflict.data and len(inn_conflict.data) > 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Customer with INN {customer_update.inn} already exists"
                 )
-        
-        # Build dynamic UPDATE query
-        update_fields = []
-        params = []
-        param_count = 0
-        
+
         # Get only fields that are provided in the update
         update_data = customer_update.dict(exclude_unset=True)
-        
-        for field, value in update_data.items():
-            param_count += 1
-            update_fields.append(f"{field} = ${param_count}")
-            params.append(value)
-        
-        if not update_fields:
+
+        if not update_data:
             # No fields to update, return existing customer
-            return Customer(**dict(existing))
-        
-        # Add customer_id parameter
-        param_count += 1
-        params.append(customer_id)
-        
-        query = f"""
-            UPDATE customers 
-            SET {', '.join(update_fields)}, updated_at = TIMEZONE('utc', NOW())
-            WHERE id = ${param_count}
-            RETURNING *
-        """
-        
-        row = await conn.fetchrow(query, *params)
-        return Customer(**dict(row))
-        
+            return Customer(**existing)
+
+        # Update customer
+        result = supabase.table("customers").update(update_data)\
+            .eq("id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Customer {customer_id} not found"
+            )
+
+        return Customer(**result.data[0])
+
     except HTTPException:
         raise
     except Exception as e:
@@ -322,8 +328,6 @@ async def update_customer(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update customer: {str(e)}"
         )
-    finally:
-        await conn.close()
 
 
 @router.delete("/{customer_id}", response_model=SuccessResponse)
@@ -333,41 +337,45 @@ async def delete_customer(
 ):
     """
     Delete customer by ID
-    
+
     Checks for dependent quotes before deletion
     """
-    conn = await get_db_connection()
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
     try:
-        await set_rls_context(conn, user)
-        
         # Check if customer has associated quotes
-        quote_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM quotes WHERE customer_id = $1",
-            customer_id
-        )
-        
+        quotes_result = supabase.table("quotes").select("id", count="exact")\
+            .eq("customer_id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        quote_count = quotes_result.count or 0
+
         if quote_count > 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot delete customer: {quote_count} quotes are associated with this customer"
             )
-        
+
         # Delete customer
-        deleted = await conn.fetchval(
-            "DELETE FROM customers WHERE id = $1 RETURNING id",
-            customer_id
-        )
-        
-        if not deleted:
+        deleted_result = supabase.table("customers").delete()\
+            .eq("id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not deleted_result.data or len(deleted_result.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer {customer_id} not found"
             )
-        
+
         return SuccessResponse(
             message=f"Customer {customer_id} deleted successfully"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -375,8 +383,6 @@ async def delete_customer(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete customer: {str(e)}"
         )
-    finally:
-        await conn.close()
 
 
 # ============================================================================
@@ -391,41 +397,38 @@ async def get_customer_quotes(
     user: User = Depends(require_permission("quotes:read"))
 ):
     """Get all quotes for a specific customer"""
-    conn = await get_db_connection()
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
     try:
-        await set_rls_context(conn, user)
-        
         # Verify customer exists
-        customer_exists = await conn.fetchval(
-            "SELECT EXISTS(SELECT 1 FROM customers WHERE id = $1)",
-            customer_id
-        )
-        
-        if not customer_exists:
+        customer_result = supabase.table("customers").select("id")\
+            .eq("id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not customer_result.data or len(customer_result.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer {customer_id} not found"
             )
-        
-        # Count total quotes
-        total = await conn.fetchval(
-            "SELECT COUNT(*) FROM quotes WHERE customer_id = $1",
-            customer_id
-        )
-        
-        # Get paginated quotes
+
+        # Get paginated quotes with count
         offset = (page - 1) * limit
-        rows = await conn.fetch("""
-            SELECT id, quote_number, title, status, total_amount, currency, 
-                   quote_date, valid_until, created_at, updated_at
-            FROM quotes 
-            WHERE customer_id = $1
-            ORDER BY created_at DESC
-            LIMIT $2 OFFSET $3
-        """, customer_id, limit, offset)
-        
-        quotes = [dict(row) for row in rows]
-        
+
+        quotes_result = supabase.table("quotes")\
+            .select("id, quote_number, title, status, total_amount, quote_date, valid_until, created_at, updated_at", count="exact")\
+            .eq("customer_id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .order("created_at", desc=True)\
+            .range(offset, offset + limit - 1)\
+            .execute()
+
+        total = quotes_result.count or 0
+        quotes = quotes_result.data or []
+
         return {
             "customer_id": customer_id,
             "quotes": quotes,
@@ -434,7 +437,7 @@ async def get_customer_quotes(
             "limit": limit,
             "has_more": offset + limit < total
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -442,8 +445,6 @@ async def get_customer_quotes(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve customer quotes: {str(e)}"
         )
-    finally:
-        await conn.close()
 
 
 @router.get("/search/inn/{inn}")
@@ -453,35 +454,37 @@ async def search_customer_by_inn(
 ):
     """
     Search customer by Russian INN (Tax ID)
-    
+
     Useful for quick customer lookup during quote creation
     """
-    conn = await get_db_connection()
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
     try:
-        await set_rls_context(conn, user)
-        
         # Clean INN (remove spaces and hyphens)
         inn_clean = ''.join(filter(str.isdigit, inn))
-        
+
         if len(inn_clean) not in [10, 12]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="INN must be 10 digits for organizations or 12 for individuals"
             )
-        
-        row = await conn.fetchrow(
-            "SELECT * FROM customers WHERE inn = $1",
-            inn_clean
-        )
-        
-        if not row:
+
+        result = supabase.table("customers").select("*")\
+            .eq("inn", inn_clean)\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not result.data or len(result.data) == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer with INN {inn_clean} not found"
             )
-        
-        return Customer(**dict(row))
-        
+
+        return Customer(**result.data[0])
+
     except HTTPException:
         raise
     except Exception as e:
@@ -489,8 +492,170 @@ async def search_customer_by_inn(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to search customer by INN: {str(e)}"
         )
-    finally:
-        await conn.close()
+
+
+# ============================================================================
+# ANALYTICS ENDPOINTS
+# ============================================================================
+
+# ============================================================================
+# CUSTOMER CONTACTS CRUD OPERATIONS
+# ============================================================================
+
+@router.get("/{customer_id}/contacts")
+async def list_customer_contacts(
+    customer_id: UUID,
+    user: User = Depends(require_permission("customers:read"))
+):
+    """List all contacts for a customer"""
+    from supabase import create_client, Client
+
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    # Verify customer belongs to user's organization
+    customer = supabase.table("customers")\
+        .select("id")\
+        .eq("id", str(customer_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    if not customer.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found"
+        )
+
+    # Get contacts
+    result = supabase.table("customer_contacts")\
+        .select("*")\
+        .eq("customer_id", str(customer_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .order("is_primary", desc=True)\
+        .order("created_at", desc=False)\
+        .execute()
+
+    return {"contacts": result.data}
+
+
+@router.post("/{customer_id}/contacts")
+async def create_contact(
+    customer_id: UUID,
+    contact: dict,
+    user: User = Depends(require_permission("customers:update"))
+):
+    """Create a new contact for customer"""
+    from supabase import create_client, Client
+
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    # Validate customer belongs to organization
+    customer = supabase.table("customers")\
+        .select("id")\
+        .eq("id", str(customer_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    if not customer.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found"
+        )
+
+    # If setting as primary, unset other primary contacts
+    if contact.get('is_primary'):
+        supabase.table("customer_contacts")\
+            .update({"is_primary": False})\
+            .eq("customer_id", str(customer_id))\
+            .execute()
+
+    # Insert contact
+    result = supabase.table("customer_contacts").insert({
+        "customer_id": str(customer_id),
+        "name": contact['name'],
+        "last_name": contact.get('last_name'),
+        "phone": contact.get('phone'),
+        "email": contact.get('email'),
+        "position": contact.get('position'),
+        "is_primary": contact.get('is_primary', False),
+        "notes": contact.get('notes'),
+        "organization_id": str(user.current_organization_id)
+    }).execute()
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create contact"
+        )
+
+    return result.data[0]
+
+
+@router.put("/{customer_id}/contacts/{contact_id}")
+async def update_contact(
+    customer_id: UUID,
+    contact_id: UUID,
+    contact: dict,
+    user: User = Depends(require_permission("customers:update"))
+):
+    """Update contact"""
+    from supabase import create_client, Client
+
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    # If setting as primary, unset others
+    if contact.get('is_primary'):
+        supabase.table("customer_contacts")\
+            .update({"is_primary": False})\
+            .eq("customer_id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+    # Update contact
+    result = supabase.table("customer_contacts")\
+        .update(contact)\
+        .eq("id", str(contact_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contact not found"
+        )
+
+    return result.data[0]
+
+
+@router.delete("/{customer_id}/contacts/{contact_id}")
+async def delete_contact(
+    customer_id: UUID,
+    contact_id: UUID,
+    user: User = Depends(require_permission("customers:update"))
+):
+    """Delete contact"""
+    from supabase import create_client, Client
+
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    result = supabase.table("customer_contacts")\
+        .delete()\
+        .eq("id", str(contact_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    return {"success": True}
 
 
 # ============================================================================
@@ -503,15 +668,15 @@ async def get_customer_stats(
 ):
     """
     Get customer statistics overview
-    
+
     Useful for dashboard and reporting
     """
     conn = await get_db_connection()
     try:
         await set_rls_context(conn, user)
-        
+
         stats = await conn.fetchrow("""
-            SELECT 
+            SELECT
                 COUNT(*) as total_customers,
                 COUNT(*) FILTER (WHERE status = 'active') as active_customers,
                 COUNT(*) FILTER (WHERE status = 'inactive') as inactive_customers,
@@ -522,22 +687,22 @@ async def get_customer_stats(
                 SUM(credit_limit) as total_credit_limit
             FROM customers
         """)
-        
+
         # Get regional breakdown
         regions = await conn.fetch("""
             SELECT region, COUNT(*) as count
-            FROM customers 
+            FROM customers
             WHERE region IS NOT NULL
-            GROUP BY region 
-            ORDER BY count DESC 
+            GROUP BY region
+            ORDER BY count DESC
             LIMIT 10
         """)
-        
+
         return {
             "overview": dict(stats),
             "top_regions": [dict(row) for row in regions]
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1673,7 +1673,7 @@ async def import_items_to_quote(
 @router.get("/{quote_id}/export/excel")
 async def export_quote_excel(
     quote_id: str,
-    format: str = Query(..., regex="^(validation|grid)$", description="Export format: 'validation' or 'grid'"),
+    format: str = Query(..., pattern="^(validation|supply-grid|openbook-grid)$", description="Export format"),
     user: User = Depends(get_current_user)
 ):
     """
@@ -1681,7 +1681,7 @@ async def export_quote_excel(
 
     Args:
         quote_id: Quote UUID
-        format: Export format ('validation' or 'grid')
+        format: Export format ('validation', 'supply-grid', or 'openbook-grid')
             - validation: Input/Output comparison format for checking against old Excel
             - grid: Professional 2-sheet export (КП поставка + КП open book)
         user: Current authenticated user
@@ -1706,9 +1706,14 @@ async def export_quote_excel(
         if format == "validation":
             excel_bytes = QuoteExcelService.generate_validation_export(export_data)
             format_suffix = "validation"
-        else:  # grid
-            excel_bytes = QuoteExcelService.generate_grid_export(export_data)
-            format_suffix = "grid"
+        elif format == "supply-grid":
+            excel_bytes = QuoteExcelService.generate_supply_grid_export(export_data)
+            format_suffix = "supply_grid"
+        elif format == "openbook-grid":
+            excel_bytes = QuoteExcelService.generate_openbook_grid_export(export_data)
+            format_suffix = "openbook_grid"
+        else:
+            raise ValueError(f"Unknown format: {format}")
 
         # Save to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:

@@ -82,6 +82,41 @@ export interface CustomerListResponse {
   has_more: boolean;
 }
 
+export interface CustomerContact {
+  id: string;
+  customer_id: string;
+  organization_id: string;
+  name: string;
+  last_name?: string;
+  phone?: string;
+  email?: string;
+  position?: string;
+  is_primary: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactCreate {
+  name: string;
+  last_name?: string;
+  phone?: string;
+  email?: string;
+  position?: string;
+  is_primary?: boolean;
+  notes?: string;
+}
+
+export interface ContactUpdate {
+  name?: string;
+  last_name?: string;
+  phone?: string;
+  email?: string;
+  position?: string;
+  is_primary?: boolean;
+  notes?: string;
+}
+
 /**
  * Customer API Service
  * All methods call the FastAPI backend endpoints
@@ -203,6 +238,86 @@ export class CustomerService {
     return this.apiRequest<{ message: string }>(`/api/customers/${customerId}`, {
       method: 'DELETE',
     });
+  }
+
+  // ============================================================================
+  // CUSTOMER CONTACTS CRUD
+  // ============================================================================
+
+  /**
+   * Get all contacts for a customer
+   * GET /api/customers/{customer_id}/contacts
+   */
+  async listContacts(customerId: string): Promise<ApiResponse<{ contacts: CustomerContact[] }>> {
+    return this.apiRequest<{ contacts: CustomerContact[] }>(
+      `/api/customers/${customerId}/contacts`
+    );
+  }
+
+  /**
+   * Create a new contact for customer
+   * POST /api/customers/{customer_id}/contacts
+   */
+  async createContact(
+    customerId: string,
+    data: ContactCreate
+  ): Promise<ApiResponse<CustomerContact>> {
+    return this.apiRequest<CustomerContact>(`/api/customers/${customerId}/contacts`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Update contact
+   * PUT /api/customers/{customer_id}/contacts/{contact_id}
+   */
+  async updateContact(
+    customerId: string,
+    contactId: string,
+    updates: ContactUpdate
+  ): Promise<ApiResponse<CustomerContact>> {
+    return this.apiRequest<CustomerContact>(`/api/customers/${customerId}/contacts/${contactId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  /**
+   * Delete contact
+   * DELETE /api/customers/{customer_id}/contacts/{contact_id}
+   */
+  async deleteContact(
+    customerId: string,
+    contactId: string
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.apiRequest<{ success: boolean }>(
+      `/api/customers/${customerId}/contacts/${contactId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+  }
+
+  /**
+   * Get customer quotes
+   * GET /api/customers/{customer_id}/quotes
+   */
+  async getCustomerQuotes(
+    customerId: string,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<
+    ApiResponse<{
+      customer_id: string;
+      quotes: any[];
+      total: number;
+      page: number;
+      limit: number;
+      has_more: boolean;
+    }>
+  > {
+    return this.apiRequest(`/api/customers/${customerId}/quotes?page=${page}&limit=${limit}`);
   }
 
   // ============================================================================

@@ -4,16 +4,21 @@
     <meta charset="UTF-8">
     <title>КП поставка - письмо</title>
     <style>
-        @page { size: A4 landscape; margin: 1cm; }
+        @page { size: A4 portrait; margin: 0.5cm; }
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 10pt;
+            font-size: 8pt;
             color: #333;
             margin: 0;
             padding: 0;
         }
+        .header-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
         .header-block {
-            margin-bottom: 12px;
+            flex: 1;
             padding: 8px;
             background: #f0f0f0;
             border-radius: 4px;
@@ -21,39 +26,39 @@
         .header-block h3 {
             margin: 0 0 4px 0;
             color: #2C5AA0;
-            font-size: 11pt;
+            font-size: 10pt;
         }
         .header-block p {
             margin: 2px 0;
-            line-height: 1.4;
-            font-size: 9pt;
+            line-height: 1.3;
+            font-size: 8pt;
         }
         .letter-section {
-            margin: 15px 0;
-            line-height: 1.6;
-            font-size: 10pt;
+            margin: 10px 0;
+            line-height: 1.5;
+            font-size: 8pt;
         }
         .letter-greeting {
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 12px 0;
-            font-size: 8pt;
+            margin: 8px 0;
+            font-size: 6.5pt;
         }
         th {
             background: #2C5AA0;
             color: white;
-            padding: 7px 3px;
+            padding: 6px 2px;
             text-align: center;
             font-weight: bold;
             border: 1px solid #2C5AA0;
         }
         td {
             border: 1px solid #ddd;
-            padding: 5px 3px;
+            padding: 4px 2px;
         }
         .totals {
             font-weight: bold;
@@ -66,40 +71,48 @@
             text-align: center;
         }
         .signature-section {
-            margin-top: 20px;
-            padding-top: 15px;
+            margin-top: 15px;
+            padding-top: 10px;
             border-top: 1px solid #ddd;
         }
         .signature-box {
-            margin-top: 30px;
+            margin-top: 20px;
             text-align: right;
-        }
-        .signature-line {
-            display: inline-block;
-            width: 150px;
-            border-bottom: 1px solid #333;
-            margin-left: 10px;
+            font-size: 8pt;
         }
     </style>
 </head>
 <body>
-    <!-- Seller Block -->
-    <div class="header-block">
-        <h3>Продавец</h3>
-        <p><strong>Компания:</strong> {{ seller_company }} | <strong>Менеджер:</strong> {{ manager_name }} | <strong>Телефон:</strong> {{ manager_phone }} | <strong>Email:</strong> {{ manager_email }}</p>
-    </div>
+    <!-- 3-Column Header Container -->
+    <div class="header-container">
+        <!-- Seller Block -->
+        <div class="header-block">
+            <h3>Продавец</h3>
+            <p><strong>Компания:</strong> {{ seller_company }}</p>
+            <p><strong>Менеджер:</strong> {{ manager_name }}</p>
+            <p><strong>Телефон:</strong> {{ manager_phone }}</p>
+            <p><strong>Email:</strong> {{ manager_email }}</p>
+        </div>
 
-    <!-- Client Block -->
-    <div class="header-block">
-        <h3>Покупатель</h3>
-        <p><strong>Компания:</strong> {{ customer_company_name }} | <strong>Контактное лицо:</strong> {{ contact_person_name }} | <strong>Телефон:</strong> {{ contact_phone }} | <strong>Email:</strong> {{ contact_email }}</p>
-    </div>
+        <!-- Client Block -->
+        <div class="header-block">
+            <h3>Покупатель</h3>
+            <p><strong>Компания:</strong> {{ customer_company_name }}</p>
+            <p><strong>Контактное лицо:</strong> {{ contact_person_name }}</p>
+            <p><strong>Телефон:</strong> {{ contact_phone }}</p>
+            <p><strong>Email:</strong> {{ contact_email }}</p>
+        </div>
 
-    <!-- Quote Info Block -->
-    <div class="header-block">
-        <h3>Информация о поставке</h3>
-        <p><strong>Адрес доставки:</strong> {{ delivery_address }} | <strong>Базис поставки:</strong> {{ offer_incoterms }} | <strong>Условия оплаты:</strong> {{ payment_terms }} | <strong>Дата КП:</strong> {{ quote_date }} | <strong>Срок поставки:</strong> {{ delivery_time }} дней</p>
-        <p>{{ delivery_description }}</p>
+        <!-- Quote Info Block -->
+        <div class="header-block">
+            <h3>Информация о поставке</h3>
+            <p><strong>Дата КП:</strong> {{ quote_date }}</p>
+            <p><strong>Срок поставки:</strong> {{ delivery_time }} дней</p>
+            <p><strong>Базис:</strong> {{ offer_incoterms }}</p>
+            <p><strong>Оплата:</strong> {{ payment_terms }}</p>
+            <p><strong>Сумма с НДС:</strong> <span style="color: #2C5AA0; font-weight: bold;">{{ totals.total_with_vat }}</span></p>
+            <p style="font-size: 8pt; margin-top: 5px;">{{ delivery_description }}</p>
+        </div>
     </div>
 
     <!-- Letter Introduction -->
@@ -114,15 +127,15 @@
     <table>
         <thead>
             <tr>
-                <th style="width: 8%;">Бренд</th>
-                <th style="width: 10%;">Артикул</th>
-                <th style="width: 25%;">Наименование</th>
-                <th style="width: 6%;">Кол-во</th>
+                <th style="width: 7%;">Бренд</th>
+                <th style="width: 9%;">Артикул</th>
+                <th style="width: 22%;">Наименование</th>
+                <th style="width: 5%;">Кол-во</th>
                 <th style="width: 12%;">Цена за ед. (₽)</th>
                 <th style="width: 12%;">Сумма (₽)</th>
-                <th style="width: 10%;">НДС (₽)</th>
-                <th style="width: 12%;">Цена с НДС за ед. (₽)</th>
-                <th style="width: 12%;">Сумма с НДС (₽)</th>
+                <th style="width: 9%;">НДС (₽)</th>
+                <th style="width: 11%;">Цена с НДС/ед (₽)</th>
+                <th style="width: 13%;">Сумма с НДС (₽)</th>
             </tr>
         </thead>
         <tbody>

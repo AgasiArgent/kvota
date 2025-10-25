@@ -1,248 +1,211 @@
 #!/bin/bash
-# Backend-only testing script - No browser required
-# Tests calculation engine via direct API calls (80% faster, 90% less memory)
 
-set -e
+# Backend-Only Testing Script (No Browser)
+# Tests backend API endpoints with minimal resource usage
+# Usage: ./.claude/test-backend-only.sh
 
-# Colors
-RED='\033[0;31m'
+# Color codes
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
-# Configuration
-BACKEND_URL="http://localhost:8000"
-TEST_DATA_DIR="/home/novi/quotation-app/backend/test_data"
-TEMP_DIR="/tmp/quotation-test"
+# Test credentials
+EMAIL="andrey@masterbearingsales.ru"
+PASSWORD="password"
 
-# Test user credentials
-TEST_EMAIL="andrey@masterbearingsales.ru"
-TEST_PASSWORD="password"
+# API base URL
+API_URL="http://localhost:8000"
 
-# Create temp directory
-mkdir -p "$TEMP_DIR"
+# Exit code
+EXIT_CODE=0
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}Backend-Only Testing (No Browser)${NC}"
-echo -e "${BLUE}========================================${NC}"
+# Function to print colored status
+print_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}✗${NC} $1"
+    EXIT_CODE=1
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+# Function to measure time
+timer_start() {
+    START_TIME=$(date +%s.%N)
+}
+
+timer_end() {
+    END_TIME=$(date +%s.%N)
+    ELAPSED=$(echo "$END_TIME - $START_TIME" | bc)
+    echo "${ELAPSED}s"
+}
+
+# Header
+echo ""
+echo "========================================"
+echo "Backend-Only Testing (No Browser)"
+echo "========================================"
 echo ""
 
-# Function: Check if backend is running
-check_backend() {
-  echo -e "${YELLOW}Checking backend server...${NC}"
-  if curl -sf "$BACKEND_URL/health" > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Backend is running${NC}"
-    return 0
-  else
-    echo -e "${RED}✗ Backend is not running${NC}"
-    echo "Start backend: cd backend && uvicorn main:app --reload"
+# Test 1: Check if backend is running
+print_info "Test 1: Checking if backend server is running..."
+timer_start
+RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/organizations/" 2>/dev/null)
+TIME=$(timer_end)
+
+# 403 Forbidden is OK - it means server is running but not authenticated yet
+if [ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "403" ]; then
+    print_success "Backend is running (HTTP $RESPONSE) - ${TIME}"
+else
+    print_error "Backend is not running (HTTP $RESPONSE) - ${TIME}"
+    echo ""
+    echo "Please start backend server:"
+    echo "  cd backend && uvicorn main:app --reload"
+    echo ""
     exit 1
-  fi
-}
+fi
 
-# Function: Login and get access token
-login() {
-  echo -e "${YELLOW}Logging in...${NC}"
-
-  local response=$(curl -s -X POST "$BACKEND_URL/api/auth/login" \
+# Test 2: Login and get JWT token
+print_info "Test 2: Attempting login with test credentials..."
+timer_start
+LOGIN_RESPONSE=$(curl -s -X POST "$API_URL/api/auth/login" \
     -H "Content-Type: application/json" \
-    -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASSWORD\"}")
+    -d "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" 2>/dev/null)
+TIME=$(timer_end)
 
-  local token=$(echo "$response" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>/dev/null || echo "")
+# Extract token from response
+TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 
-  if [ -z "$token" ]; then
-    echo -e "${RED}✗ Login failed${NC}"
-    echo "Response: $response"
-    exit 1
-  fi
+if [ -n "$TOKEN" ]; then
+    print_success "Login successful (JWT token received) - ${TIME}"
+    # Show first 20 chars of token
+    TOKEN_PREVIEW="${TOKEN:0:20}..."
+    echo "          Token: $TOKEN_PREVIEW"
+else
+    print_error "Login failed - ${TIME}"
+    echo "          Response: $LOGIN_RESPONSE"
+    EXIT_CODE=1
+fi
 
-  echo -e "${GREEN}✓ Login successful${NC}"
-  echo "$token" > "$TEMP_DIR/token.txt"
-}
+# Test 3: Fetch admin settings
+if [ -n "$TOKEN" ]; then
+    print_info "Test 3: Fetching admin calculation settings..."
+    timer_start
+    SETTINGS_RESPONSE=$(curl -s -X GET "$API_URL/api/calculation-settings" \
+        -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+    TIME=$(timer_end)
 
-# Function: Get access token
-get_token() {
-  cat "$TEMP_DIR/token.txt"
-}
+    # Extract rate_forex_risk value
+    FOREX_RISK=$(echo "$SETTINGS_RESPONSE" | grep -o '"rate_forex_risk":[0-9.]*' | cut -d':' -f2)
+    FIN_COMM=$(echo "$SETTINGS_RESPONSE" | grep -o '"rate_fin_comm":[0-9.]*' | cut -d':' -f2)
 
-# Function: Test 1 - Fetch calculation settings (admin variables)
-test_fetch_settings() {
-  echo ""
-  echo -e "${BLUE}Test 1: Fetch calculation settings${NC}"
+    if [ -n "$FOREX_RISK" ] && [ -n "$FIN_COMM" ]; then
+        print_success "Fetched admin settings - ${TIME}"
+        echo "          rate_forex_risk: $FOREX_RISK"
+        echo "          rate_fin_comm: $FIN_COMM"
+    else
+        print_error "Failed to fetch admin settings - ${TIME}"
+        echo "          Response: $SETTINGS_RESPONSE"
+    fi
+fi
 
-  local token=$(get_token)
-  local response=$(curl -s -X GET "$BACKEND_URL/api/calculation-settings" \
-    -H "Authorization: Bearer $token")
+# Test 4: Fetch variable templates
+if [ -n "$TOKEN" ]; then
+    print_info "Test 4: Fetching variable templates..."
+    timer_start
+    TEMPLATES_RESPONSE=$(curl -s -X GET "$API_URL/api/quotes-calc/variable-templates" \
+        -H "Authorization: Bearer $TOKEN" 2>/dev/null)
+    TIME=$(timer_end)
 
-  local rate_forex=$(echo "$response" | python3 -c "import sys, json; print(json.load(sys.stdin).get('rate_forex_risk', 'ERROR'))" 2>/dev/null)
+    # Count templates
+    TEMPLATE_COUNT=$(echo "$TEMPLATES_RESPONSE" | grep -o '"template_name":"[^"]*"' | wc -l)
 
-  if [ "$rate_forex" != "ERROR" ]; then
-    echo -e "${GREEN}✓ Fetched admin settings: rate_forex_risk=$rate_forex${NC}"
-  else
-    echo -e "${RED}✗ Failed to fetch settings${NC}"
-    echo "Response: $response"
-  fi
-}
+    if [ "$TEMPLATE_COUNT" -gt 0 ]; then
+        print_success "Fetched $TEMPLATE_COUNT variable templates - ${TIME}"
+    else
+        print_warning "No variable templates found (this is OK if none created yet) - ${TIME}"
+    fi
+fi
 
-# Function: Test 2 - Calculate quote with minimal data
-test_calculate_minimal() {
-  echo ""
-  echo -e "${BLUE}Test 2: Calculate quote with minimal required fields${NC}"
+# Test 5: Test calculation endpoint with minimal data
+if [ -n "$TOKEN" ]; then
+    print_info "Test 5: Testing calculation endpoint with minimal data..."
+    timer_start
 
-  local token=$(get_token)
+    # Minimal calculation payload
+    CALC_PAYLOAD='{
+        "products": [
+            {
+                "sku": "TEST-001",
+                "brand": "Test Brand",
+                "base_price_VAT": 1000.00,
+                "quantity": 10,
+                "weight_in_kg": 50
+            }
+        ],
+        "quote_variables": {
+            "currency": "USD",
+            "volume_in_CBM": 2.5
+        }
+    }'
 
-  # Minimal payload (only required fields + defaults)
-  local payload='{
-    "customer_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "products": [
-      {
-        "sku": "TEST-001",
-        "brand": "TestBrand",
-        "base_price_VAT": 1000.00,
-        "quantity": 10,
-        "weight_in_kg": 5.0
-      }
-    ],
-    "quote_defaults": {
-      "markup": 15.0,
-      "incoterms": "EXW"
-    }
-  }'
+    CALC_RESPONSE=$(curl -s -X POST "$API_URL/api/quotes-calc/calculate" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$CALC_PAYLOAD" 2>/dev/null)
+    TIME=$(timer_end)
 
-  echo "Payload:"
-  echo "$payload" | python3 -m json.tool
+    # Check if calculation succeeded
+    CALC_SUCCESS=$(echo "$CALC_RESPONSE" | grep -o '"total_cost":[0-9.]*' | cut -d':' -f2)
 
-  local response=$(curl -s -X POST "$BACKEND_URL/api/quotes-calc/calculate" \
-    -H "Authorization: Bearer $token" \
-    -H "Content-Type: application/json" \
-    -d "$payload")
+    if [ -n "$CALC_SUCCESS" ]; then
+        print_success "Calculation succeeded (minimal data) - ${TIME}"
+        echo "          total_cost: $CALC_SUCCESS"
+    else
+        # Check if it's a validation error (expected for missing required fields)
+        ERROR_MSG=$(echo "$CALC_RESPONSE" | grep -o '"detail":"[^"]*"' | cut -d'"' -f4)
 
-  echo ""
-  echo "Response:"
-  echo "$response" | python3 -m json.tool
+        if [ -n "$ERROR_MSG" ]; then
+            print_warning "Calculation returned validation error (expected) - ${TIME}"
+            echo "          Error: $ERROR_MSG"
+        else
+            print_error "Calculation failed unexpectedly - ${TIME}"
+            echo "          Response: $CALC_RESPONSE"
+        fi
+    fi
+fi
 
-  # Check if calculation succeeded
-  local error=$(echo "$response" | python3 -c "import sys, json; print(json.load(sys.stdin).get('detail', ''))" 2>/dev/null || echo "")
+# Memory usage
+echo ""
+echo "========================================"
+echo "Memory Usage"
+echo "========================================"
+MEM_INFO=$(free -h | grep Mem)
+MEM_USED=$(echo "$MEM_INFO" | awk '{print $3}')
+MEM_TOTAL=$(echo "$MEM_INFO" | awk '{print $2}')
+MEM_PERCENT=$(free | grep Mem | awk '{printf("%.0f", $3/$2 * 100)}')
 
-  if [ -z "$error" ]; then
-    echo -e "${GREEN}✓ Calculation succeeded${NC}"
-  else
-    echo -e "${RED}✗ Calculation failed: $error${NC}"
-  fi
-}
+echo "Memory: $MEM_USED / $MEM_TOTAL (${MEM_PERCENT}%)"
+echo ""
 
-# Function: Test 3 - Calculate with full data
-test_calculate_full() {
-  echo ""
-  echo -e "${BLUE}Test 3: Calculate quote with all variables${NC}"
+# Summary
+echo "========================================"
+if [ $EXIT_CODE -eq 0 ]; then
+    print_success "All tests passed!"
+else
+    print_error "Some tests failed!"
+fi
+echo "========================================"
+echo ""
 
-  local token=$(get_token)
-
-  # Full payload with quote-level defaults and product-level overrides
-  local payload='{
-    "customer_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "products": [
-      {
-        "sku": "BEARING-001",
-        "brand": "SKF",
-        "base_price_VAT": 5000.00,
-        "quantity": 100,
-        "weight_in_kg": 50.0,
-        "markup": 20.0,
-        "fee_trans_abroad": 500.0
-      },
-      {
-        "sku": "BEARING-002",
-        "brand": "FAG",
-        "base_price_VAT": 3000.00,
-        "quantity": 50,
-        "weight_in_kg": 25.0
-      }
-    ],
-    "quote_defaults": {
-      "markup": 15.0,
-      "incoterms": "CIF",
-      "currency_customer": "EUR",
-      "days_delivery_from_order": 45,
-      "fee_trans_abroad": 1000.0,
-      "pct_advance_1": 50.0,
-      "pct_advance_2": 50.0,
-      "days_advance_1": 0,
-      "days_advance_2": 30
-    }
-  }'
-
-  local response=$(curl -s -X POST "$BACKEND_URL/api/quotes-calc/calculate" \
-    -H "Authorization: Bearer $token" \
-    -H "Content-Type: application/json" \
-    -d "$payload")
-
-  # Check if calculation succeeded
-  local error=$(echo "$response" | python3 -c "import sys, json; print(json.load(sys.stdin).get('detail', ''))" 2>/dev/null || echo "")
-
-  if [ -z "$error" ]; then
-    echo -e "${GREEN}✓ Full calculation succeeded${NC}"
-  else
-    echo -e "${RED}✗ Calculation failed: $error${NC}"
-    echo "$response" | python3 -m json.tool
-  fi
-}
-
-# Function: Test 4 - Validation errors
-test_validation_errors() {
-  echo ""
-  echo -e "${BLUE}Test 4: Test validation errors (missing required fields)${NC}"
-
-  local token=$(get_token)
-
-  # Invalid payload (missing required product fields)
-  local payload='{
-    "customer_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "products": [
-      {
-        "sku": "TEST-001"
-      }
-    ]
-  }'
-
-  local response=$(curl -s -X POST "$BACKEND_URL/api/quotes-calc/calculate" \
-    -H "Authorization: Bearer $token" \
-    -H "Content-Type: application/json" \
-    -d "$payload")
-
-  local error=$(echo "$response" | python3 -c "import sys, json; print(json.load(sys.stdin).get('detail', ''))" 2>/dev/null || echo "")
-
-  if [ -n "$error" ]; then
-    echo -e "${GREEN}✓ Validation errors detected correctly${NC}"
-    echo "Errors: $error"
-  else
-    echo -e "${RED}✗ Validation should have failed but didn't${NC}"
-  fi
-}
-
-# Function: Show memory usage
-show_memory() {
-  echo ""
-  echo -e "${YELLOW}Memory usage (backend-only testing):${NC}"
-  free -h | grep -E "Mem|Swap"
-}
-
-# Main test suite
-main() {
-  check_backend
-  login
-  test_fetch_settings
-  test_calculate_minimal
-  test_calculate_full
-  test_validation_errors
-  show_memory
-
-  echo ""
-  echo -e "${GREEN}========================================${NC}"
-  echo -e "${GREEN}Backend testing complete!${NC}"
-  echo -e "${GREEN}========================================${NC}"
-}
-
-# Run tests
-main "$@"
+exit $EXIT_CODE

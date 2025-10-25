@@ -1,164 +1,105 @@
 #!/bin/bash
-# WSL2 Resource Monitor - Prevents freezing by warning when memory/CPU is high
-# Run this in a separate terminal while testing to monitor resource usage
 
-# Colors
-RED='\033[0;31m'
+# WSL2 Resource Monitor
+# Purpose: Monitor WSL2 resource usage in real-time to prevent freezing
+# Usage: ./monitor-wsl-resources.sh
+
+# Color codes
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 BLUE='\033[0;34m'
-NC='\033[0m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
 
-# Configuration
-WARNING_THRESHOLD=75    # Warn at 75% memory usage
-CRITICAL_THRESHOLD=85   # Critical alert at 85% memory usage
-CHECK_INTERVAL=5        # Check every 5 seconds
-
-# Flags for one-time warnings
-warned=false
-critical_warned=false
-
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}WSL2 Resource Monitor${NC}"
-echo -e "${BLUE}========================================${NC}"
-echo ""
-echo "Monitoring memory and CPU usage..."
-echo "Warning threshold: ${WARNING_THRESHOLD}%"
-echo "Critical threshold: ${CRITICAL_THRESHOLD}%"
-echo "Press Ctrl+C to stop"
+# Clear screen and show header
+clear
+echo -e "${BOLD}Monitoring WSL2 Resources (Press Ctrl+C to stop)${NC}"
+echo "================================================"
 echo ""
 
-# Function: Get memory usage percentage
-get_memory_usage() {
-  free -m | awk 'NR==2{printf "%.0f", $3*100/$2}'
-}
+# Trap Ctrl+C to exit gracefully
+trap 'echo -e "\n\nMonitoring stopped."; exit 0' INT
 
-# Function: Get swap usage percentage
-get_swap_usage() {
-  free -m | awk 'NR==3{if($2>0) printf "%.0f", $3*100/$2; else print "0"}'
-}
+while true; do
+    # Get current time
+    TIMESTAMP=$(date +"%H:%M:%S")
 
-# Function: Get CPU usage percentage
-get_cpu_usage() {
-  top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{printf "%.0f", 100 - $1}'
-}
+    # Get memory info
+    MEM_INFO=$(free | grep Mem)
+    MEM_TOTAL=$(echo $MEM_INFO | awk '{print $2}')
+    MEM_USED=$(echo $MEM_INFO | awk '{print $3}')
+    MEM_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($MEM_USED/$MEM_TOTAL)*100}")
 
-# Function: Get Chrome memory usage
-get_chrome_memory() {
-  ps aux | grep chrome | grep -v grep | awk '{sum+=$4} END {printf "%.1f", sum}'
-}
-
-# Function: Display current status
-display_status() {
-  local mem_usage=$1
-  local swap_usage=$2
-  local cpu_usage=$3
-  local chrome_mem=$4
-  local timestamp=$(date '+%H:%M:%S')
-
-  # Determine color based on usage
-  local mem_color=$GREEN
-  if [ "$mem_usage" -ge "$CRITICAL_THRESHOLD" ]; then
-    mem_color=$RED
-  elif [ "$mem_usage" -ge "$WARNING_THRESHOLD" ]; then
-    mem_color=$YELLOW
-  fi
-
-  # Clear line and print status
-  echo -ne "\r${timestamp} | Memory: ${mem_color}${mem_usage}%${NC} | Swap: ${swap_usage}% | CPU: ${cpu_usage}% | Chrome: ${chrome_mem}%  "
-}
-
-# Function: Show detailed breakdown
-show_breakdown() {
-  echo -e "\n"
-  echo -e "${YELLOW}Detailed Resource Breakdown:${NC}"
-  echo ""
-
-  # Memory
-  echo -e "${BLUE}Memory:${NC}"
-  free -h | grep -E "Mem|Swap"
-  echo ""
-
-  # Top processes by memory
-  echo -e "${BLUE}Top 5 processes by memory:${NC}"
-  ps aux --sort=-%mem | head -6 | awk 'NR==1 || NR>1 {printf "  %-20s %5s%%  %8s  %s\n", $11, $4, $6, $2}'
-  echo ""
-
-  # Chrome processes
-  echo -e "${BLUE}Chrome processes:${NC}"
-  local chrome_count=$(ps aux | grep chrome | grep -v grep | wc -l)
-  if [ "$chrome_count" -gt 0 ]; then
-    ps aux | grep chrome | grep -v grep | awk '{printf "  PID %-7s  MEM %5s%%  CPU %5s%%  %s\n", $2, $4, $3, $11}' | head -5
-    if [ "$chrome_count" -gt 5 ]; then
-      echo "  ... and $((chrome_count - 5)) more Chrome processes"
-    fi
-  else
-    echo "  No Chrome processes running"
-  fi
-  echo ""
-}
-
-# Function: Auto-cleanup recommendation
-recommend_cleanup() {
-  echo -e "\n${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${RED}⚠️  CRITICAL MEMORY USAGE!${NC}"
-  echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo ""
-  echo -e "${YELLOW}Recommended actions:${NC}"
-  echo "  1. Kill Chrome:        pkill -9 chrome"
-  echo "  2. Stop frontend:      pkill -f 'node.*next'"
-  echo "  3. Stop backend:       pkill -f 'uvicorn.*main:app'"
-  echo "  4. Restart WSL:        wsl --shutdown (from Windows PowerShell)"
-  echo ""
-  show_breakdown
-}
-
-# Function: Warning message
-show_warning() {
-  echo -e "\n${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo -e "${YELLOW}⚠️  High memory usage detected${NC}"
-  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-  echo ""
-  echo "Consider stopping unnecessary processes to prevent freezing."
-  echo ""
-  show_breakdown
-}
-
-# Main monitoring loop
-main() {
-  while true; do
-    mem_usage=$(get_memory_usage)
-    swap_usage=$(get_swap_usage)
-    cpu_usage=$(get_cpu_usage)
-    chrome_mem=$(get_chrome_memory)
-
-    # Display current status
-    display_status "$mem_usage" "$swap_usage" "$cpu_usage" "$chrome_mem"
-
-    # Check for warnings
-    if [ "$mem_usage" -ge "$CRITICAL_THRESHOLD" ]; then
-      if [ "$critical_warned" = false ]; then
-        recommend_cleanup
-        critical_warned=true
-        warned=true
-      fi
-    elif [ "$mem_usage" -ge "$WARNING_THRESHOLD" ]; then
-      if [ "$warned" = false ]; then
-        show_warning
-        warned=true
-      fi
+    # Get swap info
+    SWAP_INFO=$(free | grep Swap)
+    SWAP_TOTAL=$(echo $SWAP_INFO | awk '{print $2}')
+    SWAP_USED=$(echo $SWAP_INFO | awk '{print $3}')
+    if [ "$SWAP_TOTAL" -eq 0 ]; then
+        SWAP_PERCENT=0
     else
-      # Reset warnings when usage drops
-      warned=false
-      critical_warned=false
+        SWAP_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($SWAP_USED/$SWAP_TOTAL)*100}")
     fi
 
-    sleep "$CHECK_INTERVAL"
-  done
-}
+    # Get CPU usage (average over 1 second)
+    CPU_PERCENT=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}' | awk '{printf "%.0f", $1}')
 
-# Handle Ctrl+C
-trap 'echo -e "\n\n${GREEN}Monitoring stopped${NC}\n"; exit 0' INT
+    # Get Chrome memory usage if running
+    CHROME_MEM=""
+    CHROME_PERCENT=""
+    if pgrep -x "chrome" > /dev/null; then
+        CHROME_MEM_KB=$(ps aux | grep -E '[c]hrome|[C]hrome' | awk '{sum+=$6} END {print sum}')
+        if [ ! -z "$CHROME_MEM_KB" ]; then
+            CHROME_PERCENT=$(awk "BEGIN {printf \"%.1f\", ($CHROME_MEM_KB/$MEM_TOTAL)*100}")
+            CHROME_MEM=" | Chrome: ${CHROME_PERCENT}%"
+        fi
+    fi
 
-# Run monitor
-main
+    # Determine color based on memory usage
+    if [ "$MEM_PERCENT" -lt 60 ]; then
+        COLOR=$GREEN
+        STATUS=""
+    elif [ "$MEM_PERCENT" -lt 75 ]; then
+        COLOR=$YELLOW
+        STATUS=" ⚠️  WARNING"
+    else
+        COLOR=$RED
+        STATUS=" 🔴 CRITICAL"
+    fi
+
+    # Print status line with color
+    echo -e "${COLOR}${TIMESTAMP} | Memory: ${MEM_PERCENT}% | Swap: ${SWAP_PERCENT}% | CPU: ${CPU_PERCENT}%${CHROME_MEM}${STATUS}${NC}"
+
+    # Show recommendations if critical
+    if [ "$MEM_PERCENT" -ge 75 ]; then
+        echo ""
+        echo -e "${RED}${BOLD}⚠️  CRITICAL: Memory usage above 75%!${NC}"
+        echo "Recommendations:"
+
+        # Check if Chrome is running
+        if pgrep -x "chrome" > /dev/null; then
+            echo -e "  ${YELLOW}→ Kill Chrome: ${NC}pkill -9 chrome"
+        fi
+
+        # Check if Next.js dev server is running
+        if pgrep -f "node.*next" > /dev/null; then
+            echo -e "  ${YELLOW}→ Stop Next.js dev server: ${NC}pkill -f 'node.*next'"
+        fi
+
+        # Check if uvicorn is running
+        if pgrep -f "uvicorn" > /dev/null; then
+            echo -e "  ${YELLOW}→ Stop FastAPI backend: ${NC}pkill -f 'uvicorn'"
+        fi
+
+        # General recommendations
+        echo -e "  ${YELLOW}→ Free memory: ${NC}sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null"
+        echo -e "  ${YELLOW}→ Restart WSL2: ${NC}wsl --shutdown (from Windows PowerShell)"
+        echo ""
+
+        # Add extra spacing before next update
+        sleep 3
+    fi
+
+    # Wait 2 seconds before next update
+    sleep 2
+done

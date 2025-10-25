@@ -14,7 +14,6 @@ import {
   Row,
   Col,
   Dropdown,
-  Menu,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -149,6 +148,12 @@ export default function QuoteDetailPage() {
 
   const handleExport = useCallback(
     async (format: string, type: 'pdf' | 'excel') => {
+      // Prevent concurrent exports
+      if (exportLoading) {
+        message.warning('Экспорт уже выполняется. Пожалуйста, подождите.');
+        return;
+      }
+
       // Check if quote has calculation results
       if (!quote?.items || quote.items.length === 0) {
         message.warning('Котировка пустая. Добавьте товары для экспорта.');
@@ -220,44 +225,64 @@ export default function QuoteDetailPage() {
         setExportLoading(false);
       }
     },
-    [quote?.items, quoteId]
+    [quote?.items, quoteId, exportLoading]
   );
 
-  // Create export menu (memoized to prevent recreation on state changes)
+  // Create export menu items (memoized to prevent recreation on state changes)
   // Must be before early returns to satisfy Rules of Hooks
-  const exportMenu = useMemo(
-    () => (
-      <Menu>
-        <Menu.ItemGroup title="PDF Экспорт">
-          <Menu.Item key="pdf-supply" onClick={() => handleExport('supply', 'pdf')}>
-            КП поставка (9 колонок)
-          </Menu.Item>
-          <Menu.Item key="pdf-openbook" onClick={() => handleExport('openbook', 'pdf')}>
-            КП open book (21 колонка)
-          </Menu.Item>
-          <Menu.Item key="pdf-supply-letter" onClick={() => handleExport('supply-letter', 'pdf')}>
-            КП поставка письмо
-          </Menu.Item>
-          <Menu.Item
-            key="pdf-openbook-letter"
-            onClick={() => handleExport('openbook-letter', 'pdf')}
-          >
-            КП open book письмо
-          </Menu.Item>
-        </Menu.ItemGroup>
-
-        <Menu.Divider />
-
-        <Menu.ItemGroup title="Excel Экспорт">
-          <Menu.Item key="excel-validation" onClick={() => handleExport('validation', 'excel')}>
-            Проверка расчетов
-          </Menu.Item>
-          <Menu.Item key="excel-grid" onClick={() => handleExport('grid', 'excel')}>
-            Таблицы (2 листа)
-          </Menu.Item>
-        </Menu.ItemGroup>
-      </Menu>
-    ),
+  const exportMenuItems = useMemo(
+    () => [
+      {
+        key: 'pdf-group',
+        label: 'PDF Экспорт',
+        type: 'group' as const,
+        children: [
+          {
+            key: 'pdf-supply',
+            label: 'КП поставка (9 колонок)',
+            onClick: () => handleExport('supply', 'pdf'),
+          },
+          {
+            key: 'pdf-openbook',
+            label: 'КП open book (21 колонка)',
+            onClick: () => handleExport('openbook', 'pdf'),
+          },
+          {
+            key: 'pdf-supply-letter',
+            label: 'КП поставка письмо',
+            onClick: () => handleExport('supply-letter', 'pdf'),
+          },
+          {
+            key: 'pdf-openbook-letter',
+            label: 'КП open book письмо',
+            onClick: () => handleExport('openbook-letter', 'pdf'),
+          },
+        ],
+      },
+      { type: 'divider' as const },
+      {
+        key: 'excel-group',
+        label: 'Excel Экспорт',
+        type: 'group' as const,
+        children: [
+          {
+            key: 'excel-validation',
+            label: 'Проверка расчетов',
+            onClick: () => handleExport('validation', 'excel'),
+          },
+          {
+            key: 'excel-supply-grid',
+            label: 'КП поставка (9 колонок)',
+            onClick: () => handleExport('supply-grid', 'excel'),
+          },
+          {
+            key: 'excel-openbook-grid',
+            label: 'КП open book (21 колонка)',
+            onClick: () => handleExport('openbook-grid', 'excel'),
+          },
+        ],
+      },
+    ],
     [handleExport]
   );
 
@@ -408,7 +433,11 @@ export default function QuoteDetailPage() {
           </Col>
           <Col>
             <Space>
-              <Dropdown overlay={exportMenu} trigger={['click']} disabled={exportLoading}>
+              <Dropdown
+                menu={{ items: exportMenuItems }}
+                trigger={['click']}
+                disabled={exportLoading}
+              >
                 <Button icon={<DownloadOutlined />} loading={exportLoading}>
                   Экспорт
                 </Button>
@@ -441,7 +470,7 @@ export default function QuoteDetailPage() {
         </Row>
 
         {/* Section 2: Quote Info Card */}
-        <Card title="Информация о КП" bordered={false}>
+        <Card title="Информация о КП" variant="borderless">
           <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
             <Descriptions.Item label="Клиент">{quote.customer_name || '—'}</Descriptions.Item>
             <Descriptions.Item label="Название КП">{quote.title || '—'}</Descriptions.Item>
@@ -463,7 +492,7 @@ export default function QuoteDetailPage() {
         {/* Section 3: Products Table (ag-Grid, read-only) */}
         <Card
           title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
-          bordered={false}
+          variant="borderless"
           styles={{ body: { padding: '16px' } }}
         >
           {quote.items && quote.items.length > 0 ? (

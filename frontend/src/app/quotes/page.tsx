@@ -46,13 +46,14 @@ const { RangePicker } = DatePicker;
 interface QuoteListItem {
   id: string;
   quote_number: string;
-  customer_name: string;
-  title: string;
+  customer_name?: string;
+  title?: string;
   status: string;
-  total_amount: number;
-  currency: string;
-  quote_date: string;
-  valid_until: string;
+  total_amount?: number;
+  total?: number; // Backend uses 'total' instead of 'total_amount'
+  currency?: string;
+  quote_date?: string;
+  valid_until?: string;
   created_at: string;
 }
 
@@ -121,9 +122,12 @@ export default function QuotesPage() {
       });
       console.log('[fetchQuotes] API response:', response);
       if (response.success && response.data) {
-        setQuotes((response.data.quotes || []) as unknown as QuoteListItem[]);
+        console.log('[fetchQuotes] Quotes array:', response.data.quotes);
+        console.log('[fetchQuotes] Total items:', response.data.pagination?.total_items);
+        setQuotes(response.data.quotes || []);
         setTotalCount(response.data.pagination?.total_items || 0);
       } else {
+        console.error('[fetchQuotes] ERROR:', response.error);
         message.error(response.error || 'Ошибка загрузки КП');
       }
     } catch (error: any) {
@@ -167,7 +171,20 @@ export default function QuotesPage() {
 
       const response = await quoteService.getQuoteDetails(quoteId, organizationId);
       if (response.success && response.data) {
-        setDrawerData(response.data);
+        // Transform flat QuoteWithItems response to nested structure
+        // Backend returns: { id, quote_number, status, ..., items: [...], customer: {...}, approvals: [...] }
+        // Drawer expects: { quote: {...}, items: [...], customer: {...}, workflow: {...} }
+
+        // Destructure to separate items/customer from quote fields
+        const { items, customer, ...quoteFields } = response.data as any;
+
+        const transformed = {
+          quote: quoteFields, // Just the quote fields (without items/customer/approvals)
+          items: items || [],
+          customer: customer || null,
+          workflow: null, // TODO: Map from approvals array
+        };
+        setDrawerData(transformed as any);
       } else {
         message.error(response.error || 'Ошибка загрузки данных КП');
       }
@@ -262,7 +279,10 @@ export default function QuotesPage() {
       key: 'total_amount',
       width: 150,
       align: 'right' as const,
-      render: (amount: number, record: QuoteListItem) => formatCurrency(amount, record.currency),
+      render: (_: any, record: QuoteListItem) => {
+        const amount = record.total_amount || record.total || 0;
+        return formatCurrency(amount, record.currency || 'RUB');
+      },
     },
     {
       title: 'Статус',
@@ -304,7 +324,7 @@ export default function QuotesPage() {
           <Button
             type="text"
             icon={<EyeOutlined />}
-            onClick={() => router.push(`/quotes/${record.id}`)}
+            onClick={() => openDrawer(record.id)}
             title="Просмотр"
           />
           {(record.status === 'draft' || record.status === 'revision_needed') && (
@@ -342,7 +362,7 @@ export default function QuotesPage() {
   ).length;
   const totalRevenue = quotes
     .filter((q) => q.status === 'accepted')
-    .reduce((sum, q) => sum + (q.total_amount || 0), 0);
+    .reduce((sum, q) => sum + (q.total_amount || q.total || 0), 0);
 
   return (
     <MainLayout>
@@ -498,7 +518,7 @@ export default function QuotesPage() {
         <Drawer
           title={drawerData?.quote?.quote_number || 'Загрузка...'}
           placement="right"
-          width={680}
+          width={800}
           onClose={closeDrawer}
           open={drawerOpen}
         >
