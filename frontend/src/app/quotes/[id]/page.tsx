@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Card,
   Descriptions,
@@ -26,13 +27,25 @@ import MainLayout from '@/components/layout/MainLayout';
 import { QuoteService } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { getAuthToken } from '@/lib/auth/auth-helper';
-import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 
-// Register AG Grid modules
-ModuleRegistry.registerModules([AllCommunityModule]);
+// Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
+const AgGridReact = dynamic(
+  async () => {
+    const { AgGridReact } = await import('ag-grid-react');
+    const { ModuleRegistry, AllCommunityModule } = await import('ag-grid-community');
+
+    // Register modules when ag-Grid loads
+    ModuleRegistry.registerModules([AllCommunityModule]);
+
+    return AgGridReact;
+  },
+  {
+    loading: () => <Spin size="large" tip="Загрузка таблицы..." />,
+    ssr: false,
+  }
+);
 
 const { Title, Text } = Typography;
 

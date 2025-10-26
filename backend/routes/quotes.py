@@ -192,10 +192,15 @@ async def list_quotes(
         # Transform data for response
         quotes_data = []
         for quote in result.data:
+            # Safely access nested customer data (join may return None)
+            customer_name = ""
+            if quote.get("customers"):
+                customer_name = quote["customers"].get("name", "") if isinstance(quote["customers"], dict) else ""
+
             quotes_data.append({
                 "id": quote["id"],
                 "quote_number": quote["quote_number"],
-                "customer_name": quote["customers"]["name"] if quote.get("customers") else "",
+                "customer_name": customer_name,
                 "title": quote.get("title", ""),
                 "status": quote["status"],
                 "total_amount": quote.get("total_amount", 0),

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Form,
   Input,
@@ -25,13 +26,25 @@ import {
   DatePicker,
 } from 'antd';
 import dayjs from 'dayjs';
-import { AgGridReact } from 'ag-grid-react';
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef, ColGroupDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 
-// Register AG Grid modules (required for v34+)
-ModuleRegistry.registerModules([AllCommunityModule]);
+// Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
+const AgGridReact = dynamic(
+  async () => {
+    const { AgGridReact } = await import('ag-grid-react');
+    const { ModuleRegistry, AllCommunityModule } = await import('ag-grid-community');
+
+    // Register modules when ag-Grid loads
+    ModuleRegistry.registerModules([AllCommunityModule]);
+
+    return AgGridReact;
+  },
+  {
+    loading: () => <Spin size="large" tip="Загрузка таблицы..." />,
+    ssr: false,
+  }
+);
 import {
   InboxOutlined,
   SaveOutlined,
