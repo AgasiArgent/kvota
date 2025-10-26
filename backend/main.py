@@ -106,11 +106,12 @@ async def lifespan(app: FastAPI):
 # RATE LIMITING SETUP
 # ============================================================================
 
-# Initialize rate limiter
+# Initialize rate limiter with Redis storage
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["50/minute"],  # Default: 50 requests per minute per IP
-    storage_uri="memory://"  # Use in-memory storage (for production: use Redis)
+    storage_uri=redis_url  # Redis storage for distributed rate limiting
 )
 
 # ============================================================================

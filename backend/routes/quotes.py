@@ -25,6 +25,7 @@ from fastapi.responses import Response
 from fastapi import File, UploadFile
 import os
 from services.activity_log_service import log_activity, log_activity_decorator
+from async_supabase import async_supabase_call
 
 
 # ============================================================================
@@ -182,8 +183,8 @@ async def list_quotes(
         offset = (page - 1) * limit
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
 
-        # Execute query
-        result = query.execute()
+        # Execute query (using async wrapper to prevent blocking)
+        result = await async_supabase_call(query)
 
         total = result.count if result.count is not None else 0
         total_pages = (total + limit - 1) // limit if total > 0 else 0

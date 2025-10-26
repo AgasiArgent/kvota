@@ -28,6 +28,10 @@ APScheduler==3.10.4
 
 # Rate Limiting
 slowapi==0.1.9
+redis==7.0.0
+
+# System Monitoring
+psutil==7.1.2
 
 # Testing
 pytest==8.3.5
