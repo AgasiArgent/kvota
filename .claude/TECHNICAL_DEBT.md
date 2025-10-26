@@ -2,7 +2,7 @@
 
 **Purpose:** Track issues to fix later without blocking current development
 
-**Last Updated:** 2025-10-26 (Session 26 - Post-Wave 5 Testing)
+**Last Updated:** 2025-10-26 (Session 30 - Export System Testing Complete)
 
 ---
 
@@ -418,7 +418,42 @@ see https://u.ant.design/v5-for-19 for compatible.
 
 *(Not bugs, but features to consider)*
 
-### 1. Exchange Rate System Redesign (Session 29 - Deferred from Phase 2.3)
+### 1. Export System Edge Case Testing (Session 30 - Deferred)
+**Status:** ✅ Core export functionality FULLY WORKING (all 6 formats tested)
+
+**Completed Testing (2025-10-26):**
+- ✅ PDF exports: supply, openbook, supply-letter, openbook-letter (all 4 formats work)
+- ✅ Excel exports: validation, supply-grid, openbook-grid (all 3 formats work)
+- ✅ Excel "Оплата" field shows `advance_from_client` percentage correctly
+- ✅ PDF downloads work without 500 errors
+- ✅ Filenames generated correctly (UUID to string conversion fixed)
+- ✅ Multiproduct quotes export correctly
+
+**Deferred Testing:**
+1. **Special characters in export data**
+   - Test quotes with special characters in:
+     - Customer names (Cyrillic, Latin, special symbols)
+     - Product names (quotes, apostrophes, etc.)
+     - Manager info (Cyrillic names with special chars)
+   - Verify PDF/Excel encoding handles all characters correctly
+   - **Estimated effort:** 30 minutes
+
+2. **Different quote statuses (blocked by missing approval workflow)**
+   - Current: All quotes are "draft" status
+   - Need to test exports for:
+     - Approved quotes
+     - Rejected quotes
+     - Sent quotes
+   - **Blocker:** Quote approval workflow not yet implemented
+   - **Estimated effort:** 15 minutes (after approval workflow ready)
+
+**Priority:** Low (core functionality verified, edge cases can be tested later)
+
+**Related Session:** Session 30 - Export System Bug Fixes ✅
+
+---
+
+### 2. Exchange Rate System Redesign (Session 29 - Deferred from Phase 2.3)
 **Problem:** Current exchange rate UI doesn't match actual currencies used in quotes
 
 **Current State:**
