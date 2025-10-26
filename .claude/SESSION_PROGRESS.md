@@ -327,13 +327,80 @@ Always verify comments match actual implementation during code reviews. Comments
 
 ---
 
+### Phase 6: Priority 2 Feature Testing ✅
+
+**Goal:** Test Session 26-28 features (Dashboard, Activity Logs, User Profile, Feedback, Export System).
+
+**Testing Results:**
+
+**1. Dashboard Page** (5 min) ✅
+- **URL:** `/dashboard`
+- **Status:** ✅ Working perfectly
+- **Features Verified:**
+  - Stats cards (Total quotes, Approved, Pending, Revenue)
+  - Monthly performance metrics (Conversion rate, sales growth, approval time)
+  - Quick actions (Create quote, Manage customers links)
+  - Recent quotes table (empty state showing correctly)
+  - No console errors
+
+**2. Feedback System** (5 min) ✅
+- **Location:** Floating bug button on all pages
+- **Status:** ✅ Working perfectly
+- **Features Verified:**
+  - Bug icon button present and clickable
+  - Modal opens with "Сообщить об ошибке" form
+  - Description textarea with 0/1000 character counter
+  - Auto-capture notice (URL, browser info, screen resolution)
+  - Cancel and Submit buttons functional
+  - No console errors
+
+**3. Activity Logs Page** (20 min) ✅ **BUG FIXED**
+- **URL:** `/activity` (note: not `/activity-logs`)
+- **Issue Found:** Page crashed with `availableUsers.map is not a function`
+- **Root Cause:** Backend returns `{users: Array}` but frontend expected `response.data` to be array directly
+- **Fix Applied:**
+  - **File:** `frontend/src/app/activity/page.tsx:102-109`
+  - Extract users array from response wrapper: `const usersData = (response.data as any).users || response.data;`
+  - Add type safety: `setAvailableUsers(Array.isArray(usersData) ? usersData : []);`
+- **Post-Fix Verification:**
+  - ✅ Page loads without errors
+  - ✅ Filter controls work (date range, user dropdown, entity type, action)
+  - ✅ Action buttons present (Apply filters, Reset, Refresh, Export CSV)
+  - ✅ Empty state displays correctly
+  - ✅ No console errors
+
+**4. User Profile Page** (5 min) ✅
+- **URL:** `/profile`
+- **Status:** ✅ Working perfectly
+- **Features Verified:**
+  - Info banner explaining data usage in exports
+  - Three form fields (Manager name, phone, email)
+  - Save button functional
+  - Clean layout with icons
+  - No console errors
+
+**5. Export System** (Skipped - Manual Testing)
+- **Decision:** User will test export functionality manually
+- **Reason:** Requires quote selection and file download verification (better done manually)
+
+**Commit:**
+- **Hash:** `81a04ff`
+- **Message:** `fix(activity-logs): Handle backend response structure in user filter`
+- **Files:** `frontend/src/app/activity/page.tsx`
+
+**Time:** ~35 min
+
+---
+
 ### Session 29 Summary
 
-**Total Phases:** 5 (2.1, 2.2, 2.3, 3, 4, 5)
+**Total Phases:** 6 (2.1, 2.2, 2.3, 3, 4, 5, 6)
 **All Bugs Fixed:** ✅
+**Priority 1 Complete:** ✅ All edit/create flow bugs fixed
+**Priority 2 Complete:** ✅ Session 26-28 features tested
 **User Verification:** ✅ All tested and working
 
-**Total session time:** ~3 hours 25 min
+**Total session time:** ~4 hours
 
 ---
 
