@@ -16,7 +16,7 @@ from models import (
     PaginationParams, SuccessResponse, ErrorResponse
 )
 import os
-from services.activity_log_service import log_activity
+from services.activity_log_service import log_activity, log_activity_decorator
 
 
 # ============================================================================
@@ -145,6 +145,7 @@ async def list_customers(
 
 
 @router.post("/", response_model=Customer)
+@log_activity_decorator("customer", "created")
 async def create_customer(
     customer_data: CustomerCreate,
     auth_context: AuthContext = Depends(get_auth_context)
@@ -268,6 +269,7 @@ async def get_customer(
 
 
 @router.put("/{customer_id}", response_model=Customer)
+@log_activity_decorator("customer", "updated")
 async def update_customer(
     customer_id: UUID,
     customer_update: CustomerUpdate,
@@ -354,6 +356,7 @@ async def update_customer(
 
 
 @router.delete("/{customer_id}", response_model=SuccessResponse)
+@log_activity_decorator("customer", "deleted")
 async def delete_customer(
     customer_id: UUID,
     user: User = Depends(require_permission("customers:delete"))
@@ -573,6 +576,7 @@ async def list_customer_contacts(
 
 
 @router.post("/{customer_id}/contacts")
+@log_activity_decorator("contact", "created")
 async def create_contact(
     customer_id: UUID,
     contact: dict,
@@ -640,6 +644,7 @@ async def create_contact(
 
 
 @router.put("/{customer_id}/contacts/{contact_id}")
+@log_activity_decorator("contact", "updated")
 async def update_contact(
     customer_id: UUID,
     contact_id: UUID,
@@ -690,6 +695,7 @@ async def update_contact(
 
 
 @router.delete("/{customer_id}/contacts/{contact_id}")
+@log_activity_decorator("contact", "deleted")
 async def delete_contact(
     customer_id: UUID,
     contact_id: UUID,
