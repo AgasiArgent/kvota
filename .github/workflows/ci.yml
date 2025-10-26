@@ -92,7 +92,7 @@ jobs:
 
       - name: Run pytest (unit tests only)
         working-directory: backend
-        run: python -m pytest tests/test_quotes_calc_mapper.py -v
+        run: python -m pytest tests/test_imports.py tests/calculation/ tests/test_quotes_calc_mapper.py tests/test_quotes_calc_validation.py -v
         env:
           PYTHONPATH: .
           SECRET_KEY: test-secret-key
