@@ -21,13 +21,20 @@ load_dotenv()
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 supabase_anon_key = os.getenv("SUPABASE_ANON_KEY")
+environment = os.getenv("ENVIRONMENT", "development")
 
+# In test environment, allow module import without Supabase credentials
 if not all([supabase_url, supabase_service_key, supabase_anon_key]):
-    raise ValueError("Missing required Supabase environment variables")
-
-# Create Supabase clients
-supabase_admin: Client = create_client(supabase_url, supabase_service_key)  # Admin operations
-supabase_anon: Client = create_client(supabase_url, supabase_anon_key)      # Public operations
+    if environment == "test":
+        # Allow imports in test environment without real credentials
+        supabase_admin = None  # type: ignore
+        supabase_anon = None  # type: ignore
+    else:
+        raise ValueError("Missing required Supabase environment variables")
+else:
+    # Create Supabase clients with real credentials
+    supabase_admin: Client = create_client(supabase_url, supabase_service_key)  # Admin operations
+    supabase_anon: Client = create_client(supabase_url, supabase_anon_key)      # Public operations
 
 # Security scheme for FastAPI
 security = HTTPBearer()
