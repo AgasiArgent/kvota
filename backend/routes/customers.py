@@ -98,9 +98,13 @@ async def list_customers(
 
         # Apply filters
         if search:
-            # Supabase doesn't support OR in a single filter, so we'll fetch and filter in Python
-            # For now, let's just search by name
-            query = query.ilike("name", f"%{search}%")
+            # Search across multiple fields using .or_()
+            # Note: Use asterisks (*) for wildcards in .or_() syntax, not percent signs
+            query = query.or_(
+                f"name.ilike.*{search}*,"
+                f"email.ilike.*{search}*,"
+                f"inn.ilike.*{search}*"
+            )
 
         if status:
             query = query.eq("status", status)

@@ -4,10 +4,11 @@ Uses Supabase client (NOT asyncpg) following customers.py pattern
 """
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, date
 import os
 import io
 import asyncio
+import logging
 
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -19,7 +20,10 @@ from pydantic import BaseModel, Field
 from decimal import Decimal
 
 # Import calculation engine
-from calculation_engine import calculate_single_product_quote
+from calculation_engine import calculate_single_product_quote, calculate_multiproduct_quote
+
+# Setup logger
+logger = logging.getLogger(__name__)
 from calculation_models import (
     QuoteCalculationInput,
     ProductInfo,
@@ -115,6 +119,8 @@ class QuoteCalculationRequest(BaseModel):
     contact_id: Optional[str] = None  # Customer contact person
     title: str
     description: Optional[str] = None
+    quote_date: date  # Quote creation date
+    valid_until: date  # Quote validity date
     products: List[ProductFromFile]
     variables: Dict[str, Any]  # All 39 calculation variables
     template_id: Optional[str] = None
@@ -889,6 +895,8 @@ async def calculate_quote(
             "created_by": str(user.id),
             "manager_name": user.full_name,  # Manager info from user
             "manager_email": user.email,
+            "quote_date": request.quote_date.isoformat(),  # Convert date to ISO string
+            "valid_until": request.valid_until.isoformat(),  # Convert date to ISO string
             "subtotal": 0,  # Will be updated after calculations
             "total_amount": 0  # Will be updated after calculations
         }
@@ -941,49 +949,63 @@ async def calculate_quote(
         # 4. Fetch admin settings for organization
         admin_settings = await fetch_admin_settings(str(user.current_organization_id))
 
-        # 5. Run calculation engine for each product
+        # 5. Validate all products and build calculation inputs
+        calc_inputs = []
+
+        # DEBUG: Log dm_fee values
+        logger.info(f"🔍 DEBUG: dm_fee_type from request = {request.variables.get('dm_fee_type')}")
+        logger.info(f"🔍 DEBUG: dm_fee_value from request = {request.variables.get('dm_fee_value')}")
+        logger.info(f"🔍 DEBUG: Full variables keys = {list(request.variables.keys())}")
+
+        for idx, product in enumerate(request.products):
+            # Validate input before processing
+            validation_errors = validate_calculation_input(product, request.variables)
+            if validation_errors:
+                # Roll back quote and return all errors
+                supabase.table("quotes").delete().eq("id", quote_id).execute()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Validation failed for product '{product.product_name}': " + "; ".join(validation_errors)
+                )
+
+            # Map variables to nested calculation input using helper function
+            calc_input = map_variables_to_calculation_input(
+                product=product,
+                variables=request.variables,
+                admin_settings=admin_settings
+            )
+
+            # DEBUG: Log what was mapped
+            logger.info(f"🔍 DEBUG: Product {idx} - dm_fee_type = {calc_input.financial.dm_fee_type}, dm_fee_value = {calc_input.financial.dm_fee_value}")
+
+            calc_inputs.append(calc_input)
+
+        # 6. Run calculation engine for ALL products together (with 60-second timeout)
+        # This ensures proper distribution of quote-level costs (dm_fee, logistics, etc.)
+        try:
+            async with asyncio.timeout(60):
+                # Wrap sync calculation in async executor
+                loop = asyncio.get_event_loop()
+                results_list = await loop.run_in_executor(
+                    None,
+                    calculate_multiproduct_quote,
+                    calc_inputs
+                )
+        except asyncio.TimeoutError:
+            # Roll back quote and raise timeout error
+            supabase.table("quotes").delete().eq("id", quote_id).execute()
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail=f"Calculation timeout (max 60 seconds). Please simplify inputs."
+            )
+
+        # 7. Process results and save to database
         calculation_results = []
         total_subtotal = Decimal("0")
         total_amount = Decimal("0")
 
-        for idx, (product, item_record) in enumerate(zip(request.products, items_response.data)):
+        for idx, (result, product, item_record) in enumerate(zip(results_list, request.products, items_response.data)):
             try:
-                # Validate input before processing
-                validation_errors = validate_calculation_input(product, request.variables)
-                if validation_errors:
-                    # Roll back quote and return all errors
-                    supabase.table("quotes").delete().eq("id", quote_id).execute()
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Validation failed for product '{product.product_name}': " + "; ".join(validation_errors)
-                    )
-
-                # Map variables to nested calculation input using helper function
-                calc_input = map_variables_to_calculation_input(
-                    product=product,
-                    variables=request.variables,
-                    admin_settings=admin_settings
-                )
-
-                # Calculate using engine (with 60-second timeout)
-                # Prevents complex calculations from blocking workers
-                try:
-                    async with asyncio.timeout(60):
-                        # Wrap sync calculation in async executor
-                        loop = asyncio.get_event_loop()
-                        result = await loop.run_in_executor(
-                            None,
-                            calculate_single_product_quote,
-                            calc_input
-                        )
-                except asyncio.TimeoutError:
-                    # Roll back quote and raise timeout error
-                    supabase.table("quotes").delete().eq("id", quote_id).execute()
-                    raise HTTPException(
-                        status_code=status.HTTP_408_REQUEST_TIMEOUT,
-                        detail=f"Calculation timeout for product '{product.product_name}' (max 60 seconds). Please simplify inputs."
-                    )
-
                 # Save calculation results
                 results_data = {
                     "quote_id": quote_id,
@@ -999,35 +1021,17 @@ async def calculate_quote(
                 total_subtotal += result.purchase_price_total_quote_currency  # S16 - Purchase price
                 total_amount += result.sales_price_total_no_vat  # AK16 - Final sales price total
 
-                # Calculate import duties (tariff only)
+                # Calculate individual cost components for display
+                # Note: These are already included in result.cogs_per_product (AB16)
                 import_duties_total = result.customs_fee  # Y16 - Import tariff
-
-                # Calculate excise + util fees (Акциз + Утиль)
                 util_fee_value = Decimal(str(request.variables.get('util_fee', 0)))
                 excise_and_util = result.excise_tax_amount + util_fee_value  # Z16 + util_fee
+                financing_costs_total = result.financing_cost_initial + result.financing_cost_credit  # BA16 + BB16
 
-                # Calculate financing costs
-                financing_costs_total = result.financing_cost_initial + result.financing_cost_credit
-
-                # Calculate brokerage costs (distributed per product) - these are included in COGS/operational costs
-                total_brokerage = (
-                    Decimal(str(request.variables.get('brokerage_hub', 0))) +
-                    Decimal(str(request.variables.get('brokerage_customs', 0))) +
-                    Decimal(str(request.variables.get('warehousing_at_customs', 0))) +
-                    Decimal(str(request.variables.get('customs_documentation', 0))) +
-                    Decimal(str(request.variables.get('brokerage_extra', 0)))
-                )
-                brokerage_per_product = total_brokerage * result.distribution_base
-
-                # Calculate comprehensive total cost (COGS + duties + excise/util + financing + brokerage)
-                total_cost_comprehensive = (
-                    result.cogs_per_product +
-                    import_duties_total +
-                    excise_and_util +
-                    financing_costs_total +
-                    brokerage_per_product +
-                    result.dm_fee
-                )
+                # Total cost = COGS (AB16)
+                # AB16 already includes: S16 (purchase) + V16 (logistics+brokerage) + Y16 (duties) + Z16 (excise) + BA16+BB16 (financing)
+                # DM fee (AG16) is NOT part of COGS - it's added later in final sales price (AK16)
+                total_cost_comprehensive = result.cogs_per_product  # AB16 only
 
                 # Add to response - map backend field names to frontend interface
                 calculation_results.append({
@@ -1045,27 +1049,27 @@ async def calculate_quote(
                     "import_duties": float(import_duties_total),  # Y16 - Import tariff (Пошлина)
                     "customs_fees": float(excise_and_util),  # Z16 + util_fee - Excise tax + Utilization fee (Акциз + Утиль)
                     "financing_costs": float(financing_costs_total),  # BA16 + BB16 - Supplier + operational financing
-                    "dm_fee": float(result.dm_fee),  # AG16 - Decision maker fee
-                    "total_cost": float(total_cost_comprehensive),  # COGS + duties + excise/util + financing + brokerage + DM fee
-                    "sale_price": float(result.sales_price_total_no_vat),  # AK16 - Final sales price
+                    "dm_fee": float(result.dm_fee),  # AG16 - Decision maker fee (NOW DISTRIBUTED!)
+                    "total_cost": float(total_cost_comprehensive),  # AB16 - COGS only (purchase + logistics + duties + excise + financing)
+                    "sale_price": float(result.sales_price_total_no_vat),  # AK16 - Final sales price (COGS + margin + dm_fee + forex + fin_comm)
                     "margin": float(result.profit)  # AF16 - Profit margin
                 })
 
             except Exception as e:
-                # If calculation fails for one product, roll back the quote
+                # If processing fails for one product, roll back the quote
                 supabase.table("quotes").delete().eq("id", quote_id).execute()
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Calculation failed for product {product.product_name}: {str(e)}"
+                    detail=f"Failed to save results for product {product.product_name}: {str(e)}"
                 )
 
-        # 6. Update quote totals
+        # 8. Update quote totals
         supabase.table("quotes").update({
             "subtotal": float(total_subtotal),
             "total_amount": float(total_amount)
         }).eq("id", quote_id).execute()
 
-        # 7. Return complete result
+        # 9. Return complete result
         return QuoteCalculationResult(
             quote_id=quote_id,
             quote_number=quote_number,

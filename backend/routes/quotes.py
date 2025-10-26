@@ -173,11 +173,30 @@ async def list_quotes(
         if max_amount:
             query = query.lte("total_amount", max_amount)
         if search:
-            # Search in quote_number, customer name, or title
-            query = query.or_(
-                f"quote_number.ilike.%{search}%,"
-                f"title.ilike.%{search}%"
-            )
+            # Search in quote_number, title, AND customer name
+            # Two-step approach: First find matching customers, then filter quotes
+
+            # Step 1: Find customer IDs matching the search term
+            customer_search = supabase.table("customers").select("id").eq(
+                "organization_id", user.current_organization_id
+            ).ilike("name", f"*{search}*").execute()
+
+            matching_customer_ids = [c["id"] for c in (customer_search.data or [])]
+
+            # Step 2: Build quote search filter
+            if matching_customer_ids:
+                # Search in quote fields OR customer_id
+                query = query.or_(
+                    f"quote_number.ilike.*{search}*,"
+                    f"title.ilike.*{search}*,"
+                    f"customer_id.in.({','.join(matching_customer_ids)})"
+                )
+            else:
+                # No matching customers, just search quote fields
+                query = query.or_(
+                    f"quote_number.ilike.*{search}*,"
+                    f"title.ilike.*{search}*"
+                )
 
         # Apply pagination
         offset = (page - 1) * limit
@@ -452,12 +471,27 @@ async def get_quote(
         except Exception:
             # quote_approvals table doesn't exist yet (stub feature)
             pass
-        
-        # Create response with items, customer, and approvals
+
+        # Get calculation variables (input variables used for calculation)
+        calculation_variables = None
+        try:
+            variables_row = await conn.fetchrow("""
+                SELECT variables
+                FROM quote_calculation_variables
+                WHERE quote_id = $1
+            """, quote_id)
+            if variables_row:
+                calculation_variables = variables_row['variables']
+        except Exception:
+            # quote_calculation_variables might not have data for old quotes
+            pass
+
+        # Create response with items, customer, approvals, and variables
         quote_response = QuoteWithItems(**quote.dict())
         quote_response.items = items
         quote_response.customer = customer
         quote_response.approvals = approvals
+        quote_response.calculation_variables = calculation_variables
 
         return quote_response
         

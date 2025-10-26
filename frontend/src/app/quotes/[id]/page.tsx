@@ -459,7 +459,7 @@ export default function QuoteDetailPage() {
                 <Button
                   type="primary"
                   icon={<EditOutlined />}
-                  onClick={() => router.push('/quotes/' + quote.id + '?mode=edit')}
+                  onClick={() => router.push('/quotes/' + quote.id + '/edit')}
                 >
                   Редактировать
                 </Button>

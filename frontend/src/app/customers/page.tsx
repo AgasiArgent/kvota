@@ -51,7 +51,13 @@ export default function CustomersPage() {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const response = await customerService.listCustomers();
+      const response = await customerService.listCustomers({
+        page: currentPage,
+        limit: pageSize,
+        search: searchTerm || undefined,
+        status: statusFilter || undefined,
+        region: regionFilter || undefined,
+      });
 
       if (response.success && response.data) {
         setCustomers(response.data.customers || []);

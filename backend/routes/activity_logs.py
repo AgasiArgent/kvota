@@ -158,6 +158,59 @@ async def get_activity_stats(
         )
 
 
+@router.get("/users")
+async def list_users(
+    user: User = Depends(get_current_user)
+):
+    """
+    Get list of users in organization for filter dropdown
+
+    Returns:
+    - List of users with id, email, full_name
+    """
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Get all users who have activity logs in this organization
+        result = supabase.table("activity_logs").select(
+            "user_id"
+        ).eq("organization_id", str(user.current_organization_id))\
+         .execute()
+
+        # Get unique user IDs
+        unique_user_ids = list(set(log['user_id'] for log in result.data if log.get('user_id')))
+
+        if not unique_user_ids:
+            return {"users": []}
+
+        # Fetch user profiles for these IDs
+        profiles_result = supabase.table("user_profiles").select(
+            "user_id, email, first_name, last_name"
+        ).in_("user_id", unique_user_ids)\
+         .execute()
+
+        # Format response
+        users = []
+        for profile in profiles_result.data:
+            full_name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip()
+            users.append({
+                "id": profile['user_id'],
+                "email": profile.get('email', ''),
+                "full_name": full_name or profile.get('email', 'Unknown User')
+            })
+
+        return {"users": users}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch users: {str(e)}"
+        )
+
+
 @router.get("/recent")
 async def get_recent_activity(
     limit: int = Query(20, ge=1, le=100, description="Number of recent logs"),

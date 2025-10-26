@@ -169,7 +169,7 @@ export default function CreateQuotePage() {
     form.setFieldsValue({
       ...defaultVars,
       quote_date: dayjs(),
-      valid_until: dayjs().add(7, 'day'),
+      valid_until: dayjs().add(30, 'day'),
     });
   }, []);
 
@@ -511,7 +511,15 @@ export default function CreateQuotePage() {
 
     setLoading(true);
     try {
-      const variables = form.getFieldsValue();
+      const formValues = form.getFieldsValue();
+
+      // Merge form values with defaults to ensure all 39 variables are present
+      // Form only contains visible fields, but backend needs ALL variables
+      const defaultVariables = quotesCalcService.getDefaultVariables();
+      const variables = {
+        ...defaultVariables, // Start with all defaults
+        ...formValues, // Override with form values
+      };
 
       // Convert dayjs dates to ISO strings
       const quote_date = variables.quote_date
@@ -536,7 +544,20 @@ export default function CreateQuotePage() {
 
       if (result.success && result.data) {
         setCalculationResults(result.data);
-        message.success(`Расчет выполнен! Котировка №${result.data.quote_number}`);
+        const quoteId = result.data.quote_id;
+        const quoteNumber = result.data.quote_number;
+
+        console.log('✅ Quote created successfully:', quoteNumber);
+        console.log('✅ Quote ID for redirect:', quoteId);
+
+        // Show success message and redirect to quote edit page
+        message.success(`Котировка №${quoteNumber} создана!`, 1.5);
+
+        // Redirect to quote edit page
+        console.log('Redirecting to edit page:', `/quotes/${quoteId}/edit`);
+        setTimeout(() => {
+          router.push(`/quotes/${quoteId}/edit`);
+        }, 1500);
       } else {
         message.error(`Ошибка расчета: ${result.error}`);
       }
@@ -996,9 +1017,9 @@ export default function CreateQuotePage() {
                         style={{ width: '100%' }}
                         onChange={(date) => {
                           if (date) {
-                            // Auto-update valid_until to quote_date + 7 days
+                            // Auto-update valid_until to quote_date + 30 days
                             form.setFieldsValue({
-                              valid_until: date.add(7, 'day'),
+                              valid_until: date.add(30, 'day'),
                             });
                           }
                         }}
@@ -1064,7 +1085,8 @@ export default function CreateQuotePage() {
                           <Form.Item name="offer_sale_type" label="Вид КП">
                             <Select>
                               <Select.Option value="поставка">Поставка</Select.Option>
-                              <Select.Option value="комиссия">Комиссия</Select.Option>
+                              <Select.Option value="транзит">Транзит</Select.Option>
+                              <Select.Option value="финтранзит">Финтранзит</Select.Option>
                             </Select>
                           </Form.Item>
                         </Col>

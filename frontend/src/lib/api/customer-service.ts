@@ -201,11 +201,30 @@ export class CustomerService {
   }
 
   /**
-   * Get list of customers for current organization
+   * Get list of customers for current organization with filters
    * GET /api/customers/
    */
-  async listCustomers(): Promise<ApiResponse<CustomerListResponse>> {
-    return this.apiRequest<CustomerListResponse>('/api/customers/');
+  async listCustomers(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    company_type?: string;
+    region?: string;
+  }): Promise<ApiResponse<CustomerListResponse>> {
+    const queryParams = new URLSearchParams();
+
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.company_type) queryParams.append('company_type', params.company_type);
+    if (params?.region) queryParams.append('region', params.region);
+
+    const queryString = queryParams.toString();
+    const url = `/api/customers/${queryString ? `?${queryString}` : ''}`;
+
+    return this.apiRequest<CustomerListResponse>(url);
   }
 
   /**
