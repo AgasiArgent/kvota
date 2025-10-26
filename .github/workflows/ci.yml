@@ -94,6 +94,7 @@ jobs:
         working-directory: backend
         run: python -m pytest tests/test_quotes_calc_mapper.py -v
         env:
+          PYTHONPATH: .
           SECRET_KEY: test-secret-key
           ENVIRONMENT: test
           REDIS_URL: redis://localhost:6379
