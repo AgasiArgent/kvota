@@ -1595,7 +1595,7 @@ async def export_quote_pdf(
         customer_name_clean = ''.join(c if c.isalnum() or c in '-_' else '_' for c in customer_name)
         quote_number = export_data.quote.get('quote_number', 'quote')
         # Clean quote number (remove 'КП-' prefix if present)
-        quote_number_clean = quote_number.replace('КП-', '').replace('КП', '')
+        quote_number_clean = str(quote_number).replace('КП-', '').replace('КП', '')
         filename = f"kvota_{format_name}_{quote_date}_{quote_number_clean}_{customer_name_clean}.pdf"
 
         # Write to temp file and return
@@ -1609,7 +1609,7 @@ async def export_quote_pdf(
             organization_id=user.current_organization_id,
             action="exported",
             entity_type="quote",
-            entity_id=UUID(quote_id),
+            entity_id=quote_id,
             metadata={"format": f"pdf_{format}"}
         )
 
@@ -1829,7 +1829,7 @@ async def export_quote_excel(
 
         quote_number = export_data.quote.get('quote_number', 'quote')
         # Clean quote number (remove 'КП-' prefix if present)
-        quote_number_clean = quote_number.replace('КП-', '').replace('КП', '')
+        quote_number_clean = str(quote_number).replace('КП-', '').replace('КП', '')
 
         customer_name = export_data.customer.get('name', 'customer')[:20] if export_data.customer else 'customer'
         # Clean customer name for filename (remove special characters)
