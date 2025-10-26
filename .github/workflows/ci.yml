@@ -92,13 +92,7 @@ jobs:
 
       - name: Run pytest (unit tests only)
         working-directory: backend
-        run: |
-          # Run only unit tests that don't require database or live API
-          python -m pytest \
-            tests/calculation/ \
-            tests/test_quotes_calc_mapper.py \
-            tests/test_quotes_calc_validation.py \
-            -v --cov=. --cov-report=xml --cov-report=term
+        run: python -m pytest tests/calculation/ tests/test_quotes_calc_mapper.py tests/test_quotes_calc_validation.py -v --cov=. --cov-report=xml --cov-report=term
         env:
           SECRET_KEY: test-secret-key
           ENVIRONMENT: test
