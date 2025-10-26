@@ -90,9 +90,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run diagnostic test
+      - name: Run pytest (unit tests only)
         working-directory: backend
-        run: python -m pytest tests/test_ci_diagnostic.py -v -s
+        run: python -m pytest tests/test_imports.py tests/calculation/ tests/test_quotes_calc_mapper.py tests/test_quotes_calc_validation.py -v
         env:
           PYTHONPATH: .
           SECRET_KEY: test-secret-key
