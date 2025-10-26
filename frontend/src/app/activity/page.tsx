@@ -102,7 +102,9 @@ export default function ActivityLogPage() {
   const fetchUsers = async () => {
     const response = await activityLogService.getUsers();
     if (response.success && response.data) {
-      setAvailableUsers(response.data);
+      // Backend returns {users: Array}, extract the array
+      const usersData = (response.data as any).users || response.data;
+      setAvailableUsers(Array.isArray(usersData) ? usersData : []);
     }
   };
 
