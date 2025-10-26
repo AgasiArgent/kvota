@@ -707,7 +707,7 @@ class QuoteExcelService:
             ("Дата КП:", export_data.quote.get('quote_date', '')),
             ("Срок поставки:", f"{export_data.variables.get('delivery_time_days', '')} дней"),
             ("Базис:", export_data.variables.get('offer_incoterms', '')),
-            ("Оплата:", export_data.quote.get('payment_terms', '')),
+            ("Оплата:", f"{export_data.variables.get('advance_from_client', '')}%"),
             ("Сумма с НДС:", f"{float(total):,.2f} ₽"),
         ]
 
@@ -925,7 +925,7 @@ class QuoteExcelService:
             ("Дата КП:", export_data.quote.get('quote_date', '')),
             ("Срок поставки:", f"{export_data.variables.get('delivery_time_days', '')} дней"),
             ("Базис:", export_data.variables.get('offer_incoterms', '')),
-            ("Оплата:", export_data.quote.get('payment_terms', '')),
+            ("Оплата:", f"{export_data.variables.get('advance_from_client', '')}%"),
             ("Сумма с НДС:", f"{float(total):,.2f} ₽"),
         ]
 
