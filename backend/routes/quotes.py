@@ -24,7 +24,7 @@ from file_service import file_processor
 from fastapi.responses import Response
 from fastapi import File, UploadFile
 import os
-from services.activity_log_service import log_activity
+from services.activity_log_service import log_activity, log_activity_decorator
 
 
 # ============================================================================
@@ -219,6 +219,7 @@ async def list_quotes(
 
 
 @router.post("/", response_model=Quote)
+@log_activity_decorator("quote", "created")
 async def create_quote(
     quote_data: QuoteCreate,
     user: User = Depends(require_permission("quotes:create"))
@@ -470,6 +471,7 @@ async def get_quote(
 
 
 @router.put("/{quote_id}", response_model=Quote)
+@log_activity_decorator("quote", "updated")
 async def update_quote(
     quote_id: UUID,
     quote_update: QuoteUpdate,
@@ -553,6 +555,7 @@ async def update_quote(
 
 
 @router.delete("/{quote_id}", response_model=SuccessResponse)
+@log_activity_decorator("quote", "deleted")
 async def delete_quote(
     quote_id: UUID,
     user: User = Depends(get_current_user)
@@ -674,6 +677,7 @@ async def soft_delete_quote(
 
 
 @router.patch("/{quote_id}/restore", response_model=SuccessResponse)
+@log_activity_decorator("quote", "restored")
 async def restore_quote(
     quote_id: UUID,
     user: User = Depends(get_current_user)
