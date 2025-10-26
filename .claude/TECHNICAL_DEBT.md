@@ -418,7 +418,74 @@ see https://u.ant.design/v5-for-19 for compatible.
 
 *(Not bugs, but features to consider)*
 
-### 1. Add Total Sum to Export Headers
+### 1. Exchange Rate System Redesign (Session 29 - Deferred from Phase 2.3)
+**Problem:** Current exchange rate UI doesn't match actual currencies used in quotes
+
+**Current State:**
+- Hardcoded "USD/CNY" field in quote creation form
+- Single exchange rate input (doesn't reflect actual quote currencies)
+- CBR API auto-load exists but UX unclear
+- Multiple purchase currencies possible in one quote (e.g., RUB quote with TRY and USD products)
+
+**CBR API Investigation Results (2025-10-26):**
+- ✅ CBR API only provides **RUB-based rates** (e.g., USD→RUB, EUR→RUB, CNY→RUB)
+- ❌ **No direct cross-rates** (e.g., no direct USD→CNY rate)
+- ✅ Cross-rate calculation required: USD→CNY = (USD→RUB) ÷ (CNY→RUB)
+- ✅ Backend already implements cross-rate logic correctly (`backend/services/exchange_rate_service.py:190-194`)
+- ✅ 24-hour caching working as designed
+
+**User Requirements:**
+1. Replace single "USD/CNY" field with **collapsible exchange rate table**
+2. Auto-detect currency pairs needed from products in grid
+   - Example: Quote in RUB with products in TRY and USD → show RUB/TRY and RUB/USD rates
+3. Display table showing multiple currency pairs:
+   ```
+   Курсы валют ▼ (expandable)
+   ┌─────────────┬──────────┬─────────────────────┐
+   │ Пара валют  │ Курс     │ Обновлено          │
+   ├─────────────┼──────────┼─────────────────────┤
+   │ RUB → TRY   │ 3.21     │ 26.10.2025 10:00   │
+   │ USD → RUB   │ 95.45    │ 26.10.2025 10:00   │
+   │ EUR → RUB   │ 103.87   │ 26.10.2025 10:00   │
+   └─────────────┴──────────┴─────────────────────┘
+   ```
+4. Manual refresh button to update all rates from CBR API
+5. Use detected rates in calculation automatically
+
+**Implementation Plan:**
+1. **Backend** (1 hour):
+   - New endpoint: `GET /api/exchange-rates/bulk?currencies=RUB,TRY,USD,CNY` (fetch multiple pairs at once)
+   - Optimize to fetch all needed rates in 1 CBR API call
+2. **Frontend** (1.5 hours):
+   - Create `ExchangeRateTable` component (collapsible table)
+   - Auto-detect currency pairs from grid products: `unique(quote_currency, ...product_currencies)`
+   - Display rate table with refresh button
+   - Remove hardcoded USD/CNY field
+3. **Integration** (30 min):
+   - Pass detected rates to calculation engine
+   - Update calculation variable mapping
+   - Test multiproduct quotes with mixed currencies
+
+**Benefits:**
+- ✅ Accurate reflection of actual quote currencies
+- ✅ Transparency (users see all rates being used)
+- ✅ Manual control (refresh button)
+- ✅ Better UX (collapsible, doesn't clutter form)
+
+**Estimated Effort:** 2-3 hours
+
+**Related Files:**
+- `frontend/src/app/quotes/create/page.tsx` (remove hardcoded field, add table)
+- `backend/services/exchange_rate_service.py` (already has cross-rate logic)
+- `backend/routes/exchange_rates.py` (add bulk endpoint)
+
+**Status:** 🟡 DEFERRED - UX enhancement, not blocking core functionality
+
+**API Reference:** https://www.cbr-xml-daily.ru/daily_json.js
+
+---
+
+### 2. Add Total Sum to Export Headers
 **Problem:** "Информация о поставке" card in PDF exports missing total sum
 
 **Current State:**

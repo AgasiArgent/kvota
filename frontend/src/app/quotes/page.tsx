@@ -170,6 +170,8 @@ export default function QuotesPage() {
       }
 
       const response = await quoteService.getQuoteDetails(quoteId, organizationId);
+      console.log('[Drawer] API response:', response);
+
       if (response.success && response.data) {
         // Transform flat QuoteWithItems response to nested structure
         // Backend returns: { id, quote_number, status, ..., items: [...], customer: {...}, approvals: [...] }
@@ -178,14 +180,23 @@ export default function QuotesPage() {
         // Destructure to separate items/customer from quote fields
         const { items, customer, ...quoteFields } = response.data as any;
 
+        // Map backend field names to what the drawer expects
+        const quote = {
+          ...quoteFields,
+          total: quoteFields.total_amount, // Map total_amount -> total
+        };
+
         const transformed = {
-          quote: quoteFields, // Just the quote fields (without items/customer/approvals)
+          quote,
           items: items || [],
           customer: customer || null,
           workflow: null, // TODO: Map from approvals array
         };
+
+        console.log('[Drawer] Transformed data:', transformed);
         setDrawerData(transformed as any);
       } else {
+        console.error('[Drawer] API error:', response.error);
         message.error(response.error || 'Ошибка загрузки данных КП');
       }
     } catch (error: any) {
@@ -331,7 +342,7 @@ export default function QuotesPage() {
             <Button
               type="text"
               icon={<EditOutlined />}
-              onClick={() => router.push(`/quotes/${record.id}?mode=edit`)}
+              onClick={() => router.push(`/quotes/${record.id}/edit`)}
               title="Редактировать"
             />
           )}
@@ -673,7 +684,7 @@ export default function QuotesPage() {
                     icon={<EditOutlined />}
                     onClick={() => {
                       closeDrawer();
-                      router.push(`/quotes/${selectedQuoteId}?mode=edit`);
+                      router.push(`/quotes/${selectedQuoteId}/edit`);
                     }}
                   >
                     Редактировать

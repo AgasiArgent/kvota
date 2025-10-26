@@ -761,6 +761,7 @@ class QuoteWithItems(Quote):
     items: List[QuoteItem] = []
     customer: Optional[dict] = None  # Customer information from customers table
     approvals: List[QuoteApproval] = []
+    calculation_variables: Optional[dict] = None  # Input variables used for calculation
 
 
 class ApprovalWorkflowRequest(BaseModel):

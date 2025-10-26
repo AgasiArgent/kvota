@@ -41,7 +41,11 @@ const AgGridReact = dynamic(
     return AgGridReact;
   },
   {
-    loading: () => <Spin size="large" tip="Загрузка таблицы..." />,
+    loading: () => (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" tip="Загрузка таблицы..." />
+      </div>
+    ),
     ssr: false,
   }
 );
@@ -119,6 +123,7 @@ export default function EditQuotePage() {
   // State
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [quoteNumber, setQuoteNumber] = useState<string>('');
   const [quoteTitle, setQuoteTitle] = useState<string>('');
   const [uploadedProducts, setUploadedProducts] = useState<Product[]>([]);
   const [uploadedFile, setUploadedFile] = useState<UploadFile | null>(null);
@@ -160,13 +165,24 @@ export default function EditQuotePage() {
       const orgId = ''; // Will be handled by backend via RLS
       const result = await quoteService.getQuoteDetails(quoteId, orgId);
 
+      console.log('[Edit Page] API Response:', result);
+
       if (result.success && result.data) {
-        const { quote, items } = result.data;
+        // Transform flat response to nested structure
+        // Backend returns: { id, quote_number, items: [...], customer: {...}, ... }
+        // We need: { quote: {...}, items: [...] }
+        const { items, customer, ...quoteFields } = result.data as any;
+
+        console.log('[Edit Page] Transformed quote fields:', quoteFields);
+        console.log('[Edit Page] Items:', items);
+
+        const quote = quoteFields;
 
         // Set customer
         setSelectedCustomer(quote.customer_id || undefined);
 
-        // Set quote title
+        // Set quote number and title
+        setQuoteNumber(quote.quote_number || '');
         setQuoteTitle(quote.title || '');
 
         // Convert items to Product format
@@ -191,6 +207,40 @@ export default function EditQuotePage() {
         }));
 
         setUploadedProducts(products);
+
+        // Extract and set calculation results if they exist
+        if (items && items.length > 0 && items[0].calculation_results) {
+          const resultsItems = items.map((item) => {
+            const calc = item.calculation_results;
+            return {
+              product_name: item.description || item.name,
+              product_code: item.product_code,
+              quantity: item.quantity,
+              // Map calculation engine field names to frontend display names
+              base_price_vat: calc.purchase_price_no_vat || 0,
+              base_price_no_vat: calc.purchase_price_no_vat || 0,
+              purchase_price_rub: calc.purchase_price_total_quote_currency || 0,
+              logistics_costs: calc.logistics_total || 0,
+              cogs: calc.cogs_per_product || 0,
+              cogs_with_vat: calc.cogs_per_product || 0, // Same as cogs for now
+              import_duties: 0, // Not in calc results
+              customs_fees: calc.customs_fee || 0,
+              financing_costs: calc.financing_cost_credit + calc.financing_cost_initial || 0,
+              dm_fee: calc.dm_fee || 0,
+              total_cost: calc.cogs_per_product || 0,
+              sale_price: calc.sales_price_per_unit_with_vat || 0,
+              margin: calc.profit || 0,
+            };
+          });
+
+          setCalculationResults({
+            items: resultsItems,
+            totals: {
+              subtotal: parseFloat(quote.subtotal || '0'),
+              total: parseFloat(quote.total_amount || '0'),
+            },
+          });
+        }
 
         // Set form values from quote
         form.setFieldsValue({
@@ -569,7 +619,8 @@ export default function EditQuotePage() {
             editable: true,
             type: 'numericColumn',
             cellStyle: { backgroundColor: '#fff' },
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(2) : '',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
@@ -580,7 +631,8 @@ export default function EditQuotePage() {
             editable: true,
             type: 'numericColumn',
             cellStyle: { backgroundColor: '#fff' },
-            valueFormatter: (params) => params.value?.toFixed(2) || '-',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(2) : '-',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
         ],
@@ -623,7 +675,8 @@ export default function EditQuotePage() {
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(2) : '',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
@@ -636,7 +689,8 @@ export default function EditQuotePage() {
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(4) || '',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(4) : '',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
@@ -659,7 +713,8 @@ export default function EditQuotePage() {
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(2) : '',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
@@ -672,7 +727,8 @@ export default function EditQuotePage() {
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(2) : '',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
@@ -685,7 +741,8 @@ export default function EditQuotePage() {
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(2) : '',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
           {
@@ -698,7 +755,8 @@ export default function EditQuotePage() {
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
+            valueFormatter: (params) =>
+              params.value != null ? Number(params.value).toFixed(2) : '',
             valueParser: (params) => parseDecimalInput(params.newValue),
           },
         ],
@@ -810,9 +868,16 @@ export default function EditQuotePage() {
               >
                 Назад
               </Button>
-              <Title level={2} style={{ margin: 0 }}>
-                Редактировать котировку
-              </Title>
+              <div>
+                <Title level={2} style={{ margin: 0 }}>
+                  {quoteNumber ? `Редактирование ${quoteNumber}` : 'Редактировать котировку'}
+                </Title>
+                {quoteTitle && (
+                  <Text type="secondary" style={{ fontSize: '14px' }}>
+                    {quoteTitle}
+                  </Text>
+                )}
+              </div>
             </Space>
           </Col>
           {/* Admin Settings - Minimal Horizontal Display */}
