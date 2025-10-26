@@ -126,7 +126,7 @@ export default function CreateQuotePage() {
   const router = useRouter();
   const [form] = Form.useForm<CalculationVariables>();
   const { message } = App.useApp();
-  const gridRef = useRef<AgGridReact>(null);
+  const gridRef = useRef<any>(null);
 
   // State
   const [loading, setLoading] = useState(false);
@@ -790,7 +790,7 @@ export default function CreateQuotePage() {
       }
 
       const updatedProducts = [...uploadedProducts];
-      selectedNodes.forEach((node) => {
+      selectedNodes.forEach((node: any) => {
         if (node.rowIndex !== null && node.rowIndex !== undefined) {
           updatedProducts[node.rowIndex] = {
             ...updatedProducts[node.rowIndex],
@@ -1633,7 +1633,7 @@ export default function CreateQuotePage() {
                             // Clear all filters
                             gridRef.current?.api?.setFilterModel(null);
                             // Close all filter menus
-                            gridRef.current?.api?.getAllGridColumns()?.forEach((column) => {
+                            gridRef.current?.api?.getAllGridColumns()?.forEach((column: any) => {
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               const api = gridRef.current?.api as any;
                               const filterInstance = api?.getFilterInstance(column.getColId());
@@ -1668,6 +1668,7 @@ export default function CreateQuotePage() {
                     </style>
                     <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
                       <AgGridReact
+                        // @ts-expect-error - ref is supported but type definition issue with dynamic import
                         ref={gridRef}
                         rowData={uploadedProducts}
                         columnDefs={columnDefs}
@@ -1686,7 +1687,7 @@ export default function CreateQuotePage() {
                             const updatedProducts = [...prevProducts];
                             const index = event.rowIndex;
                             if (index !== null && index !== undefined) {
-                              updatedProducts[index] = event.data;
+                              updatedProducts[index] = event.data as Product;
                             }
                             return updatedProducts;
                           });
@@ -2055,7 +2056,7 @@ export default function CreateQuotePage() {
         >
           <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <Space direction="vertical" style={{ width: '100%' }} size="small">
-              {gridRef.current?.api?.getAllGridColumns()?.map((column) => {
+              {gridRef.current?.api?.getAllGridColumns()?.map((column: any) => {
                 const colId = column.getColId();
                 const colDef = column.getColDef();
                 const headerName = colDef.headerName || colId;
