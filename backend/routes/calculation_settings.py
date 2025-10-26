@@ -13,11 +13,18 @@ from supabase import create_client, Client
 
 from auth import get_current_user, User
 
-# Initialize Supabase client
-supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-)
+# Initialize Supabase client (allow None in test environment)
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+environment = os.getenv("ENVIRONMENT", "development")
+
+if supabase_url and supabase_key:
+    supabase: Client = create_client(supabase_url, supabase_key)
+elif environment == "test":
+    # Allow imports in test environment without credentials
+    supabase = None  # type: ignore
+else:
+    raise ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
 
 router = APIRouter(prefix="/api/calculation-settings", tags=["Calculation Settings"])
 
