@@ -42,6 +42,7 @@ import {
   AppstoreOutlined,
   FilterOutlined,
   CloseCircleOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import type { UploadFile, UploadProps } from 'antd';
@@ -58,6 +59,7 @@ import {
   calculationSettingsService,
   CalculationSettings,
 } from '@/lib/api/calculation-settings-service';
+import { exchangeRateService } from '@/lib/api/exchange-rate-service';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -95,6 +97,18 @@ const parseDecimalInput = (value: string): number | null => {
   return isNaN(parsed) ? null : parsed;
 };
 
+// Helper function to format timestamp in Russian format
+const formatTimestamp = (isoString: string): string => {
+  const date = new Date(isoString);
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 export default function CreateQuotePage() {
   const router = useRouter();
   const [form] = Form.useForm<CalculationVariables>();
@@ -126,12 +140,16 @@ export default function CreateQuotePage() {
   const [templateSaveMode, setTemplateSaveMode] = useState<'new' | 'update'>('new');
   const [templateUpdateId, setTemplateUpdateId] = useState<string>('');
   const [templateNewName, setTemplateNewName] = useState<string>('');
+  const [exchangeRateUsdCny, setExchangeRateUsdCny] = useState<number | null>(null);
+  const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState<string | null>(null);
+  const [rateLoading, setRateLoading] = useState(false);
 
   // Load customers, templates, and admin settings on mount
   useEffect(() => {
     loadCustomers();
     loadTemplates();
     loadAdminSettings();
+    loadExchangeRate(); // Auto-load USD/CNY rate on mount
 
     // Set default values
     const defaultVars = quotesCalcService.getDefaultVariables();
@@ -238,6 +256,38 @@ export default function CreateQuotePage() {
         rate_fin_comm: result.data.rate_fin_comm,
         rate_loan_interest_daily: result.data.rate_loan_interest_daily,
       });
+    }
+  };
+
+  const loadExchangeRate = async () => {
+    try {
+      setRateLoading(true);
+      const rate = await exchangeRateService.getRate('USD', 'CNY');
+      setExchangeRateUsdCny(rate.rate);
+      setExchangeRateFetchedAt(rate.fetched_at);
+      // Update form field with fetched rate
+      form.setFieldValue('rate_usd_cny', rate.rate);
+    } catch (error) {
+      console.error('Failed to load exchange rate:', error);
+      message.error('Не удалось загрузить курс USD/CNY');
+    } finally {
+      setRateLoading(false);
+    }
+  };
+
+  const handleRefreshRate = async () => {
+    try {
+      setRateLoading(true);
+      // First refresh all rates from CBR API
+      await exchangeRateService.refreshRates();
+      // Then reload the USD/CNY rate
+      await loadExchangeRate();
+      message.success('Курс обновлен');
+    } catch (error) {
+      console.error('Failed to refresh exchange rate:', error);
+      message.error('Ошибка загрузки курса');
+    } finally {
+      setRateLoading(false);
     }
   };
 
@@ -1052,6 +1102,42 @@ export default function CreateQuotePage() {
                           >
                             <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
                           </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                          <Form.Item name="rate_usd_cny" label="Курс USD/CNY">
+                            <Input.Group compact>
+                              <InputNumber
+                                min={0}
+                                step={0.0001}
+                                style={{ width: 'calc(100% - 32px)' }}
+                                value={exchangeRateUsdCny || undefined}
+                                onChange={(value) => {
+                                  setExchangeRateUsdCny(value);
+                                  form.setFieldValue('rate_usd_cny', value);
+                                }}
+                              />
+                              <Button
+                                icon={<ReloadOutlined />}
+                                onClick={handleRefreshRate}
+                                loading={rateLoading}
+                                disabled={rateLoading}
+                                title="Обновить курс"
+                              />
+                            </Input.Group>
+                          </Form.Item>
+                          {exchangeRateFetchedAt && (
+                            <Text
+                              type="secondary"
+                              style={{
+                                fontSize: '11px',
+                                display: 'block',
+                                marginTop: '-8px',
+                                marginBottom: '8px',
+                              }}
+                            >
+                              Обновлено: {formatTimestamp(exchangeRateFetchedAt)}
+                            </Text>
+                          )}
                         </Col>
 
                         {/* Payment Terms - Basic (always visible) */}

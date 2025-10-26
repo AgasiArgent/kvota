@@ -2,7 +2,185 @@
 
 **Purpose:** Track issues to fix later without blocking current development
 
-**Last Updated:** 2025-10-25 (Session 24)
+**Last Updated:** 2025-10-26 (Session 26 - Post-Wave 5 Testing)
+
+---
+
+## Critical Priority (Session 26 - Wave 5 Findings)
+
+### 1. Activity Logging Not Integrated into CRUD Routes
+**Problem:** Activity log system built but not connected to actual CRUD operations
+
+**Impact:**
+- Activity log table stays empty
+- No audit trail for compliance
+- `/activity` page shows no data
+
+**Root Cause:**
+- Wave 1 created logging infrastructure (service, worker, endpoints)
+- Wave 5 testing revealed integration never completed
+- Missing `@log_activity` decorators on route handlers
+
+**To Fix:**
+- Add `@log_activity` decorators to all CRUD routes:
+  - `routes/quotes.py`: create, update, delete, restore (4 endpoints)
+  - `routes/customers.py`: create, update, delete (3 endpoints)
+  - Customer contacts endpoints: create, update, delete (3 endpoints)
+- Test: Create quote → check `/activity` page shows log entry
+- **Estimated Effort:** 1-2 hours
+
+**Related Files:**
+- `backend/services/activity_log_service.py:81-100` (decorator defined)
+- `backend/routes/quotes.py` (needs 4 decorators)
+- `backend/routes/customers.py` (needs 6 decorators)
+
+**Status:** 🔴 BLOCKS COMPLIANCE/AUDIT FEATURES
+
+---
+
+### 2. Feedback Migration Not Applied
+**Problem:** Migration `017_feedback.sql` created but never executed in Supabase
+
+**Impact:**
+- Feedback table doesn't exist in database
+- `/admin/feedback` page crashes
+- Floating feedback button fails to submit
+- 100% broken feature
+
+**Root Cause:**
+- Wave 2 Agent 6 created migration file
+- User applied migrations 014, 015, 016, 021
+- Migration 017 accidentally skipped
+
+**To Fix:**
+- Execute `backend/migrations/017_feedback.sql` in Supabase SQL Editor
+- Verify table created: `SELECT * FROM feedback LIMIT 1`
+- Test feedback button submission
+- **Estimated Effort:** 5 minutes
+
+**Related Files:**
+- `backend/migrations/017_feedback.sql` (ready to execute)
+- `backend/routes/feedback.py` (expects table to exist)
+- `frontend/src/components/FeedbackButton.tsx` (will work after migration)
+
+**Status:** 🔴 BLOCKS FEEDBACK FEATURE
+
+---
+
+### 3. Exchange Rates Table Empty - No Initial Data
+**Problem:** Exchange rates table exists but has zero rows
+
+**Impact:**
+- Quote create page: exchange rate field empty or shows error
+- Manual refresh button may fail (nothing to cache)
+- Calculations may fail if rate is required
+
+**Root Cause:**
+- Migration created table structure
+- Cron job scheduled for 10:00 AM Moscow time daily
+- No initial data load performed
+- Waiting for first cron execution
+
+**To Fix:**
+- **Option A:** Wait for cron job (next 10:00 AM Moscow time)
+- **Option B:** Manual trigger: `POST /api/exchange-rates/refresh` (requires admin auth)
+- **Option C:** Direct SQL insert for USD/CNY rate
+- **Estimated Effort:** 5 minutes
+
+**Related Files:**
+- `backend/services/exchange_rate_service.py:31-78` (fetch_cbr_rates function)
+- `backend/routes/exchange_rates.py:47-61` (manual refresh endpoint)
+
+**Status:** 🔴 BLOCKS QUOTE CREATION (may fail without rate)
+
+---
+
+### 4. Concurrent Request Performance (Supabase Client Blocking)
+**Problem:** Backend handles concurrent requests 66x slower than sequential
+
+**Symptoms:**
+- Single request: 489ms response time ✅
+- 100 concurrent requests: 32,628ms per request (32.6s) ❌
+- p95 response time: 4,141ms (target: <1,000ms)
+- All requests succeed but very slow
+
+**Root Cause:**
+- Supabase Python client is synchronous (blocking I/O)
+- When multiple requests come in, they queue up waiting for each other
+- Each database call blocks the entire event loop
+- Not true async despite using `async def` functions
+
+**Measurement Data (Load Test Results):**
+- Sequential load (10 req, one at a time): 404ms p95 ✅
+- Concurrent load (20 req simultaneously): 4,141ms p95 ❌
+- Slowdown factor: 10.2x per request
+- Peak load (100 concurrent): 66x slowdown
+
+**To Fix:**
+- **Option A:** Replace `supabase.table().execute()` with `httpx.AsyncClient` for async HTTP calls
+- **Option B:** Use `asyncpg` library for native async PostgreSQL (fastest)
+- **Option C:** Run Supabase calls in thread pool (workaround)
+- **Estimated Effort:** 2-3 hours for httpx migration, 3-4 hours for asyncpg
+
+**Impact on Production:**
+- 20 concurrent users: System becomes 10x slower
+- 50 concurrent users: System may timeout (>30s responses)
+- Not production-ready for >10 concurrent users
+
+**Related Files:**
+- `backend/routes/*.py` (all routes use `supabase.table().execute()`)
+- `.claude/LOAD_TEST_RESULTS.md:180-250` (detailed analysis)
+
+**Status:** 🔴 BLOCKS PRODUCTION SCALING
+
+**Recommendation:** Fix before production deployment or limit to <10 concurrent users
+
+---
+
+### 5. Rate Limiting Not Enforced (Security Vulnerability)
+**Problem:** Rate limiter configured but not actually blocking requests
+
+**Symptoms:**
+- Sent 100 concurrent requests to `/api/quotes`
+- Expected: 50 success, 50 blocked with 429 status
+- Actual: 100 success, 0 blocked
+- slowapi middleware added but not functional
+
+**Root Cause:**
+- slowapi requires Redis or Memcached for distributed rate limiting
+- Currently using in-memory storage (default)
+- In-memory storage doesn't work across async workers
+- Each request gets its own counter → no limit enforcement
+
+**Security Impact:**
+- ❌ No protection against DDoS attacks
+- ❌ No protection against brute force login attempts
+- ❌ No protection against API abuse
+- ❌ Single user can overwhelm backend with 1000s of requests
+
+**To Fix:**
+- **Option A:** Deploy Redis, configure slowapi to use Redis storage
+  ```python
+  from slowapi import Limiter
+  from slowapi.util import get_remote_address
+  from slowapi.storage.redis import RedisStorage
+
+  limiter = Limiter(
+      key_func=get_remote_address,
+      storage_uri="redis://localhost:6379"
+  )
+  ```
+- **Option B:** Keep in-memory for single-worker deployments (not recommended)
+- **Option C:** Use nginx rate limiting instead (production workaround)
+- **Estimated Effort:** 1 hour (Redis setup + configuration)
+
+**Related Files:**
+- `backend/main.py:73-75` (slowapi setup with in-memory storage)
+- `.claude/LOAD_TEST_RESULTS.md:140-160` (test evidence)
+
+**Status:** 🔴 SECURITY VULNERABILITY - BLOCKS PRODUCTION
+
+**Recommendation:** Deploy Redis or use nginx rate limiting before production
 
 ---
 
@@ -129,7 +307,56 @@
 
 ## Medium Priority
 
-### 4. React 19 Compatibility Warning
+### 1. Frontend Bundle Size (ag-Grid Lazy Loading)
+**Problem:** Quote pages have 1.11 MB initial bundle (221% over 500 KB target)
+
+**Impact:**
+- Slow initial page load (3-4 seconds on quote pages)
+- Poor mobile performance
+- Estimated Lighthouse performance score: <70
+
+**Root Cause (Session 26 - Wave 4 Frontend Audit):**
+- ag-Grid library (300+ KB) bundled directly into 3 pages
+- Not lazy-loaded, so entire ag-Grid loads even before user needs table
+- Pages affected:
+  - `/quotes/create` - 1.11 MB
+  - `/quotes/[id]` - 1.11 MB
+  - `/quotes/[id]/edit` - 1.12 MB
+- Other pages are fine:
+  - `/profile` - 798 KB ✅
+  - `/dashboard` - 810 KB ✅
+  - `/activity` - 802 KB ✅
+
+**To Fix:**
+Implement lazy loading for ag-Grid using Next.js dynamic imports:
+```typescript
+import dynamic from 'next/dynamic';
+
+const AgGridReact = dynamic(
+  () => import('ag-grid-react').then(m => ({ default: m.AgGridReact })),
+  { loading: () => <Spin />, ssr: false }
+);
+```
+
+**Expected Improvement:**
+- Bundle size: 1.11 MB → 800 KB (27% reduction)
+- Initial load time: 3-4s → 2-2.5s
+- Lighthouse score: <70 → 80-85
+
+**Files to Update:**
+- `frontend/src/app/quotes/create/page.tsx`
+- `frontend/src/app/quotes/[id]/page.tsx`
+- `frontend/src/app/quotes/[id]/edit/page.tsx`
+
+**Estimated Effort:** 15 minutes
+
+**Report:** `.claude/FRONTEND_PERFORMANCE_AUDIT.md`
+
+**Status:** 🟡 AFFECTS USER EXPERIENCE (not blocking, but recommended before production)
+
+---
+
+### 2. React 19 Compatibility Warning
 **Problem:** Ant Design v5 officially supports React 16-18, using React 19
 
 **Warning Message:**

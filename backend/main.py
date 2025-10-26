@@ -4,14 +4,17 @@ Main application with Supabase authentication and Russian business context
 """
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 import asyncpg
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard
 
 
 # Import our authentication system
@@ -43,7 +46,13 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("🚀 Starting B2B Quotation Platform API")
-    
+
+    # Start exchange rate scheduler
+    from services.exchange_rate_service import get_exchange_rate_service
+    exchange_service = get_exchange_rate_service()
+    exchange_service.setup_cron_job()
+    print("✅ Exchange rate scheduler started")
+
     # Test database connection using Supabase client
     try:
         supabase: Client = create_client(
@@ -56,27 +65,53 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Database connection failed: {e}")
         print("⚠️  Server will start anyway - database will be checked per request")
-    
+
     # Verify required environment variables
     required_vars = [
-        "SUPABASE_URL", 
-        "SUPABASE_ANON_KEY", 
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
         "SUPABASE_SERVICE_ROLE_KEY",
         "DATABASE_URL"
     ]
-    
+
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     if missing_vars:
         print(f"❌ Missing environment variables: {missing_vars}")
         raise ValueError(f"Missing required environment variables: {missing_vars}")
-    
+
     print("✅ Environment variables verified")
+
+    # Start activity log worker
+    from services.activity_log_service import setup_log_worker
+    await setup_log_worker()
+
     print("🎯 API is ready to serve requests")
-    
+
     yield
-    
+
     # Shutdown
     print("🔄 Shutting down B2B Quotation Platform API")
+
+    # Stop exchange rate scheduler
+    from services.exchange_rate_service import get_exchange_rate_service
+    exchange_service = get_exchange_rate_service()
+    exchange_service.shutdown_scheduler()
+    print("✅ Exchange rate scheduler stopped")
+
+    # Stop activity log worker
+    from services.activity_log_service import shutdown_log_worker
+    await shutdown_log_worker()
+
+# ============================================================================
+# RATE LIMITING SETUP
+# ============================================================================
+
+# Initialize rate limiter
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["50/minute"],  # Default: 50 requests per minute per IP
+    storage_uri="memory://"  # Use in-memory storage (for production: use Redis)
+)
 
 # ============================================================================
 # FASTAPI APPLICATION SETUP
@@ -91,6 +126,12 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json"
 )
+
+# Attach rate limiter to app state
+app.state.limiter = limiter
+
+# Add rate limit exceeded handler
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ============================================================================
 # MIDDLEWARE CONFIGURATION
@@ -208,6 +249,64 @@ async def health_check():
             content={
                 "status": "unhealthy",
                 "database": "disconnected",
+                "error": str(e),
+                "timestamp": time.time()
+            }
+        )
+
+@app.get("/api/health/detailed")
+async def health_check_detailed():
+    """
+    Enhanced health check with system metrics
+
+    Returns:
+    - Database status
+    - Memory usage
+    - Cache sizes
+    - Worker queue status
+    - Last background job execution times
+    """
+    try:
+        import psutil
+        from services.activity_log_service import log_queue
+        from routes.dashboard import dashboard_cache
+
+        # Test database connection
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+        result = supabase.table("roles").select("count", count="exact").limit(1).execute()
+
+        # Get memory usage
+        process = psutil.Process()
+        memory_mb = process.memory_info().rss / 1024 / 1024
+
+        # Get queue size
+        queue_size = log_queue.qsize()
+
+        # Get cache size
+        cache_size = len(dashboard_cache)
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "metrics": {
+                "memory_mb": round(memory_mb, 2),
+                "cache_sizes": {
+                    "dashboard": cache_size,
+                    "max_dashboard": 100
+                },
+                "worker_queue_size": queue_size,
+                "max_queue_size": 10000
+            },
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
                 "error": str(e),
                 "timestamp": time.time()
             }
@@ -422,6 +521,11 @@ app.include_router(quotes.router)
 app.include_router(quotes_calc.router)
 app.include_router(organizations.router)
 app.include_router(calculation_settings.router)
+app.include_router(users.router)
+app.include_router(activity_logs.router)
+app.include_router(exchange_rates.router)
+app.include_router(feedback.router)
+app.include_router(dashboard.router)
 
 @app.post("/api/admin/fix-database-function")
 async def fix_database_function():

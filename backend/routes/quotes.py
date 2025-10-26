@@ -24,6 +24,7 @@ from file_service import file_processor
 from fastapi.responses import Response
 from fastapi import File, UploadFile
 import os
+from services.activity_log_service import log_activity
 
 
 # ============================================================================
@@ -288,8 +289,19 @@ async def create_quote(
             quote_data.required_approvers,
             quote_data.approval_type
         )
-        
-        return Quote(**dict(row))
+
+        quote = Quote(**dict(row))
+
+        # Log activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="created",
+            entity_type="quote",
+            entity_id=quote.id
+        )
+
+        return quote
         
     except HTTPException:
         raise
@@ -509,14 +521,25 @@ async def update_quote(
         params.append(quote_id)
         
         query = f"""
-            UPDATE quotes 
+            UPDATE quotes
             SET {', '.join(update_fields)}, updated_at = TIMEZONE('utc', NOW())
             WHERE id = ${param_count}
             RETURNING *
         """
-        
+
         row = await conn.fetchrow(query, *params)
-        return Quote(**dict(row))
+        quote = Quote(**dict(row))
+
+        # Log activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="updated",
+            entity_type="quote",
+            entity_id=quote.id
+        )
+
+        return quote
         
     except HTTPException:
         raise
@@ -564,6 +587,15 @@ async def delete_quote(
         deleted = await conn.fetchval(
             "DELETE FROM quotes WHERE id = $1 RETURNING id",
             quote_id
+        )
+
+        # Log activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="deleted",
+            entity_type="quote",
+            entity_id=quote_id
         )
 
         return SuccessResponse(
@@ -683,6 +715,15 @@ async def restore_quote(
         update_result = supabase.table("quotes").update({
             "deleted_at": None
         }).eq("id", str(quote_id)).execute()
+
+        # Log activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="restored",
+            entity_type="quote",
+            entity_id=quote_id
+        )
 
         return SuccessResponse(
             message="Quote restored"
@@ -1518,6 +1559,16 @@ async def export_quote_pdf(
             tmp.write(pdf_bytes)
             tmp_path = tmp.name
 
+        # Log export activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="exported",
+            entity_type="quote",
+            entity_id=UUID(quote_id),
+            metadata={"format": f"pdf_{format}"}
+        )
+
         return FileResponse(
             tmp_path,
             media_type='application/pdf',
@@ -1742,6 +1793,16 @@ async def export_quote_excel(
         clean_customer = re.sub(r'[^\w\s-]', '', customer_name).strip().replace(' ', '_')
 
         filename = f"kvota_{format_suffix}_{quote_date}_{quote_number_clean}_{clean_customer}.xlsx"
+
+        # Log export activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="exported",
+            entity_type="quote",
+            entity_id=UUID(quote_id),
+            metadata={"format": f"excel_{format}"}
+        )
 
         from starlette.background import BackgroundTask
         return FileResponse(

@@ -25,10 +25,12 @@ import {
   MenuUnfoldOutlined,
   ApartmentOutlined,
   DeleteOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import OrganizationSwitcher from '@/components/organizations/OrganizationSwitcher';
+import FeedbackButton from '@/components/FeedbackButton';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -85,6 +87,11 @@ export default function MainLayout({ children }: MainLayoutProps) {
         icon: <ApartmentOutlined />,
         label: 'Организации',
       },
+      {
+        key: '/activity',
+        icon: <HistoryOutlined />,
+        label: 'История действий',
+      },
     ];
 
     // Add approval items for managers and above
@@ -97,6 +104,30 @@ export default function MainLayout({ children }: MainLayoutProps) {
         label: 'На утверждении',
       });
     }
+
+    // Add settings items
+    const settingsChildren = [];
+
+    // All users can access profile
+    settingsChildren.push({
+      key: '/profile',
+      label: 'Профиль',
+    });
+
+    // Admin/owner can access calculation settings
+    if (profile?.role && ['admin', 'owner'].includes(profile.role)) {
+      settingsChildren.push({
+        key: '/settings/calculation',
+        label: 'Настройки расчета',
+      });
+    }
+
+    baseItems.push({
+      key: 'settings-menu',
+      icon: <SettingOutlined />,
+      label: 'Настройки',
+      children: settingsChildren,
+    });
 
     // Add admin items
     if (profile?.role === 'admin') {
@@ -112,6 +143,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
           {
             key: '/admin/settings',
             label: 'Настройки',
+          },
+          {
+            key: '/admin/feedback',
+            label: 'Обратная связь',
           },
         ],
       });
@@ -251,6 +286,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
           {children}
         </Content>
       </Layout>
+
+      {/* Floating Feedback Button */}
+      {user && <FeedbackButton />}
     </Layout>
   );
 }
