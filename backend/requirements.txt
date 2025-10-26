@@ -23,6 +23,12 @@ Jinja2==3.1.6
 # Environment
 python-dotenv==1.0.1
 
+# Scheduling
+APScheduler==3.10.4
+
+# Rate Limiting
+slowapi==0.1.9
+
 # Testing
 pytest==8.3.5
 pytest-asyncio==0.25.2

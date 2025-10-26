@@ -243,16 +243,25 @@ async def fetch_export_data(quote_id: str, organization_id: str) -> ExportData:
     # ========== Step 5: Get manager (user who created quote) ==========
     manager = None
     if quote.get('created_by_user_id'):
-        # Get user from auth.users via admin API
+        # Get user profile (includes manager info)
         try:
-            user_response = supabase.auth.admin.get_user_by_id(quote['created_by_user_id'])
-            if user_response and user_response.user:
-                user_metadata = user_response.user.user_metadata or {}
+            profile_response = supabase.table("user_profiles").select("*").eq(
+                "user_id", quote['created_by_user_id']
+            ).execute()
+
+            if profile_response.data and len(profile_response.data) > 0:
+                profile = profile_response.data[0]
+
+                # Get email from auth.users
+                user_response = supabase.auth.admin.get_user_by_id(quote['created_by_user_id'])
+                email = user_response.user.email if user_response and user_response.user else None
+
                 manager = {
-                    'id': user_response.user.id,
-                    'email': user_response.user.email,
-                    'full_name': user_metadata.get('full_name'),
-                    'phone': user_metadata.get('phone'),
+                    'id': profile.get('user_id'),
+                    'email': email,
+                    'full_name': profile.get('manager_name') or profile.get('full_name'),
+                    'phone': profile.get('manager_phone') or profile.get('phone'),
+                    'manager_email': profile.get('manager_email'),
                 }
         except Exception as e:
             print(f"Warning: Could not fetch manager info: {e}")
@@ -322,8 +331,9 @@ def get_manager_info(export_data: ExportData) -> Dict[str, str]:
 
     Priority:
     1. Quote-level manager fields (manager_name, manager_phone, manager_email)
-    2. Manager user profile
-    3. Empty strings
+    2. Manager user profile (manager_name/manager_phone/manager_email from user_profiles)
+    3. Manager fallback fields (full_name, phone, email)
+    4. Empty strings
 
     Args:
         export_data: Export data with quote, manager info
@@ -337,7 +347,7 @@ def get_manager_info(export_data: ExportData) -> Dict[str, str]:
     return {
         'name': quote.get('manager_name') or (manager.get('full_name') if manager else ''),
         'phone': quote.get('manager_phone') or (manager.get('phone') if manager else ''),
-        'email': quote.get('manager_email') or (manager.get('email') if manager else ''),
+        'email': quote.get('manager_email') or (manager.get('manager_email') or manager.get('email') if manager else ''),
     }
 
 

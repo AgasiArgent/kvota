@@ -16,6 +16,7 @@ from models import (
     PaginationParams, SuccessResponse, ErrorResponse
 )
 import os
+from services.activity_log_service import log_activity
 
 
 # ============================================================================
@@ -201,7 +202,18 @@ async def create_customer(
                 detail="Failed to create customer"
             )
 
-        return Customer(**result.data[0])
+        customer = Customer(**result.data[0])
+
+        # Log activity
+        await log_activity(
+            user_id=auth_context.user.id,
+            organization_id=auth_context.user.current_organization_id,
+            action="created",
+            entity_type="customer",
+            entity_id=customer.id
+        )
+
+        return customer
 
     except HTTPException:
         raise
@@ -319,7 +331,18 @@ async def update_customer(
                 detail=f"Customer {customer_id} not found"
             )
 
-        return Customer(**result.data[0])
+        customer = Customer(**result.data[0])
+
+        # Log activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="updated",
+            entity_type="customer",
+            entity_id=customer.id
+        )
+
+        return customer
 
     except HTTPException:
         raise
@@ -371,6 +394,15 @@ async def delete_customer(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Customer {customer_id} not found"
             )
+
+        # Log activity
+        await log_activity(
+            user_id=user.id,
+            organization_id=user.current_organization_id,
+            action="deleted",
+            entity_type="customer",
+            entity_id=customer_id
+        )
 
         return SuccessResponse(
             message=f"Customer {customer_id} deleted successfully"
@@ -593,7 +625,18 @@ async def create_contact(
             detail="Failed to create contact"
         )
 
-    return result.data[0]
+    contact_data = result.data[0]
+
+    # Log activity
+    await log_activity(
+        user_id=user.id,
+        organization_id=user.current_organization_id,
+        action="created",
+        entity_type="contact",
+        entity_id=UUID(contact_data['id'])
+    )
+
+    return contact_data
 
 
 @router.put("/{customer_id}/contacts/{contact_id}")
@@ -632,7 +675,18 @@ async def update_contact(
             detail="Contact not found"
         )
 
-    return result.data[0]
+    contact_data = result.data[0]
+
+    # Log activity
+    await log_activity(
+        user_id=user.id,
+        organization_id=user.current_organization_id,
+        action="updated",
+        entity_type="contact",
+        entity_id=contact_id
+    )
+
+    return contact_data
 
 
 @router.delete("/{customer_id}/contacts/{contact_id}")
@@ -654,6 +708,15 @@ async def delete_contact(
         .eq("id", str(contact_id))\
         .eq("organization_id", str(user.current_organization_id))\
         .execute()
+
+    # Log activity
+    await log_activity(
+        user_id=user.id,
+        organization_id=user.current_organization_id,
+        action="deleted",
+        entity_type="contact",
+        entity_id=contact_id
+    )
 
     return {"success": True}
 

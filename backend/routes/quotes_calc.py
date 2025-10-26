@@ -7,6 +7,7 @@ from uuid import UUID
 from datetime import datetime
 import os
 import io
+import asyncio
 
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -957,8 +958,24 @@ async def calculate_quote(
                     admin_settings=admin_settings
                 )
 
-                # Calculate using engine
-                result = calculate_single_product_quote(calc_input)
+                # Calculate using engine (with 60-second timeout)
+                # Prevents complex calculations from blocking workers
+                try:
+                    async with asyncio.timeout(60):
+                        # Wrap sync calculation in async executor
+                        loop = asyncio.get_event_loop()
+                        result = await loop.run_in_executor(
+                            None,
+                            calculate_single_product_quote,
+                            calc_input
+                        )
+                except asyncio.TimeoutError:
+                    # Roll back quote and raise timeout error
+                    supabase.table("quotes").delete().eq("id", quote_id).execute()
+                    raise HTTPException(
+                        status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                        detail=f"Calculation timeout for product '{product.product_name}' (max 60 seconds). Please simplify inputs."
+                    )
 
                 # Save calculation results
                 results_data = {

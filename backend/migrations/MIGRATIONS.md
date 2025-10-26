@@ -30,7 +30,13 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 008 | `008_calculation_settings.sql` | Admin calculation settings | ✅ Done | 2025-10-18 | Session 7 |
 | 009 | `009_add_sku_brand_to_quote_items.sql` | Add SKU and Brand columns | ✅ Done | 2025-10-19 | Session 8 |
 | 010 | `010_add_inn_to_organizations.sql` | Add INN to organizations | ✅ Done | 2025-10-XX | Session X |
-| 011 | `011_soft_delete_and_dates.sql` | Add soft delete + quote dates | ⏳ Pending | 2025-10-23 | Session 20 |
+| 011 | `011_soft_delete_and_dates.sql` | Add soft delete + quote dates | ✅ Done | 2025-10-23 | Session 20 |
+| 013 | `013_add_last_name_to_contacts.sql` | Add last_name to customer_contacts | ✅ Done | 2025-10-25 | Session 25 |
+| 014 | `014_user_profiles_manager_info.sql` | Add manager info to user_profiles | ✅ Done | 2025-10-26 | Session 26 - Agent 1 |
+| 015 | `015_exchange_rates.sql` | Exchange rates table with caching | ✅ Done | 2025-10-26 | Session 26 - Agent 2 |
+| 016 | `016_activity_logs.sql` | Activity logs for audit trail | ✅ Done | 2025-10-26 | Session 26 - Agent 3 |
+| 017 | `017_feedback.sql` | Feedback system table | ⏳ Pending | 2025-10-26 | Session 26 - Agent 6 |
+| 021 | `021_performance_indexes.sql` | Performance optimization indexes | ✅ Done | 2025-10-26 | Session 26 - Agent 9 |
 
 ---
 
@@ -51,11 +57,11 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 
 ---
 
-## Next Migration Number: 012
+## Next Migration Number: 015
 
 Create new migration:
 ```bash
-touch backend/migrations/012_your_migration_name.sql
+touch backend/migrations/015_your_migration_name.sql
 ```
 
 Then update this log!

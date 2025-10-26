@@ -50,12 +50,13 @@ export interface CalculationVariables {
   supplier_currency: string;
   customs_code?: string;
 
-  // Financial (9 fields)
+  // Financial (10 fields)
   currency_of_quote: string;
   markup: number;
   rate_forex_risk: number;
   rate_fin_comm: number;
   rate_loan_interest_daily: number;
+  rate_usd_cny: number; // USD to CNY exchange rate
   dm_fee_type: string;
   dm_fee_value: number;
   credit_days_to_client: number;
@@ -400,6 +401,7 @@ export class QuotesCalcService {
       rate_forex_risk: 3.0,
       rate_fin_comm: 2.0,
       rate_loan_interest_daily: 0.00069,
+      rate_usd_cny: 7.2, // Default USD to CNY rate (will be auto-loaded)
       dm_fee_type: 'fixed',
       dm_fee_value: 1000.0,
       credit_days_to_client: 30,
