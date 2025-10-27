@@ -1204,6 +1204,251 @@ if (response.success && response.data) {
 
 ---
 
+#### 1.12 🔴 **[PERFORMANCE]** Slow Page Load Times (>1 second feels unprofessional)
+
+**Problem:** Pages take >1 second to load, feels slow and unprofessional
+
+**User Feedback:**
+> "overall time of loading pages feels huge, like nowadats if page is loading more than 0.5 seconds it looks painful and unprofessional. and most of our pages load over a second"
+> "profile page is loading quite long time right now i don't know if its an error or just slow"
+
+**Current State:**
+- Most pages load in 1+ seconds
+- Profile page loads especially slowly
+- User expectation: <0.5 seconds (modern web standard)
+- Actual performance: 1-2+ seconds
+- Feels sluggish and unprofessional
+
+**Modern Performance Standards:**
+- **Excellent:** <200ms (feels instant)
+- **Good:** 200-500ms (acceptable)
+- **Acceptable:** 500ms-1s (noticeable delay)
+- **Poor:** 1-2s (feels slow)
+- **Unacceptable:** >2s (users abandon)
+
+**Possible Causes:**
+
+**1. Backend API Response Time (Most Likely)**
+- Railway server location (US?) vs user location (Russia?)
+- Network latency: ~150-300ms round trip time
+- Slow database queries (missing indexes?)
+- No caching (every request hits database)
+- Over-fetching data (sending too much in response)
+
+**2. Frontend Issues**
+- No loading skeletons (perceived performance)
+- Blocking JavaScript execution
+- Large bundle sizes
+- Missing code splitting
+- No prefetching/preloading
+
+**3. Database Performance**
+- Missing indexes on frequently queried columns
+- Complex joins without optimization
+- No query result caching
+- Supabase free tier limits?
+
+**4. Network Issues**
+- Large payloads (sending unnecessary data)
+- No response compression (gzip)
+- Too many sequential API calls (waterfall)
+- No HTTP/2 or connection pooling
+
+**To Investigate:**
+
+**Immediate Checks:**
+1. Open browser DevTools → Network tab
+2. Measure actual load times for each page:
+   - Profile page
+   - Quotes list
+   - Quote detail
+   - Customer list
+3. Check which requests are slowest:
+   - Backend API calls?
+   - Static assets?
+   - Database queries?
+
+**Backend Performance Audit:**
+```bash
+# Test API response times
+curl -w "@curl-format.txt" -o /dev/null -s https://kvota-production.up.railway.app/api/quotes
+
+# Create curl-format.txt:
+time_namelookup:  %{time_namelookup}\n
+time_connect:  %{time_connect}\n
+time_appconnect:  %{time_appconnect}\n
+time_pretransfer:  %{time_pretransfer}\n
+time_starttransfer:  %{time_starttransfer}\n
+time_total:  %{time_total}\n
+```
+
+**Common Issues & Fixes:**
+
+**Issue 1: No Database Indexes**
+```sql
+-- Check slow queries
+SELECT schemaname, tablename, indexname
+FROM pg_indexes
+WHERE schemaname = 'public';
+
+-- Add missing indexes
+CREATE INDEX idx_quotes_organization_created ON quotes(organization_id, created_at DESC);
+CREATE INDEX idx_customers_organization_name ON customers(organization_id, name);
+CREATE INDEX idx_quote_items_quote_id ON quote_items(quote_id);
+```
+
+**Issue 2: Over-fetching Data**
+```python
+# Bad: Fetching all columns
+result = supabase.table("quotes").select("*").execute()
+
+# Good: Only fetch needed columns
+result = supabase.table("quotes").select("id, quote_number, customer_name, total_amount, status").execute()
+```
+
+**Issue 3: N+1 Query Problem**
+```python
+# Bad: Separate query for each quote's customer
+quotes = supabase.table("quotes").select("*").execute()
+for quote in quotes:
+    customer = supabase.table("customers").select("*").eq("id", quote.customer_id).execute()
+
+# Good: Single query with join
+quotes = supabase.table("quotes").select("*, customer:customers(name, email)").execute()
+```
+
+**Issue 4: No Caching**
+```python
+# Add Redis or in-memory caching for frequently accessed data
+# Example: User profiles, calculation settings, exchange rates
+
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def get_user_profile(user_id: str):
+    # Cached for lifetime of server process
+    return supabase.table("user_profiles").select("*").eq("user_id", user_id).execute()
+```
+
+**Issue 5: Missing Loading States**
+```typescript
+// Add skeleton loaders while data loads
+{loading ? (
+  <Skeleton active paragraph={{ rows: 4 }} />
+) : (
+  <Table dataSource={data} />
+)}
+```
+
+**Quick Wins (Immediate Impact):**
+
+**1. Add Loading Skeletons (30 min)**
+- Improves perceived performance
+- User sees instant feedback
+- Ant Design has built-in Skeleton component
+
+**2. Add Response Caching (1 hour)**
+- Cache user profiles (rarely change)
+- Cache calculation settings (admin-only changes)
+- Cache exchange rates (updated daily)
+- Cache customer lists (change infrequently)
+
+**3. Optimize Database Queries (2 hours)**
+- Add indexes on foreign keys
+- Add composite indexes for common filters
+- Use select() to limit columns
+- Use joins instead of separate queries
+
+**4. Enable Gzip Compression (5 min)**
+```python
+# backend/main.py
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+```
+
+**5. Reduce Payload Sizes (1 hour)**
+- Paginate lists (don't send 1000 quotes at once)
+- Send only needed fields
+- Use summary endpoints for lists
+
+**Profile Page Specific Investigation:**
+
+**Likely causes:**
+1. Fetching too much data (all user's quotes? all activities?)
+2. Multiple sequential API calls (user → org → settings → etc.)
+3. Missing cache for user profile
+4. Slow JOIN query (user + organization + role)
+
+**To fix:**
+```python
+# Optimize user profile endpoint
+@router.get("/profile")
+async def get_profile(user: User = Depends(get_current_user)):
+    # Single query with joins (fast)
+    profile = supabase.table("user_profiles")\
+        .select("*, organization:organizations(name, slug)")\
+        .eq("user_id", user.id)\
+        .single()\
+        .execute()
+
+    # Cache result for 5 minutes
+    cache.set(f"profile:{user.id}", profile, ttl=300)
+
+    return profile
+```
+
+**Performance Monitoring Tools:**
+
+**Backend:**
+- FastAPI built-in timing middleware
+- Sentry performance monitoring
+- Railway metrics dashboard
+
+**Frontend:**
+- Vercel Analytics (already enabled?)
+- Lighthouse performance audit
+- Web Vitals (Core Web Vitals)
+
+**Target Performance Goals:**
+
+**After Optimization:**
+- API response time: <200ms (from backend)
+- Full page load: <500ms (including rendering)
+- Time to Interactive (TTI): <1s
+- First Contentful Paint (FCP): <1s
+
+**Files to Investigate:**
+1. `backend/routes/quotes.py` - Add indexes, optimize queries
+2. `backend/routes/customers.py` - Paginate, cache results
+3. `frontend/src/app/profile/page.tsx` - Add skeleton loader
+4. `backend/main.py` - Add caching middleware, gzip
+
+**Estimated Effort:**
+- Quick wins (loading states + caching): 2-3 hours
+- Database optimization (indexes + query refactoring): 4-6 hours
+- Full performance audit: 8-10 hours
+- **Total:** 14-19 hours for comprehensive fix
+
+**Priority:** 🔴 **CRITICAL** - Affects every user interaction, impacts perceived quality
+
+**Status:** 🔴 **PERFORMANCE** - Needs immediate investigation and optimization
+
+**User Feedback:**
+- "overall time of loading pages feels huge"
+- "nowadats if page is loading more than 0.5 seconds it looks painful and unprofessional"
+- "most of our pages load over a second"
+- "profile page is loading quite long time right now i don't know if its an error or just slow"
+
+**Next Steps:**
+1. Measure actual load times with DevTools
+2. Identify slowest endpoints (profile, quotes list, etc.)
+3. Add database indexes
+4. Implement caching layer
+5. Add loading skeletons
+6. Test and verify <500ms goal
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
