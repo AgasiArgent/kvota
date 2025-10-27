@@ -36,7 +36,7 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 015 | `015_exchange_rates.sql` | Exchange rates table with caching | ✅ Done | 2025-10-26 | Session 26 - Agent 2 |
 | 016 | `016_activity_logs.sql` | Activity logs for audit trail | ✅ Done | 2025-10-26 | Session 26 - Agent 3 |
 | 017 | `017_feedback.sql` | Feedback system table | ✅ Done | 2025-10-26 | Session 26 - Agent 6 |
-| 018 | `018_fix_quote_number_uniqueness.sql` | **Fix quote number unique constraint** | ⏳ **TO APPLY** | 2025-10-27 | **Session 31** |
+| 018 | `018_fix_quote_number_uniqueness.sql` | **Fix quote number unique constraint** | ✅ **Done** | 2025-10-27 | **Session 31** |
 | 021 | `021_performance_indexes.sql` | Performance optimization indexes | ✅ Done | 2025-10-26 | Session 26 - Agent 9 |
 
 ---
