@@ -1033,6 +1033,177 @@ if (response.success && response.data) {
 
 ---
 
+#### 1.10 🔴 **[BUG]** Client Field Shows Blank on Quote Detail Page
+
+**Problem:** Quote detail page shows "Клиент: (blank)" even though client was selected during quote creation
+
+**Current State:**
+- User fills quote creation form and selects customer (required field)
+- Quote is created successfully
+- On quote detail page: "Клиент" field is empty/blank
+- Customer data not displayed
+
+**Expected Behavior:**
+- Quote detail page should show: "Клиент: МАСТЕР БЭРИНГ ООО" (customer name)
+- Customer information should be visible since it was saved during creation
+
+**Possible Root Causes:**
+
+**Cause 1: Frontend not fetching customer data**
+- Quote API returns `customer_id` but not customer details
+- Frontend displays `customer_id` (UUID) instead of customer name
+- Need to join with customers table in backend query
+
+**Cause 2: Backend not including customer in response**
+- Quote detail endpoint doesn't include customer relationship
+- Need to add `.select("*, customer:customers(name)")` in Supabase query
+
+**Cause 3: Frontend displaying wrong field**
+- Quote object has `customer_id` but frontend tries to display `customer.name`
+- Need to check what field the detail page is trying to render
+
+**To Investigate:**
+1. Check backend `/api/quotes/{id}` endpoint - does it return customer details?
+2. Check frontend quote detail page - what field is it trying to display?
+3. Verify quote was saved with correct `customer_id` in database
+
+**Files to Check:**
+- `backend/routes/quotes.py` - Quote detail endpoint
+- `frontend/src/app/quotes/[id]/page.tsx` - Quote detail page rendering
+- Database: Check if `customer_id` is populated in quotes table
+
+**Estimated Effort:** 1-2 hours
+- 30 min: Investigate root cause
+- 30 min: Fix backend query or frontend display
+- 30 min: Test and verify
+
+**Status:** 🔴 **BUG** - Blocks quote review workflow
+
+**Priority:** High (core functionality broken, confuses users)
+
+**User Feedback:**
+- "on quote page Клиент is blank, but i'm sure i filled in client when creating quote, because it's a necessary field"
+
+---
+
+#### 1.11 🎯 **[FEATURE REQUEST]** Show Calculation Breakdown on Quote Detail Page
+
+**Problem:** Quote detail page only shows final prices, not intermediate calculation steps
+
+**User Request:**
+> "on quote page i'd rather see grid with all intermediate values that we can show to user, so they get feeling that there was a complex calculation made and can look at some intermediate values to get sense of belonging to this calculation process"
+
+**Current State:**
+- Quote detail page shows only final results:
+  - Product name, quantity
+  - Base price
+  - Final price per unit
+  - Total amount
+- No visibility into calculation steps
+- User can't see what went into the pricing
+
+**Proposed Solution: Calculation Breakdown Table**
+
+**Show intermediate values (similar to Excel calculation sheet):**
+- Base price (with VAT)
+- Currency conversion rate (if applicable)
+- Logistics costs (supplier → warehouse → client)
+- Customs duties and fees
+- Broker fees
+- Financing costs (supplier payment, client payment)
+- DM fee (commission)
+- Markup percentages
+- Final unit price
+- Total for all products
+
+**Implementation Options:**
+
+**Option A: Collapsible "Show Calculation Details" Section**
+- Default view: Summary table (product, qty, price, total)
+- Click "Показать детали расчета" button
+- Expands to show full breakdown table
+- Each row can expand to show its calculation steps
+
+**Option B: Dedicated "Calculation" Tab**
+- Quote page has tabs: "Summary" | "Calculation Details" | "Documents"
+- Calculation tab shows Excel-like grid with all intermediate values
+- Similar to quote creation page but read-only
+
+**Option C: Inline Expandable Rows**
+- Each product row has expand arrow
+- Click to see breakdown for that product:
+  - Purchase cost
+  - Logistics breakdown
+  - Duties breakdown
+  - Financing breakdown
+  - Markup
+  - Final price
+
+**Recommended: Option C (Expandable Rows)**
+- Keeps main view clean
+- User can dig into details as needed
+- Most intuitive UX
+
+**Example Breakdown Structure:**
+
+```
+Продукт: Подшипник SKF 6205
+└─ Базовая цена: $10.00 USD
+└─ Закупка:
+   ├─ Цена поставщика (с НДС): $10.00
+   ├─ Курс валюты (USD→RUB): 92.50
+   └─ Закупка в рублях: ₽925.00
+└─ Логистика:
+   ├─ От поставщика: ₽50.00
+   ├─ Брокерские услуги: ₽30.00
+   └─ До клиента: ₽20.00
+└─ Таможня:
+   ├─ Пошлина (5%): ₽46.25
+   └─ Акциз: ₽0.00
+└─ Финансирование:
+   ├─ Оплата поставщику: ₽15.00
+   └─ Оплата от клиента: ₽8.00
+└─ Вознаграждение ДМ: ₽100.00
+└─ Итого себестоимость: ₽1,194.25
+└─ Наценка (10%): ₽119.43
+└─ Цена продажи: ₽1,313.68
+```
+
+**Benefits:**
+- ✅ Transparency: User sees all calculation steps
+- ✅ Trust: Customer can verify pricing logic
+- ✅ Education: Helps users understand cost breakdown
+- ✅ Debugging: Easy to spot if calculation looks wrong
+- ✅ Professionalism: Shows sophisticated calculation engine
+
+**Files to Modify:**
+1. `frontend/src/app/quotes/[id]/page.tsx` - Add expandable breakdown rows
+2. `backend/routes/quotes.py` - Include calculation breakdown in quote detail response
+3. New component: `CalculationBreakdown.tsx` - Renders the breakdown tree
+
+**Estimated Effort:** 6-8 hours
+- 2 hours: Backend - Structure calculation breakdown data
+- 3 hours: Frontend - Build expandable row component
+- 1 hour: Styling to match Excel-like feel
+- 1 hour: Testing with different product types
+- 1 hour: Polish and edge cases
+
+**Status:** 🎯 FEATURE REQUEST - Improves transparency and user confidence
+
+**Priority:** Medium-High (differentiates product, builds trust with customers)
+
+**User Feedback:**
+- "i'd rather see grid with all intermediate values that we can show to user"
+- "so they get feeling that there was a complex calculation made"
+- "can look at some intermediate values to get sense of belonging to this calculation process"
+
+**Similar Features in Industry:**
+- QuickBooks: Invoice breakdown shows taxes, discounts, fees
+- FreshBooks: Expense breakdown in project estimates
+- SAP: Detailed costing sheets for manufacturing
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
