@@ -57,6 +57,131 @@ git checkout feature/quote-versioning-session-31
 
 ---
 
+## Session 31 Continuation (2025-10-27) - Production Bug Fixes 🔴✅
+
+### Goal
+Fix critical production bugs blocking user testing after Railway + Vercel deployment.
+
+### Status: 2 CRITICAL BUGS RESOLVED ✅
+
+### Bug 1: Customer Creation Failure - Enum Mismatch ✅
+
+**Problem:** Users unable to create customers due to frontend/backend company_type enum mismatch.
+
+**Error:** 422 Validation Error
+```json
+{
+  "type": "enum",
+  "loc": ["body", "company_type"],
+  "msg": "Input should be 'individual', 'individual_entrepreneur', 'organization' or 'government'",
+  "input": "ooo"
+}
+```
+
+**Root Cause:**
+- Frontend dropdown sent Russian abbreviations: `"ooo"`, `"ao"`, `"pao"`, `"zao"`, `"ip"`
+- Backend Pydantic validation expected English enums: `"organization"`, `"individual_entrepreneur"`, etc.
+- Missing "government" option in frontend dropdown
+
+**Fix Applied:**
+Modified `frontend/src/app/customers/create/page.tsx`:
+1. Added `COMPANY_TYPE_MAP` object (lines 85-94) mapping Russian to English:
+   ```typescript
+   const COMPANY_TYPE_MAP: Record<string, string> = {
+     ooo: 'organization',
+     ao: 'organization',
+     pao: 'organization',
+     zao: 'organization',
+     ip: 'individual_entrepreneur',
+     individual: 'individual',
+     government: 'government',
+   };
+   ```
+2. Applied mapping before API call (line 112): `company_type: COMPANY_TYPE_MAP[values.company_type]`
+3. Added "Государственное учреждение" option to dropdown (line 234)
+
+**Impact:** ✅ Users can now create customers and proceed with quote creation workflow
+
+**Commit:** `00036f5`
+
+**Time:** 30 min
+
+---
+
+### Bug 2: Duplicate Quote Number Error - Multi-Tenant Uniqueness ✅
+
+**Problem:** Quote creation failing with duplicate key constraint violation.
+
+**Error 1 (Code Level):** Race condition in quote number generation
+```
+Error code: 23505
+Message: duplicate key value violates unique constraint "quotes_quote_number_key"
+Details: Key (quote_number)=(КП25-0001) already exists
+```
+
+**Root Cause 1:**
+- Used `COUNT(*)` for quote number generation (susceptible to race conditions)
+- Hardcoded year "25" instead of dynamic year extraction
+- Two concurrent requests could see same count and generate identical numbers
+
+**Fix Applied (Code):**
+Modified `backend/routes/quotes_calc.py`:
+1. Created `generate_quote_number()` helper function (lines 76-120)
+   - Uses `MAX(quote_number)` instead of `COUNT(*)` to avoid race conditions
+   - Dynamic year extraction: `datetime.now().year` → last 2 digits
+   - Regex to extract numeric part: `re.search(r'-(\d+)', last_quote)`
+2. Added retry logic with duplicate detection (lines 927-985)
+   - 3 attempts to handle concurrent requests
+   - Detects `23505` error code and retries with fresh number
+   - Raises 409 Conflict if all retries exhausted
+
+**Error 2 (Database Level):** Global uniqueness prevents multi-tenant numbering
+```
+Error: Failed to generate unique quote number after 3 attempts. Please try again.
+```
+
+**Root Cause 2:**
+- Database schema had global UNIQUE constraint: `quote_number TEXT NOT NULL UNIQUE`
+- Prevented different organizations from having same quote numbers
+- Example: If Org A created КП25-0001, Org B couldn't use КП25-0001
+
+**Research:** WebSearch for multi-tenant database patterns
+- Industry standard: Composite unique constraint `UNIQUE(tenant_id, natural_key)`
+- Used by Salesforce, QuickBooks, SAP for per-tenant sequential numbering
+- Allows independent numbering per organization
+
+**Fix Applied (Database):**
+Created migration `018_fix_quote_number_uniqueness.sql`:
+```sql
+-- Drop old global constraint
+ALTER TABLE quotes DROP CONSTRAINT IF EXISTS quotes_quote_number_key;
+
+-- Add composite constraint for per-organization uniqueness
+ALTER TABLE quotes
+ADD CONSTRAINT quotes_unique_number_per_org
+UNIQUE (organization_id, quote_number);
+```
+
+**Impact:** ✅ Each organization can now have independent sequential numbering (both Org A and Org B can have КП25-0001)
+
+**Commits:** `cf431c8` (code fix), `76fd8cc` (migration), `5136272` (migration documentation), `1a70c5f` (TECHNICAL_DEBT.md update)
+
+**Time:** 2 hours (investigation + research + fixes + documentation)
+
+**User Applied:** Migration 018 executed in Supabase SQL Editor
+
+---
+
+### Remaining Bugs (Next Session)
+
+1. **Bug 1.2:** Supabase email links point to localhost (5 min fix - config only)
+2. **Bug 1.3:** Logistics label misleading on quote create page (15 min fix - text change)
+3. **Bug 1.4:** No validation feedback on quote creation form (30 min fix - validation logic)
+
+See `.claude/TECHNICAL_DEBT.md` sections 1.2-1.4 for details.
+
+---
+
 ## Session 29 (2025-10-26) - E2E Bug Fixing (Phases 2.1-4) ✅
 
 ### Goal
