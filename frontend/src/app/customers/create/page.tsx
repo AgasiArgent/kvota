@@ -82,6 +82,17 @@ export default function CreateCustomerPage() {
     fetchOrganization();
   }, [router]);
 
+  // Mapping Russian company types to backend enum values
+  const COMPANY_TYPE_MAP: Record<string, string> = {
+    ooo: 'organization', // ООО
+    ao: 'organization', // АО
+    pao: 'organization', // ПАО
+    zao: 'organization', // ЗАО
+    ip: 'individual_entrepreneur', // ИП
+    individual: 'individual', // Физическое лицо
+    government: 'government', // Государственное учреждение
+  };
+
   const handleSubmit = async (values: CustomerFormData) => {
     console.log('handleSubmit called with values:', values);
 
@@ -98,6 +109,7 @@ export default function CreateCustomerPage() {
       // Add organization_id and country to the request
       const customerData = {
         ...values,
+        company_type: COMPANY_TYPE_MAP[values.company_type] || values.company_type,
         organization_id: organizationId,
         country: values.country || 'Russia',
       };
@@ -219,6 +231,7 @@ export default function CreateCustomerPage() {
                           { label: 'ЗАО (Закрытое акционерное общество)', value: 'zao' },
                           { label: 'ИП (Индивидуальный предприниматель)', value: 'ip' },
                           { label: 'Физическое лицо', value: 'individual' },
+                          { label: 'Государственное учреждение', value: 'government' },
                         ]}
                       />
                     </Form.Item>
