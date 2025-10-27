@@ -35,7 +35,8 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 014 | `014_user_profiles_manager_info.sql` | Add manager info to user_profiles | ✅ Done | 2025-10-26 | Session 26 - Agent 1 |
 | 015 | `015_exchange_rates.sql` | Exchange rates table with caching | ✅ Done | 2025-10-26 | Session 26 - Agent 2 |
 | 016 | `016_activity_logs.sql` | Activity logs for audit trail | ✅ Done | 2025-10-26 | Session 26 - Agent 3 |
-| 017 | `017_feedback.sql` | Feedback system table | ⏳ Pending | 2025-10-26 | Session 26 - Agent 6 |
+| 017 | `017_feedback.sql` | Feedback system table | ✅ Done | 2025-10-26 | Session 26 - Agent 6 |
+| 018 | `018_fix_quote_number_uniqueness.sql` | **Fix quote number unique constraint** | ⏳ **TO APPLY** | 2025-10-27 | **Session 31** |
 | 021 | `021_performance_indexes.sql` | Performance optimization indexes | ✅ Done | 2025-10-26 | Session 26 - Agent 9 |
 
 ---
@@ -65,6 +66,53 @@ touch backend/migrations/015_your_migration_name.sql
 ```
 
 Then update this log!
+
+---
+
+## Migration 018 Details: Fix Quote Number Uniqueness (CRITICAL)
+
+**🔴 IMPORTANT: This migration fixes a critical multi-tenant bug**
+
+**Problem:**
+- Current database has `UNIQUE` constraint on `quote_number` alone
+- This makes quote numbers globally unique across ALL organizations
+- Error: "duplicate key value violates unique constraint quotes_quote_number_key"
+- Example: If Org A creates КП25-0001, Org B cannot create КП25-0001
+
+**Solution:**
+- Change to composite unique constraint: `UNIQUE (organization_id, quote_number)`
+- Allows each organization to have independent sequential numbering
+- Industry standard for multi-tenant SaaS systems
+
+**What it does:**
+1. Drops old constraint `quotes_quote_number_key`
+2. Adds new constraint `quotes_unique_number_per_org UNIQUE (organization_id, quote_number)`
+3. Adds comment explaining the constraint
+
+**Impact:**
+- ✅ Non-destructive (no data loss)
+- ✅ Fixes "duplicate quote number" error immediately
+- ✅ Each organization can now start from КП25-0001 independently
+- ✅ No code changes needed (backend already filters by organization_id)
+
+**How to Apply:**
+1. Go to Supabase Dashboard > SQL Editor
+2. Copy contents of `018_fix_quote_number_uniqueness.sql`
+3. Execute
+4. Verify with query:
+   ```sql
+   SELECT organization_id, quote_number, COUNT(*)
+   FROM quotes
+   GROUP BY organization_id, quote_number
+   HAVING COUNT(*) > 1;
+   ```
+   Should return 0 rows (no duplicates within same organization)
+
+**Rollback (if needed):**
+```sql
+ALTER TABLE quotes DROP CONSTRAINT quotes_unique_number_per_org;
+ALTER TABLE quotes ADD CONSTRAINT quotes_quote_number_key UNIQUE (quote_number);
+```
 
 ---
 
