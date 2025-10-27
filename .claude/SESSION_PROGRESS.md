@@ -7,6 +7,56 @@
 
 ---
 
+## Session 31 (2025-10-27) - Quote Versioning Attempt + Rollback ⚠️
+
+### Goal
+Implement quote versioning system (create revisions of existing quotes without losing original).
+
+### Status: PAUSED - Saved to Feature Branch
+
+**Work Completed:**
+- Database migration with parent-child tree structure (3 columns, 3 indexes, 3 SQL functions)
+- Backend: 2 endpoints (POST /revisions, GET /versions) - 90% complete
+- Frontend: Revision button, version history drawer, version badges in 3 pages
+- Documentation: Complete implementation guide in `.claude/REVISION_FEATURE.md`
+
+**Blocker:** PostgreSQL type inference error in INSERT statement (line 1193 of `routes/quotes.py`)
+- `$3` parameter used in string concat before integer column
+- Error: "column version is of type integer but expression is of type text"
+- Fix attempted: Add `::text` cast, but not tested
+
+**Decision:** Saved all work to `feature/quote-versioning-session-31` branch, rolled back both code and database to stable main branch.
+
+**Time:** ~3 hours (mostly debugging)
+
+**Files Modified:** 8 backend/frontend files, 3 new files (forward migration, rollback migration, docs)
+
+**To Resume Later:**
+```bash
+git checkout feature/quote-versioning-session-31
+# Apply forward migration 022_quote_versioning.sql
+# Test the ::text cast fix
+# Complete remaining 10% of work
+```
+
+### Next Session Plan (Session 32)
+
+**Focus:** 🚀 **Deployment**
+- Deploy app to production/staging environment
+- Configure production environment variables
+- Set up CI/CD if needed
+- Smoke test in production
+
+**After Deployment:**
+- Let real users test the app
+- Gather feedback and bug reports
+- Prioritize feature improvements based on user feedback
+- Continue building features + UI improvements
+
+**Branch:** `main` (stable, at commit `3b6f86b` - export fixes)
+
+---
+
 ## Session 29 (2025-10-26) - E2E Bug Fixing (Phases 2.1-4) ✅
 
 ### Goal

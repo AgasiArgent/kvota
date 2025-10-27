@@ -139,9 +139,22 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # ============================================================================
 
 # CORS middleware for frontend integration
+# Get frontend URL from environment variable for production
+frontend_url = os.getenv("FRONTEND_URL", "")
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
+]
+
+# Add production frontend URL if set
+if frontend_url:
+    allowed_origins.append(frontend_url)
+    print(f"✅ CORS configured for production: {frontend_url}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],  # Next.js/React dev servers
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -149,9 +162,10 @@ app.add_middleware(
 )
 
 # Trusted host middleware for security
+# Allow Railway and Vercel domains
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "*.render.com"]  # Add your domain
+    allowed_hosts=["localhost", "127.0.0.1", "*.railway.app", "*.vercel.app", "*.render.com"]  # Railway, Vercel, and Render
 )
 
 # ============================================================================
