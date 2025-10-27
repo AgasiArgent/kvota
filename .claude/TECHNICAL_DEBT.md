@@ -434,6 +434,287 @@ Create `/organizations/[id]/team/page.tsx` with:
 
 ---
 
+#### 1.6 🎯 **[UX IMPROVEMENT]** Customer Form Address Fields Need Autocomplete + INN Lookup
+
+**Problem:** Customer creation form has manual address entry with no autocomplete or validation
+
+**Current State:**
+- Manual text inputs for: Адрес, Город, Регион/Область, Почтовый индекс
+- No autocomplete suggestions (user has to type full address manually)
+- No INN lookup to auto-fill company information
+- Card labeled "Адрес" should be "Юридический адрес" (Legal Address)
+
+**Industry Standard (Russian B2B Platforms):**
+Most Russian websites use **DaData.ru API** for:
+1. **Address autocomplete** - Type "Москва, Тверская" → suggests full addresses
+2. **INN lookup** - Enter INN → auto-fills company name, legal address, director, etc.
+3. **Validation** - Ensures addresses are real and properly formatted
+
+**Examples of sites using this:**
+- Контур (kontur.ru)
+- СберБизнес (sber.ru)
+- Тинькофф Бизнес (tinkoff.ru/business)
+- МойСклад (moysklad.ru)
+
+**DaData.ru Integration:**
+
+**API Capabilities:**
+- **Suggestions API** (address autocomplete)
+  - Free tier: 10,000 requests/day
+  - FIAS-based (official government address database)
+  - Returns: Full address, postal code, region, city, street, coordinates
+
+- **Party API** (INN lookup)
+  - Free tier: 100 requests/day
+  - Returns company info from ЕГРЮЛ (government registry):
+    - Full name (МАСТЕР БЭРИНГ ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ)
+    - Short name (МАСТЕР БЭРИНГ ООО)
+    - Legal address
+    - Director name
+    - ОГРН, КПП, registration date
+    - Company status (active/liquidated)
+
+**Proposed UX Flow:**
+
+**Scenario 1: INN Lookup (Recommended)**
+1. User enters INN: `7707083893`
+2. Click "Найти по ИНН" button or auto-search after 10 digits
+3. Auto-fill fields:
+   - Company name: МАСТЕР БЭРИНГ ООО
+   - Full name: МАСТЕР БЭРИНГ ОБЩЕСТВО С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ
+   - Legal address: г Москва, ул Тверская, д 1
+   - City: Москва
+   - Region: Москва
+   - Postal code: 101000
+   - Director: Иванов Иван Иванович
+   - ОГРН: 1234567890123
+   - KPP: 770701001
+4. User can edit any field if needed
+
+**Scenario 2: Address Autocomplete**
+1. User types in "Адрес" field: "Москва Тверская"
+2. Dropdown shows suggestions:
+   - г Москва, ул Тверская, д 1
+   - г Москва, ул Тверская, д 10
+   - г Москва, ул Тверская, д 12
+3. User selects → Auto-fills: City, Region, Postal Code
+4. Street address saved in "Адрес" field
+
+**Implementation Options:**
+
+**Option A: Full DaData Integration (Recommended)**
+- Pros: Industry standard, best UX, validates real addresses, INN lookup included
+- Cons: Requires API key (free tier is generous: 10k/day addresses, 100/day INN)
+- Effort: 4-6 hours (frontend autocomplete component + backend proxy)
+
+**Option B: Simple Autocomplete (Cities/Regions Only)**
+- Pros: No external API, works offline
+- Cons: Limited to predefined list, no INN lookup, no address validation
+- Effort: 2-3 hours (static data + autocomplete component)
+
+**Option C: Defer Until Needed**
+- Keep manual inputs for now
+- Add DaData later when users complain
+- Quick fix: Just rename "Адрес" → "Юридический адрес"
+
+**Recommended: Option A (DaData)**
+- Standard for Russian B2B platforms
+- Improves data quality (validated addresses)
+- Speeds up customer creation (INN lookup auto-fills everything)
+- Professional UX matching user expectations
+
+**DaData Pricing:**
+- **Free tier:** 10,000 address suggestions/day + 100 INN lookups/day
+- **Paid:** $30/month for 100k addresses + 10k INN lookups
+- For MVP: Free tier is sufficient
+
+**Files to Modify:**
+1. `frontend/src/app/customers/create/page.tsx` - Add autocomplete components
+2. `backend/routes/customers.py` - Add INN lookup endpoint (proxy to DaData)
+3. `frontend/src/lib/api/dadata-service.ts` - New API client for DaData
+4. `.env` - Add `DADATA_API_KEY`
+
+**Simple Fixes (Can Do Immediately):**
+1. ✅ Rename "Адрес" card → "Юридический адрес" (5 min)
+2. ✅ Add placeholder text: "Введите ИНН для автозаполнения" (5 min)
+3. 🔲 Add DaData autocomplete (4-6 hours)
+
+**Estimated Effort:**
+- Label fix: 5 minutes
+- DaData integration: 4-6 hours
+  - 2 hours: Backend proxy endpoint + INN lookup
+  - 2 hours: Frontend autocomplete component
+  - 1 hour: Testing and polish
+  - 1 hour: Error handling and validation
+
+**Status:** 🟡 UX IMPROVEMENT - Not blocking, but significantly improves user experience
+
+**Priority:** Medium-High (standard feature for Russian B2B, users will expect this)
+
+**User Feedback:**
+- "usually i saw on other websites that u start typing and get a value that u need"
+- "are there some integrations may be that can pull up this info if u just type in ИНН?"
+- "card Адрес, should be named Юридический адрес"
+
+**References:**
+- DaData.ru: https://dadata.ru/
+- API Docs: https://dadata.ru/api/
+- Free tier: https://dadata.ru/pricing/
+
+---
+
+#### 1.7 🎯 **[FEATURE REQUEST]** User Onboarding & Help System
+
+**Problem:** No guidance for new users on how to use the platform
+
+**User Request:**
+- "we need to add page with something like teaching people on how to use"
+- "or at least add prompts on when they first time visit this or that page"
+
+**Current State:**
+- No onboarding flow for new users
+- No contextual help or tooltips
+- No documentation/help center page
+- Users have to figure out features themselves
+
+**Industry Standard Approaches:**
+
+**Option A: Interactive Product Tour (Recommended for MVP)**
+- First-time user sees step-by-step walkthrough
+- Highlights key features: "Create customer → Create quote → Calculate → Export"
+- Dismissible tooltips with "Next" button
+- Only shows once per user (tracked in user preferences)
+
+**Libraries for this:**
+- **Shepherd.js** (free, open source, 11k GitHub stars)
+- **Intro.js** (free for non-commercial, commercial license $9.99/month)
+- **React Joyride** (free, React-specific, 6k stars)
+- **Driver.js** (free, lightweight, modern)
+
+**Example flow:**
+1. User logs in first time
+2. Tour popup: "Добро пожаловать! Давайте познакомим вас с платформой"
+3. Step 1: Highlights "Клиенты" menu → "Сначала создайте клиента"
+4. Step 2: Highlights "Создать клиента" button → "Нажмите здесь чтобы добавить нового клиента"
+5. Step 3: Highlights quote create page → "Теперь создайте коммерческое предложение"
+6. Step 4: Shows calculation results → "Здесь вы увидите расчеты"
+7. Step 5: Shows export buttons → "Экспортируйте КП в PDF или Excel"
+8. Done: "Готово! Вы можете пройти тур заново в любое время из меню Помощь"
+
+**Option B: Contextual Help Tooltips**
+- Question mark icons (?) next to complex fields
+- Hover or click to see explanations
+- Example: "Срок поставки ⓘ" → Shows: "Количество дней от оплаты до доставки товара"
+- Lightweight, always available
+- Ant Design Tooltip component built-in
+
+**Option C: Help Center Page**
+- Dedicated `/help` or `/docs` page
+- Sections: Getting Started, Create Quote, Calculations, Export, Settings
+- Text + screenshots + video tutorials
+- Search functionality
+- Can link to specific sections from tooltips
+
+**Option D: Video Tutorials**
+- Short 2-3 minute videos for each workflow
+- Embedded in help page or tooltips
+- Can use Loom or YouTube
+- Lower effort than writing docs
+
+**Recommended Combo: A + B + C**
+1. **Interactive tour on first login** (Shepherd.js) - 4-6 hours
+2. **Contextual help tooltips** (Ant Design) - 2-3 hours
+3. **Simple help page** with FAQ - 3-4 hours
+
+**Implementation Plan:**
+
+**Phase 1: Quick Wins (2-3 hours)**
+1. Add help button to main menu linking to `/help` page
+2. Create basic help page with:
+   - "Как создать клиента"
+   - "Как создать КП"
+   - "Как рассчитать КП"
+   - "Как экспортировать КП"
+3. Add tooltips to complex fields (срок поставки, валюта, логистика)
+
+**Phase 2: Product Tour (4-6 hours)**
+1. Install Shepherd.js or Driver.js
+2. Create tour steps for main workflow
+3. Add "Skip tour" and "Restart tour" options
+4. Track tour completion in user preferences table
+5. Add "Помощь" menu item to restart tour
+
+**Phase 3: Video Tutorials (Optional, 8+ hours)**
+1. Record screen demos of each workflow
+2. Edit and add voiceover (Russian)
+3. Upload to YouTube or host locally
+4. Embed in help page
+
+**Technical Implementation:**
+
+**Tour tracking:**
+```sql
+-- Add to user_profiles table
+ALTER TABLE user_profiles ADD COLUMN has_completed_onboarding BOOLEAN DEFAULT FALSE;
+```
+
+**Frontend:**
+```typescript
+// Check if user needs tour
+if (!user.has_completed_onboarding) {
+  startProductTour();
+}
+
+// Tour steps
+const tour = new Shepherd.Tour({
+  steps: [
+    {
+      id: 'welcome',
+      text: 'Добро пожаловать! Давайте познакомим вас с платформой',
+      buttons: [{ text: 'Начать', action: tour.next }]
+    },
+    {
+      id: 'customers',
+      text: 'Сначала создайте клиента',
+      attachTo: { element: '[data-tour="customers"]', on: 'bottom' },
+      buttons: [
+        { text: 'Назад', action: tour.back },
+        { text: 'Далее', action: tour.next }
+      ]
+    },
+    // ... more steps
+  ]
+});
+```
+
+**Files to Create:**
+1. `frontend/src/app/help/page.tsx` - Help center page
+2. `frontend/src/components/ProductTour.tsx` - Tour component
+3. `frontend/src/lib/tours/main-tour.ts` - Tour step definitions
+4. `backend/migrations/019_user_onboarding.sql` - Add has_completed_onboarding column
+
+**Estimated Effort:**
+- Phase 1 (Basic help page + tooltips): 2-3 hours
+- Phase 2 (Interactive product tour): 4-6 hours
+- Phase 3 (Video tutorials): 8+ hours
+- **Total for Phase 1+2:** 6-9 hours
+
+**Status:** 🎯 FEATURE REQUEST - Improves user onboarding and reduces support burden
+
+**Priority:** Medium (important for user adoption, but not blocking core functionality)
+
+**User Feedback:**
+- "we need to add page with something like teaching people on how to use"
+- "or at least add prompts on when they first time visit this or that page"
+
+**References:**
+- Shepherd.js: https://shepherdjs.dev/
+- Driver.js: https://driverjs.com/
+- React Joyride: https://react-joyride.com/
+- Intro.js: https://introjs.com/
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
