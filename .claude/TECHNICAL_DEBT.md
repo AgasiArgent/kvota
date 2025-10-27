@@ -357,6 +357,83 @@
 
 ---
 
+#### 1.5 🔴 **[USER BUG - CRITICAL]** Organization Team Management Page Missing (404 Error)
+**Problem:** Clicking "Команда" (Team) button on organizations page results in 404 error
+
+**Current State:**
+- Organizations page has "Команда" button that navigates to `/organizations/{id}/team`
+- This page doesn't exist - returns 404 error
+- **Blocks ability to add users to organization** (critical for multi-user testing)
+- Backend API is fully implemented and ready to use
+
+**Impact:**
+- ❌ Cannot invite users to organization
+- ❌ Cannot manage team members or roles
+- ❌ Blocks multi-user collaboration testing
+- ❌ Users stuck in single-person organizations
+
+**Backend API (Already Implemented):**
+`backend/routes/organizations.py` has complete team management:
+- `GET /api/organizations/{id}/members` - List members with details
+- `POST /api/organizations/{id}/members` - Add member
+- `PUT /api/organizations/{id}/members/{user_id}` - Update role
+- `DELETE /api/organizations/{id}/members/{user_id}` - Remove member
+- `POST /api/organizations/{id}/invitations` - Create email invitation
+- `GET /api/organizations/{id}/invitations` - List pending invitations
+- `POST /api/invitations/{token}/accept` - Accept invitation
+- `DELETE /api/organizations/{id}/invitations/{invitation_id}` - Cancel invitation
+- `GET /api/organizations/{id}/roles` - List available roles
+
+**What Needs to be Built (Frontend Only):**
+Create `/organizations/[id]/team/page.tsx` with:
+1. **Members List:**
+   - Table showing current members (name, email, role, joined date)
+   - Role badges (Owner, Admin, Manager, etc.)
+   - Edit role button (dropdown to change role)
+   - Remove member button (with confirmation)
+
+2. **Invite Member Section:**
+   - Email input field
+   - Role selector dropdown
+   - "Send Invitation" button
+   - Shows pending invitations (email, role, sent date, cancel button)
+
+3. **Permissions:**
+   - Only owners and admins can add/remove members
+   - Only owners can change roles
+   - Members can view team list (read-only)
+
+**Design Reference:**
+- Similar to typical SaaS team management pages (GitHub, Slack, Notion style)
+- Ant Design Table for members list
+- Ant Design Form for invitation
+- Role badges matching organizations page style
+
+**Estimated Effort:** 3-4 hours
+- 1 hour: Create page structure and fetch members API
+- 1 hour: Build members list table with role editing
+- 1 hour: Build invitation form and pending invitations list
+- 1 hour: Add remove member, cancel invitation, permissions logic
+
+**Files to Create:**
+- `frontend/src/app/organizations/[id]/team/page.tsx` (main page)
+- `frontend/src/lib/api/organization-members-service.ts` (API client - optional, can use existing organizationService)
+
+**Related Files:**
+- `frontend/src/app/organizations/page.tsx:157` (button triggering 404)
+- `backend/routes/organizations.py:301-716` (existing API endpoints)
+
+**Status:** 🔴 **CRITICAL** - Blocks multi-user testing and core collaboration feature
+
+**Priority:** **URGENT** (without this, cannot test multi-user scenarios)
+
+**User Request:** "We will also need to add permissions system for different types of users"
+- ✅ Backend already has role-based permissions system
+- ✅ Roles: owner, admin, financial-admin, sales-manager, procurement-manager, logistics-manager
+- ❌ Frontend team management UI missing to assign these roles
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
