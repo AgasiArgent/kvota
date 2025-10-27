@@ -2,7 +2,7 @@
 
 **Purpose:** Track issues to fix later without blocking current development
 
-**Last Updated:** 2025-10-26 (Session 30 - Export System Testing Complete)
+**Last Updated:** 2025-10-27 (Session 31 - Production Deployment + User Feedback)
 
 ---
 
@@ -203,7 +203,161 @@
 
 ## High Priority
 
-### 1. Export Reliability Issue
+### 1. 🧑‍💼 User-Reported Bugs (Production Deployment - Session 31)
+
+**Source:** 👥 **REAL USER FEEDBACK** - Testing on deployed application (Vercel + Railway)
+
+**Discovered:** 2025-10-27
+
+#### 1.1 ✅ **[CRITICAL USER BUG - RESOLVED]** Customer Creation Fails - company_type Enum Mismatch
+
+**✅ FIX APPLIED (Commit: 00036f5 - 2025-10-27):**
+- Added `COMPANY_TYPE_MAP` mapping in customer create page
+- Maps Russian company types to backend enum values:
+  - `'ooo', 'ao', 'pao', 'zao'` → `'organization'`
+  - `'ip'` → `'individual_entrepreneur'`
+  - `'individual'` → `'individual'`
+  - `'government'` → `'government'`
+- Applied mapping before sending to API: `company_type: COMPANY_TYPE_MAP[values.company_type]`
+- Added "Государственное учреждение" (government) option to dropdown
+
+**Original Problem:** Cannot create customers due to frontend/backend enum value mismatch
+
+**Error (Now Fixed):** 422 Validation Error
+```json
+{
+  "type": "enum",
+  "loc": ["body", "company_type"],
+  "msg": "Input should be 'individual', 'individual_entrepreneur', 'organization' or 'government'",
+  "input": "ooo"
+}
+```
+
+**Root Cause:**
+- Frontend dropdown sent Russian abbreviations: `"ooo"`, `"ao"`, `"zao"`, `"oao"`, etc.
+- Backend Pydantic model expected English enum values
+- No mapping between frontend display values and backend API values
+
+**Impact (Now Resolved):**
+- ✅ Users can now create customers
+- ✅ Quote creation workflow unblocked
+- ✅ User testing can proceed
+
+**Related Files:**
+- `frontend/src/app/customers/create/page.tsx:85-94` (mapping added)
+- `frontend/src/app/customers/create/page.tsx:112` (mapping applied)
+- `frontend/src/app/customers/create/page.tsx:234` (government option added)
+
+**Status:** ✅ **RESOLVED** - Deployed to production via Vercel
+
+---
+
+#### 1.2 🐛 **[USER BUG]** Supabase Email Confirmation Links Point to Localhost
+**Problem:** Email confirmation/reset links from Supabase redirect to `localhost:3000` instead of production URL
+
+**Impact:**
+- Users cannot verify their email addresses
+- Password reset emails don't work
+- Registration flow broken for new users
+
+**Root Cause:**
+- Supabase Site URL configured to `localhost:3000` in project settings
+- Needs to be updated to production URL: `https://kvota-frontend.vercel.app`
+
+**To Fix:**
+1. Go to Supabase Dashboard → Project Settings → Authentication
+2. Update "Site URL" from `http://localhost:3000` to `https://kvota-frontend.vercel.app`
+3. Update "Redirect URLs" to include production URL
+4. Test email confirmation flow
+
+**Estimated Effort:** 5 minutes (configuration change only)
+
+**Status:** ⚠️ BLOCKS NEW USER REGISTRATION
+
+---
+
+#### 1.3 🐛 **[USER BUG]** Logistics Label Misleading on Quote Create Page
+**Problem:** Logistics costs labeled as "₽" (roubles) but calculator uses quote currency
+
+**Current State:**
+- Quote create page shows logistics fields with rouble symbol: "Логистика от поставщика ₽"
+- But calculation engine correctly uses quote currency (RUB, USD, EUR, CNY)
+- User confusion: "Why is logistics in roubles if my quote is in USD?"
+
+**Impact:**
+- User confusion and distrust
+- Users may enter wrong values thinking it's always in roubles
+- Misleading UX
+
+**Proposed Fix:**
+- Change label from "Логистика от поставщика ₽" to "Логистика от поставщика (в валюте КП)"
+- Or: "Логистика от поставщика (в валюте предложения)"
+- Makes it clear the value is in quote currency, not always roubles
+
+**Related Fields:**
+- `logistics_from_supplier` input field
+- `logistics_to_client` input field
+- Any other cost fields showing currency symbols
+
+**To Fix:**
+- Update labels in `frontend/src/app/quotes/create/page.tsx`
+- Search for "₽" symbol in logistics-related labels
+- Replace with "(в валюте КП)" or similar
+
+**Estimated Effort:** 15 minutes
+
+**Status:** 🟡 UX ISSUE - Not blocking but causes confusion
+
+---
+
+#### 1.4 🐛 **[USER BUG]** No Validation Feedback When Creating Quote
+**Problem:** No popup/notification showing what fields need to be entered to proceed with quote creation
+
+**Current State:**
+- User fills out quote creation form
+- Clicks "Создать КП" (Create Quote) button
+- If required fields are missing: nothing happens, no feedback
+- User doesn't know what went wrong or what fields are required
+- Poor UX - user confusion and frustration
+
+**Impact:**
+- Users get stuck not knowing what to fill
+- No guidance on required vs optional fields
+- Bad user experience for core workflow
+- Users may abandon quote creation
+
+**Expected Behavior:**
+- Show validation errors clearly when required fields are missing
+- Highlight missing required fields in red
+- Show popup/notification: "Пожалуйста, заполните обязательные поля" (Please fill required fields)
+- List specific missing fields or scroll to first error
+- Mark required fields with asterisk (*) in labels
+
+**To Fix:**
+1. Add form validation to quote create page
+2. Show Ant Design notification on validation failure
+3. Highlight invalid/missing fields with red borders
+4. Add asterisks (*) to required field labels
+5. Consider showing validation summary popup listing all errors
+
+**Related Files:**
+- `frontend/src/app/quotes/create/page.tsx` (form validation logic)
+- Need to add validation before API call
+- Use Ant Design Form validation or custom validation
+
+**Estimated Effort:** 1-2 hours
+- 30 min: Add field validation rules
+- 30 min: Add error highlighting and notifications
+- 30 min: Add asterisks to required fields
+- 30 min: Testing
+
+**Status:** 🟡 UX ISSUE - Core workflow affected, but not blocking
+
+**Priority:** High (affects primary user workflow)
+
+---
+
+### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
 **Symptoms:**
