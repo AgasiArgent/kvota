@@ -31,4 +31,4 @@ RUN chmod +x start.sh
 EXPOSE 8000
 
 # Start uvicorn server via startup script
-CMD ["./start.sh"]
+CMD ["/bin/bash", "/app/start.sh"]
