@@ -27,8 +27,6 @@ COPY . .
 # Make start script executable
 RUN chmod +x start.sh
 
-# Expose port (Railway will override with $PORT)
-EXPOSE 8000
-
 # Start uvicorn server via startup script
+# Railway auto-detects port from $PORT environment variable
 CMD ["/bin/bash", "/app/start.sh"]
