@@ -715,6 +715,245 @@ const tour = new Shepherd.Tour({
 
 ---
 
+#### 1.8 🎯 **[UX IMPROVEMENT]** Replace UUID URLs with Human-Readable Slugs
+
+**Problem:** URLs show UUIDs instead of meaningful identifiers, making them unreadable
+
+**Current State:**
+- Quote URLs: `/quotes/af0965f1-b411-410b-9357-4fb2dcccd4b9`
+- Customer URLs: `/customers/af0965f1-b411-410b-9357-4fb2dcccd4b9`
+- Hard to share, remember, or understand what page you're on
+- Not SEO-friendly (though this is internal B2B app)
+
+**Proposed Solution (Same Pattern as Export Filenames):**
+
+**For Quotes:**
+- Current: `/quotes/af0965f1-b411-410b-9357-4fb2dcccd4b9`
+- Better: `/quotes/kp25-0001` (using quote_number)
+- Best: `/quotes/master-bearing-kp25-0001` (customer slug + quote number)
+
+**For Customers:**
+- Current: `/customers/af0965f1-b411-410b-9357-4fb2dcccd4b9`
+- Better: `/customers/master-bearing-ooo` (company slug)
+- Pattern: company name → transliterate Russian → slugify → make unique
+
+**Example URLs:**
+```
+Before:
+/quotes/af0965f1-b411-410b-9357-4fb2dcccd4b9
+/customers/12345678-1234-1234-1234-123456789abc
+
+After:
+/quotes/kp25-0001
+/customers/master-bearing-ooo
+/quotes/kp25-0001/edit
+/customers/master-bearing-ooo/edit
+```
+
+**Implementation Options:**
+
+**Option A: Add slug column to database (Recommended)**
+- Add `slug` column to `quotes` and `customers` tables
+- Generate slug automatically on create/update
+- Use slug in URLs, keep UUID for backend lookups
+- Ensures unique, SEO-friendly URLs
+
+**Option B: Use existing natural key (quote_number)**
+- For quotes: Use `quote_number` directly (КП25-0001)
+- Problem: Russian characters in URL need encoding
+- Solution: Encode as `kp25-0001` (transliterate "КП" → "KP")
+
+**Option C: Hybrid (Recommended)**
+- Quotes: Use quote_number as slug (simple, already unique per org)
+- Customers: Add slug column (company names can change)
+
+**Recommended: Option C (Hybrid)**
+
+**For Quotes:**
+- URL pattern: `/quotes/{quote_number}` → `/quotes/kp25-0001`
+- Backend: Look up by `quote_number` + `organization_id`
+- No database changes needed (quote_number already exists)
+- Transliterate Russian: "КП" → "KP", "АО" → "AO" for URL
+
+**For Customers:**
+- Add `slug` column: `VARCHAR(255) UNIQUE`
+- Generate on create: "МАСТЕР БЭРИНГ ООО" → "master-bearing-ooo"
+- Transliteration library: `translitit` or `cyrillic-to-translit-js`
+- Ensure uniqueness: If collision, append `-2`, `-3`, etc.
+
+**Transliteration Rules (Russian → Latin):**
+```
+КП → kp
+ООО → ooo
+ПАО → pao
+ИП → ip
+Spaces → hyphens
+Special chars → remove
+```
+
+**Migration Plan:**
+
+**Phase 1: Customers (Add slug column)**
+```sql
+-- Migration 019: Add slug to customers
+ALTER TABLE customers ADD COLUMN slug VARCHAR(255) UNIQUE;
+
+-- Generate slugs for existing customers
+-- Will need to transliterate Russian names to Latin
+```
+
+**Phase 2: Update Backend Routes**
+```python
+# Old route
+@router.get("/{customer_id}")
+
+# New route (both supported for backwards compatibility)
+@router.get("/{customer_slug}")
+async def get_customer(customer_slug: str):
+    # Try UUID first (for old links)
+    try:
+        customer_id = UUID(customer_slug)
+        customer = fetch_by_id(customer_id)
+    except ValueError:
+        # Not a UUID, treat as slug
+        customer = fetch_by_slug(customer_slug)
+```
+
+**Phase 3: Update Frontend Links**
+```typescript
+// Old
+router.push(`/customers/${customer.id}`)
+
+// New
+router.push(`/customers/${customer.slug}`)
+```
+
+**For Quotes - No DB Changes Needed:**
+Just use `quote_number` in URLs with transliteration:
+```typescript
+// Old
+router.push(`/quotes/${quote.id}`)
+
+// New
+const urlSafeNumber = quote.quote_number
+  .replace('КП', 'kp')
+  .toLowerCase();
+router.push(`/quotes/${urlSafeNumber}`)
+```
+
+**Transliteration Library Options:**
+
+**Frontend (TypeScript):**
+- `translitit` - npm package, 50k downloads/week
+- `cyrillic-to-translit-js` - Specific for Russian
+- Custom map (simple, no dependencies)
+
+**Backend (Python):**
+- `transliterate` - pip package, mature
+- `unidecode` - converts Unicode to ASCII
+- Custom mapping dict
+
+**Example Implementation:**
+
+**Frontend helper:**
+```typescript
+// lib/utils/slug.ts
+export function transliterateRussian(text: string): string {
+  const map: Record<string, string> = {
+    'А': 'a', 'Б': 'b', 'В': 'v', 'Г': 'g', 'Д': 'd',
+    'Е': 'e', 'Ё': 'yo', 'Ж': 'zh', 'З': 'z', 'И': 'i',
+    'Й': 'y', 'К': 'k', 'Л': 'l', 'М': 'm', 'Н': 'n',
+    'О': 'o', 'П': 'p', 'Р': 'r', 'С': 's', 'Т': 't',
+    'У': 'u', 'Ф': 'f', 'Х': 'h', 'Ц': 'ts', 'Ч': 'ch',
+    'Ш': 'sh', 'Щ': 'sch', 'Ъ': '', 'Ы': 'y', 'Ь': '',
+    'Э': 'e', 'Ю': 'yu', 'Я': 'ya',
+    // Add lowercase
+  };
+
+  return text
+    .split('')
+    .map(char => map[char] || map[char.toUpperCase()]?.toLowerCase() || char)
+    .join('')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+}
+
+export function quoteNumberToSlug(quoteNumber: string): string {
+  // "КП25-0001" → "kp25-0001"
+  return transliterateRussian(quoteNumber);
+}
+```
+
+**Backend slug generation:**
+```python
+from transliterate import translit
+
+def generate_slug(name: str) -> str:
+    """Generate URL-safe slug from Russian text"""
+    # Transliterate Russian to Latin
+    latin = translit(name, 'ru', reversed=True)
+
+    # Convert to lowercase, replace spaces with hyphens
+    slug = latin.lower()
+    slug = re.sub(r'[^a-z0-9]+', '-', slug)
+    slug = re.sub(r'^-|-$', '', slug)
+
+    return slug
+
+# "МАСТЕР БЭРИНГ ООО" → "master-bering-ooo"
+```
+
+**Files to Modify:**
+
+**Backend:**
+1. `backend/migrations/019_add_customer_slug.sql` - Add slug column
+2. `backend/routes/customers.py` - Accept slug in URLs, lookup logic
+3. `backend/routes/quotes.py` - Accept quote_number in URLs
+4. Add slug generation helper
+
+**Frontend:**
+1. `frontend/src/lib/utils/slug.ts` - Transliteration helpers
+2. Update all router.push() calls for customers and quotes
+3. Update API calls to use slugs
+4. `frontend/src/app/customers/[slug]/page.tsx` - Rename from [id]
+5. `frontend/src/app/quotes/[slug]/page.tsx` - Rename from [id]
+
+**Backwards Compatibility:**
+- Keep UUID support in backend for old bookmarks
+- Frontend automatically uses new slug format going forward
+- Old links still work (UUID detection)
+
+**Estimated Effort:**
+- Backend slug generation: 2 hours
+- Database migration + slug generation for existing data: 2 hours
+- Frontend route updates: 3-4 hours
+- Testing: 1 hour
+- **Total: 8-9 hours**
+
+**Benefits:**
+- ✅ Readable URLs: `/quotes/kp25-0001` vs UUID
+- ✅ Shareable: Easy to copy/paste in chat
+- ✅ Professional: Matches export filename pattern
+- ✅ Debugging: Can tell what page you're on from URL
+- ✅ SEO-friendly (if app becomes public)
+
+**Status:** 🎯 UX IMPROVEMENT - Nice to have, improves professionalism
+
+**Priority:** Medium (UX polish, not blocking functionality)
+
+**User Feedback:**
+- "all pages that are about quote or customer have addreses like so af0965f1-b411-410b-9357-4fb2dcccd4b9"
+- "i think it's because they are originally named in russian and then recoded or something"
+- "we had similar problem with export files names and solved it successfully"
+- "may be we can do something similar here? so url would look readable for humans"
+
+**References:**
+- Transliteration: https://pypi.org/project/transliterate/
+- URL slug best practices: https://developers.google.com/search/docs/crawling-indexing/url-structure
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
