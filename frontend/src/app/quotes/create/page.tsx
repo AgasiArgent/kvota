@@ -1445,56 +1445,43 @@ export default function CreateQuotePage() {
                         {showBrokerage && (
                           <>
                             <Col span={12}>
-                              <Form.Item name="brokerage_hub" label="Брокерские Турция (₽)">
-                                <InputNumber
-                                  min={0}
-                                  step={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="₽"
-                                />
+                              <Form.Item
+                                name="brokerage_hub"
+                                label="Брокерские Турция (в валюте КП)"
+                              >
+                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
                               </Form.Item>
                             </Col>
                             <Col span={12}>
-                              <Form.Item name="brokerage_customs" label="Брокерские РФ (₽)">
-                                <InputNumber
-                                  min={0}
-                                  step={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="₽"
-                                />
+                              <Form.Item
+                                name="brokerage_customs"
+                                label="Брокерские РФ (в валюте КП)"
+                              >
+                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
                               </Form.Item>
                             </Col>
                             <Col span={12}>
-                              <Form.Item name="warehousing_at_customs" label="Расходы на СВХ (₽)">
-                                <InputNumber
-                                  min={0}
-                                  step={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="₽"
-                                />
+                              <Form.Item
+                                name="warehousing_at_customs"
+                                label="Расходы на СВХ (в валюте КП)"
+                              >
+                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
                               </Form.Item>
                             </Col>
                             <Col span={12}>
                               <Form.Item
                                 name="customs_documentation"
-                                label="Разрешительные документы (₽)"
+                                label="Разрешительные документы (в валюте КП)"
                               >
-                                <InputNumber
-                                  min={0}
-                                  step={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="₽"
-                                />
+                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
                               </Form.Item>
                             </Col>
                             <Col span={12}>
-                              <Form.Item name="brokerage_extra" label="Прочие расходы (₽)">
-                                <InputNumber
-                                  min={0}
-                                  step={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="₽"
-                                />
+                              <Form.Item
+                                name="brokerage_extra"
+                                label="Прочие расходы (в валюте КП)"
+                              >
+                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
                               </Form.Item>
                             </Col>
                           </>
