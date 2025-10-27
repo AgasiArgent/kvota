@@ -954,6 +954,85 @@ def generate_slug(name: str) -> str:
 
 ---
 
+#### 1.9 🎯 **[UX IMPROVEMENT]** Redirect to Quote View Page After Creation (Not Edit Page)
+
+**Problem:** After creating a quote, user is redirected to edit page instead of view page
+
+**Current Flow:**
+1. User fills out quote creation form
+2. Clicks "Создать КП" (Create Quote)
+3. **Redirected to:** `/quotes/{id}/edit` (edit page)
+4. User has to click "Back" or navigate to view page
+5. Only then can export the quote
+
+**Proposed Flow:**
+1. User fills out quote creation form
+2. Clicks "Создать КП" (Create Quote)
+3. **Redirected to:** `/quotes/{id}` (view/detail page)
+4. User can immediately export PDF or Excel
+5. Can click "Edit" button if changes needed
+
+**User Expectation:**
+> "after creating quote i get redirected to edit page, but i think it's better to get redirected to the page of the quote, so i can export it right away"
+
+**Why This Makes Sense:**
+- **Primary next action:** Export the quote (PDF/Excel)
+- **Secondary action:** Edit if mistakes found
+- View page has export buttons prominently displayed
+- Edit page is for making changes, not the natural next step
+- Matches user mental model: Create → Review → Export → Send to client
+
+**Industry Standard:**
+Most CRM/ERP systems follow this pattern:
+- Create document → View document (with export/send options)
+- Edit is a separate action from creation
+- Examples: Salesforce, HubSpot, QuickBooks, Zoho
+
+**Implementation:**
+
+**Current Code (Quote Create Page):**
+```typescript
+// frontend/src/app/quotes/create/page.tsx
+const response = await quotesCalcService.createQuote(payload);
+
+if (response.success && response.data) {
+  message.success('КП успешно создано!');
+  router.push(`/quotes/${response.data.id}/edit`);  // ← CHANGE THIS
+}
+```
+
+**Proposed Fix:**
+```typescript
+// frontend/src/app/quotes/create/page.tsx
+const response = await quotesCalcService.createQuote(payload);
+
+if (response.success && response.data) {
+  message.success('КП успешно создано!');
+  router.push(`/quotes/${response.data.id}`);  // ← View page, not edit
+}
+```
+
+**Files to Modify:**
+1. `frontend/src/app/quotes/create/page.tsx` - Change redirect URL (1 line change)
+
+**Estimated Effort:** 2 minutes (literally one line change)
+
+**Benefits:**
+- ✅ Faster workflow: Create → Export (no extra navigation)
+- ✅ Matches user expectation
+- ✅ Reduces clicks to complete common task
+- ✅ Aligns with industry standard UX
+
+**Status:** 🎯 UX IMPROVEMENT - Quick win, improves primary workflow
+
+**Priority:** High (affects every quote creation, very easy fix)
+
+**User Feedback:**
+- "after creating quote i get redirected to edit page"
+- "i think it's better to get redirected to the page of the quote, so i can export it right away"
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
