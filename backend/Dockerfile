@@ -1,5 +1,6 @@
 # Railway deployment Dockerfile
 # Uses Debian base with Python 3.12 and GTK/GObject libraries for WeasyPrint
+# Cache bust: 2025-10-27-v2
 
 FROM python:3.12-slim
 
@@ -27,5 +28,5 @@ COPY . .
 EXPOSE 8000
 
 # Start uvicorn server
-# Use shell form to properly expand $PORT environment variable
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Use bash to properly expand $PORT environment variable at runtime
+CMD ["/bin/bash", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
