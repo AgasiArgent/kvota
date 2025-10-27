@@ -9,6 +9,7 @@ import os
 import io
 import asyncio
 import logging
+import re
 
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -66,6 +67,57 @@ elif environment == "test":
     supabase = None  # type: ignore
 else:
     raise ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
+    """
+    Generate next sequential quote number for organization.
+    Format: КП{YY}-{NNNN} (e.g., КП25-0001)
+
+    Uses MAX(quote_number) approach to avoid race conditions.
+    Filters by current year to reset numbering each year.
+
+    Args:
+        supabase_client: Supabase client instance
+        organization_id: Organization UUID
+
+    Returns:
+        str: Next quote number (e.g., "КП25-0001")
+    """
+    current_year = datetime.now().year
+    year_short = str(current_year)[-2:]  # Last 2 digits (2025 → 25)
+    year_prefix = f"КП{year_short}-"
+
+    # Query for maximum quote_number starting with this year's prefix
+    quotes_response = supabase_client.table("quotes")\
+        .select("quote_number")\
+        .eq("organization_id", str(organization_id))\
+        .like("quote_number", f"{year_prefix}%")\
+        .order("quote_number", desc=True)\
+        .limit(1)\
+        .execute()
+
+    if quotes_response.data and len(quotes_response.data) > 0:
+        # Extract numeric part from last quote number (e.g., "КП25-0042" → 42)
+        last_quote = quotes_response.data[0]["quote_number"]
+        match = re.search(r'-(\d+)$', last_quote)
+        if match:
+            last_number = int(match.group(1))
+            next_number = last_number + 1
+        else:
+            # Fallback if regex fails
+            next_number = 1
+    else:
+        # No quotes for this year yet
+        next_number = 1
+
+    # Format: КП25-0001
+    quote_number = f"{year_prefix}{str(next_number).zfill(4)}"
+    return quote_number
 
 
 # ============================================================================
@@ -872,46 +924,68 @@ async def calculate_quote(
             detail="User is not associated with any organization"
         )
 
+    # Retry logic for quote creation (handles race conditions with duplicate quote numbers)
+    max_retries = 3
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            # Generate quote number with current year (format: КП25-0001)
+            quote_number = generate_quote_number(supabase, str(user.current_organization_id))
+
+            # 1. Create quote record
+            quote_data = {
+                "organization_id": str(user.current_organization_id),
+                "customer_id": request.customer_id,
+                "contact_id": request.contact_id,  # Customer contact person
+                "quote_number": quote_number,
+                "title": request.title,
+                "description": request.description,
+                "status": "draft",
+                "created_by": str(user.id),
+                "manager_name": user.full_name,  # Manager info from user
+                "manager_email": user.email,
+                "quote_date": request.quote_date.isoformat(),  # Convert date to ISO string
+                "valid_until": request.valid_until.isoformat(),  # Convert date to ISO string
+                "subtotal": 0,  # Will be updated after calculations
+                "total_amount": 0  # Will be updated after calculations
+            }
+
+            quote_response = supabase.table("quotes").insert(quote_data).execute()
+
+            if not quote_response.data:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create quote"
+                )
+
+            quote_id = quote_response.data[0]['id']
+
+            # Success! Break out of retry loop
+            break
+
+        except Exception as e:
+            # Check if it's a duplicate key error (code 23505)
+            error_str = str(e)
+            is_duplicate = '23505' in error_str or 'duplicate key value' in error_str or 'already exists' in error_str
+
+            if is_duplicate and attempt < max_retries - 1:
+                # Duplicate quote number - retry with new number
+                logger.warning(f"Duplicate quote number detected (attempt {attempt + 1}/{max_retries}). Retrying...")
+                last_error = e
+                continue  # Retry loop
+            elif is_duplicate:
+                # Exhausted retries
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Failed to generate unique quote number after {max_retries} attempts. Please try again."
+                )
+            else:
+                # Different error - re-raise immediately
+                raise
+
+    # 2. Create quote_items records
     try:
-        # Generate quote number (format: КП25-0001)
-        # Get count of existing quotes to generate next number
-        count_response = supabase.table("quotes")\
-            .select("id", count="exact")\
-            .eq("organization_id", str(user.current_organization_id))\
-            .execute()
-
-        quote_count = count_response.count if count_response.count else 0
-        quote_number = f"КП25-{str(quote_count + 1).zfill(4)}"
-
-        # 1. Create quote record
-        quote_data = {
-            "organization_id": str(user.current_organization_id),
-            "customer_id": request.customer_id,
-            "contact_id": request.contact_id,  # Customer contact person
-            "quote_number": quote_number,
-            "title": request.title,
-            "description": request.description,
-            "status": "draft",
-            "created_by": str(user.id),
-            "manager_name": user.full_name,  # Manager info from user
-            "manager_email": user.email,
-            "quote_date": request.quote_date.isoformat(),  # Convert date to ISO string
-            "valid_until": request.valid_until.isoformat(),  # Convert date to ISO string
-            "subtotal": 0,  # Will be updated after calculations
-            "total_amount": 0  # Will be updated after calculations
-        }
-
-        quote_response = supabase.table("quotes").insert(quote_data).execute()
-
-        if not quote_response.data:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create quote"
-            )
-
-        quote_id = quote_response.data[0]['id']
-
-        # 2. Create quote_items records
         items_data = []
         for idx, product in enumerate(request.products):
             item_data = {
