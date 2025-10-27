@@ -550,13 +550,13 @@ export default function CreateQuotePage() {
         console.log('✅ Quote created successfully:', quoteNumber);
         console.log('✅ Quote ID for redirect:', quoteId);
 
-        // Show success message and redirect to quote edit page
+        // Show success message and redirect to quote view page
         message.success(`Котировка №${quoteNumber} создана!`, 1.5);
 
-        // Redirect to quote edit page
-        console.log('Redirecting to edit page:', `/quotes/${quoteId}/edit`);
+        // Redirect to quote view page (where user can see results and export)
+        console.log('Redirecting to view page:', `/quotes/${quoteId}`);
         setTimeout(() => {
-          router.push(`/quotes/${quoteId}/edit`);
+          router.push(`/quotes/${quoteId}`);
         }, 1500);
       } else {
         message.error(`Ошибка расчета: ${result.error}`);
@@ -1372,12 +1372,11 @@ export default function CreateQuotePage() {
                         {/* Total Logistics Field (when mode = total) */}
                         {logisticsMode === 'total' && (
                           <Col span={24}>
-                            <Form.Item name="logistics_total" label="Логистика всего (₽)">
+                            <Form.Item name="logistics_total" label="Логистика всего (в валюте КП)">
                               <InputNumber
                                 min={0}
                                 step={100}
                                 style={{ width: '100%' }}
-                                addonAfter="₽"
                                 onChange={handleLogisticsTotalChange}
                               />
                             </Form.Item>
@@ -1386,23 +1385,27 @@ export default function CreateQuotePage() {
 
                         {/* Detailed Logistics Fields (always present, disabled when mode = total) */}
                         <Col span={12}>
-                          <Form.Item name="logistics_supplier_hub" label="Поставщик - Турция (50%)">
+                          <Form.Item
+                            name="logistics_supplier_hub"
+                            label="Поставщик - Турция (50%, в валюте КП)"
+                          >
                             <InputNumber
                               min={0}
                               step={100}
                               style={{ width: '100%' }}
-                              addonAfter="₽"
                               disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="logistics_hub_customs" label="Турция - Таможня РФ (30%)">
+                          <Form.Item
+                            name="logistics_hub_customs"
+                            label="Турция - Таможня РФ (30%, в валюте КП)"
+                          >
                             <InputNumber
                               min={0}
                               step={100}
                               style={{ width: '100%' }}
-                              addonAfter="₽"
                               disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
@@ -1410,13 +1413,12 @@ export default function CreateQuotePage() {
                         <Col span={12}>
                           <Form.Item
                             name="logistics_customs_client"
-                            label="Таможня РФ - Клиент (20%)"
+                            label="Таможня РФ - Клиент (20%, в валюте КП)"
                           >
                             <InputNumber
                               min={0}
                               step={100}
                               style={{ width: '100%' }}
-                              addonAfter="₽"
                               disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
