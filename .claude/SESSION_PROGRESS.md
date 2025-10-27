@@ -7,6 +7,158 @@
 
 ---
 
+## Session 32 (2025-10-27) - UX Bug Fixes (Phase 1 & 2.1) ✅
+
+### Goal
+Fix critical UX bugs blocking user experience on production deployment.
+
+### Status: 4 BUGS RESOLVED ✅
+
+---
+
+### Bug 1.1: Supabase Email Links Point to Localhost ✅
+
+**Problem:** Email confirmation and password reset links redirect to `http://localhost:3000` instead of production URL.
+
+**User Feedback:**
+> "Supabase email links point to localhost"
+
+**Root Cause:** Supabase Site URL configuration set to localhost instead of production domain.
+
+**Fix Applied:** Manual configuration in Supabase Dashboard
+1. Navigate to Authentication → URL Configuration
+2. Change Site URL from `http://localhost:3000` to `https://kvota-vercel.app`
+3. Add `https://kvota-vercel.app/**` to redirect URLs
+
+**Impact:** ✅ Users can now confirm emails and reset passwords via production links
+
+**Time:** 5 min (manual config by user)
+
+**Status:** RESOLVED - User confirmed "1.1 done"
+
+---
+
+### Bug 1.2: Quote Creation Redirects to Edit Page Instead of View ✅
+
+**Problem:** After creating a quote, users redirected to edit page (`/quotes/{id}/edit`) instead of view page where they can export PDFs.
+
+**User Feedback:**
+> "After quote creation, redirect to view page not edit page"
+
+**Root Cause:** Hardcoded redirect to edit page in quote creation success handler (`frontend/src/app/quotes/create/page.tsx:559`).
+
+**Fix Applied:**
+Modified `frontend/src/app/quotes/create/page.tsx`:
+- Line 559: Changed `router.push(`/quotes/${quoteId}/edit`)` → `router.push(`/quotes/${quoteId}`)`
+- Added comment explaining redirect purpose (users need immediate export access)
+
+**Impact:** ✅ Users now land on view page after creation, can immediately export PDFs
+
+**Commit:** `28c761e` (pushed to GitHub)
+
+**Time:** 2 min
+
+**Status:** RESOLVED - User confirmed redirect works correctly (with expected 1.5s delay for UX)
+
+---
+
+### Bug 1.3: Logistics & Brokerage Labels Show "₽" Instead of Quote Currency ✅
+
+**Problem:** Cost fields in quote creation form show "₽" symbol, misleading users to think costs are in rubles when they're actually in quote currency (USD/EUR/RUB).
+
+**User Feedback:**
+> "Logistics label currency confusion - should say 'в валюте КП' not '₽'"
+> "Брокеридж should also be в валюте КП as logistics"
+
+**Root Cause:** Hardcoded "₽" labels and `addonAfter="₽"` props on InputNumber components for logistics and brokerage fields.
+
+**Fix Applied:**
+Modified `frontend/src/app/quotes/create/page.tsx`:
+
+**Part 1 - Logistics Fields (4 fields):**
+- Line 1375: "Логистика всего **(₽)**" → "Логистика всего **(в валюте КП)**"
+- Line 1388: "Поставщик - Турция (50%, **₽**)" → "... **(в валюте КП)**"
+- Line 1398: "Турция - Таможня РФ (30%, **₽**)" → "... **(в валюте КП)**"
+- Line 1408: "Таможня РФ - Клиент (20%, **₽**)" → "... **(в валюте КП)**"
+- Removed `addonAfter="₽"` from all 4 InputNumber components
+
+**Part 2 - Brokerage Fields (5 fields):**
+- Line 1448: "Брокерские Турция **(₽)**" → "Брокерские Турция **(в валюте КП)**"
+- Line 1457: "Брокерские РФ **(₽)**" → "Брокерские РФ **(в валюте КП)**"
+- Line 1466: "Расходы на СВХ **(₽)**" → "Расходы на СВХ **(в валюте КП)**"
+- Line 1477: "Разрешительные документы **(₽)**" → "... **(в валюте КП)**"
+- Line 1487: "Прочие расходы **(₽)**" → "Прочие расходы **(в валюте КП)**"
+- Removed `addonAfter="₽"` from all 5 InputNumber components
+
+**Total:** 9 fields fixed (4 logistics + 5 brokerage)
+
+**Impact:** ✅ Clear labeling - users understand all costs are in quote currency, not fixed to rubles
+
+**Commits:**
+- `28c761e` - Logistics fields (pushed to GitHub)
+- `724480f` - Brokerage fields (pushed to GitHub)
+
+**Time:** 15 min
+
+**Status:** RESOLVED - User confirmed "брокеридж fix passed"
+
+---
+
+### Bug 2.1: Activity Log Page Missing Left Sidebar Navigation ✅
+
+**Problem:** Activity log page (`/activity`) doesn't have left sidebar navigation panel, inconsistent with all other pages. Users can't navigate to other pages without browser back button.
+
+**User Feedback:**
+> "Activity log page doesn't have left side panel or other navigation elements. We have to be consistent about this - left side panel should be on every page"
+
+**Root Cause:** Activity log page wasn't wrapped in `MainLayout` component. All other pages (Dashboard, Quotes, Customers, etc.) use this pattern, but `/activity` was missing it.
+
+**Fix Applied:**
+Modified `frontend/src/app/activity/page.tsx`:
+1. Line 25: Added `import MainLayout from '@/components/layout/MainLayout'`
+2. Line 279: Wrapped content in `<MainLayout>` opening tag
+3. Line 480: Added `</MainLayout>` closing tag
+
+**Impact:** ✅ Consistent navigation across all pages - users can now access:
+- Dashboard (Панель управления)
+- Quotes menu (Все КП, Создать КП, Черновики, Корзина)
+- Customers (Клиенты)
+- Organizations (Организации)
+- Activity History (История действий) - current page
+- Settings (Настройки)
+
+**Commit:** `96eca08` (pushed to GitHub)
+
+**Time:** 10 min
+
+**Status:** RESOLVED - Verified via Chrome DevTools (left sidebar visible with all menu items)
+
+---
+
+### Session Summary
+
+**Bugs Fixed:** 4 (1.1, 1.2, 1.3, 2.1)
+**Commits:** 3 (`28c761e`, `96eca08`, `724480f`)
+**Files Modified:** 2
+- `frontend/src/app/quotes/create/page.tsx` (26 lines changed - redirect + 9 currency labels)
+- `frontend/src/app/activity/page.tsx` (3 lines changed - layout wrapper)
+
+**Total Time:** ~30 min
+
+**Testing:** All fixes verified on localhost:3000 by user
+
+**Key Pattern Documented:**
+- **Layout Consistency:** All Next.js pages must wrap content in `MainLayout` for consistent navigation
+- **Label Clarity:** Currency/unit labels must specify context ("в валюте КП") to avoid confusion
+
+**Next Steps:**
+- Continue with Phase 2.2: Fix client field blank on quote detail (1-2 hours)
+- Continue with Phase 2.3: Add validation feedback to quote creation (1-2 hours)
+
+See `.claude/BUG_RESOLUTION_PLAN.md` for remaining phases.
+
+---
+
 ## Session 31 (2025-10-27) - Quote Versioning Attempt + Rollback ⚠️
 
 ### Goal
