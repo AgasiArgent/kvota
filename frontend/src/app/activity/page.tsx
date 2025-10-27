@@ -22,6 +22,7 @@ import {
 import type { TableColumnsType, TablePaginationConfig } from 'antd';
 import dayjs, { Dayjs } from 'dayjs';
 import Link from 'next/link';
+import MainLayout from '@/components/layout/MainLayout';
 import {
   activityLogService,
   ActivityLog,
@@ -275,7 +276,7 @@ export default function ActivityLogPage() {
   // ============================================================================
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+    <MainLayout>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Header */}
         <div>
@@ -476,6 +477,6 @@ export default function ActivityLogPage() {
           </Space>
         )}
       </Drawer>
-    </div>
+    </MainLayout>
   );
 }
