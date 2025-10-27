@@ -1,0 +1,23 @@
+# Nixpacks configuration for Railway deployment
+# Installs GTK/GObject system dependencies for WeasyPrint PDF generation
+
+[phases.setup]
+nixPkgs = [
+  "python312",
+  "cairo",
+  "pango",
+  "gdk-pixbuf",
+  "gobject-introspection",
+  "glib",
+  "fontconfig",
+  "freetype"
+]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "uvicorn main:app --host 0.0.0.0 --port $PORT"
