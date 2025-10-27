@@ -1679,6 +1679,131 @@ LIMIT 10;
 
 ---
 
+#### 1.14 🔴 **[UX BUG]** Activity Log Page Missing Left Side Navigation Panel
+
+**Problem:** Activity log page (`/activity`) doesn't have left side navigation panel, inconsistent with other pages
+
+**User Feedback:**
+> "also activity log page doesn't have left side panel or other navigation elements. we have to be consistent about this - left side panel should be on every page i think?"
+
+**Current State:**
+- Most pages in the app have left side navigation panel
+- Activity log page (`/activity`) is missing this panel
+- Inconsistent user experience
+- User has to use browser back button or manually navigate via URL
+
+**Expected Behavior:**
+- All pages should have consistent left side navigation panel
+- Activity log page should include navigation like other pages:
+  - Dashboard link
+  - КП (Quotes) menu
+  - Клиенты (Customers) link
+  - Организация (Organization) menu
+  - Помощь (Help) link
+  - Профиль (Profile) link
+  - Выход (Logout)
+
+**Impact:**
+- ❌ Poor user experience (no way to navigate to other pages)
+- ❌ Inconsistent design (breaks user expectation)
+- ❌ Accessibility issue (no keyboard navigation from this page)
+
+**To Investigate:**
+1. Check if activity log page uses different layout component
+2. Verify if other admin pages have same issue
+3. Check if layout.tsx properly wraps all pages
+
+**Likely Root Cause:**
+
+**Option 1: Missing Layout Wrapper**
+- Activity log page doesn't import or use main layout component
+- Need to check if page has `'use client'` without layout wrapper
+
+**Option 2: Custom Layout Override**
+- Page explicitly disables layout for some reason
+- Check if there's a custom layout.tsx in `/activity` directory
+
+**Option 3: Conditional Rendering Bug**
+- Layout renders navigation based on route pattern
+- `/activity` route not matching navigation display condition
+
+**To Fix:**
+
+**Step 1: Check Current Page Structure**
+```bash
+# Check activity log page implementation
+cat frontend/src/app/activity/page.tsx | head -50
+```
+
+**Step 2: Compare with Working Pages**
+```bash
+# Compare with dashboard (has navigation)
+cat frontend/src/app/page.tsx | head -30
+
+# Compare with quotes page (has navigation)
+cat frontend/src/app/quotes/page.tsx | head -30
+```
+
+**Step 3: Fix Layout**
+- If missing layout: Add proper layout wrapper
+- If custom layout: Import and use shared navigation component
+- If conditional bug: Fix route matching logic
+
+**Example Fix (if missing layout):**
+```typescript
+// frontend/src/app/activity/page.tsx
+
+// Ensure it's using the root layout
+export default function ActivityLogPage() {
+  // Layout should be applied automatically from layout.tsx
+  // Check if there's a custom layout preventing this
+}
+```
+
+**Or if need to explicitly import navigation:**
+```typescript
+import { AppSidebar } from '@/components/AppSidebar';
+
+export default function ActivityLogPage() {
+  return (
+    <div className="flex">
+      <AppSidebar />
+      <main className="flex-1">
+        {/* Activity log content */}
+      </main>
+    </div>
+  );
+}
+```
+
+**Files to Check:**
+1. `frontend/src/app/activity/page.tsx` - Activity log page implementation
+2. `frontend/src/app/activity/layout.tsx` - Check if custom layout exists
+3. `frontend/src/app/layout.tsx` - Root layout with navigation
+4. `frontend/src/components/*Sidebar*` or `*Navigation*` - Shared navigation component
+
+**Estimated Effort:**
+- Investigation: 15 minutes
+- Fix (if missing wrapper): 10 minutes
+- Fix (if custom layout): 30 minutes
+- Testing: 10 minutes
+- **Total: 30-60 minutes**
+
+**Status:** 🔴 **UX BUG** - Inconsistent navigation, affects usability
+
+**Priority:** Medium-High (affects user experience, but page is still functional)
+
+**User Feedback:**
+- "activity log page doesn't have left side panel or other navigation elements"
+- "we have to be consistent about this - left side panel should be on every page i think?"
+
+**Related Pages to Verify:**
+- Check if feedback page (`/admin/feedback`) has same issue
+- Check if all admin pages have navigation
+- Ensure consistency across all routes
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
