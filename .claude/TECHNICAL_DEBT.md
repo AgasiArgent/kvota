@@ -1449,6 +1449,236 @@ async def get_profile(user: User = Depends(get_current_user)):
 
 ---
 
+#### 1.13 🔴 **[BUG]** Activity Log Not Recording User Actions
+
+**Problem:** Activity log page is empty despite user creating quotes and performing actions
+
+**User Feedback:**
+> "activity log doesn't show activity i did - i created a quote few minutes ago, but activity log is empty"
+
+**Current State:**
+- User performs actions (create quote, create customer, etc.)
+- Activity log page shows no entries
+- System not recording activity
+
+**Expected Behavior:**
+- Every significant action should be logged:
+  - Quote created
+  - Quote edited
+  - Quote exported
+  - Customer created
+  - Customer updated
+  - User logged in
+  - Settings changed
+
+**Background (Session 26 Infrastructure):**
+
+The activity logging system was built in Session 26 with:
+- `activity_logs` table in database
+- `log_activity()` helper function in backend
+- Activity log viewer page in frontend
+- Async batching for performance
+
+**However:** Integration with actual endpoints was incomplete.
+
+**Root Cause Analysis:**
+
+**Likely Issue:** Log calls not added to production endpoints
+
+**Session 26 deliverables included:**
+1. ✅ Database table `activity_logs` (migration 016)
+2. ✅ Frontend activity log viewer page
+3. ✅ Backend `log_activity()` helper function
+4. ❌ **Integration points** - Only 12 integration points documented, not all implemented
+
+**Missing Integration Points:**
+
+**Quote Operations:**
+- `POST /api/quotes/calculate` - Quote created
+- `PUT /api/quotes/{id}` - Quote edited
+- `GET /api/quotes/{id}/export/pdf` - PDF exported
+- `GET /api/quotes/{id}/export/excel` - Excel exported
+
+**Customer Operations:**
+- `POST /api/customers` - Customer created
+- `PUT /api/customers/{id}` - Customer updated
+- `DELETE /api/customers/{id}` - Customer deleted (soft delete)
+
+**User Operations:**
+- User login (via Supabase auth)
+- Profile updated
+- Organization switched
+
+**To Verify:**
+
+1. **Check if table exists:**
+```sql
+SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT 10;
+```
+
+2. **Check if quote creation endpoint has logging:**
+```python
+# backend/routes/quotes_calc.py - POST /api/quotes/calculate
+# Should have:
+await log_activity(
+    db=db,
+    user_id=user.id,
+    organization_id=user.current_organization_id,
+    action="quote_created",
+    resource_type="quote",
+    resource_id=quote_id,
+    details={"quote_number": quote_number}
+)
+```
+
+3. **Check backend logs for errors:**
+```bash
+# If log_activity() is called but failing silently
+# Check Railway logs for exceptions
+```
+
+**Possible Causes:**
+
+**Cause 1: Integration Not Completed**
+- log_activity() function exists but not called from endpoints
+- Need to add calls to all CRUD operations
+- Documented in Session 26 but not implemented
+
+**Cause 2: Database Migration Not Applied**
+- `activity_logs` table doesn't exist in production
+- Migration 016 not run in Supabase
+- Logs failing with table doesn't exist error
+
+**Cause 3: Async Logging Failing Silently**
+- log_activity() uses asyncio.create_task() for non-blocking
+- If task fails, no error shown to user
+- Need to check backend logs
+
+**Cause 4: Permission/RLS Issue**
+- activity_logs table has RLS policy
+- User can't insert logs due to RLS blocking
+- Need to check RLS policies allow INSERT
+
+**To Fix:**
+
+**Step 1: Verify Database Setup**
+```sql
+-- Check table exists
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'activity_logs';
+
+-- Check RLS policies
+SELECT * FROM pg_policies WHERE tablename = 'activity_logs';
+
+-- Try manual insert
+INSERT INTO activity_logs (
+    organization_id, user_id, action, resource_type, details
+) VALUES (
+    'your-org-id', 'your-user-id', 'test', 'quote', '{}'
+);
+```
+
+**Step 2: Add Missing Integration Points**
+
+**Quote Creation (Highest Priority):**
+```python
+# backend/routes/quotes_calc.py - POST /quotes/calculate
+from services.activity_log_service import log_activity
+
+# After quote created successfully
+await log_activity(
+    db=db,
+    user_id=user.id,
+    organization_id=user.current_organization_id,
+    action="quote.created",
+    resource_type="quote",
+    resource_id=str(quote_id),
+    details={
+        "quote_number": quote_number,
+        "customer_id": str(customer_id),
+        "total_amount": float(total_amount),
+        "products_count": len(products)
+    }
+)
+```
+
+**Customer Creation:**
+```python
+# backend/routes/customers.py - POST /customers
+await log_activity(
+    db=db,
+    user_id=user.id,
+    organization_id=user.current_organization_id,
+    action="customer.created",
+    resource_type="customer",
+    resource_id=str(customer_id),
+    details={"customer_name": customer_data.name}
+)
+```
+
+**Export Actions:**
+```python
+# backend/routes/quotes.py - GET /quotes/{id}/export/pdf
+await log_activity(
+    db=db,
+    user_id=user.id,
+    organization_id=user.current_organization_id,
+    action="quote.exported.pdf",
+    resource_type="quote",
+    resource_id=str(quote_id),
+    details={"quote_number": quote.quote_number}
+)
+```
+
+**Step 3: Test Integration**
+
+After adding log calls:
+1. Create a test quote
+2. Check activity_logs table:
+```sql
+SELECT * FROM activity_logs
+WHERE organization_id = 'your-org-id'
+ORDER BY created_at DESC
+LIMIT 10;
+```
+3. Verify frontend displays the log
+4. Test all major actions
+
+**Files to Modify:**
+
+1. `backend/routes/quotes_calc.py` - Add log to quote creation
+2. `backend/routes/quotes.py` - Add logs to export endpoints
+3. `backend/routes/customers.py` - Add logs to CRUD operations
+4. `backend/services/activity_log_service.py` - Verify log_activity() function exists
+
+**Estimated Effort:**
+- Investigation (verify root cause): 30 min
+- Add integration points (10 endpoints): 2 hours
+- Testing: 30 min
+- **Total:** 3 hours
+
+**Priority:** 🔴 **HIGH** - Activity logging is important for compliance and audit trails
+
+**Status:** 🔴 **BUG** - Infrastructure exists but not integrated
+
+**User Feedback:**
+- "activity log doesn't show activity i did"
+- "i created a quote few minutes ago, but activity log is empty"
+
+**Related Documentation:**
+- See `.claude/TECHNICAL_DEBT.md` Section 3.1.1 - Activity logging integration gap
+- Session 26 deliverables included activity log infrastructure
+- 12 integration points documented but implementation incomplete
+
+**Next Steps:**
+1. Check if migration 016 applied in production Supabase
+2. Verify log_activity() function exists in backend
+3. Add log calls to quote creation endpoint (highest priority)
+4. Add log calls to other CRUD endpoints
+5. Test end-to-end: Create quote → Check activity_logs table → Check frontend
+
+---
+
 ### 2. Export Reliability Issue
 **Problem:** Export doesn't always work 2nd or 3rd time on the same page without reloading
 
