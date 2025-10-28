@@ -15,7 +15,8 @@ backend/
 │   ├── quotes.py              # Quote CRUD
 │   ├── quotes_calc.py         # Calculation engine
 │   ├── calculation_settings.py # Admin settings
-│   └── organizations.py       # Organization management
+│   ├── organizations.py       # Organization management
+│   └── team.py                # Team member management
 ├── migrations/
 │   └── *.sql                  # Database migrations
 └── venv/                      # Virtual environment
@@ -598,4 +599,219 @@ async def upload_products_file(
         })
 
     return {"products": products, "count": len(products)}
+```
+
+---
+
+## Team Management API
+
+**Location:** `backend/routes/team.py`
+
+**Base URL:** `/api/organizations/{organization_id}/members`
+
+### Endpoints
+
+#### 1. List Team Members
+
+**GET `/api/organizations/{organization_id}/members`**
+
+List all team members in the organization.
+
+**Auth:** Any authenticated user in the organization
+
+**Response:**
+```python
+[
+    {
+        "id": "uuid",
+        "user_id": "uuid",
+        "user_email": "user@example.com",
+        "user_full_name": "John Doe",
+        "role_id": "uuid",
+        "role_name": "Admin",
+        "role_slug": "admin",
+        "is_owner": false,
+        "status": "active",
+        "joined_at": "2024-01-01T00:00:00Z"
+    }
+]
+```
+
+**Features:**
+- Ordered by role hierarchy (owner → admin → manager → member)
+- Then sorted by name
+- Only shows active and invited members
+- RLS ensures organization isolation
+
+#### 2. Invite Team Member
+
+**POST `/api/organizations/{organization_id}/members`**
+
+Invite new member by email.
+
+**Auth:** Manager/Admin/Owner only (`require_org_admin()`)
+
+**Request Body:**
+```python
+{
+    "email": "newuser@example.com",
+    "role_id": "uuid"  # UUID of role to assign
+}
+```
+
+**Response:**
+```python
+{
+    "message": "Member added successfully",
+    "member_id": "uuid",
+    "user_email": "newuser@example.com",
+    "role": "Member"
+}
+```
+
+**Validation:**
+- User must exist in Supabase Auth
+- User cannot already be a member
+- Role must be valid
+
+**Error Codes:**
+- `404` - User not found
+- `409` - User already a member
+- `400` - Invalid role ID
+
+#### 3. Update Member Role
+
+**PUT `/api/organizations/{organization_id}/members/{member_id}/role`**
+
+Change a member's role.
+
+**Auth:** Admin/Owner only (`require_org_admin()`)
+
+**Request Body:**
+```python
+{
+    "role_id": "uuid"  # New role UUID
+}
+```
+
+**Response:**
+```python
+{
+    "id": "uuid",
+    "user_id": "uuid",
+    "role_id": "uuid",
+    "status": "active",
+    ...
+}
+```
+
+**Validation:**
+- Cannot change owner's role
+- Cannot change your own role
+- Cannot promote to owner (ownership transfer not supported)
+
+**Error Codes:**
+- `400` - Attempting to change owner role or own role
+- `404` - Member not found
+
+#### 4. Remove Team Member
+
+**DELETE `/api/organizations/{organization_id}/members/{member_id}`**
+
+Remove member from organization (soft delete).
+
+**Auth:** Admin/Owner only (`require_org_admin()`)
+
+**Response:** `204 No Content`
+
+**Validation:**
+- Cannot remove owner
+- Cannot remove yourself
+- Soft delete (sets status to 'left')
+
+**Error Codes:**
+- `400` - Attempting to remove owner or yourself
+- `404` - Member not found
+
+### Usage Example
+
+```python
+from routes.team import router as team_router
+from auth import get_organization_context, require_org_admin
+
+# List members (any org member)
+@router.get("/{organization_id}/members")
+async def list_members(
+    organization_id: str,
+    context: OrganizationContext = Depends(get_organization_context)
+):
+    # Implementation
+
+# Invite member (admin only)
+@router.post("/{organization_id}/members")
+async def invite_member(
+    organization_id: str,
+    email: str,
+    role_id: UUID,
+    context: OrganizationContext = Depends(require_org_admin())
+):
+    # Implementation
+```
+
+### Security Notes
+
+1. **Organization Isolation:** All endpoints filter by `organization_id`
+2. **Role-Based Access:** Invite/update/delete require admin privileges
+3. **Owner Protection:** Owner cannot be removed or have role changed
+4. **Self-Protection:** Users cannot remove themselves or change their own role
+5. **Supabase Auth Integration:** User lookup via Supabase Admin API
+
+### Database Schema
+
+**Table:** `organization_members`
+
+```sql
+CREATE TABLE organization_members (
+    id UUID PRIMARY KEY,
+    organization_id UUID NOT NULL REFERENCES organizations(id),
+    user_id UUID NOT NULL REFERENCES auth.users(id),
+    role_id UUID NOT NULL REFERENCES roles(id),
+    status TEXT NOT NULL DEFAULT 'active',  -- active, invited, suspended, left
+    is_owner BOOLEAN NOT NULL DEFAULT false,
+    invited_by UUID REFERENCES auth.users(id),
+    invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    joined_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_org_members_org ON organization_members(organization_id);
+CREATE INDEX idx_org_members_user ON organization_members(user_id);
+CREATE INDEX idx_org_members_status ON organization_members(status);
+```
+
+### RLS Policies
+
+```sql
+-- Members can see other members in their organization
+CREATE POLICY "Members can view org members" ON organization_members
+FOR SELECT USING (
+    organization_id IN (
+        SELECT organization_id FROM organization_members
+        WHERE user_id = auth.uid() AND status = 'active'
+    )
+);
+
+-- Admins can add members
+CREATE POLICY "Admins can add members" ON organization_members
+FOR INSERT WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM organization_members om
+        JOIN roles r ON om.role_id = r.id
+        WHERE om.organization_id = organization_members.organization_id
+        AND om.user_id = auth.uid()
+        AND (om.is_owner = true OR r.slug IN ('admin'))
+    )
+);
 ```

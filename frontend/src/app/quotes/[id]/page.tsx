@@ -63,11 +63,22 @@ interface QuoteItem {
   total_price?: number;
 }
 
+interface Customer {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  inn?: string;
+  kpp?: string;
+  company_name?: string;
+}
+
 interface QuoteDetail {
   id: string;
   quote_number: string;
   customer_id?: string;
-  customer_name?: string;
+  customer?: Customer; // Backend returns customer object, not customer_name string
   title?: string;
   status: string;
   quote_date?: string;
@@ -485,7 +496,9 @@ export default function QuoteDetailPage() {
         {/* Section 2: Quote Info Card */}
         <Card title="Информация о КП" variant="borderless">
           <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
-            <Descriptions.Item label="Клиент">{quote.customer_name || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Клиент">
+              {quote.customer?.name || 'Не указан'}
+            </Descriptions.Item>
             <Descriptions.Item label="Название КП">{quote.title || '—'}</Descriptions.Item>
             <Descriptions.Item label="Статус">{getStatusTag(quote.status)}</Descriptions.Item>
             <Descriptions.Item label="Дата КП">{formatDate(quote.quote_date)}</Descriptions.Item>

@@ -114,6 +114,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
       label: 'Профиль',
     });
 
+    // Admin/manager/owner can access team management
+    if (profile?.role && ['admin', 'owner', 'manager'].includes(profile.role)) {
+      settingsChildren.push({
+        key: '/settings/team',
+        label: 'Команда',
+      });
+    }
+
     // Admin/owner can access calculation settings
     if (profile?.role && ['admin', 'owner'].includes(profile.role)) {
       settingsChildren.push({
