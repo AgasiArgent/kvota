@@ -115,15 +115,25 @@ export default function MainLayout({ children }: MainLayoutProps) {
     });
 
     // Admin/manager/owner can access team management
-    if (profile?.role && ['admin', 'owner', 'manager'].includes(profile.role)) {
+    // Accept both old profile roles and new team roles (case-insensitive)
+    const managerRoles = [
+      'admin',
+      'owner',
+      'manager',
+      'sales_manager',
+      'finance_manager',
+      'department_manager',
+      'director',
+    ];
+    if (profile?.role && managerRoles.includes(profile.role.toLowerCase())) {
       settingsChildren.push({
         key: '/settings/team',
         label: 'Команда',
       });
     }
 
-    // Admin/owner can access calculation settings
-    if (profile?.role && ['admin', 'owner'].includes(profile.role)) {
+    // Admin/owner can access calculation settings (case-insensitive)
+    if (profile?.role && ['admin', 'owner'].includes(profile.role.toLowerCase())) {
       settingsChildren.push({
         key: '/settings/calculation',
         label: 'Настройки расчета',

@@ -187,12 +187,12 @@ export default function CreateQuotePage() {
   useEffect(() => {
     if (selectedCustomer) {
       loadCustomerContacts(selectedCustomer);
-      // Sync form field with state
-      form.setFieldValue('customer_id', selectedCustomer);
+      // Sync form field with state (customer_id is not in CalculationVariables type, set via setFieldsValue)
+      form.setFieldsValue({ customer_id: selectedCustomer } as any);
     } else {
       setCustomerContacts([]);
       setSelectedContact(undefined);
-      form.setFieldValue('customer_id', undefined);
+      form.setFieldsValue({ customer_id: undefined } as any);
     }
   }, [selectedCustomer, form]);
 
@@ -368,9 +368,14 @@ export default function CreateQuotePage() {
     onRemove: () => {
       setUploadedProducts([]);
       setUploadedFile(null);
+      message.info('Файл удален');
+      return true;
     },
     fileList: uploadedFile ? [uploadedFile] : [],
-    showUploadList: true,
+    showUploadList: {
+      showRemoveIcon: true,
+      showPreviewIcon: false,
+    },
   };
 
   // Template selection handler
@@ -506,8 +511,13 @@ export default function CreateQuotePage() {
 
   // Clear all quote-level variables
   const handleClearVariables = () => {
-    form.resetFields();
-    message.success('Все переменные очищены');
+    try {
+      form.resetFields();
+      message.success('Все переменные очищены');
+    } catch (error) {
+      console.warn('Error clearing form:', error);
+      message.success('Все переменные очищены');
+    }
   };
 
   // Calculate quote
@@ -612,12 +622,37 @@ export default function CreateQuotePage() {
         message.success(`Котировка №${quoteNumber} создана!`, 1.5);
 
         // Redirect to quote view page (where user can see results and export)
-        console.log('Redirecting to view page:', `/quotes/${quoteId}`);
-        setTimeout(() => {
-          router.push(`/quotes/${quoteId}`);
-        }, 1500);
+        if (quoteId) {
+          console.log('Redirecting to view page:', `/quotes/${quoteId}`);
+          setTimeout(() => {
+            router.push(`/quotes/${quoteId}`);
+          }, 1500);
+        } else {
+          console.error('❌ Quote ID is undefined, cannot redirect');
+          message.warning('КП создано, но не удалось перейти к просмотру');
+        }
       } else {
-        message.error(`Ошибка расчета: ${result.error}`);
+        // Format validation errors as bullet list
+        const errorText = result.error || 'Неизвестная ошибка';
+        if (errorText.includes('\n') || errorText.length > 100) {
+          // Multi-line or long error - show in modal for better readability
+          const errorLines = errorText.split('\n').filter((line: string) => line.trim());
+          Modal.error({
+            title: 'Ошибка расчета КП',
+            content: (
+              <div>
+                {errorLines.map((line: string, idx: number) => (
+                  <div key={idx} style={{ marginBottom: '8px' }}>
+                    {line.startsWith('-') || line.startsWith('•') ? line : `• ${line}`}
+                  </div>
+                ))}
+              </div>
+            ),
+            width: 600,
+          });
+        } else {
+          message.error(`Ошибка расчета: ${errorText}`);
+        }
       }
     } catch (error: any) {
       message.error(`Ошибка: ${error.message}`);
@@ -1015,15 +1050,16 @@ export default function CreateQuotePage() {
                   <Col flex="auto" style={{ maxWidth: '300px' }}>
                     <Form.Item
                       name="customer_id"
-                      noStyle
                       rules={[{ required: true, message: 'Выберите клиента' }]}
+                      style={{ marginBottom: 0 }}
                     >
                       <Select
                         size="small"
                         showSearch
                         placeholder="Выберите клиента"
-                        value={selectedCustomer}
-                        onChange={setSelectedCustomer}
+                        onChange={(value) => {
+                          setSelectedCustomer(value);
+                        }}
                         optionFilterProp="children"
                         style={{ width: '100%' }}
                         filterOption={(input, option) =>
@@ -1141,7 +1177,11 @@ export default function CreateQuotePage() {
                           </Text>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="seller_company" label="Компания-продавец">
+                          <Form.Item
+                            name="seller_company"
+                            label="Компания-продавец"
+                            rules={[{ required: true, message: 'Выберите компанию-продавца' }]}
+                          >
                             <Select placeholder="Выберите компанию-продавца">
                               <Select.Option value="МАСТЕР БЭРИНГ ООО">
                                 МАСТЕР БЭРИНГ ООО (Россия)
@@ -1156,7 +1196,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="offer_sale_type" label="Вид КП">
+                          <Form.Item
+                            name="offer_sale_type"
+                            label="Вид КП"
+                            rules={[{ required: true, message: 'Выберите вид КП' }]}
+                          >
                             <Select>
                               <Select.Option value="поставка">Поставка</Select.Option>
                               <Select.Option value="транзит">Транзит</Select.Option>
@@ -1178,7 +1222,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="offer_incoterms" label="Базис поставки">
+                          <Form.Item
+                            name="offer_incoterms"
+                            label="Базис поставки"
+                            rules={[{ required: true, message: 'Выберите базис поставки' }]}
+                          >
                             <Select>
                               <Select.Option value="DDP">DDP</Select.Option>
                               <Select.Option value="EXW">EXW</Select.Option>
@@ -1216,8 +1264,16 @@ export default function CreateQuotePage() {
                           <Form.Item
                             name="exchange_rate_base_price_to_quote"
                             label="Курс к валюте КП"
+                            rules={[
+                              { required: true, message: 'Укажите курс к валюте КП' },
+                              {
+                                type: 'number',
+                                min: 0.0001,
+                                message: 'Курс должен быть больше 0',
+                              },
+                            ]}
                           >
-                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+                            <InputNumber min={0.0001} step={0.01} style={{ width: '100%' }} />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
