@@ -127,7 +127,7 @@ export default function QuoteDetailPage() {
           id: quoteData.id,
           quote_number: quoteData.quote_number,
           customer_id: quoteData.customer_id,
-          customer_name: quoteData.customer_name,
+          customer: quoteData.customer, // Store customer object (contains name)
           title: quoteData.title,
           status: quoteData.status,
           quote_date: quoteData.quote_date,
