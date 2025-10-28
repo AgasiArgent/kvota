@@ -99,6 +99,16 @@ const compactFormStyles = `
     font-size: 12px;
     height: auto;
   }
+  .compact-form .ant-form-item-has-error .ant-select-selector,
+  .compact-form .ant-form-item-has-error .ant-input,
+  .compact-form .ant-form-item-has-error .ant-input-number,
+  .compact-form .ant-form-item-has-error .ant-picker {
+    border-color: #ff4d4f !important;
+  }
+  .compact-form .ant-form-item-has-error .ant-form-item-explain-error {
+    font-size: 11px;
+    margin-top: 2px;
+  }
 `;
 
 // Helper function to parse decimal input with comma or period separator
@@ -177,11 +187,14 @@ export default function CreateQuotePage() {
   useEffect(() => {
     if (selectedCustomer) {
       loadCustomerContacts(selectedCustomer);
+      // Sync form field with state
+      form.setFieldValue('customer_id', selectedCustomer);
     } else {
       setCustomerContacts([]);
       setSelectedContact(undefined);
+      form.setFieldValue('customer_id', undefined);
     }
-  }, [selectedCustomer]);
+  }, [selectedCustomer, form]);
 
   // Auto-calculate logistics breakdown when in "total" mode
   const handleLogisticsTotalChange = (value: number | null) => {
@@ -499,13 +512,58 @@ export default function CreateQuotePage() {
 
   // Calculate quote
   const handleCalculate = async () => {
-    if (!selectedCustomer) {
-      message.error('Выберите клиента');
+    // Validate form fields first
+    try {
+      await form.validateFields();
+    } catch (error) {
+      message.error('Пожалуйста, заполните все обязательные поля');
+      // Scroll to first error field
+      const errorField = document.querySelector('.ant-form-item-has-error');
+      if (errorField) {
+        errorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
+    // Validate customer selection
+    if (!selectedCustomer) {
+      message.error('Выберите клиента');
+      // Scroll to customer select
+      const customerSelect = document.querySelector('[name="customer_id"]')?.closest('.ant-row');
+      if (customerSelect) {
+        customerSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // Validate products uploaded
     if (uploadedProducts.length === 0) {
-      message.error('Загрузите файл с товарами');
+      message.error('Добавьте минимум 1 продукт');
+      // Scroll to upload section
+      const uploadSection = document.querySelector('.ant-upload-drag');
+      if (uploadSection) {
+        uploadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // Validate each product has required fields
+    const invalidProducts = uploadedProducts.filter(
+      (p) =>
+        !p.product_name ||
+        p.base_price_vat === null ||
+        p.base_price_vat === undefined ||
+        !p.quantity
+    );
+    if (invalidProducts.length > 0) {
+      message.error(
+        `Заполните все обязательные поля продуктов (название, цена с НДС, количество). Найдено незаполненных: ${invalidProducts.length}`
+      );
+      // Scroll to products grid
+      const productsGrid = document.querySelector('.ag-theme-alpine');
+      if (productsGrid) {
+        productsGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -900,6 +958,8 @@ export default function CreateQuotePage() {
             size="small"
             className="compact-form"
             onFinish={handleCalculate}
+            validateTrigger={['onBlur', 'onChange']}
+            scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
           >
             {/* Top Section - Form Cards (Full Width) */}
             <Row gutter={24}>
@@ -953,22 +1013,28 @@ export default function CreateQuotePage() {
                     </Text>
                   </Col>
                   <Col flex="auto" style={{ maxWidth: '300px' }}>
-                    <Select
-                      size="small"
-                      showSearch
-                      placeholder="Выберите клиента"
-                      value={selectedCustomer}
-                      onChange={setSelectedCustomer}
-                      optionFilterProp="children"
-                      style={{ width: '100%' }}
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
-                      options={customers.map((c) => ({
-                        label: `${c.name} (${c.inn || 'без ИНН'})`,
-                        value: c.id,
-                      }))}
-                    />
+                    <Form.Item
+                      name="customer_id"
+                      noStyle
+                      rules={[{ required: true, message: 'Выберите клиента' }]}
+                    >
+                      <Select
+                        size="small"
+                        showSearch
+                        placeholder="Выберите клиента"
+                        value={selectedCustomer}
+                        onChange={setSelectedCustomer}
+                        optionFilterProp="children"
+                        style={{ width: '100%' }}
+                        filterOption={(input, option) =>
+                          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
+                        options={customers.map((c) => ({
+                          label: `${c.name} (${c.inn || 'без ИНН'})`,
+                          value: c.id,
+                        }))}
+                      />
+                    </Form.Item>
                   </Col>
                   {selectedCustomer && customerContacts.length > 0 && (
                     <>
@@ -1010,7 +1076,11 @@ export default function CreateQuotePage() {
                     </Text>
                   </Col>
                   <Col style={{ width: '150px' }}>
-                    <Form.Item name="quote_date" noStyle>
+                    <Form.Item
+                      name="quote_date"
+                      noStyle
+                      rules={[{ required: true, message: 'Укажите дату КП' }]}
+                    >
                       <DatePicker
                         size="small"
                         format="YYYY-MM-DD"
@@ -1032,7 +1102,11 @@ export default function CreateQuotePage() {
                     </Text>
                   </Col>
                   <Col style={{ width: '150px' }}>
-                    <Form.Item name="valid_until" noStyle>
+                    <Form.Item
+                      name="valid_until"
+                      noStyle
+                      rules={[{ required: true, message: 'Укажите срок действия' }]}
+                    >
                       <DatePicker size="small" format="YYYY-MM-DD" style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>
@@ -1091,7 +1165,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="currency_of_quote" label="Валюта КП">
+                          <Form.Item
+                            name="currency_of_quote"
+                            label="Валюта КП"
+                            rules={[{ required: true, message: 'Выберите валюту КП' }]}
+                          >
                             <Select>
                               <Select.Option value="RUB">RUB (Рубль)</Select.Option>
                               <Select.Option value="USD">USD</Select.Option>
@@ -1110,7 +1188,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="delivery_time" label="Срок поставки (дни)">
+                          <Form.Item
+                            name="delivery_time"
+                            label="Срок поставки (дни)"
+                            rules={[{ required: true, message: 'Укажите срок поставки' }]}
+                          >
                             <InputNumber
                               min={0}
                               step={1}
@@ -1699,7 +1781,6 @@ export default function CreateQuotePage() {
                       size="large"
                       block
                       onClick={handleCalculate}
-                      disabled={!selectedCustomer || uploadedProducts.length === 0}
                       loading={loading}
                     >
                       Рассчитать котировку
@@ -1714,14 +1795,19 @@ export default function CreateQuotePage() {
                     </Button>
                   </Space>
                   {(!selectedCustomer || uploadedProducts.length === 0) && (
-                    <Text
-                      type="secondary"
-                      style={{ display: 'block', marginTop: 8, textAlign: 'center' }}
-                    >
-                      {!selectedCustomer && 'Выберите клиента'}
-                      {!selectedCustomer && uploadedProducts.length === 0 && ' и '}
-                      {uploadedProducts.length === 0 && 'загрузите товары'}
-                    </Text>
+                    <Alert
+                      message="Перед расчетом проверьте:"
+                      description={
+                        <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+                          {!selectedCustomer && <li>Выберите клиента из списка</li>}
+                          {uploadedProducts.length === 0 && <li>Загрузите файл с товарами</li>}
+                          <li>Заполните все обязательные поля (отмечены красным при пропуске)</li>
+                        </ul>
+                      }
+                      type="warning"
+                      showIcon
+                      style={{ marginTop: 12 }}
+                    />
                   )}
                 </Card>
               </Col>

@@ -38,6 +38,13 @@ def get_supabase_client() -> Client:
         os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     )
 
+def get_supabase_admin_client() -> Client:
+    """Get Supabase admin client for auth operations"""
+    return create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
 
 def get_default_role_id() -> UUID:
     """Get the default role (Sales Manager) ID"""
@@ -318,6 +325,7 @@ async def list_members(
             .execute()
 
         members = []
+        supabase_admin = get_supabase_admin_client()
         for row in result.data:
             # Fetch user email from Supabase Auth
             try:
@@ -556,6 +564,7 @@ async def list_invitations(
             .execute()
 
         invitations = []
+        supabase_admin = get_supabase_admin_client()
         for row in result.data:
             # Fetch inviter details from Supabase Auth if needed
             inviter_email = None
