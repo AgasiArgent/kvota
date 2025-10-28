@@ -136,64 +136,76 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ## Specialized Agent Team
 
-**8 specialized agents for automated workflow orchestration.**
+**9 specialized agents with model optimization for quality and cost efficiency.**
 
-The project uses specialized AI agents that work in parallel to ensure quality, security, and consistency. Agents automatically trigger when features are complete.
+The project uses proper agents (not slash commands) that work in parallel with optimized models (Sonnet for quality + Opus for complex problems).
 
 ### Agent Overview
 
+**All agents are invoked with `@agent-name` syntax.**
+
 **Tier 1: Orchestration**
-- **DevOps/Project Manager** (`/finalize`) - Coordinates all agents, updates docs, manages git workflow
+- **@orchestrator** (Sonnet) - Coordinates all agents, updates docs, manages git workflow
 
 **Tier 2: Builders**
-- **Frontend Developer** (`/build-frontend`) - Implements Next.js/React features
-- **Backend Developer** (`/build-backend`) - Implements FastAPI endpoints
+- **@frontend-dev** (Sonnet) - Implements Next.js/React features
+- **@backend-dev** (Sonnet) - Implements FastAPI endpoints
 
 **Tier 3: Quality Assurance**
-- **QA/Tester** (`/qa-check`) - Writes automated tests, checks coverage
-- **Security Auditor** (`/security-check`) - Audits RLS policies, permissions, SQL injection
-- **Code Reviewer** (`/review-code`) - Reviews patterns, quality, performance
+- **@qa-tester** (Sonnet) - Writes automated tests with edge case reasoning
+- **@security-auditor** (Sonnet) - Audits RLS policies, permissions, SQL injection
+- **@code-reviewer** (Sonnet) - Reviews patterns, quality, performance
 
 **Tier 4: User Experience**
-- **UX/Design** (`/review-ux`) - Checks UI consistency, accessibility, responsive design
-- **Integration Tester** (`/integration-test`) - E2E testing with Chrome DevTools MCP
+- **@ux-reviewer** (Sonnet) - Checks UI consistency, accessibility, responsive design
+- **@integration-tester** (Sonnet) - E2E testing with Chrome DevTools MCP
+
+**Tier 5: Expert Problem Solving**
+- **@expert** (Opus) - Complex problems, architecture decisions, critical debugging
+
+**Plus Built-in Agents:**
+- **@Explore** (Haiku) - Fast codebase exploration (built-in, don't create custom)
+- **@Plan** (Sonnet) - Planning and task breakdown (built-in, don't create custom)
+
+### Model Strategy
+
+**Why all Sonnet (except Expert):**
+- Max subscription allows quality-first approach
+- Extended thinking catches edge cases
+- Cost not primary concern with Max plan
+- All agents benefit from deeper reasoning
+
+**When to use @expert (Opus):**
+- 10x+ performance bottlenecks
+- Security vulnerabilities requiring deep analysis
+- Architecture decisions with multiple approaches
+- Complex bugs that Sonnet can't solve
+- Race conditions, concurrency issues
 
 ### Typical Workflow
 
-**When you complete a feature, the orchestrator asks:**
-> "Feature looks complete. Run quality checks and finalize? [Yes/No]"
+**Feature Development Flow:**
 
-**If you say "Yes", orchestrator automatically:**
+```
+1. PLANNING (if complex)
+   User: "Add real-time notifications"
+   @plan → Creates implementation roadmap
 
-1. **Parallel Quality Checks** (~2-3 min)
-   - Launches QA, Security, and Code Review agents simultaneously
-   - All run in parallel in separate contexts
+2. BUILDING
+   @frontend-dev → Implements UI
+   @backend-dev → Implements API
 
-2. **Review Findings**
-   - ✅ Auto-fixes minor issues (formatting, missing comments)
-   - ⚠️ Reports important issues (needs review)
-   - 🔴 Creates GitHub Issues for critical/security bugs
-
-3. **Update Documentation**
-   - Updates SESSION_PROGRESS.md
-   - Updates CLAUDE.md (if packages/architecture changed)
-   - Updates test docs (if new tests)
-
-4. **Git Workflow**
-   - Asks: "Commit and push?"
-   - Runs tests one final time
-   - Generates commit message (follows repo style)
-   - Commits with proper format
-   - Pushes to GitHub
-   - Monitors CI/CD
-
-5. **Final Report**
-   - Summary of all checks
-   - Test results (X/X passing)
-   - Security status
-   - Documentation updates
-   - Git commit hash
-   - CI/CD status
+3. FINALIZATION
+   User: "@orchestrator"
+   Orchestrator automatically:
+   ├─ @qa-tester (writes tests)
+   ├─ @security-auditor (checks RLS)  } Parallel
+   └─ @code-reviewer (checks patterns)
+   → Auto-fixes minor issues
+   → Reports critical issues
+   → Updates docs
+   → Commits & pushes
+```
 
 ### GitHub Issue Creation
 
@@ -207,47 +219,63 @@ The project uses specialized AI agents that work in parallel to ensure quality, 
 
 **Minor issues (formatting, comments, style) are reported locally only.**
 
-### Agent Commands
+### Agent Invocation
 
-**Manual invocation:**
-- `/finalize` - Full orchestration workflow (recommended after features)
-- `/build-frontend [description]` - Build frontend feature
-- `/build-backend [description]` - Build backend feature
-- `/qa-check` - Just run QA agent (tests + coverage)
-- `/security-check` - Just run security audit
-- `/review-code` - Run code review agents
-- `/review-ux` - Check UI consistency
-- `/integration-test [description]` - E2E workflow testing
+**Manual (You):**
+```
+@orchestrator                    # After feature complete
+@frontend-dev "Create user profile page"
+@backend-dev "Add approval endpoints"
+@qa-tester                       # Run tests
+@security-auditor               # Security audit
+@code-reviewer                  # Code review
+@ux-reviewer                    # UI consistency
+@integration-tester "Test login flow"
+@expert "Debug 10x slowdown in quotes list"
+```
 
-**Automatic triggers:**
-The orchestrator detects when features are complete and asks if you want to finalize.
+**Automatic (Claude or Orchestrator):**
+- Claude can invoke agents via Task tool when needed
+- Orchestrator automatically calls QA/Security/Review agents in parallel
+- Plan agent can be called by Claude for complex features
+
+**Built-in agents:**
+```
+@Explore "Find all API endpoints"  # Fast codebase search
+@Plan "Design multi-currency system"  # Feature planning
+```
 
 ### Agent Configuration
 
-**Location:** `.claude/commands/*.md` (8 agent files)
+**Location:** `.claude/agents/*.md` (9 custom agent files)
+
+**Files:**
+- `orchestrator.md` - Workflow coordination
+- `frontend-dev.md` - Next.js/React building
+- `backend-dev.md` - FastAPI/Python building
+- `qa-tester.md` - Test writing
+- `security-auditor.md` - Security audits
+- `code-reviewer.md` - Code quality
+- `ux-reviewer.md` - UI consistency
+- `integration-tester.md` - E2E testing
+- `expert.md` - Complex problem solving (Opus)
 
 **Parallel execution:**
 Agents run in parallel using single message with multiple Task tool calls for maximum efficiency.
 
-**Example:**
-```
-Feature complete → Orchestrator asks → You say "Yes" →
-  ├─ QA Agent (writes tests)
-  ├─ Security Agent (checks RLS)  } All run simultaneously (~2-3 min)
-  └─ Code Review (checks patterns)
-→ Findings reviewed → Docs updated → Committed → Pushed
-```
-
 ### Best Practices
 
-1. **Always run `/finalize` after completing features** - Ensures quality, tests, and docs
-2. **Review critical issues** - Before auto-fixing, agent shows you critical problems
-3. **Trust the agents** - They follow project patterns and best practices
-4. **Check GitHub Issues** - Critical findings are tracked there
-5. **Verify CI/CD** - Agents report CI status, check if tests pass
+1. **Use @orchestrator after completing features** - Ensures quality, tests, and docs
+2. **Use @plan for complex features** - Get roadmap before building
+3. **Use @expert for hard problems** - Don't waste time struggling, get Opus-level analysis
+4. **Review critical issues** - Before auto-fixing, agent shows you critical problems
+5. **Trust the agents** - They follow project patterns and best practices
+6. **Check GitHub Issues** - Critical findings are tracked there
+7. **Verify CI/CD** - Agents report CI status, check if tests pass
 
 ### Benefits
 
+- ✅ **Model optimization** - Sonnet quality + Opus for hard problems
 - ✅ **Automated testing** - QA agent writes tests for every feature
 - ✅ **Security guaranteed** - Security agent catches RLS/permission bugs
 - ✅ **Consistency enforced** - Code review ensures patterns match
@@ -256,6 +284,7 @@ Feature complete → Orchestrator asks → You say "Yes" →
 - ✅ **GitHub tracking** - Critical issues auto-filed
 - ✅ **Quality safety net** - Nothing reaches production without checks
 - ✅ **Pre-tested for user** - Integration tests run before asking user to manually test (saves user time)
+- ✅ **Expert access** - Opus available for complex problems
 
 ### Testing Workflow
 
@@ -846,3 +875,4 @@ git push
 ---
 
 **Remember:** Read SESSION_PROGRESS.md on every session start to maintain context!
+- always put actual timestamp when creating/editing documents, this way histroy will be easy to understand in case something goes wrong
