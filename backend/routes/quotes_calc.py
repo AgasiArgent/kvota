@@ -23,6 +23,9 @@ from decimal import Decimal
 # Import calculation engine
 from calculation_engine import calculate_single_product_quote, calculate_multiproduct_quote
 
+# Import activity logging
+from services.activity_log_service import log_activity_decorator
+
 # Setup logger
 logger = logging.getLogger(__name__)
 from calculation_models import (
@@ -902,6 +905,7 @@ def convert_decimals_to_float(obj):
 # ============================================================================
 
 @router.post("/calculate", response_model=QuoteCalculationResult, status_code=status.HTTP_201_CREATED)
+@log_activity_decorator(entity_type="quote", action="created")
 async def calculate_quote(
     request: QuoteCalculationRequest,
     user: User = Depends(get_current_user)

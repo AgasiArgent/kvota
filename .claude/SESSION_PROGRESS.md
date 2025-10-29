@@ -144,8 +144,8 @@ Fix all bugs discovered during manual testing to achieve 100% test pass rate.
    - Customer object storage
 
 **Documentation (3 files created):**
-- `.claude/SESSION_33_BUG_FIX_PLAN.md` - Complete bug analysis
-- `.claude/SESSION_33_FIX_PROGRESS.md` - Investigation notes
+- `.claude/archive/bugs_and_plans/SESSION_33_BUG_FIX_PLAN.md` - Complete bug analysis (archived)
+- `.claude/archive/bugs_and_plans/SESSION_33_FIX_PROGRESS.md` - Investigation notes (archived)
 - `.claude/FRONTEND_DEV_TASK.md` - Task delegation record
 
 ---
@@ -362,7 +362,7 @@ Modified `frontend/src/app/activity/page.tsx`:
 - Continue with Phase 2.2: Fix client field blank on quote detail (1-2 hours)
 - Continue with Phase 2.3: Add validation feedback to quote creation (1-2 hours)
 
-See `.claude/BUG_RESOLUTION_PLAN.md` for remaining phases.
+See `.claude/ACTION_PLAN_BUG_FIXES.md` for comprehensive execution plan and remaining phases.
 
 ---
 

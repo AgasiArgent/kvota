@@ -311,13 +311,7 @@ export default function TeamManagementPage() {
             cancelText="Отмена"
             okButtonProps={{ danger: true }}
           >
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              size="small"
-              title={buttonTitle}
-            />
+            <Button type="text" danger icon={<DeleteOutlined />} size="small" title={buttonTitle} />
           </Popconfirm>
         );
       },
