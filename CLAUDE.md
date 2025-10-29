@@ -624,27 +624,27 @@ git push
 - **Quick Start (Resource-Optimized):**
   ```bash
   # Use optimized launch script (prevents freezing)
-  ./.claude/launch-chrome-testing.sh full http://localhost:3001/quotes/create
+  ./.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3001/quotes/create
 
   # Or headless mode (60% less memory)
-  ./.claude/launch-chrome-testing.sh headless
+  ./.claude/scripts/testing/launch-chrome-testing.sh headless
 
   # Monitor resources in separate terminal
-  ./.claude/monitor-wsl-resources.sh
+  ./.claude/scripts/monitoring/monitor-wsl-resources.sh
 
   # Kill Chrome when done
-  ./.claude/launch-chrome-testing.sh kill
+  ./.claude/scripts/testing/launch-chrome-testing.sh kill
   ```
 - **Tiered Testing (Fastest to Slowest):**
   1. **Backend Unit Tests** (100 MB, 5s) - `cd backend && pytest -v`
-  2. **Backend API Tests** (200 MB, 30s) - `./.claude/test-backend-only.sh`
-  3. **Headless Browser** (500 MB, 60s) - `./.claude/launch-chrome-testing.sh headless`
-  4. **Full Browser** (1.2 GB, 120s) - `./.claude/launch-chrome-testing.sh full` (only when needed!)
+  2. **Backend API Tests** (200 MB, 30s) - `./.claude/scripts/testing/test-backend-only.sh`
+  3. **Headless Browser** (500 MB, 60s) - `./.claude/scripts/testing/launch-chrome-testing.sh headless`
+  4. **Full Browser** (1.2 GB, 120s) - `./.claude/scripts/testing/launch-chrome-testing.sh full` (only when needed!)
 - **🎯 Golden Rule:** Always start with the fastest tier that covers what you need
 - **Resource Management:**
   - ⚠️ **WSL2 can freeze** if Chrome uses too much memory
   - ✅ **Configure .wslconfig:** Limit WSL2 to 6GB RAM (see `.wslconfig` in Windows user folder)
-  - ✅ **Monitor resources:** Use `./.claude/monitor-wsl-resources.sh`
+  - ✅ **Monitor resources:** Use `./.claude/scripts/monitoring/monitor-wsl-resources.sh`
   - ✅ **Use tiered testing:** Start with backend tests, only use browser when needed
   - **See:** `.claude/TIERED_TESTING_GUIDE.md` for preventing freezes
 - **Permission Configuration:**
@@ -681,7 +681,7 @@ git push
 1. **Use Safe Test Session Manager** (automatically handles cleanup):
    ```bash
    # Run tests with automatic resource management
-   ./.claude/safe-test-session.sh headless http://localhost:3001 10
+   ./.claude/scripts/testing/safe-test-session.sh headless http://localhost:3001 10
 
    # Parameters: [mode] [url] [timeout_minutes]
    # - mode: headless (500MB) or full (1.2GB)
@@ -699,22 +699,22 @@ git push
 2. **Manual Monitoring** (if not using safe session):
    ```bash
    # Terminal 1: Monitor resources
-   ./.claude/monitor-wsl-resources.sh
+   ./.claude/scripts/monitoring/monitor-wsl-resources.sh
 
    # Terminal 2: Run tests normally
-   ./.claude/launch-chrome-testing.sh headless
+   ./.claude/scripts/testing/launch-chrome-testing.sh headless
 
    # Kill Chrome when memory hits 75%
-   ./.claude/launch-chrome-testing.sh kill
+   ./.claude/scripts/testing/launch-chrome-testing.sh kill
    ```
 
 3. **Auto-Cleanup Script** (background protection):
    ```bash
    # Runs in background, auto-kills Chrome at 85% memory
-   ./.claude/auto-cleanup-chrome.sh 85 &
+   ./.claude/scripts/testing/auto-cleanup-chrome.sh 85 &
 
    # Then run tests normally
-   ./.claude/launch-chrome-testing.sh full
+   ./.claude/scripts/testing/launch-chrome-testing.sh full
 
    # Cleanup script will automatically kill Chrome if needed
    ```
@@ -724,10 +724,10 @@ git push
 1. **Check WSL2 Health:**
    ```bash
    # From a new WSL2 terminal (if VS Code frozen)
-   wsl bash /home/novi/quotation-app/.claude/wsl2-health-check.sh
+   wsl bash /home/novi/quotation-app-dev/.claude/scripts/diagnostics/wsl2-health-check.sh
 
    # Or from Windows PowerShell
-   wsl bash /home/novi/quotation-app/.claude/wsl2-health-check.sh
+   wsl bash /home/novi/quotation-app-dev/.claude/scripts/diagnostics/wsl2-health-check.sh
    ```
 
 2. **If WSL2 Responsive (memory < 85%):**
@@ -778,11 +778,13 @@ git push
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `safe-test-session.sh` | All-in-one wrapper with auto-cleanup | Recommended for all testing |
-| `auto-cleanup-chrome.sh` | Background memory monitor | Auto-kills Chrome at threshold |
-| `wsl2-health-check.sh` | Diagnose WSL2 issues | Run when VS Code disconnects |
-| `monitor-wsl-resources.sh` | Real-time resource display | Monitor during manual testing |
-| `launch-chrome-testing.sh` | Chrome launcher | Direct Chrome control |
+| `scripts/testing/safe-test-session.sh` | All-in-one wrapper with auto-cleanup | Recommended for all testing |
+| `scripts/testing/auto-cleanup-chrome.sh` | Background memory monitor | Auto-kills Chrome at threshold |
+| `scripts/diagnostics/wsl2-health-check.sh` | Diagnose WSL2 issues | Run when VS Code disconnects |
+| `scripts/monitoring/monitor-wsl-resources.sh` | Real-time resource display | Monitor during manual testing |
+| `scripts/testing/launch-chrome-testing.sh` | Chrome launcher | Direct Chrome control |
+
+**See `.claude/scripts/README.md` for complete scripts documentation.**
 
 ---
 

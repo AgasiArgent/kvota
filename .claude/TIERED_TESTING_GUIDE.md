@@ -64,8 +64,8 @@ Coverage: routes/quotes_calc.py 49%
 
 **How to run:**
 ```bash
-cd /home/novi/quotation-app
-./.claude/test-backend-only.sh
+cd /home/novi/quotation-app-dev
+./.claude/scripts/testing/test-backend-only.sh
 ```
 
 **Example output:**
@@ -110,7 +110,7 @@ Memory usage: 1.2G / 6.0G (20%)
 **How to run:**
 ```bash
 # Launch headless Chrome
-./.claude/launch-chrome-testing.sh headless http://localhost:3001/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh headless http://localhost:3001/quotes/create
 
 # Then use Chrome DevTools MCP tools
 # (same as full Chrome, just less memory)
@@ -144,7 +144,7 @@ Memory usage: 1.2G / 6.0G (20%)
 **How to run:**
 ```bash
 # Launch full Chrome with GUI
-./.claude/launch-chrome-testing.sh full http://localhost:3001/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3001/quotes/create
 
 # Use Chrome DevTools MCP tools
 mcp__chrome-devtools__list_pages()
@@ -162,7 +162,7 @@ mcp__chrome-devtools__upload_file(uid="...", filePath="/path/to/file.csv")
 - Visual rendering
 
 **What to watch out for:**
-- ⚠️ High memory usage (monitor with `.claude/monitor-wsl-resources.sh`)
+- ⚠️ High memory usage (monitor with `.claude/scripts/monitoring/monitor-wsl-resources.sh`)
 - ⚠️ Potential freezing if WSL2 runs out of memory
 - ⚠️ Slower than other tiers
 
@@ -200,7 +200,7 @@ pytest --cov=routes.quotes_calc --cov-report=term-missing
 cd backend && pytest -v
 
 # Backend API tests
-cd .. && ./.claude/test-backend-only.sh
+cd .. && ./.claude/scripts/testing/test-backend-only.sh
 
 # If both pass, commit is safe
 git add . && git commit -m "..."
@@ -217,13 +217,13 @@ git add . && git commit -m "..."
 cd backend && pytest -v
 
 # 2. API tests
-./.claude/test-backend-only.sh
+./.claude/scripts/testing/test-backend-only.sh
 
 # 3. Start resource monitor in separate terminal
-./.claude/monitor-wsl-resources.sh
+./.claude/scripts/monitoring/monitor-wsl-resources.sh
 
 # 4. Full browser test (with file upload)
-./.claude/launch-chrome-testing.sh full
+./.claude/scripts/testing/launch-chrome-testing.sh full
 
 # 5. Run automated test via Chrome DevTools MCP
 # (login → select customer → upload file → calculate)
@@ -232,7 +232,7 @@ cd backend && pytest -v
 mcp__chrome-devtools__list_console_messages()
 
 # 7. Kill Chrome when done
-./.claude/launch-chrome-testing.sh kill
+./.claude/scripts/testing/launch-chrome-testing.sh kill
 ```
 
 **Total time:** ~2 minutes
@@ -246,7 +246,7 @@ mcp__chrome-devtools__list_console_messages()
 
 **Run this in a separate terminal:**
 ```bash
-./.claude/monitor-wsl-resources.sh
+./.claude/scripts/monitoring/monitor-wsl-resources.sh
 ```
 
 **Output:**
@@ -261,7 +261,7 @@ mcp__chrome-devtools__list_console_messages()
 
 **Kill Chrome:**
 ```bash
-./.claude/launch-chrome-testing.sh kill
+./.claude/scripts/testing/launch-chrome-testing.sh kill
 # or
 pkill -9 chrome
 ```
@@ -333,17 +333,17 @@ swap=2GB
 
 1. **Use headless mode instead:**
    ```bash
-   ./.claude/launch-chrome-testing.sh headless
+   ./.claude/scripts/testing/launch-chrome-testing.sh headless
    ```
 
 2. **Kill Chrome between tests:**
    ```bash
-   ./.claude/launch-chrome-testing.sh kill
+   ./.claude/scripts/testing/launch-chrome-testing.sh kill
    ```
 
 3. **Use backend-only tests when possible:**
    ```bash
-   ./.claude/test-backend-only.sh
+   ./.claude/scripts/testing/test-backend-only.sh
    ```
 
 ### Tests Taking Too Long
@@ -375,6 +375,6 @@ swap=2GB
 - ✅ Sustainable testing workflow
 
 **⚠️ Remember:**
-- Monitor resources with `.claude/monitor-wsl-resources.sh`
-- Kill Chrome after testing: `.claude/launch-chrome-testing.sh kill`
+- Monitor resources with `.claude/scripts/monitoring/monitor-wsl-resources.sh`
+- Kill Chrome after testing: `.claude/scripts/testing/launch-chrome-testing.sh kill`
 - Use `.wslconfig` to prevent memory exhaustion

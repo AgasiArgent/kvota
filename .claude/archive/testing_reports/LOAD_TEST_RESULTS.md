@@ -328,14 +328,14 @@ source venv/bin/activate
 python3 tests/load/simplified_load_test.py
 ```
 
-### 2. **Memory Monitor** (`.claude/monitor-backend-memory.sh`)
+### 2. **Memory Monitor** (`.claude/scripts/monitoring/monitor-backend-memory.sh`)
 - Tracks backend memory over time
 - Outputs CSV for graphing
 - Detects memory leaks
 
 **Usage:**
 ```bash
-./.claude/monitor-backend-memory.sh 30 10  # 30 min, 10s intervals
+./.claude/scripts/monitoring/monitor-backend-memory.sh 30 10  # 30 min, 10s intervals
 ```
 
 ### 3. **Concurrent Users Test** (`tests/load/test_concurrent_users.py`)

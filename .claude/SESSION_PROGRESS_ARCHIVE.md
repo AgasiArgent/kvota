@@ -82,7 +82,7 @@
 ### Phase 3: WSL2 Resource Optimization (30 min)
 
 #### Issue Diagnosis
-- [x] Ran `.claude/wsl2-health-check.sh`
+- [x] Ran `.claude/scripts/diagnostics/wsl2-health-check.sh`
 - [x] Identified issues:
   - Memory usage: 77% (4.5GB / 5.8GB) - HIGH
   - Chrome processes: 15 processes using 27.1% memory (1.6GB)

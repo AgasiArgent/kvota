@@ -161,18 +161,18 @@ Based on `.claude/MANUAL_TESTING_GUIDE.md`, these scenarios should be manually v
 
 All three scripts have been created and tested:
 
-1. ✅ `.claude/launch-chrome-testing.sh` - Chrome launcher with remote debugging
+1. ✅ `.claude/scripts/testing/launch-chrome-testing.sh` - Chrome launcher with remote debugging
    - **Modes:** `full` (1.2GB), `headless` (500MB), `kill`, `status`
    - **Features:** Color-coded output, memory limits, WSLg support
    - **Status:** ✅ Working - shows help correctly
 
-2. ✅ `.claude/test-backend-only.sh` - Backend API testing script
+2. ✅ `.claude/scripts/testing/test-backend-only.sh` - Backend API testing script
    - **Tests:** Backend health, login, admin settings, templates, calculation
    - **Features:** Color-coded results, response times, memory usage
    - **Status:** ✅ Working - detects running backend (403 response)
    - **Note:** Login endpoint needs correction (returns 404)
 
-3. ✅ `.claude/monitor-wsl-resources.sh` - Resource monitoring script
+3. ✅ `.claude/scripts/monitoring/monitor-wsl-resources.sh` - Resource monitoring script
    - **Monitors:** Memory, Swap, CPU, Chrome memory (every 2 seconds)
    - **Features:** Color warnings (green/yellow/red), cleanup recommendations
    - **Status:** ✅ Working - currently shows 65% memory (yellow warning)
