@@ -524,6 +524,26 @@ npm run build
 
 ---
 
+## Version Compatibility
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| React | 19.1.0 | ⚠️ Ant Design officially supports 16-18 only |
+| Next.js | 15.5.4 | App Router (not Pages Router) |
+| Ant Design | 5.27.4 | See migration guide for v4→v5 |
+| ag-Grid Community | 34.2.0 | Free tier, all features we need |
+| TypeScript | 5.x | Strict mode enabled |
+| Node.js | 18+ | For development |
+| Tailwind CSS | 4.0 | Via @tailwindcss/postcss |
+
+**Compatibility Notes:**
+- React 19 + Ant Design v5: Works in practice but shows warnings
+- ag-Grid 34.x requires dynamic import for SSR (Next.js)
+- Ant Design v5 deprecated APIs: See ant-design-standards.md
+- TypeScript strict mode: Some ag-Grid types need `any` workaround
+
+---
+
 ## Maintenance Notes
 
 **Last Updated:** 2025-10-29 22:00 UTC

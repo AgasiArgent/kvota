@@ -6,7 +6,44 @@ Guide for choosing the right state management approach in Next.js 15 + React 19 
 
 ---
 
-## Decision Tree
+## Visual Decision Flow
+
+```
+┌─────────────────────────────────────────┐
+│ Need to store data in component?       │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+    ┌──────────────────────┐
+    │ Is it form data?     │
+    └─────┬────────────┬───┘
+          │            │
+         Yes          No
+          │            │
+          ▼            ▼
+   ┌─────────────┐  ┌─────────────────┐
+   │ Ant Design  │  │ Is it 10+ rows  │
+   │ Form state  │  │ of tabular data?│
+   └─────────────┘  └────┬───────┬────┘
+                         │       │
+                        Yes     No
+                         │       │
+                         ▼       ▼
+                  ┌──────────┐  ┌──────────────────┐
+                  │ ag-Grid  │  │ Shared between   │
+                  │  state   │  │ components?      │
+                  └──────────┘  └────┬───────┬────┘
+                                     │       │
+                                    Yes     No
+                                     │       │
+                                     ▼       ▼
+                              ┌──────────┐  ┌──────────┐
+                              │ Context  │  │ useState │
+                              │   API    │  │  (local) │
+                              └──────────┘  └──────────┘
+```
+
+## Quick Reference Decision Tree
 
 ```
 Is it form data?

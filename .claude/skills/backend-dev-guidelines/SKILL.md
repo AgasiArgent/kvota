@@ -37,6 +37,7 @@ This skill **auto-activates** when:
 | **[error-handling.md](resources/error-handling.md)** | 540 | HTTPException, status codes, logging, validation | Error responses, debugging |
 | **[testing-patterns.md](resources/testing-patterns.md)** | 482 | Pytest, fixtures, RLS tests, TDD workflow | Writing tests, test coverage |
 | **[common-gotchas.md](resources/common-gotchas.md)** | 435 | 9 backend bugs we've encountered + solutions | Avoiding known issues, debugging |
+| **[quick-reference.md](resources/quick-reference.md)** ⭐ | 380 | Commands, status codes, patterns cheat sheet | Quick lookup during development |
 
 ### Project Documentation
 
@@ -306,74 +307,27 @@ except Exception as e:
 **TDD workflow (Red → Green → Refactor):**
 
 ```python
-import pytest
-from httpx import AsyncClient
-from main import app
-
-@pytest.mark.asyncio
-async def test_get_quote_success(test_user):
-    """Test retrieving a quote by ID"""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        # Create test quote
-        response = await client.post(
-            "/api/quotes",
-            json={"customer_id": "123", "total_amount": 1000},
-            headers={"Authorization": f"Bearer {test_user.token}"}
-        )
-        quote_id = response.json()["id"]
-
-        # Retrieve quote
-        response = await client.get(
-            f"/api/quotes/{quote_id}",
-            headers={"Authorization": f"Bearer {test_user.token}"}
-        )
-
-        assert response.status_code == 200
-        assert response.json()["id"] == quote_id
-        assert response.json()["total_amount"] == 1000
-
 @pytest.mark.asyncio
 async def test_rls_isolation(test_user_a, test_user_b):
     """Test that User B cannot access User A's quote"""
     async with AsyncClient(app=app, base_url="http://test") as client:
         # User A creates quote
-        response = await client.post(
-            "/api/quotes",
+        response = await client.post("/api/quotes",
             json={"customer_id": "123", "total_amount": 1000},
-            headers={"Authorization": f"Bearer {test_user_a.token}"}
-        )
+            headers={"Authorization": f"Bearer {test_user_a.token}"})
         quote_id = response.json()["id"]
 
         # User B tries to access (different organization)
-        response = await client.get(
-            f"/api/quotes/{quote_id}",
-            headers={"Authorization": f"Bearer {test_user_b.token}"}
-        )
+        response = await client.get(f"/api/quotes/{quote_id}",
+            headers={"Authorization": f"Bearer {test_user_b.token}"})
 
         # Should return 404 (RLS blocks access)
         assert response.status_code == 404
 ```
 
-**Quick Commands:**
-
-```bash
-cd backend
-
-# Run all tests
-pytest -v
-
-# Run specific file
-pytest tests/test_quotes.py -v
-
-# Run with coverage
-pytest --cov=. --cov-report=term-missing
-
-# Watch mode (auto-rerun on changes)
-ptw -v  # Requires: pip install pytest-watch
-```
-
 **See:**
-- [testing-patterns.md](resources/testing-patterns.md) for complete patterns
+- [testing-patterns.md](resources/testing-patterns.md) for complete patterns, fixtures, commands
+- [quick-reference.md](resources/quick-reference.md) for test commands
 - [/home/novi/quotation-app-dev/.claude/TESTING_WORKFLOW.md](../../TESTING_WORKFLOW.md) for TDD workflow
 
 ---
@@ -437,13 +391,11 @@ Orchestrator: Applies fixes → Re-runs tests → All pass → Commits
 
 ---
 
-## Common Gotchas (Top 9)
+## Common Gotchas (Top 3)
 
-**These are real bugs we've encountered. Avoid them!**
+**Critical bugs we've encountered - avoid them!**
 
 ### 1. 🔴 CRITICAL: Missing organization_id Filter (Data Leak)
-
-**Problem:** Forgot to filter by organization, users can see other orgs' data.
 
 ```python
 # ❌ WRONG - Data leak!
@@ -456,16 +408,10 @@ result = supabase.table("quotes") \
     .execute()
 ```
 
-**Solution:** Always filter by `organization_id`. Test RLS isolation.
-
----
-
-### 2. Missing Customer JOIN (Blank Names in UI)
-
-**Problem:** Quote has `customer_id` but name is NULL in response.
+### 2. Missing Customer JOIN (Blank Names)
 
 ```python
-# ❌ WRONG - customer_id only
+# ❌ WRONG
 result = supabase.table("quotes").select("*").execute()
 
 # ✅ CORRECT - Join customer table
@@ -474,42 +420,12 @@ result = supabase.table("quotes") \
     .execute()
 ```
 
-**Solution:** Use Supabase JOIN syntax for related data.
-
----
-
-### 3. Activity Log Decorator Not Applied
-
-**Problem:** Admin changes not logged, incomplete audit trail.
-
-```python
-# ❌ WRONG - No logging
-@router.put("/settings")
-async def update_settings(data: dict, user: User = Depends(get_current_user)):
-    return await save_settings(data)
-
-# ✅ CORRECT - Activity logged
-from activity_log import log_activity
-
-@router.put("/settings")
-@log_activity("calculation_settings.update")
-async def update_settings(data: dict, user: User = Depends(get_current_user)):
-    return await save_settings(data)
-```
-
-**Solution:** Apply `@log_activity()` decorator to admin endpoints.
-
----
-
-### 4. Concurrent Request Bottleneck (66x Slowdown)
-
-**Problem:** Sequential database calls for 200 quotes = 66x slower than batched.
+### 3. Concurrent Request Bottleneck (66x Slowdown)
 
 ```python
 # ❌ WRONG - Sequential (66x slower)
 for quote in quotes:
     customer = supabase.table("customers").select("*").eq("id", quote["customer_id"]).execute()
-    quote["customer_name"] = customer.data[0]["name"]
 
 # ✅ CORRECT - Single JOIN query
 result = supabase.table("quotes") \
@@ -517,113 +433,9 @@ result = supabase.table("quotes") \
     .execute()
 ```
 
-**Solution:** Use JOINs instead of N+1 queries.
-
----
-
-### 5. UUID Not Converted to String (Export Crashes)
-
-**Problem:** `openpyxl` can't serialize UUID objects.
-
-```python
-# ❌ WRONG - UUID object crashes Excel export
-ws.append([quote["id"], quote["customer_id"]])  # TypeError
-
-# ✅ CORRECT - Convert to string
-ws.append([str(quote["id"]), str(quote["customer_id"])])
-```
-
-**Solution:** Always `str(uuid_value)` before export.
-
----
-
-### 6. Decimal Serialization (API Returns Invalid JSON)
-
-**Problem:** FastAPI can't serialize `Decimal` objects.
-
-```python
-from decimal import Decimal
-from pydantic import BaseModel
-
-# ❌ WRONG - Decimal breaks JSON
-return {"total": Decimal("1000.50")}
-
-# ✅ CORRECT - Use Pydantic model
-class QuoteResponse(BaseModel):
-    total: Decimal  # Auto-serialized by Pydantic
-
-return QuoteResponse(total=Decimal("1000.50"))
-```
-
-**Solution:** Use Pydantic models for all responses.
-
----
-
-### 7. Admin Settings Not Fetched (Calculations Wrong)
-
-**Problem:** Using default 0% rates instead of actual admin settings.
-
-```python
-# ❌ WRONG - Missing admin settings
-def calculate(data: dict):
-    forex_risk = 0  # Should be from admin settings!
-    return total * (1 + forex_risk)
-
-# ✅ CORRECT - Fetch admin settings
-def calculate(data: dict, admin_settings: dict):
-    forex_risk = admin_settings.get("rate_forex_risk", 0)
-    return total * (1 + forex_risk)
-```
-
-**Solution:** Always fetch `calculation_settings` for calculations.
-
----
-
-### 8. Rate Limiting Not Applied (API Abuse)
-
-**Problem:** No rate limiting on expensive endpoints.
-
-```python
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
-limiter = Limiter(key_func=get_remote_address)
-
-# ❌ WRONG - No rate limit
-@router.post("/calculate")
-async def calculate_quote(data: dict):
-    return complex_calculation(data)
-
-# ✅ CORRECT - Rate limited
-@router.post("/calculate")
-@limiter.limit("10/minute")
-async def calculate_quote(data: dict):
-    return complex_calculation(data)
-```
-
-**Solution:** Apply `@limiter.limit()` to expensive endpoints.
-
----
-
-### 9. Missing Indexes (Slow Queries)
-
-**Problem:** Queries scan entire table instead of using index.
-
-```sql
--- ❌ WRONG - No index on organization_id
-SELECT * FROM quotes WHERE organization_id = 'xxx';  -- Slow!
-
--- ✅ CORRECT - Add index
-CREATE INDEX idx_quotes_organization_id ON quotes(organization_id);
-CREATE INDEX idx_quotes_status ON quotes(status);
-CREATE INDEX idx_quotes_created_at ON quotes(created_at DESC);
-```
-
-**Solution:** Add indexes on frequently filtered columns.
-
----
-
-**See:** [common-gotchas.md](resources/common-gotchas.md) for complete details on all 9 gotchas.
+**See:**
+- [quick-reference.md](resources/quick-reference.md) for all 9 gotchas with details
+- [common-gotchas.md](resources/common-gotchas.md) for complete analysis
 
 ---
 
@@ -662,59 +474,25 @@ CREATE INDEX idx_quotes_created_at ON quotes(created_at DESC);
 
 ## Quick Reference Links
 
-### Project Documentation
-- [Backend Architecture](../../../backend/CLAUDE.md) - Auth, calculation engine, database
-- [Variables System](../../VARIABLES.md) - 42 variables, two-tier logic
-- [Testing Workflow](../../TESTING_WORKFLOW.md) - TDD, test commands
-- [RLS Checklist](../../../backend/RLS_CHECKLIST.md) - Security audit checklist
+**All resource files are in [resources/](resources/) directory.**
 
-### Resource Files (This Skill)
-- [FastAPI Patterns](resources/fastapi-patterns.md) (330 lines) - Routes, Pydantic, dependencies
-- [Supabase RLS](resources/supabase-rls.md) (1,392 lines) - Multi-tenant security ⭐
-- [Export Patterns](resources/export-patterns.md) (350 lines) - Excel/PDF generation ⭐
-- [Error Handling](resources/error-handling.md) (540 lines) - HTTPException, status codes
-- [Testing Patterns](resources/testing-patterns.md) (482 lines) - Pytest, fixtures, TDD
-- [Common Gotchas](resources/common-gotchas.md) (435 lines) - 9 backend bugs + solutions
-
-### Testing Resources
-- [Chrome DevTools Testing](../../AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md) - Browser automation
-- [Manual Testing Guide](../../MANUAL_TESTING_GUIDE.md) - Test scenarios
-- [Testing Scripts](../../scripts/README.md) - Tiered testing, resource management
-
-### Other Skills
-- [Frontend Development Guidelines](../../frontend-dev-guidelines/SKILL.md) - Next.js, React, Ant Design
+- **[quick-reference.md](resources/quick-reference.md)** ⭐ - Commands, status codes, all 9 gotchas
+- **[supabase-rls.md](resources/supabase-rls.md)** ⭐ - Multi-tenant security (1,392 lines)
+- **[export-patterns.md](resources/export-patterns.md)** ⭐ - Excel/PDF generation
+- [fastapi-patterns.md](resources/fastapi-patterns.md) - Routes, Pydantic, dependencies
+- [testing-patterns.md](resources/testing-patterns.md) - Pytest, fixtures, TDD
+- [error-handling.md](resources/error-handling.md) - HTTPException, status codes
+- [common-gotchas.md](resources/common-gotchas.md) - 9 backend bugs + solutions
 
 ---
 
 ## Common Commands
 
-```bash
-# Backend server
-cd backend
-source venv/bin/activate
-uvicorn main:app --reload  # Runs on :8000
-
-# Testing
-cd backend
-pytest -v                                    # Run all tests
-pytest tests/test_quotes.py -v               # Specific file
-pytest --cov=. --cov-report=term-missing     # With coverage
-ptw -v                                       # Watch mode
-
-# Database migrations
-# Create .sql file in backend/migrations/
-# Apply via Supabase SQL Editor
-# Document in backend/migrations/MIGRATIONS.md
-
-# Manual API testing
-curl -X POST http://localhost:8000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"andrey@masterbearingsales.ru","password":"password"}'
-
-TOKEN="eyJxxx..."
-curl -X GET http://localhost:8000/api/quotes \
-  -H "Authorization: Bearer $TOKEN"
-```
+**See [quick-reference.md](resources/quick-reference.md) for complete command reference including:**
+- Development server commands
+- Testing with pytest (unit, coverage, watch mode)
+- Database queries and RLS testing
+- Manual API testing with curl
 
 ---
 
@@ -759,6 +537,26 @@ curl -X GET http://localhost:8000/api/quotes \
 ✅ Manual: Different org access (404 Not Found via RLS)
 ✅ Automated: 15 pytest tests (all passing)
 ```
+
+---
+
+## Version Compatibility
+
+| Package | Version | Notes |
+|---------|---------|-------|
+| Python | 3.12 | Type hints, match statements |
+| FastAPI | Latest | Async by default |
+| Pydantic | 2.x | v2 API (not v1) |
+| Supabase | Latest | Python client |
+| PostgreSQL | 15+ | Via Supabase |
+| openpyxl | Latest | Excel export |
+| WeasyPrint | Latest | PDF export (requires GTK in WSL2) |
+| pytest | 8.3.5 | Async testing with pytest-asyncio |
+
+**Compatibility Notes:**
+- WeasyPrint requires GTK libraries (works in WSL2, not native Windows)
+- Supabase service role key bypasses RLS (CRITICAL security concern)
+- asyncpg for direct DB access, Supabase client for REST API
 
 ---
 
