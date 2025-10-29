@@ -121,7 +121,26 @@ export async function inviteMember(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || 'Ошибка при приглашении участника');
+    throw new Error(error.message || error.detail || 'Ошибка при приглашении участника');
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch pending invitations for the organization
+ */
+export async function fetchInvitations(organizationId: string): Promise<Invitation[]> {
+  const headers = await getAuthHeaders();
+  const apiUrl = getApiUrl();
+
+  const response = await fetch(`${apiUrl}/api/organizations/${organizationId}/invitations`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Ошибка загрузки приглашений');
   }
 
   return response.json();
@@ -169,6 +188,30 @@ export async function removeMember(organizationId: string, userId: string): Prom
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Ошибка удаления участника');
+  }
+}
+
+/**
+ * Cancel a pending invitation
+ */
+export async function cancelInvitation(
+  organizationId: string,
+  invitationId: string
+): Promise<void> {
+  const headers = await getAuthHeaders();
+  const apiUrl = getApiUrl();
+
+  const response = await fetch(
+    `${apiUrl}/api/organizations/${organizationId}/invitations/${invitationId}`,
+    {
+      method: 'DELETE',
+      headers,
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Ошибка отмены приглашения');
   }
 }
 

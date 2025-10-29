@@ -13,6 +13,7 @@ interface UserProfile {
   phone?: string | null;
   organization_id?: string | null;
   role: 'sales_manager' | 'finance_manager' | 'department_manager' | 'director' | 'admin';
+  organizationRole?: string; // Role in current organization (from organization_members table)
   created_at: string;
   updated_at: string;
 }
@@ -102,6 +103,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
+
+      // Fetch organization-specific role from organization_members table
+      if (profile.organization_id) {
+        try {
+          const { data: orgMember, error: orgError } = await supabase
+            .from('organization_members')
+            .select('roles(slug)')
+            .eq('user_id', userId)
+            .eq('organization_id', profile.organization_id)
+            .single();
+
+          if (!orgError && orgMember) {
+            // @ts-ignore - roles is a relation
+            profile.organizationRole = orgMember.roles?.slug;
+            console.log(
+              `[fetchProfile] Organization role for org ${profile.organization_id}:`,
+              profile.organizationRole
+            );
+          }
+        } catch (error) {
+          console.error('Error fetching organization role:', error);
+        }
+      }
 
       console.log('[fetchProfile] Mapped profile:', profile);
       return profile;
