@@ -209,7 +209,7 @@ wsl --shutdown
 
 ### Tiered Testing (Use Lighter Alternatives First)
 
-**See `.claude/TIERED_TESTING_GUIDE.md` for full details.**
+**See `.claude/scripts/README.md` for full details.**
 
 **Tier 1: Backend Unit Tests** (100 MB, 5s) ⚡ **FASTEST**
 ```bash

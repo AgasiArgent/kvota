@@ -614,7 +614,7 @@ git push
 
 - **Status:** ✅ **FULLY WORKING** with WSLg (Windows 11 X server)
 - **Documentation:** `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`
-- **Tiered Testing Guide:** `.claude/TIERED_TESTING_GUIDE.md` ⭐ **Prevent WSL2 freezing**
+- **Tiered Testing Guide:** `.claude/scripts/README.md` ⭐ **Prevent WSL2 freezing**
 - **Capabilities:**
   - Full browser automation (login, file upload, form filling, clicks)
   - Console monitoring and network inspection
@@ -646,7 +646,7 @@ git push
   - ✅ **Configure .wslconfig:** Limit WSL2 to 6GB RAM (see `.wslconfig` in Windows user folder)
   - ✅ **Monitor resources:** Use `./.claude/scripts/monitoring/monitor-wsl-resources.sh`
   - ✅ **Use tiered testing:** Start with backend tests, only use browser when needed
-  - **See:** `.claude/TIERED_TESTING_GUIDE.md` for preventing freezes
+  - **See:** `.claude/scripts/README.md` for preventing freezes
 - **Permission Configuration:**
   - **Location:** `.claude/settings.json`
   - **Required:** Explicit permission list (wildcards alone don't work)
@@ -867,7 +867,6 @@ git push
   - **Use instead:** Chrome DevTools MCP (better React support, accessibility tree, network waiting)
   - **See:** `.claude/SESSION_17_AUTOMATION_FINDINGS.md` for detailed analysis
 - **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers + permissions)
-- **See:** `.claude/RECOMMENDED_MCP_SERVERS.md` for configuration details and additional optional servers
 
 ### Database
 - **Supabase PostgreSQL** - Multi-tenant with RLS
