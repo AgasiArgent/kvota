@@ -212,6 +212,8 @@ result = supabase.table("your_table") \
 
 **Key Point:** Supabase service role key BYPASSES RLS. You MUST manually filter by `organization_id`.
 
+**⚠️ UUID Conversion Required:** Always convert UUIDs to strings using `str()` when using the Supabase client. The client doesn't automatically serialize UUID objects, causing silent query failures. Example: `.eq("organization_id", str(user.current_organization_id))`
+
 ---
 
 ### Pattern 2: asyncpg with RLS Context
@@ -395,7 +397,7 @@ result = supabase.table("quotes") \
 # Returns only user's organization quotes ✅
 ```
 
-**Key Point:** When using Supabase client with service role key, RLS is BYPASSED. You MUST manually filter.
+**🔴 CRITICAL SECURITY WARNING:** When using Supabase client with service role key, **RLS is COMPLETELY BYPASSED**. You MUST manually filter by `organization_id` or you will **EXPOSE DATA FROM ALL ORGANIZATIONS**. This is the #1 cause of data leaks in multi-tenant applications!
 
 ---
 
