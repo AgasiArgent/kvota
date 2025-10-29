@@ -7,6 +7,7 @@
 ## Archived Files
 
 1. **MCP_INSTALLATION_GUIDE.md** - MCP servers installation tutorial
+2. **RECOMMENDED_MCP_SERVERS.md** - MCP server configuration and optional servers
 
 ## MCP Setup Summary
 
@@ -21,12 +22,23 @@
 **Current Configuration:**
 - Location: `.claude/settings.json` (permissions)
 - Server definitions: `.mcp.json`
-- Documentation: `.claude/RECOMMENDED_MCP_SERVERS.md` (active)
+- Documentation: CLAUDE.md (MCP section, lines 839-870)
 
-**Notes:**
-- MCP infrastructure is fully operational
-- Chrome DevTools MCP is the primary testing tool
-- Installation guide no longer needed for day-to-day work
+### MCP_INSTALLATION_GUIDE.md
 
-**For Future Setup:**
-RECOMMENDED_MCP_SERVERS.md contains current configuration details and optional servers.
+**Why Archived:**
+- MCP servers already installed and configured
+- Installation is complete, no longer needed
+
+**Historical Value:**
+Documents initial MCP setup process.
+
+### RECOMMENDED_MCP_SERVERS.md
+
+**Why Archived:**
+- Configuration info now in CLAUDE.md and settings.json
+- Optional servers (filesystem, sqlite, memory) not installed or needed
+- 80% content duplicated in CLAUDE.md
+
+**Historical Value:**
+Documents available MCP servers and configuration options from initial setup phase.
