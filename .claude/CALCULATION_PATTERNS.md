@@ -407,7 +407,22 @@ def map_variables_to_calculation_input(quote_data, product_data, admin_settings)
             excise_tax=safe_decimal(get_val("excise_tax")),
             markup=safe_decimal(get_val("markup"))
         ),
-        # ... (similar for payments, logistics, fees, costs)
+        payments=PaymentsInput(
+            advance_percentage=safe_decimal(get_val("advance_percentage")),
+            delivery_payment_percentage=safe_decimal(get_val("delivery_payment_percentage")),
+            documents_payment_percentage=safe_decimal(get_val("documents_payment_percentage")),
+            days_from_advance_to_delivery=int(get_val("days_from_advance_to_delivery") or 60)
+        ),
+        logistics=LogisticsInput(
+            margin_logistic_packaging=safe_decimal(get_val("margin_logistic_packaging")),
+            margin_logistic_bank_fee=safe_decimal(get_val("margin_logistic_bank_fee")),
+            margin_logistic_customs_clearance=safe_decimal(get_val("margin_logistic_customs_clearance")),
+            margin_logistic_land_transport=safe_decimal(get_val("margin_logistic_land_transport")),
+            margin_logistic_terminal_handling=safe_decimal(get_val("margin_logistic_terminal_handling")),
+            margin_logistic_sea_freight=safe_decimal(get_val("margin_logistic_sea_freight")),
+            margin_logistic_certification=safe_decimal(get_val("margin_logistic_certification"))
+        ),
+        # fees and costs follow the same pattern with get_val() for each field
         settings=SettingsInput(
             rate_forex_risk=safe_decimal(admin_settings.get("rate_forex_risk", 3)),
             rate_fin_comm=safe_decimal(admin_settings.get("rate_fin_comm", 2)),
