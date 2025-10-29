@@ -48,6 +48,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   // Menu items based on user role
   const getMenuItems = () => {
+    // Get the user's role - prefer organizationRole from organization_members table
+    const userRole = profile?.organizationRole || profile?.role || '';
+
     const baseItems = [
       {
         key: '/dashboard',
@@ -96,8 +99,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
     // Add approval items for managers and above
     if (
-      profile?.role &&
-      ['finance_manager', 'department_manager', 'director', 'admin'].includes(profile.role)
+      userRole &&
+      ['finance_manager', 'department_manager', 'director', 'admin', 'owner', 'manager'].includes(
+        userRole.toLowerCase()
+      )
     ) {
       baseItems[1].children?.push({
         key: '/quotes/approval',
@@ -115,7 +120,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
     });
 
     // Admin/manager/owner can access team management
-    // Accept both old profile roles and new team roles (case-insensitive)
     const managerRoles = [
       'admin',
       'owner',
@@ -125,7 +129,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       'department_manager',
       'director',
     ];
-    if (profile?.role && managerRoles.includes(profile.role.toLowerCase())) {
+    if (userRole && managerRoles.includes(userRole.toLowerCase())) {
       settingsChildren.push({
         key: '/settings/team',
         label: 'Команда',
@@ -133,7 +137,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
     }
 
     // Admin/owner can access calculation settings (case-insensitive)
-    if (profile?.role && ['admin', 'owner'].includes(profile.role.toLowerCase())) {
+    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
       settingsChildren.push({
         key: '/settings/calculation',
         label: 'Настройки расчета',
@@ -148,7 +152,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
     });
 
     // Add admin items
-    if (profile?.role === 'admin') {
+    if (userRole && userRole.toLowerCase() === 'admin') {
       baseItems.push({
         key: '/admin',
         icon: <SettingOutlined />,

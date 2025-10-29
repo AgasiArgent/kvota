@@ -8,7 +8,7 @@ import {
   Card,
   Tag,
   Typography,
-  message,
+  App,
   Popconfirm,
   Row,
   Col,
@@ -35,12 +35,16 @@ import {
   inviteMember,
   updateMemberRole,
   removeMember,
+  cancelInvitation,
+  fetchInvitations,
   TeamMember,
   Role,
+  Invitation,
   getRoleBadgeColor,
   getRoleDisplayName,
   canModifyMember,
 } from '@/lib/api/team-service';
+import { organizationService } from '@/lib/api/organization-service';
 import { createClient } from '@/lib/supabase/client';
 
 dayjs.locale('ru');
@@ -48,6 +52,7 @@ dayjs.locale('ru');
 const { Title, Text } = Typography;
 
 export default function TeamManagementPage() {
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -60,6 +65,10 @@ export default function TeamManagementPage() {
   const [inviteForm] = Form.useForm();
   const [inviteLoading, setInviteLoading] = useState(false);
 
+  // Invitation link modal
+  const [invitationLinkModal, setInvitationLinkModal] = useState(false);
+  const [invitationLink, setInvitationLink] = useState('');
+
   // Fetch current user and organization
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -71,17 +80,17 @@ export default function TeamManagementPage() {
       if (user) {
         setCurrentUserId(user.id);
 
-        // Get user's organization and role
-        // For now, using app_metadata (should be fetched from backend)
-        const orgId = user.user_metadata?.current_organization_id;
-        const role = user.user_metadata?.role || 'member';
+        // Get user's organizations from API
+        const result = await organizationService.listOrganizations();
 
-        if (orgId) {
+        if (result.success && result.data && result.data.length > 0) {
+          // Use the first organization's ID
+          const orgId = result.data[0].organization_id;
           setOrganizationId(orgId);
-          setCurrentUserRole(role);
-          loadData(orgId);
+          // Pass user.id directly to avoid React state timing issues
+          loadData(orgId, user.id);
         } else {
-          message.error('Организация не найдена. Пожалуйста, выберите организацию.');
+          message.error('Организация не найдена. Пожалуйста, обратитесь к администратору.');
         }
       }
     };
@@ -89,16 +98,45 @@ export default function TeamManagementPage() {
     fetchCurrentUser();
   }, []);
 
-  const loadData = async (orgId: string) => {
+  const loadData = async (orgId: string, userId?: string) => {
     setLoading(true);
     try {
-      const [membersData, rolesData] = await Promise.all([
+      const [membersData, rolesData, invitationsData] = await Promise.all([
         fetchTeamMembers(orgId),
         fetchRoles(orgId),
+        fetchInvitations(orgId),
       ]);
 
-      setMembers(membersData);
+      // Convert invitations to TeamMember-like format
+      const invitationsAsMembers: TeamMember[] = invitationsData.map((inv) => ({
+        id: inv.id,
+        organization_id: inv.organization_id,
+        user_id: '', // No user_id yet - invitation not accepted
+        role_id: inv.role_id,
+        role_name: rolesData.find((r) => r.id === inv.role_id)?.name || '',
+        role_slug: rolesData.find((r) => r.id === inv.role_id)?.slug || '',
+        user_full_name: null,
+        user_email: inv.email,
+        is_owner: false,
+        status: 'invited',
+        joined_at: inv.created_at,
+        created_at: inv.created_at,
+        updated_at: inv.created_at,
+      }));
+
+      // Merge members and invitations
+      const allMembers = [...membersData, ...invitationsAsMembers];
+      setMembers(allMembers);
       setRoles(rolesData);
+
+      // Get current user's actual role from team members data
+      // Use passed userId if available (to avoid React state timing issues)
+      const userIdToFind = userId || currentUserId;
+      const currentMember = membersData.find((m) => m.user_id === userIdToFind);
+      if (currentMember) {
+        // Use the role slug from organization_members table
+        setCurrentUserRole(currentMember.role_slug);
+      }
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Ошибка загрузки данных');
     } finally {
@@ -109,14 +147,20 @@ export default function TeamManagementPage() {
   const handleInvite = async (values: { email: string; role_id: string }) => {
     setInviteLoading(true);
     try {
-      await inviteMember(organizationId, {
+      const invitation = await inviteMember(organizationId, {
         email: values.email,
         role_id: values.role_id,
       });
 
-      message.success('Приглашение отправлено');
+      // Create invitation link
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/invitations/accept/${invitation.token}`;
+      setInvitationLink(link);
+
+      message.success('Приглашение создано');
       setInviteModalVisible(false);
       inviteForm.resetFields();
+      setInvitationLinkModal(true); // Show the link modal
       loadData(organizationId);
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Ошибка отправки приглашения');
@@ -135,13 +179,22 @@ export default function TeamManagementPage() {
     }
   };
 
-  const handleRemove = async (userId: string, userName: string) => {
+  const handleRemove = async (
+    userIdOrInvitationId: string,
+    userName: string,
+    isInvitation: boolean = false
+  ) => {
     try {
-      await removeMember(organizationId, userId);
-      message.success(`${userName} удален из команды`);
+      if (isInvitation) {
+        await cancelInvitation(organizationId, userIdOrInvitationId);
+        message.success(`Приглашение для ${userName} отменено`);
+      } else {
+        await removeMember(organizationId, userIdOrInvitationId);
+        message.success(`${userName} удален из команды`);
+      }
       loadData(organizationId);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка удаления участника');
+      message.error(error instanceof Error ? error.message : 'Ошибка удаления');
     }
   };
 
@@ -239,18 +292,32 @@ export default function TeamManagementPage() {
           return null;
         }
 
+        const isInvited = record.status === 'invited';
+        const confirmTitle = isInvited ? 'Отменить приглашение?' : 'Удалить участника?';
+        const confirmDescription = isInvited
+          ? `Вы уверены, что хотите отменить приглашение для ${record.user_email}?`
+          : `Вы уверены, что хотите удалить ${record.user_full_name || record.user_email} из команды?`;
+        const buttonTitle = isInvited ? 'Отменить приглашение' : 'Удалить';
+        const idToRemove = isInvited ? record.id : record.user_id;
+
         return (
           <Popconfirm
-            title="Удалить участника?"
-            description={`Вы уверены, что хотите удалить ${record.user_full_name || record.user_email} из команды?`}
+            title={confirmTitle}
+            description={confirmDescription}
             onConfirm={() =>
-              handleRemove(record.user_id, record.user_full_name || record.user_email)
+              handleRemove(idToRemove, record.user_full_name || record.user_email, isInvited)
             }
-            okText="Удалить"
+            okText={isInvited ? 'Отменить' : 'Удалить'}
             cancelText="Отмена"
             okButtonProps={{ danger: true }}
           >
-            <Button type="text" danger icon={<DeleteOutlined />} size="small" title="Удалить" />
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              size="small"
+              title={buttonTitle}
+            />
           </Popconfirm>
         );
       },
@@ -381,6 +448,41 @@ export default function TeamManagementPage() {
               </Space>
             </Form.Item>
           </Form>
+        </Modal>
+
+        {/* Invitation Link Modal */}
+        <Modal
+          title="Ссылка для приглашения"
+          open={invitationLinkModal}
+          onCancel={() => setInvitationLinkModal(false)}
+          footer={[
+            <Button key="close" onClick={() => setInvitationLinkModal(false)}>
+              Закрыть
+            </Button>,
+            <Button
+              key="copy"
+              type="primary"
+              onClick={() => {
+                navigator.clipboard.writeText(invitationLink);
+                message.success('Ссылка скопирована в буфер обмена');
+              }}
+            >
+              Скопировать ссылку
+            </Button>,
+          ]}
+        >
+          <Space direction="vertical" style={{ width: '100%' }} size="large">
+            <Text>
+              Отправьте эту ссылку приглашенному пользователю. Ссылка действительна в течение 7
+              дней.
+            </Text>
+            <Input.TextArea
+              value={invitationLink}
+              readOnly
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              style={{ fontFamily: 'monospace', fontSize: '12px' }}
+            />
+          </Space>
         </Modal>
       </Space>
     </div>
