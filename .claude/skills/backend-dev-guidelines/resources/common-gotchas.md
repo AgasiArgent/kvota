@@ -45,7 +45,8 @@ return quotes.data  # Returns only current org's quotes
 
 **Why It Matters:** Without organization filtering, users see competitors' quotes, prices, and customer data. This is a critical security breach that violates data privacy regulations and destroys customer trust.
 
-**Real Bug:** Session 33 - Quote list showed all organizations' data (common pattern across multiple endpoints)
+**Real Bug:** BUG-001 (Session 31, FIXED) - Quote list showed all organizations' data (common pattern across multiple endpoints)
+**Bug Reference:** [MASTER_BUG_INVENTORY.md](../../MASTER_BUG_INVENTORY.md#bug-001)
 
 **Deep Dive:** [→ See `.claude/RLS_CHECKLIST.md` for complete multi-tenant security patterns]
 
@@ -123,7 +124,8 @@ CREATE POLICY "Users can delete their org's records"
 
 **Why It Matters:** Without RLS, multi-tenant isolation breaks silently. All organizations can see each other's data even with proper frontend filtering.
 
-**Real Bug:** Common pattern caught during code reviews (multiple tables affected)
+**Real Bug:** BUG-010 (Session 31, FIXED) - Missing RLS on multiple tables
+**Bug Reference:** [MASTER_BUG_INVENTORY.md](../../MASTER_BUG_INVENTORY.md#bug-010)
 
 **Deep Dive:** [→ See `.claude/RLS_CHECKLIST.md` for complete template]
 
@@ -160,7 +162,8 @@ quote = supabase.table("quotes")\
 
 **Why It Matters:** Frontend displays blank customer name in quote detail page. Users cannot identify which customer the quote is for, breaking the review workflow.
 
-**Real Bug:** BUG-001 - Client field blank on quote detail page (NOT FIXED)
+**Real Bug:** BUG-002 (Session 31, FIXED) - Client field blank on quote detail page
+**Bug Reference:** [MASTER_BUG_INVENTORY.md](../../MASTER_BUG_INVENTORY.md#bug-002)
 
 ---
 
@@ -195,7 +198,8 @@ async def create_quote(data: QuoteInput):
 
 **Why It Matters:** Activity log page shows empty data for quote creation and export actions. This breaks audit trails required for compliance and makes debugging user issues impossible.
 
-**Real Bug:** BUG-003 - Activity log incomplete (PARTIALLY FIXED)
+**Real Bug:** BUG-003 (Session 26, FIXED) - Activity log incomplete
+**Bug Reference:** [MASTER_BUG_INVENTORY.md](../../MASTER_BUG_INVENTORY.md#bug-003)
 **Status:** Decorator implemented, applied to customers/quotes CRUD, but NOT applied to quote creation endpoint (`routes/quotes_calc.py`)
 
 **Deep Dive:** [→ See `backend/services/activity_log_service.py:70-118`]
@@ -278,7 +282,8 @@ filename = f"quote_{quote_number.replace('-', '_')}.pdf"  # ✅ Works
 
 **Why It Matters:** PDF exports create files but crash with 500 error before sending to client. User sees "Download failed" even though file was generated successfully.
 
-**Real Bug:** BUG-023 - PDF export failing with 500 error (Session 30, FIXED)
+**Real Bug:** BUG-005 (Session 31, FIXED) - PDF export failing with 500 error
+**Bug Reference:** [MASTER_BUG_INVENTORY.md](../../MASTER_BUG_INVENTORY.md#bug-005)
 **Fix Location:** `backend/routes/quotes.py:1598, 1612, 1832`
 
 **Common places this occurs:**
@@ -325,7 +330,8 @@ result = calculate(calculation_input)
 
 **Why It Matters:** Calculation engine crashes with vague errors deep in formula logic. Users don't know what's wrong or how to fix it.
 
-**Real Bug:** Multiple validation gaps found during Session 15 integration
+**Real Bug:** BUG-008 (Session 15, FIXED) - Multiple validation gaps in calculation engine
+**Bug Reference:** [MASTER_BUG_INVENTORY.md](../../MASTER_BUG_INVENTORY.md#bug-008)
 
 **Required Fields (10 total):**
 1. `sku` - Product identifier
@@ -368,7 +374,8 @@ rate_forex = get_value(product, quote, "rate_forex")  # ✅ Correct precedence
 
 **Why It Matters:** Product-specific overrides are ignored, calculations use wrong values. Quotes for special products show incorrect pricing.
 
-**Real Bug:** BUG-024 - Commission distribution bug (Session 29, FIXED)
+**Real Bug:** BUG-024 (Session 29, FIXED) - Commission distribution bug
+**Bug Reference:** [MASTER_BUG_INVENTORY.md](../../MASTER_BUG_INVENTORY.md#bug-024)
 
 **Two-Tier Variable Types:**
 - **Quote-only (19):** Apply to all products (e.g., `seller_company`, `offer_incoterms`)
