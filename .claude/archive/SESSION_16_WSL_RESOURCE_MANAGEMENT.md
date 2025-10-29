@@ -33,7 +33,7 @@ localhostForwarding=true
 
 ### 2. ✅ Created Optimized Chrome Launch Script
 
-**File:** `.claude/launch-chrome-testing.sh`
+**File:** `.claude/scripts/testing/launch-chrome-testing.sh`
 
 **Features:**
 - Automatically kills existing Chrome instances
@@ -45,23 +45,23 @@ localhostForwarding=true
 **Usage:**
 ```bash
 # Full browser (with GUI for file upload)
-./.claude/launch-chrome-testing.sh full http://localhost:3001/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3001/quotes/create
 
 # Headless (60% less memory, no file upload)
-./.claude/launch-chrome-testing.sh headless
+./.claude/scripts/testing/launch-chrome-testing.sh headless
 
 # Check memory status
-./.claude/launch-chrome-testing.sh status
+./.claude/scripts/testing/launch-chrome-testing.sh status
 
 # Kill Chrome
-./.claude/launch-chrome-testing.sh kill
+./.claude/scripts/testing/launch-chrome-testing.sh kill
 ```
 
 ---
 
 ### 3. ✅ Created Backend-Only Testing Script
 
-**File:** `.claude/test-backend-only.sh`
+**File:** `.claude/scripts/testing/test-backend-only.sh`
 
 **Features:**
 - Tests calculation engine via direct API calls (no browser needed)
@@ -71,7 +71,7 @@ localhostForwarding=true
 
 **Usage:**
 ```bash
-./.claude/test-backend-only.sh
+./.claude/scripts/testing/test-backend-only.sh
 ```
 
 **What it tests:**
@@ -85,7 +85,7 @@ localhostForwarding=true
 
 ### 4. ✅ Created Resource Monitoring Script
 
-**File:** `.claude/monitor-wsl-resources.sh`
+**File:** `.claude/scripts/monitoring/monitor-wsl-resources.sh`
 
 **Features:**
 - Real-time memory/CPU/swap monitoring
@@ -97,7 +97,7 @@ localhostForwarding=true
 **Usage:**
 ```bash
 # Run in separate terminal while testing
-./.claude/monitor-wsl-resources.sh
+./.claude/scripts/monitoring/monitor-wsl-resources.sh
 ```
 
 **Output:**
@@ -195,18 +195,18 @@ pytest -v
 
 # 2. Try backend API tests
 cd ..
-./.claude/test-backend-only.sh
+./.claude/scripts/testing/test-backend-only.sh
 # → Should pass in ~30 seconds
 
 # 3. Monitor resources in separate terminal
-./.claude/monitor-wsl-resources.sh
+./.claude/scripts/monitoring/monitor-wsl-resources.sh
 
 # 4. Try headless browser (in another terminal)
-./.claude/launch-chrome-testing.sh headless
+./.claude/scripts/testing/launch-chrome-testing.sh headless
 # → Should use ~500 MB (check monitor)
 
 # 5. Kill Chrome
-./.claude/launch-chrome-testing.sh kill
+./.claude/scripts/testing/launch-chrome-testing.sh kill
 ```
 
 **Check if WSL2 still freezes:**
@@ -254,9 +254,9 @@ memory=4GB  # Reduce to 4GB to prevent freezing
 
 **New files created:**
 1. `.wslconfig` (Windows: `C:\Users\Lenovo\.wslconfig`) - WSL2 resource limits
-2. `.claude/launch-chrome-testing.sh` - Optimized Chrome launcher
-3. `.claude/test-backend-only.sh` - Backend API testing (no browser)
-4. `.claude/monitor-wsl-resources.sh` - Real-time resource monitor
+2. `.claude/scripts/testing/launch-chrome-testing.sh` - Optimized Chrome launcher
+3. `.claude/scripts/testing/test-backend-only.sh` - Backend API testing (no browser)
+4. `.claude/scripts/monitoring/monitor-wsl-resources.sh` - Real-time resource monitor
 5. `.claude/TIERED_TESTING_GUIDE.md` - Comprehensive testing strategy guide
 6. `.claude/SESSION_16_WSL_RESOURCE_MANAGEMENT.md` - This file
 
@@ -272,19 +272,19 @@ memory=4GB  # Reduce to 4GB to prevent freezing
 ```bash
 # Always start with fastest tier
 cd backend && pytest -v                      # Tier 1 (5s)
-./.claude/test-backend-only.sh               # Tier 2 (30s)
-./.claude/launch-chrome-testing.sh headless  # Tier 3 (60s)
-./.claude/launch-chrome-testing.sh full      # Tier 4 (120s) - only when needed!
+./.claude/scripts/testing/test-backend-only.sh               # Tier 2 (30s)
+./.claude/scripts/testing/launch-chrome-testing.sh headless  # Tier 3 (60s)
+./.claude/scripts/testing/launch-chrome-testing.sh full      # Tier 4 (120s) - only when needed!
 ```
 
 **Monitor resources:**
 ```bash
-./.claude/monitor-wsl-resources.sh
+./.claude/scripts/monitoring/monitor-wsl-resources.sh
 ```
 
 **Cleanup:**
 ```bash
-./.claude/launch-chrome-testing.sh kill      # Kill Chrome
+./.claude/scripts/testing/launch-chrome-testing.sh kill      # Kill Chrome
 pkill -f 'node.*next'                        # Stop frontend
 pkill -f 'uvicorn.*main'                     # Stop backend
 ```
@@ -319,9 +319,9 @@ wsl --shutdown
 - Check Task Manager: Vmmem should be limited to ~6GB max
 
 **Q: Chrome still using too much memory?**
-- Use headless mode: `.claude/launch-chrome-testing.sh headless`
-- Use backend tests instead: `.claude/test-backend-only.sh`
-- Kill Chrome between tests: `.claude/launch-chrome-testing.sh kill`
+- Use headless mode: `.claude/scripts/testing/launch-chrome-testing.sh headless`
+- Use backend tests instead: `.claude/scripts/testing/test-backend-only.sh`
+- Kill Chrome between tests: `.claude/scripts/testing/launch-chrome-testing.sh kill`
 
 **Q: Free command shows wrong total memory?**
 - Restart WSL: `wsl --shutdown` from Windows PowerShell

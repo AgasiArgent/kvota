@@ -706,7 +706,7 @@ assert(errors.length === 0, 'No console errors on quote creation page');
 - Check network via `mcp__chrome-devtools__list_network_requests`
 
 **Resource Management:**
-- Use headless mode when possible (`./.claude/launch-chrome-testing.sh headless`)
-- Monitor memory (`./.claude/monitor-wsl-resources.sh`)
-- Kill Chrome after tests (`./.claude/launch-chrome-testing.sh kill`)
+- Use headless mode when possible (`./.claude/scripts/testing/launch-chrome-testing.sh headless`)
+- Monitor memory (`./.claude/scripts/monitoring/monitor-wsl-resources.sh`)
+- Kill Chrome after tests (`./.claude/scripts/testing/launch-chrome-testing.sh kill`)
 - Prevent WSL2 freezing by staying under 75% memory usage

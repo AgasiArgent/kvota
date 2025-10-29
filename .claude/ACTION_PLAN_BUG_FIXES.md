@@ -466,7 +466,7 @@ cd /home/novi/quotation-app-dev
 
 ### Chrome DevTools Testing:
 ```bash
-./.claude/launch-chrome-testing.sh headless http://localhost:3001/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh headless http://localhost:3001/quotes/create
 ```
 
 ---

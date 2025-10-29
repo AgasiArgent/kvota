@@ -30,16 +30,16 @@
 ### 2. Testing Infrastructure Created ✅
 **Created 3 scripts in parallel (2 min vs 6 min sequential):**
 
-1. **`.claude/launch-chrome-testing.sh`** (450 lines)
+1. **`.claude/scripts/testing/launch-chrome-testing.sh`** (450 lines)
    - Modes: full GUI (1.2GB), headless (500MB), kill, status
    - Memory optimization flags for WSL2
    - Remote debugging port 9222
 
-2. **`.claude/test-backend-only.sh`** (180 lines)
+2. **`.claude/scripts/testing/test-backend-only.sh`** (180 lines)
    - Tests: health, login, admin settings, templates, calculation
    - Response time tracking, exit codes for CI
 
-3. **`.claude/monitor-wsl-resources.sh`** (120 lines)
+3. **`.claude/scripts/monitoring/monitor-wsl-resources.sh`** (120 lines)
    - Real-time monitoring: Memory, Swap, CPU, Chrome usage
    - Color-coded warnings (green/yellow/red)
    - Current finding: 65% memory, 85% swap (explains performance issues)
@@ -81,7 +81,7 @@
 ### Finding 3: WSL2 Resource Constraints
 **Current:** 65% memory, 85% swap
 **Impact:** Performance degradation
-**Solution:** Monitor with `.claude/monitor-wsl-resources.sh`
+**Solution:** Monitor with `.claude/scripts/monitoring/monitor-wsl-resources.sh`
 
 ---
 
@@ -95,7 +95,7 @@ List MCP resources for chrome-devtools
 
 ### 2. Launch Chrome
 ```bash
-./.claude/launch-chrome-testing.sh full http://localhost:3000/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3000/quotes/create
 ```
 
 ### 3. Complete Test 15.1
@@ -133,9 +133,9 @@ If Chrome DevTools MCP also has issues:
 ## Files Created This Session
 
 **Testing Scripts:**
-- `.claude/launch-chrome-testing.sh`
-- `.claude/test-backend-only.sh`
-- `.claude/monitor-wsl-resources.sh`
+- `.claude/scripts/testing/launch-chrome-testing.sh`
+- `.claude/scripts/testing/test-backend-only.sh`
+- `.claude/scripts/monitoring/monitor-wsl-resources.sh`
 
 **Documentation:**
 - `.claude/SESSION_17_AUTOMATION_FINDINGS.md`

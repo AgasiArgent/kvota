@@ -176,7 +176,7 @@ markupInput.value = '15';
 - Use curl/httpx to call `/api/quotes-calc/calculate`
 - Verify responses programmatically
 - Faster and more reliable
-- Already working (see `.claude/test-backend-only.sh`)
+- Already working (see `.claude/scripts/testing/test-backend-only.sh`)
 
 **Option 3: Playwright Instead of Puppeteer**
 - Better handling of React components
