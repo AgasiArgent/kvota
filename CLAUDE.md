@@ -338,6 +338,11 @@ Agents run in parallel using single message with multiple Task tool calls for ma
 - **`frontend/CLAUDE.md`** - Frontend patterns and conventions
 - **`backend/CLAUDE.md`** - Backend patterns and conventions
 
+### Quick Wins Documentation (NEW)
+- **`.claude/COMMON_GOTCHAS.md`** ⭐ - 18 bug patterns extracted from 41 tracked bugs (pattern recognition in <10s)
+- **`.claude/CALCULATION_PATTERNS.md`** - 42 variables validation rules, two-tier system, common errors
+- **`.claude/RLS_CHECKLIST.md`** - Multi-tenant security checklist with copy-paste SQL templates
+
 ### Implementation Plans
 - **`.claude/PLAN_CALCULATION_ENGINE_CONNECTION.md`** ⭐ - Quote creation to calculation engine integration (Session 15)
 - `.claude/IMPLEMENTATION_PLAN_AG_GRID.md` - ag-Grid restructure plan (Sessions 8-14 COMPLETE)
