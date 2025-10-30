@@ -117,6 +117,21 @@ Is it form data?
 
 ---
 
+#### 6. **[workflow-patterns.md](./resources/workflow-patterns.md)** (750 lines) ✨ NEW
+
+Complete workflows for common frontend development tasks.
+
+**Key workflows:**
+1. **Making API changes** - Update TypeScript types → service → component → test
+2. **Making UI changes** - Read existing → plan → implement → style → responsive
+3. **Adding new pages** - Create route → page.tsx → navigation → auth guard
+4. **Form submission** - Validation → API call → error handling → success feedback
+5. **Integration testing** - Chrome DevTools MCP setup → snapshot → interact → verify
+
+**When to reference:** Starting any new feature, connecting frontend to backend, testing UI changes
+
+---
+
 ## Critical Patterns Brief
 
 ### 1. Component Structure

@@ -38,6 +38,7 @@ This skill **auto-activates** when:
 | **[testing-patterns.md](resources/testing-patterns.md)** | 482 | Pytest, fixtures, RLS tests, TDD workflow | Writing tests, test coverage |
 | **[common-gotchas.md](resources/common-gotchas.md)** | 435 | 9 backend bugs we've encountered + solutions | Avoiding known issues, debugging |
 | **[quick-reference.md](resources/quick-reference.md)** ⭐ | 380 | Commands, status codes, patterns cheat sheet | Quick lookup during development |
+| **[workflow-patterns.md](resources/workflow-patterns.md)** ✨ | 1,399 | Complete workflows for API changes, migrations, exports | **NEW** - Step-by-step workflows |
 
 ### Project Documentation
 
