@@ -1,5 +1,8 @@
 {
-  "frontend-dev-guidelines": {
+  "version": "1.0",
+  "description": "Skill activation triggers for B2B Quotation Platform (optimized for natural business language)",
+  "skills": {
+    "frontend-dev-guidelines": {
     "type": "domain",
     "enforcement": "suggest",
     "priority": "high",
@@ -40,7 +43,25 @@
         "select",
         "modal",
         "card",
-        "dropdown"
+        "dropdown",
+        "quote",
+        "quotes",
+        "customer",
+        "customers",
+        "product",
+        "products",
+        "list",
+        "grid",
+        "view",
+        "display",
+        "show",
+        "render",
+        "screen",
+        "interface",
+        "sortable",
+        "filterable",
+        "searchable",
+        "editable"
       ],
       "intentPatterns": [
         "(create|add|build|implement|develop).*?(component|page|feature|UI|interface|screen)",
@@ -113,7 +134,28 @@
         "middleware",
         "dependency",
         "async",
-        "await"
+        "await",
+        "quote",
+        "quotes",
+        "customer",
+        "customers",
+        "product",
+        "products",
+        "approval",
+        "workflow",
+        "notification",
+        "save",
+        "load",
+        "fetch",
+        "get",
+        "create",
+        "update",
+        "delete",
+        "data",
+        "error",
+        "issue",
+        "bug",
+        "fix"
       ],
       "intentPatterns": [
         "(create|add|build|implement|develop).*?(route|endpoint|api|controller|service|function)",
@@ -182,7 +224,18 @@
         "quote default",
         "admin setting",
         "calculation input",
-        "calculation output"
+        "calculation output",
+        "price",
+        "cost",
+        "total",
+        "final price",
+        "wrong price",
+        "incorrect",
+        "broken",
+        "wrong calculation",
+        "price issue",
+        "calculation error",
+        "wrong total"
       ],
       "intentPatterns": [
         "(calculate|computation|pricing|quote).*?(price|cost|total|value)",
@@ -281,5 +334,6 @@
         "REVOKE"
       ]
     }
+  }
   }
 }
