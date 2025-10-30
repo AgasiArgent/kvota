@@ -266,6 +266,41 @@ Workflow automation commands for common tasks (5-15 min → 30 sec).
 
 ---
 
+### Community Plugins
+
+**3 plugins installed from obra/superpowers-marketplace (Session 35, Phase 9c):**
+
+#### **1. Superpowers** ⭐ (Core Workflow Skills)
+- **20 skills** for TDD, debugging, collaboration, git workflows
+- **3 commands:** `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:execute-plan`
+- **Key skills that auto-activate:**
+  - `test-driven-development` - Enforces RED-GREEN-REFACTOR cycle when implementing
+  - `systematic-debugging` - 4-phase root cause methodology when debugging
+  - `verification-before-completion` - QA checklist before declaring done
+  - `brainstorming` - Socratic design refinement
+- **Integration:** Complements domain skills (workflow methodology + domain knowledge)
+- **Repository:** https://github.com/obra/superpowers
+
+#### **2. Episodic Memory** 🧠 (Conversation Search)
+- **Purpose:** Semantic search across all past Claude Code conversations
+- **Use:** "What did we decide about RLS patterns 3 weeks ago?"
+- **Benefit:** Find past decisions, patterns, solutions instantly
+- **Repository:** https://github.com/obra/episodic-memory
+
+#### **3. Elements of Style** ✍️ (Writing Guidance)
+- **Purpose:** Clear, concise writing (Strunk's 1918 style guide)
+- **Use:** Improve documentation, commit messages, comments
+- **Benefit:** Professional, consistent writing
+
+**How to use:**
+- Skills auto-activate when relevant (no manual invocation)
+- Commands: Type `/superpowers:brainstorm` to start design discussion
+- Restart Claude Code required after installation
+
+**See:** `.claude/SUPERPOWERS_INTEGRATION.md` for detailed integration guide
+
+---
+
 ## Dev Docs System
 
 **Purpose:** Preserve context across Claude autocompacts for large tasks (>1 hour).
