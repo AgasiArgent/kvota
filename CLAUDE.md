@@ -171,6 +171,29 @@ When user requests a feature:
 
 **Configuration:** `.claude/agents/*.md` (9 custom agent files)
 
+### Orchestrator Autonomous Invocation (Phase 5)
+
+**@orchestrator can now auto-detect feature completion:**
+
+**Triggers:**
+- 200+ lines changed
+- 5+ files modified
+- Keywords: "done with feature", "ready for review", "feature complete"
+
+**What happens:**
+1. Orchestrator analyzes changes (files, lines, areas)
+2. Asks: "Run quality checks now? (QA/Security/Review in parallel - ~5 min)"
+3. User confirms "yes" or "no"
+4. If yes: Runs full workflow automatically
+
+**Configuration:** `.claude/orchestrator-config.json`
+- Enable/disable autonomous invocation
+- Adjust detection thresholds
+- Configure auto-fix behavior
+- Set GitHub issue creation preferences
+
+**Manual mode:** Call `@orchestrator` explicitly to skip detection and run immediately
+
 ### GitHub Issue Creation
 
 Agents auto-create GitHub Issues for:
