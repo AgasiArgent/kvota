@@ -207,6 +207,230 @@ Agents auto-create GitHub Issues for:
 
 ---
 
+## Advanced Systems
+
+### Skills System
+Auto-activating coding guidelines that inject domain knowledge based on file paths and keywords.
+
+**4 Skills Available:**
+- **frontend-dev-guidelines** - React 19, Ant Design, ag-Grid patterns (3,632 lines)
+- **backend-dev-guidelines** - FastAPI, Supabase, RLS patterns (3,200+ lines)
+- **calculation-engine-guidelines** - 42 variables, 13 calculation phases (1,500+ lines)
+- **database-verification** - GUARDRAIL for schema changes and RLS policies (2,000+ lines)
+
+**How it works:**
+- Skills auto-activate based on file paths (e.g., `frontend/**/*.tsx`)
+- Triggered by keywords (e.g., "React", "FastAPI", "calculation", "CREATE TABLE")
+- Provides 40-60% token efficiency (guidelines loaded only when needed)
+- Prevents 50-70% of common bugs (patterns enforced automatically)
+
+**See:** `.claude/SKILLS_GUIDE.md` for complete documentation
+
+---
+
+### Hooks System
+Automated quality checks that run at key points in the workflow.
+
+**4 Hooks Available:**
+- **Pre-commit** - Backend syntax, TypeScript, tests (runs on `git commit`)
+- **WSL2 Pre-flight** - Memory checks, Chrome cleanup (runs before tests)
+- **Post-feature** - Quality gates, orchestrator trigger (manual after feature done)
+- **Build Verification** - Frontend build, lint, type-check (manual or CI/CD)
+
+**How it works:**
+- Hooks run automatically at trigger points (e.g., git commit)
+- Can also run manually: `./.claude/hooks/[hook-name].sh`
+- Managed by Husky v10 for git hooks
+- Prevents WSL2 freezing with memory checks
+
+**See:** `.claude/HOOKS_REFERENCE.md` for complete documentation
+
+---
+
+### Slash Commands System
+Workflow automation commands for common tasks (5-15 min → 30 sec).
+
+**4 Commands Available:**
+- **/test-quote-creation** - Automates 10-step E2E testing workflow (~5 min)
+- **/fix-typescript-errors** - Auto-fixes TypeScript errors (~5-30 min depending on count)
+- **/apply-migration** - Safe DB migrations with backup/rollback (~2-5 min)
+- **/debug-calculation** - Steps through 13 calculation phases (~2-5 min per product)
+
+**How it works:**
+- Type command in Claude Code: `/test-quote-creation`
+- Claude expands markdown file and executes workflow
+- Commands include error handling, rollback, safety checks
+- 10x time savings vs manual execution
+
+**See:** `.claude/commands/README.md` for complete documentation
+
+---
+
+## Dev Docs System
+
+**Purpose:** Preserve context across Claude autocompacts for large tasks (>1 hour).
+
+**When to Use:**
+- Tasks taking >1 hour (multi-session work)
+- Complex features touching multiple files
+- When approaching 85% token usage (~170k tokens)
+
+**Don't use for:**
+- Quick fixes (<30 min)
+- Single-file changes
+- Simple bug fixes
+
+### Directory Structure
+
+```
+dev/
+├── active/          # Current in-progress tasks
+│   └── YYYYMMDD-TASK-###-name/
+│       ├── plan.md      # Implementation plan
+│       ├── context.md   # Key decisions, files, next steps
+│       └── tasks.md     # Checklist with status
+├── completed/       # Archived finished tasks
+└── templates/       # Starting templates
+    ├── template-plan.md
+    ├── template-context.md
+    └── template-tasks.md
+```
+
+### Workflow
+
+**Starting a Large Task (Quick Method):**
+```bash
+# Use the automated helper script (90% less manual work!)
+./dev/dev-docs init "Your task description"
+```
+
+**What this does:**
+- Auto-generates unique TASK-### ID
+- Creates properly named directory
+- Copies and fills templates
+- Updates all placeholders
+
+**Alternative (Manual):**
+1. Create directory: `mkdir -p dev/active/YYYYMMDD-TASK-001-feature-name`
+2. Copy templates from `dev/templates/`
+3. Fill in all 3 files manually
+
+**Helper Commands:**
+```bash
+./dev/dev-docs status        # Show all active tasks with progress
+./dev/dev-docs update        # Update before autocompact
+./dev/dev-docs complete      # Archive completed task
+./dev/dev-docs search        # Search all docs
+```
+
+**Continuing Work (After Autocompact):**
+
+1. **Check for existing task:** `ls dev/active/`
+2. **Read all 3 files** to restore full context
+3. **Continue work** from where you left off
+4. **Update context.md** as you make decisions
+5. **Update tasks.md** as you complete tasks
+
+**Before Autocompact (85% Tokens):**
+
+When Claude says "approaching token limit":
+
+1. **Update context.md:**
+   - Add recent decisions made
+   - Note files modified since last update
+   - Document any blockers encountered
+   - Write clear "Next Steps" section
+
+2. **Update tasks.md:**
+   - Mark completed tasks as [x]
+   - Add any new tasks discovered
+   - Update time estimates if needed
+
+3. **Commit changes:**
+   ```bash
+   git add dev/active/[task-name]/
+   git commit -m "Update dev docs before autocompact - TASK-###"
+   ```
+
+4. **After autocompact:**
+   - Say: "Continue working on TASK-### (see dev/active/[task-name]/)"
+   - Claude will read the docs and resume seamlessly
+
+**After Task Complete:**
+
+1. **Verify all tasks done** - Check tasks.md for any [ ] remaining
+2. **Final update** - Mark all tasks [x], note follow-up tasks
+3. **Move to completed:** `mv dev/active/TASK-### dev/completed/`
+4. **Update SESSION_PROGRESS.md** - Mark feature complete, link to dev docs
+
+### File Naming Convention
+
+**Directory format:** `YYYYMMDD-TASK-###-short-description`
+- Example: `20251030-TASK-001-approval-workflow`
+
+**Why this format?**
+- Date prefix: Easy to sort chronologically
+- TASK-###: Unique identifier for cross-referencing
+- Short description: Human-readable at a glance
+
+### What Each File Contains
+
+**plan.md (~300 lines):**
+- Task objective and success criteria
+- Technical approach and architecture decisions
+- Implementation phases with time estimates
+- Integration points and data models
+- Risks, mitigation, and rollback plan
+- Testing strategy
+- References to skills and documentation
+
+**context.md (~300 lines):**
+- Current state (completed, in progress, next)
+- Code inventory (files created/modified with line counts)
+- Important decisions made (with rationale)
+- Integration points (systems touched)
+- Known issues and technical debt
+- Next steps and blockers
+- Critical context for resuming after autocompact
+
+**tasks.md (~200 lines):**
+- All tasks organized by phase
+- Status for each task: [ ] → [>] → [x]
+- Owner (which agent), estimated time, dependencies
+- Completed tasks archive
+- Blocked tasks with explanations
+- Task dependency graph (what can run in parallel)
+- Time tracking (estimated vs actual)
+
+### Integration with Agents
+
+**Agents should:**
+- Check `dev/active/` at start of session
+- Read all 3 files if task exists
+- Update context.md when making decisions
+- Update tasks.md as work progresses
+- Commit dev docs before finishing session
+
+**Reference dev docs in:**
+- Commit messages: "Implement X (TASK-001)"
+- PR descriptions: "See dev/active/TASK-001/ for context"
+- GitHub issues: "Related to TASK-001 (approval workflow)"
+
+### Example
+
+**See:** `dev/active/20251030-TASK-001-approval-workflow/`
+
+This sample task demonstrates:
+- How to fill in all 3 templates
+- Realistic task breakdown
+- Documenting decisions made
+- Showing "partially complete" state
+- How to resume after context loss
+
+**Full documentation:** `dev/README.md`
+
+---
+
 ## Project Architecture
 
 ### Two-Tier Variable System

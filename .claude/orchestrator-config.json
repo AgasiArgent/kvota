@@ -33,7 +33,7 @@
   "github": {
     "repo_owner": "AgasiArgent",
     "repo_name": "kvota",
-    "api_token": "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",
+    "api_token": "REDACTED_USE_ENVIRONMENT_VARIABLE",
     "issue_labels": ["agent-found", "needs-review"]
   }
 }

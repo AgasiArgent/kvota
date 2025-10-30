@@ -1,0 +1,64 @@
+{
+  "version": "1.0.0",
+  "created": "2025-10-30",
+  "index_updated": "2025-10-30T17:30:00Z",
+  "statistics": {
+    "total_tasks": 1,
+    "active_tasks": 1,
+    "completed_tasks": 0,
+    "total_lines": 46561,
+    "average_task_duration_hours": 7.5
+  },
+  "active_tasks": [
+    {
+      "id": "TASK-001",
+      "name": "20251030-TASK-001-approval-workflow",
+      "description": "Quote approval workflow implementation",
+      "status": "in_progress",
+      "created": "2025-10-30",
+      "last_updated": "2025-10-30T17:07:00Z",
+      "progress_percent": 45,
+      "estimated_hours": 7.5,
+      "actual_hours": 3.8,
+      "tags": ["approval", "workflow", "backend", "frontend"],
+      "owner": "code-reviewer",
+      "files": {
+        "created": 6,
+        "modified": 3,
+        "lines_added": 840
+      },
+      "phases_complete": 2,
+      "phases_total": 7,
+      "blockers": [],
+      "related_tasks": [],
+      "key_decisions": [
+        "Using dedicated approval table instead of generic workflow",
+        "React Query for data fetching",
+        "Hybrid approval logic (frontend + backend)"
+      ]
+    }
+  ],
+  "completed_tasks": [],
+  "tags": {
+    "approval": 1,
+    "workflow": 1,
+    "backend": 1,
+    "frontend": 1
+  },
+  "common_patterns": [
+    {
+      "pattern": "React Query optimistic updates",
+      "occurrences": 1,
+      "tasks": ["TASK-001"]
+    }
+  ],
+  "decision_log": [
+    {
+      "date": "2025-10-30",
+      "task": "TASK-001",
+      "decision": "Use dedicated quote_approvals table",
+      "rationale": "YAGNI - only need approvals for quotes currently",
+      "impact": "Simpler implementation, potential tech debt if other entities need approval"
+    }
+  ]
+}
