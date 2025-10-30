@@ -220,7 +220,7 @@ For **critical/security findings**, auto-create GitHub Issues:
 
 **Use GitHub MCP or curl:**
 ```bash
-curl -X POST -H "Authorization: token ***REMOVED***" \
+curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
   -d '{"title":"[Security] Missing RLS policy on quotes_approval table","body":"**Severity:** Critical\n\n**Location:** backend/migrations/010_quotes_approval.sql\n\n**Issue:** New quotes_approval table missing organization-based RLS policy...\n\n**Recommendation:** Add RLS policy...\n\n**Found by:** Security Auditor Agent","labels":["security","critical","agent-found"]}' \
   https://api.github.com/repos/AgasiArgent/kvota/issues
 ```
