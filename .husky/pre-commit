@@ -1,1 +1,14 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Frontend checks
 cd frontend && npm run lint-staged
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+# Backend checks
+cd .. && bash .claude/hooks/backend-syntax-check.sh
+if [ $? -ne 0 ]; then
+  exit 1
+fi

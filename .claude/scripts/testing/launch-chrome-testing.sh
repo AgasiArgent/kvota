@@ -36,6 +36,38 @@ print_info() {
     echo -e "${BLUE}ℹ $1${NC}"
 }
 
+# Function: Pre-flight safety check before launching Chrome
+pre_flight_check() {
+  print_info "Running pre-flight safety checks..."
+
+  # Get script directory for sourcing utilities
+  local script_dir="$(dirname "$0")"
+  local utils_dir="$script_dir/../../hooks/utils"
+
+  # Check memory usage
+  bash "$utils_dir/check-memory.sh"
+  local mem_status=$?
+
+  if [ $mem_status -eq 2 ]; then
+    print_error "Memory usage CRITICAL (>75%). Cannot launch Chrome safely."
+    print_info "Actions to free memory:"
+    echo "  1. pkill -9 chrome"
+    echo "  2. pkill -f 'node.*next'"
+    echo "  3. wsl --shutdown (from Windows PowerShell, wait 8 seconds)"
+    exit 1
+  elif [ $mem_status -eq 1 ]; then
+    print_warning "Memory usage HIGH (>60%). Chrome may cause WSL2 instability."
+    read -p "Continue anyway? (y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      print_info "Aborted. Free memory first or use headless mode."
+      exit 0
+    fi
+  fi
+
+  print_success "Pre-flight safety checks passed"
+}
+
 # Function: Check if Chrome is installed
 check_chrome_installed() {
     if ! command -v google-chrome &> /dev/null; then
@@ -210,6 +242,7 @@ main() {
   case "$mode" in
     full)
       check_chrome_installed
+      pre_flight_check
       kill_chrome
       clear_profile
       check_display
@@ -217,6 +250,7 @@ main() {
       ;;
     headless)
       check_chrome_installed
+      pre_flight_check
       kill_chrome
       clear_profile
       launch_chrome_headless "$url"
