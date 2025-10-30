@@ -10,10 +10,10 @@ Russian B2B quotation platform for cross-border trade (import/export).
 
 ### 1. PREFER EXISTING SOLUTIONS
 
-**ALWAYS search for existing libraries/tools before building custom code.**
+**Rule:** Always search for 2-3 existing libraries before building custom code.
 
 When user requests a feature:
-1. Search for 2-3 existing solutions (npm/pip packages)
+1. Search for existing solutions (npm/pip packages)
 2. Evaluate: free vs paid, compatibility, TypeScript support
 3. Present options with pros/cons + recommendation
 4. Only build from scratch if no suitable solution exists
@@ -22,80 +22,36 @@ When user requests a feature:
 
 ### 2. MAINTAIN CONTEXT AWARENESS
 
-**CRITICAL:** Always know where we are and what's next.
+**Rule:** Always read `.claude/SESSION_PROGRESS.md` on session start.
 
-**On session start, ALWAYS:**
-1. Read `.claude/SESSION_PROGRESS.md` - What's done, what's awaiting verification, what's next
-2. Check current session goal and phase
-3. Identify any blocked tasks
-4. Continue from where we left off
+- Know: current phase, blocked tasks, what's next
+- Check: current session goal and status
+- Continue from where we left off
 
 **User's main complaint:** "You should be in context of what's going on, where we are, and what are next steps"
 
 ### 3. TRACK PROGRESS RELIGIOUSLY
 
-After completing significant work (30+ min):
+**After completing work (30+ min):**
 1. Update `.claude/SESSION_PROGRESS.md`
 2. Mark task as `[~]` awaiting user verification
-3. Only mark `[x]` complete after user confirms it works
+3. Only mark `[x]` complete after user confirms
 4. Note blockers as `[!]` with details
 
-**Task states:**
-- `[ ]` Not started
-- `[>]` In progress
-- `[~]` Awaiting user verification (NEVER skip this!)
-- `[x]` Completed and verified by user
-- `[!]` Blocked/has issues
+**Task states:** `[ ]` Not started | `[>]` In progress | `[~]` Awaiting verification | `[x]` Complete | `[!]` Blocked
 
 ### 4. ANALYZE TASKS FOR PARALLEL EXECUTION
 
-**CRITICAL:** Before starting work, analyze which tasks can run in parallel using specialized agents.
+**Rule:** If 2+ tasks are independent, ALWAYS run them in parallel.
 
-**On every task list or plan:**
-1. Identify independent tasks (no dependencies between them)
-2. Group tasks by agent type (frontend, backend, testing, documentation)
-3. Use Task tool with multiple agents in a SINGLE message for parallel execution
-4. **Rule:** If 2+ tasks are independent, ALWAYS run them in parallel
+- Identify independent tasks (no dependencies)
+- Group by agent type (frontend, backend, testing, documentation)
+- Use Task tool with multiple agents in SINGLE message
+- **Benefits:** 3x faster completion, better resource utilization
 
-**Example Analysis:**
-```
-Task List:
-1. Create Chrome launch script
-2. Create backend test script
-3. Create resource monitor script
-4. Update documentation
-
-Analysis:
-- Tasks 1-3: Independent (different files, no shared state) → Run in parallel ✅
-- Task 4: Depends on 1-3 completion → Run after parallel tasks complete
-```
-
-**How to Execute Parallel Tasks:**
-```python
-# ✅ CORRECT: Single message with 3 Task tool calls
-<invoke name="Task">...</invoke>  # Script 1
-<invoke name="Task">...</invoke>  # Script 2
-<invoke name="Task">...</invoke>  # Script 3
-
-# ❌ WRONG: Sequential messages
-<message>Creating script 1...</message>
-<message>Creating script 2...</message>
-<message>Creating script 3...</message>
-```
-
-**Benefits:**
-- 3x faster completion (3 scripts in 2 min vs 6 min)
-- Better resource utilization
-- Demonstrates efficiency to user
-
-**When NOT to parallelize:**
-- Tasks have dependencies (output of Task A needed for Task B)
-- Tasks modify the same file (merge conflicts)
-- Tasks require sequential verification
+**When NOT to parallelize:** Tasks have dependencies, modify same file, require sequential verification
 
 ### 5. AUTO-UPDATE DOCUMENTATION
-
-**Keep CLAUDE.md files synchronized with codebase changes.**
 
 **Update immediately when:**
 - Installing new packages (npm/pip)
@@ -104,23 +60,9 @@ Analysis:
 - Discovering new patterns or gotchas
 - Changing project structure
 
-**Pre-autocompact update (at 85% token usage = ~170k tokens):**
-1. Trigger automatic documentation sync
-2. Review all changes made this session:
-   - New dependencies installed?
-   - Database schema changes?
-   - New patterns discovered?
-   - Project structure changes?
-3. Update relevant CLAUDE.md files (root/frontend/backend)
-4. Update SESSION_PROGRESS.md with session summary
-5. Summarize updates for user
+**Process:** Install package → Update CLAUDE.md immediately → Inform user
 
-**Process:**
-```
-Install package → Update CLAUDE.md immediately → Inform user
-...
-Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
-```
+**Pre-autocompact (at 85% tokens):** Sync all docs, update SESSION_PROGRESS.md, prepare summary
 
 ---
 
@@ -134,66 +76,79 @@ Reach 85% tokens → Auto-sync all docs → Prepare for autocompact
 
 ---
 
+## Skills System
+
+**Location:** `.claude/skills/` directory
+
+**How skills work:**
+- Each skill is a domain-specific knowledge base
+- Loaded by agents when working in that domain
+- Single source of truth for patterns and workflows
+- Reduces main CLAUDE.md size (focus on core context)
+
+**Available Skills:**
+
+1. **frontend-dev-guidelines** - Next.js, React, Ant Design, ag-Grid patterns
+   - Component patterns, form validation, state management
+   - API integration, UI workflows
+   - See: `.claude/skills/frontend-dev-guidelines/SKILL.md`
+
+2. **backend-dev-guidelines** - FastAPI, Supabase, Python patterns
+   - API endpoints, RLS security, exports, testing
+   - Database migrations, error handling
+   - See: `.claude/skills/backend-dev-guidelines/SKILL.md`
+
+3. **calculation-engine-guidelines** - 13-phase calculation pipeline
+   - 42 variables, two-tier system, validation rules
+   - Mapper patterns, common errors
+   - See: `.claude/skills/calculation-engine-guidelines/SKILL.md`
+
+4. **database-verification** - Schema standards and RLS guardrails
+   - Multi-tenant patterns, column naming, migration checklist
+   - RLS testing, common mistakes
+   - See: `.claude/skills/database-verification/SKILL.md`
+
+**When to reference skills:**
+- Frontend work → Load frontend-dev-guidelines
+- Backend work → Load backend-dev-guidelines
+- Calculation changes → Load calculation-engine-guidelines
+- Database changes → Load database-verification (guardrail)
+
+---
+
 ## Specialized Agent Team
 
-**9 specialized agents with model optimization for quality and cost efficiency.**
+**9 agents with model optimization:** All Sonnet (except @expert = Opus for hard problems)
 
-The project uses proper agents (not slash commands) that work in parallel with optimized models (Sonnet for quality + Opus for complex problems).
+### Quick Agent Reference
 
-### Agent Overview
+| Agent | Role | When to Use |
+|-------|------|----------|
+| @orchestrator | Coordinates quality checks | After feature complete |
+| @frontend-dev | React/Next.js features | Frontend implementation |
+| @backend-dev | FastAPI/Python endpoints | Backend implementation |
+| @qa-tester | Writes tests | Automated testing |
+| @security-auditor | Audits RLS/permissions | Before committing |
+| @code-reviewer | Quality assurance | Pattern validation |
+| @ux-reviewer | UI consistency | Visual QA |
+| @integration-tester | E2E testing | Feature validation |
+| @expert (Opus) | Complex problems | Hard debugging |
 
-**All agents are invoked with `@agent-name` syntax.**
-
-**Tier 1: Orchestration**
-- **@orchestrator** (Sonnet) - Coordinates all agents, updates docs, manages git workflow
-
-**Tier 2: Builders**
-- **@frontend-dev** (Sonnet) - Implements Next.js/React features
-- **@backend-dev** (Sonnet) - Implements FastAPI endpoints
-
-**Tier 3: Quality Assurance**
-- **@qa-tester** (Sonnet) - Writes automated tests with edge case reasoning
-- **@security-auditor** (Sonnet) - Audits RLS policies, permissions, SQL injection
-- **@code-reviewer** (Sonnet) - Reviews patterns, quality, performance
-
-**Tier 4: User Experience**
-- **@ux-reviewer** (Sonnet) - Checks UI consistency, accessibility, responsive design
-- **@integration-tester** (Sonnet) - E2E testing with Chrome DevTools MCP
-
-**Tier 5: Expert Problem Solving**
-- **@expert** (Opus) - Complex problems, architecture decisions, critical debugging
-
-**Plus Built-in Agents:**
-- **@Explore** (Haiku) - Fast codebase exploration (built-in, don't create custom)
-- **@Plan** (Sonnet) - Planning and task breakdown (built-in, don't create custom)
-
-### Model Strategy
-
-**Why all Sonnet (except Expert):**
-- Max subscription allows quality-first approach
-- Extended thinking catches edge cases
-- Cost not primary concern with Max plan
-- All agents benefit from deeper reasoning
-
-**When to use @expert (Opus):**
-- 10x+ performance bottlenecks
-- Security vulnerabilities requiring deep analysis
-- Architecture decisions with multiple approaches
-- Complex bugs that Sonnet can't solve
-- Race conditions, concurrency issues
+**Plus Built-in:**
+- @Explore (Haiku) - Fast codebase exploration
+- @Plan (Sonnet) - Feature planning
 
 ### Typical Workflow
 
-**Feature Development Flow:**
-
 ```
 1. PLANNING (if complex)
-   User: "Add real-time notifications"
+   User: "Add feature X"
    @plan → Creates implementation roadmap
 
 2. BUILDING
    @frontend-dev → Implements UI
    @backend-dev → Implements API
+   (Run in parallel)
 
 3. FINALIZATION
    User: "@orchestrator"
@@ -203,105 +158,29 @@ The project uses proper agents (not slash commands) that work in parallel with o
    └─ @code-reviewer (checks patterns)
    → Auto-fixes minor issues
    → Reports critical issues
+   → Creates GitHub issues (critical only)
    → Updates docs
    → Commits & pushes
 ```
 
+### When to Use Agents
+
+**Before starting:** @plan (complex features) | @expert (architecture decisions)
+**During work:** Reference skills first, @expert if stuck
+**After work:** @orchestrator (auto-runs QA, Security, Review in parallel)
+
+**Configuration:** `.claude/agents/*.md` (9 custom agent files)
+
 ### GitHub Issue Creation
 
-**Agents auto-create GitHub Issues for:**
-- 🔴 Security vulnerabilities (RLS bypass, SQL injection, auth bypass)
-- 🔴 Data integrity risks (missing validation, incorrect calculations)
-- 🔴 Breaking changes without migration
-- 🔴 Failed tests that can't be auto-fixed
+Agents auto-create GitHub Issues for:
+- Security vulnerabilities (RLS bypass, SQL injection, auth bypass)
+- Data integrity risks (missing validation, incorrect calculations)
+- Breaking changes without migration
+- Failed tests that can't be auto-fixed
 
-**Issues are labeled:** `security`, `critical`, `agent-found`
-
+**Labels:** `security`, `critical`, `agent-found`
 **Minor issues (formatting, comments, style) are reported locally only.**
-
-### Agent Invocation
-
-**Manual (You):**
-```
-@orchestrator                    # After feature complete
-@frontend-dev "Create user profile page"
-@backend-dev "Add approval endpoints"
-@qa-tester                       # Run tests
-@security-auditor               # Security audit
-@code-reviewer                  # Code review
-@ux-reviewer                    # UI consistency
-@integration-tester "Test login flow"
-@expert "Debug 10x slowdown in quotes list"
-```
-
-**Automatic (Claude or Orchestrator):**
-- Claude can invoke agents via Task tool when needed
-- Orchestrator automatically calls QA/Security/Review agents in parallel
-- Plan agent can be called by Claude for complex features
-
-**Built-in agents:**
-```
-@Explore "Find all API endpoints"  # Fast codebase search
-@Plan "Design multi-currency system"  # Feature planning
-```
-
-### Agent Configuration
-
-**Location:** `.claude/agents/*.md` (9 custom agent files)
-
-**Files:**
-- `orchestrator.md` - Workflow coordination
-- `frontend-dev.md` - Next.js/React building
-- `backend-dev.md` - FastAPI/Python building
-- `qa-tester.md` - Test writing
-- `security-auditor.md` - Security audits
-- `code-reviewer.md` - Code quality
-- `ux-reviewer.md` - UI consistency
-- `integration-tester.md` - E2E testing
-- `expert.md` - Complex problem solving (Opus)
-
-**Parallel execution:**
-Agents run in parallel using single message with multiple Task tool calls for maximum efficiency.
-
-### Best Practices
-
-1. **Use @orchestrator after completing features** - Ensures quality, tests, and docs
-2. **Use @plan for complex features** - Get roadmap before building
-3. **Use @expert for hard problems** - Don't waste time struggling, get Opus-level analysis
-4. **Review critical issues** - Before auto-fixing, agent shows you critical problems
-5. **Trust the agents** - They follow project patterns and best practices
-6. **Check GitHub Issues** - Critical findings are tracked there
-7. **Verify CI/CD** - Agents report CI status, check if tests pass
-
-### Benefits
-
-- ✅ **Model optimization** - Sonnet quality + Opus for hard problems
-- ✅ **Automated testing** - QA agent writes tests for every feature
-- ✅ **Security guaranteed** - Security agent catches RLS/permission bugs
-- ✅ **Consistency enforced** - Code review ensures patterns match
-- ✅ **Docs always updated** - SESSION_PROGRESS.md stays current
-- ✅ **Parallel efficiency** - 3 agents run together in ~3 min vs 10 min sequential
-- ✅ **GitHub tracking** - Critical issues auto-filed
-- ✅ **Quality safety net** - Nothing reaches production without checks
-- ✅ **Pre-tested for user** - Integration tests run before asking user to manually test (saves user time)
-- ✅ **Expert access** - Opus available for complex problems
-
-### Testing Workflow
-
-**Before asking user to manually test UI features:**
-
-1. ✅ Run unit tests (pytest/jest)
-2. ✅ Run integration tests (Chrome DevTools MCP)
-3. ✅ Check console for errors
-4. ✅ Verify happy path works
-5. ✅ Fix obvious bugs found
-6. **THEN** ask user to test edge cases and UX
-
-**Why:** Catches 80% of bugs automatically. User only tests the tricky 20% that matters (UX, edge cases, business logic).
-
-**Tool:** Chrome DevTools MCP (priority tool in WSL2)
-- See `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`
-- Automatically runs during `/finalize` for UI features
 
 ---
 
@@ -312,53 +191,54 @@ Agents run in parallel using single message with multiple Task tool calls for ma
 - **Product-level overrides:** Can override defaults per product
 - **Color coding:** Gray (default), Blue (user override), Red (admin override)
 
+**See:** `.claude/skills/calculation-engine-guidelines/` for detailed specs
+
 ### Admin vs User Variables
 - **Admin-only (3):** rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
   - Stored in `calculation_settings` table, apply organization-wide
 - **User-editable (39):** All other variables
   - Can be quote-level or product-level
 
-### Role-Based Access
-- Roles: member, manager, admin, owner
-- Backend validates via `check_admin_permissions()`
-- Frontend hides based on role (still validate in backend)
+**See:** `.claude/VARIABLES.md` for complete 42-variable reference
 
 ### Multi-Tenant with RLS
 - Organization-based data isolation
 - Row-Level Security on all tables
 - JWT claims passed to PostgreSQL for RLS context
 
+**See:** `.claude/skills/database-verification/` for RLS patterns
+
+### Role-Based Access
+- Roles: member, manager, admin, owner
+- Backend validates via `check_admin_permissions()`
+- Frontend hides based on role (still validate in backend)
+
 ---
 
-## Key Files & Documentation
+## Key Documentation Map
 
-### Core Documentation
+### Core Navigation Hub
 - **`.claude/SESSION_PROGRESS.md`** ⭐ - Current progress, what's next, blockers
 - **`.claude/VARIABLES.md`** - All 42 variables classified and documented
-- **`frontend/CLAUDE.md`** - Frontend patterns and conventions
-- **`backend/CLAUDE.md`** - Backend patterns and conventions
-
-### Quick Wins Documentation (NEW)
-- **`.claude/COMMON_GOTCHAS.md`** ⭐ - 18 bug patterns extracted from 41 tracked bugs (pattern recognition in <10s)
-- **`.claude/CALCULATION_PATTERNS.md`** - 42 variables validation rules, two-tier system, common errors
-- **`.claude/RLS_CHECKLIST.md`** - Multi-tenant security checklist with copy-paste SQL templates
+- **`.claude/TESTING_WORKFLOW.md`** - Automated testing workflow and TDD guide
+- **`.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`** ⭐ - Browser automation guide
+- **`.claude/scripts/README.md`** - Shell scripts for testing and monitoring
 
 ### Implementation Plans
-- **`.claude/PLAN_CALCULATION_ENGINE_CONNECTION.md`** ⭐ - Quote creation to calculation engine integration (Session 15)
-- `.claude/IMPLEMENTATION_PLAN_AG_GRID.md` - ag-Grid restructure plan (Sessions 8-14 COMPLETE)
-- `.claude/calculation_engine_summary.md` - Calculation engine (13 phases)
+- **`.claude/archive/PLAN_CALCULATION_ENGINE_CONNECTION.md`** ⭐ - Calculation engine integration (Session 15)
+- `.claude/archive/IMPLEMENTATION_PLAN_AG_GRID.md` - ag-Grid restructure (Sessions 8-14 COMPLETE)
+- `.claude/reference/calculation_engine_summary.md` - 13-phase calculation pipeline
 
-### Testing Documentation
-- **`.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`** ⭐ **PRIORITY TOOL** - Complete guide for Chrome DevTools MCP testing
-- `.claude/TESTING_WORKFLOW.md` - Automated testing workflow and TDD guide
-- `.claude/MANUAL_TESTING_GUIDE.md` - Manual + automated testing scenarios for quote creation
+### Quick Wins Documentation
+- **`.claude/COMMON_GOTCHAS.md`** ⭐ - 18 bug patterns from 41 tracked bugs
+- `.claude/CALCULATION_PATTERNS.md` - 42 variables validation rules
+- `.claude/RLS_CHECKLIST.md` - Multi-tenant security checklist
 
-### Key Source Files
-- `frontend/src/app/quotes/create/page.tsx` - Quote creation (RESTRUCTURING)
-- `frontend/src/app/settings/calculation/page.tsx` - Admin settings
-- `backend/routes/quotes_calc.py` - Calculation engine
-- `backend/routes/calculation_settings.py` - Admin settings API
-- `backend/auth.py` - Authentication system
+### Domain-Specific Patterns (Skills)
+- `.claude/skills/frontend-dev-guidelines/` - Frontend patterns
+- `.claude/skills/backend-dev-guidelines/` - Backend patterns
+- `.claude/skills/calculation-engine-guidelines/` - Calculation patterns
+- `.claude/skills/database-verification/` - Database guardrails
 
 ---
 
@@ -375,9 +255,9 @@ Agents run in parallel using single message with multiple Task tool calls for ma
 - Infrastructure: 85/100 ✅ (well-designed, high quality)
 - Integration: 45/100 ⚠️ (features built but not connected)
 - **Critical Blockers:** 5 (activity logging, feedback migration, exchange rates, concurrency, rate limiting)
-- See `.claude/TECHNICAL_DEBT.md` for details
+- See `.claude/archive/TECHNICAL_DEBT_SUPERSEDED_2025-10-29.md` for archived details
 
-**Session 26 Deliverables (2025-10-26) - PRE-DEPLOYMENT INFRASTRUCTURE (Waves 1-6):**
+**Session 26 Deliverables (2025-10-26) - PRE-DEPLOYMENT INFRASTRUCTURE:**
 
 **Wave 1: Backend Systems (3-4 hours)**
 - ✅ User Profile System - Manager info for exports (`GET/PUT /api/users/profile`)
@@ -428,50 +308,30 @@ Agents run in parallel using single message with multiple Task tool calls for ma
 **Implementation Phase (~2.5 hours):**
 - ✅ **Backend Code** (~300 lines new code in routes/quotes_calc.py):
   - map_variables_to_calculation_input() - Maps 42 variables to 7 nested Pydantic models
-  - fetch_admin_settings() - Fetches rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
+  - fetch_admin_settings() - Fetches admin-only variables
   - validate_calculation_input() - Validates 10 required fields + business rules
-  - Helper functions: safe_decimal(), safe_str(), safe_int(), get_value()
 - ✅ **Automated Tests** (23/23 passing ✅):
   - test_quotes_calc_mapper.py (13 tests) - Variable mapper with two-tier logic
   - test_quotes_calc_validation.py (10 tests) - Required fields + business rules
-  - Coverage: routes/quotes_calc.py 38% → 49% (+11%)
-- ✅ **Fixed broken integration** at line 804-815 (replaced TODO with working code)
 - ✅ **Git commits:** b512346, 117c831, 54b6621 - All pushed to main
-
-**Key Features:**
-- Two-tier variable system: product override > quote default > fallback
-- Validation prevents invalid calculations (all errors returned at once)
-- Admin settings auto-fetched from database
-- Defaults: USD currency, 60-day delivery, 100% advance payments
 
 **Sessions 8-14 Deliverables:**
 - ✅ Quote creation page UI complete with ag-Grid
 - ✅ 4-card compact layout with role-based grouping
 - ✅ Template system with save/update functionality
-- ✅ Grid features: filters, column chooser, bulk edit
 - ✅ All manual testing passed and bugs fixed
 
 **Known Technical Debt:**
 - ✅ **Quote creation NOW CONNECTED to calculation engine** (Session 15 - COMPLETE!)
 - Quote-related pages have temporary stubs (NOW UNBLOCKED - can build list/detail/approval pages)
-  - customers/[id], dashboard, quotes/*, quotes/approval pages
-  - See TODOs in code for details
-- ⚠️ **CI tests failing** - need GitHub secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL)
-  - Tests pass locally (30 passed, 2 skipped)
-  - Add secrets at: https://github.com/AgasiArgent/kvota/settings/secrets/actions
+- ⚠️ **CI tests failing** - need GitHub secrets
 - GitHub MCP not functional (using direct API calls via curl as workaround)
 - TypeScript strict unused checks temporarily disabled
 
 **Development Environment:**
 - **Use WSL2 for everything** - Frontend + Backend both run in WSL2
-- ⚠️ **Do NOT migrate to native Windows** - Multiple issues with native modules (lightningcss, weasyprint requires GTK)
-- All dependencies and libraries work correctly in WSL2
-- Windows VS Code can connect to WSL2 and edit files normally
-
-**Ready for Development:**
-- Infrastructure is solid
-- CI pipeline is stable
-- Can focus on implementing features without CI blocking
+- ⚠️ **Do NOT migrate to native Windows** - Multiple issues with native modules
+- All dependencies work correctly in WSL2
 
 **Servers Running:**
 - Frontend: `npm run dev` on :3000 (or :3001 if 3000 in use)
@@ -484,401 +344,131 @@ Agents run in parallel using single message with multiple Task tool calls for ma
 
 ---
 
-## Common Workflows
+## Tech Stack Overview
 
-### Making API Changes
-1. Update backend route in `backend/routes/*.py`
-2. Update Pydantic models if needed
-3. Update frontend service in `frontend/src/lib/api/*-service.ts`
-4. Update TypeScript interfaces
-5. Test with real API call
+**Frontend:** Next.js 15.5 + React 19 + Ant Design + ag-Grid
+**Backend:** FastAPI + Python 3.12 + Pydantic + Supabase PostgreSQL
 
-### Database Migrations
-1. Create migration in `backend/migrations/*.sql`
-2. Update table definitions and RLS policies
-3. Test via Supabase dashboard
+**See:**
+- `frontend/CLAUDE.md` - Frontend packages & versions
+- `backend/CLAUDE.md` - Backend packages & versions
+- `.claude/skills/` - Detailed patterns for each tier
 
-### UI Changes
-1. Read current component first
-2. Use Ant Design for forms/layout, ag-Grid for data tables
-3. Match existing styling patterns
-4. Ensure responsive design
+**MCP Servers:**
+- ✅ **chrome-devtools** - Browser automation (FULLY WORKING with WSLg)
+- ✅ **postgres** - Database queries and schema inspection
+- ❌ **github** - Not functional (use curl with GitHub API)
+  - Token: `***REMOVED***`
+  - Example: `curl -H "Authorization: token TOKEN" https://api.github.com/repos/AgasiArgent/kvota`
+- ⚠️ **puppeteer** - NOT RECOMMENDED (Chrome DevTools MCP is better)
 
-### File Operations
-- **ALWAYS use Read tool** for reading files (not `cat`)
-- **ALWAYS use Edit tool** for editing files (not `sed`/`awk`)
-- **ALWAYS use Write tool** for new files (not `echo >`)
-- **Reserve Bash** for actual terminal commands (git, npm, python)
+**Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers + permissions)
+
+**Database:** Supabase PostgreSQL (multi-tenant with RLS)
+- Connection: Direct via DATABASE_URL + REST API via Supabase client
+- Migrations: Tracked in `backend/migrations/MIGRATIONS.md`
 
 ---
 
-## Automated Testing Workflow
+## Where to Find Everything
 
-**See `.claude/TESTING_WORKFLOW.md` for comprehensive guide.**
+### For Frontend Development
+**See:** `.claude/skills/frontend-dev-guidelines/SKILL.md`
+- **Patterns:** React, Ant Design, ag-Grid, state management
+- **Workflows:** API integration, UI changes
+- **Resources:** 5 resource files (3,632 lines)
+
+### For Backend Development
+**See:** `.claude/skills/backend-dev-guidelines/SKILL.md`
+- **Patterns:** FastAPI, Supabase RLS, exports, testing
+- **Workflows:** API endpoints, database migrations
+- **Resources:** 6 resource files (3,200+ lines)
+
+### For Calculation Engine
+**See:** `.claude/skills/calculation-engine-guidelines/SKILL.md`
+- **Understanding:** 13-phase pipeline, 42 variables, validation
+- **Integration:** API & database storage
+- **Resources:** 7 resource files (1,500+ lines)
+
+### For Database
+**See:** `.claude/skills/database-verification/SKILL.md`
+- **Guardrail:** RLS verification, schema standards, migrations
+- **Patterns:** Multi-tenant, column naming, RLS testing
+- **Resources:** 4 resource files (2,000+ lines)
+
+### For Testing & Debugging
+**Testing:**
+- **Automated:** `.claude/TESTING_WORKFLOW.md` (TDD guide, tiered testing)
+- **Browser automation:** `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md` ⭐ **PRIORITY TOOL**
+- **Manual scenarios:** `.claude/MANUAL_TESTING_GUIDE.md`
+
+**Debugging:**
+- **Chrome DevTools MCP:** Browser automation with accessibility tree snapshots
+- **Backend logs:** Check uvicorn output via terminal
+- **Database:** Supabase dashboard or postgres MCP
+- **Console:** Browser DevTools for React errors
+
+**Troubleshooting:**
+- **WSL2 issues:** `.claude/scripts/README.md` (memory management, recovery)
+- **Bug patterns:** `.claude/COMMON_GOTCHAS.md` (18 patterns from 41 bugs)
 
 ### Quick Commands
 
-**Backend - Run All Tests:**
+**Backend Tests:**
 ```bash
 cd backend
-pytest -v
-
-# With coverage
-pytest --cov=. --cov-report=term-missing
+pytest -v  # Run all tests
+pytest --cov=. --cov-report=term-missing  # With coverage
+pytest tests/test_file.py::test_function -v  # Specific test
 ```
 
-**Backend - Specific Tests:**
-```bash
-# Single test file
-pytest tests/test_quotes_calc_mapper.py -v
-
-# Specific test function
-pytest tests/test_file.py::test_function_name -v
-
-# Watch mode (auto-rerun on changes)
-ptw -v  # Requires: pip install pytest-watch
-```
-
-**Frontend - Run All Tests:**
+**Frontend Tests:**
 ```bash
 cd frontend
-npm test
-
-# With coverage
-npm test -- --coverage
+npm test  # Run all tests
+npm test -- --coverage  # With coverage
+npm test -- --watch  # Watch mode
 ```
 
-**Frontend - Watch Mode:**
+**Before Pushing:**
 ```bash
-cd frontend
-npm test -- --watch
+cd backend && pytest  # Ensure backend tests pass
+cd frontend && npm test  # Ensure frontend tests pass
+cd frontend && npm run lint && npm run type-check && npm run build  # CI checks
 ```
 
-### Test-Driven Development (TDD) Workflow
-
-**Red → Green → Refactor:**
-1. **Write test first** (fails - RED)
-2. **Implement feature** (passes - GREEN)
-3. **Refactor code** (tests protect against breaking changes)
-4. **Check coverage** (aim for 80%+)
-
-**Example:**
+**Chrome DevTools MCP (Resource-Optimized):**
 ```bash
-# Step 1: Write test (RED)
-pytest tests/test_quotes_calc_mapper.py::test_mapper_with_minimal_data -v
-# Output: FAILED - function doesn't exist
+# Use tiered testing script (prevents WSL2 freezing)
+./.claude/scripts/testing/launch-chrome-testing.sh headless
 
-# Step 2: Implement feature (GREEN)
-# ... implement map_variables_to_calculation_input() ...
-pytest tests/test_quotes_calc_mapper.py::test_mapper_with_minimal_data -v
-# Output: PASSED
+# Monitor resources
+./.claude/scripts/monitoring/monitor-wsl-resources.sh
 
-# Step 3: Check coverage
-pytest tests/test_quotes_calc_mapper.py --cov=routes.quotes_calc --cov-report=term-missing
-# Should show 80%+ coverage
+# Kill Chrome when done
+./.claude/scripts/testing/launch-chrome-testing.sh kill
 ```
 
-### Coverage Goals
+**Tiered Testing (Fastest to Slowest):**
+1. Backend Unit Tests (100 MB, 5s) - `cd backend && pytest -v`
+2. Backend API Tests (200 MB, 30s) - `./.claude/scripts/testing/test-backend-only.sh`
+3. Headless Browser (500 MB, 60s) - `./.claude/scripts/testing/launch-chrome-testing.sh headless`
+4. Full Browser (1.2 GB, 120s) - `./.claude/scripts/testing/launch-chrome-testing.sh full` (only when needed!)
 
-- **Backend:** 80%+ (critical business logic 95%+)
-- **Frontend:** 60%+ (services 80%+, utils 90%+)
-
-### Before Pushing to GitHub
-
-```bash
-# Ensure all tests pass locally
-cd backend && pytest
-cd frontend && npm test
-
-# Ensure CI checks will pass
-cd frontend && npm run lint && npm run type-check && npm run build
-
-# If all green, safe to push
-git push
-```
+**🎯 Golden Rule:** Always start with the fastest tier that covers what you need
 
 ---
 
-## Variable Quick Reference
+## Remember
 
-**Total:** 42 variables
-- Product-only: 5 (sku, brand, base_price_VAT, quantity, weight_in_kg)
-- Quote-only: 19
-- Both levels: 15 (can be default or override)
-- Admin-only: 3 (rate_forex_risk, rate_fin_comm, rate_loan_interest_daily)
-
-**See `.claude/VARIABLES.md` for complete details.**
-
----
-
-## Debugging Tools Available
-
-### 🤖 Chrome DevTools MCP (✅ PRIORITY TOOL for Testing)
-
-**The PRIMARY tool for automated browser testing in WSL2.**
-
-- **Status:** ✅ **FULLY WORKING** with WSLg (Windows 11 X server)
-- **Documentation:** `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md`
-- **Tiered Testing Guide:** `.claude/scripts/README.md` ⭐ **Prevent WSL2 freezing**
-- **Capabilities:**
-  - Full browser automation (login, file upload, form filling, clicks)
-  - Console monitoring and network inspection
-  - Screenshots (full page or specific elements)
-  - JavaScript execution in page context
-  - Accessibility tree snapshots for element selection
-- **Quick Start (Resource-Optimized):**
-  ```bash
-  # Use optimized launch script (prevents freezing)
-  ./.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3001/quotes/create
-
-  # Or headless mode (60% less memory)
-  ./.claude/scripts/testing/launch-chrome-testing.sh headless
-
-  # Monitor resources in separate terminal
-  ./.claude/scripts/monitoring/monitor-wsl-resources.sh
-
-  # Kill Chrome when done
-  ./.claude/scripts/testing/launch-chrome-testing.sh kill
-  ```
-- **Tiered Testing (Fastest to Slowest):**
-  1. **Backend Unit Tests** (100 MB, 5s) - `cd backend && pytest -v`
-  2. **Backend API Tests** (200 MB, 30s) - `./.claude/scripts/testing/test-backend-only.sh`
-  3. **Headless Browser** (500 MB, 60s) - `./.claude/scripts/testing/launch-chrome-testing.sh headless`
-  4. **Full Browser** (1.2 GB, 120s) - `./.claude/scripts/testing/launch-chrome-testing.sh full` (only when needed!)
-- **🎯 Golden Rule:** Always start with the fastest tier that covers what you need
-- **Resource Management:**
-  - ⚠️ **WSL2 can freeze** if Chrome uses too much memory
-  - ✅ **Configure .wslconfig:** Limit WSL2 to 6GB RAM (see `.wslconfig` in Windows user folder)
-  - ✅ **Monitor resources:** Use `./.claude/scripts/monitoring/monitor-wsl-resources.sh`
-  - ✅ **Use tiered testing:** Start with backend tests, only use browser when needed
-  - **See:** `.claude/scripts/README.md` for preventing freezes
-- **Permission Configuration:**
-  - **Location:** `.claude/settings.json`
-  - **Required:** Explicit permission list (wildcards alone don't work)
-  - **Pre-approved actions:** All 27 Chrome DevTools MCP tools + common Bash commands
-  - **Safety:** Dangerous operations (rm -rf, shutdown, etc.) explicitly denied
-  - **Reload required:** After editing settings.json, reload VS Code window (Ctrl+Shift+P → "Reload Window")
-  - **See:** `.claude/settings.json` for complete permission list
-
-### Other Debugging Tools
-
-- **Browser Console Reader:** ✅ Playwright-based console monitor
-  - **Location:** `frontend/.claude-read-console.js`
-  - **Usage:** `cd frontend && node .claude-read-console.js http://localhost:3001`
-  - **Features:** Color-coded console logs (ERROR/WARNING/INFO/LOG), file paths, line numbers
-  - **Note:** Read-only monitoring (can't interact with page)
-  - **Best For:** Watching console logs during manual testing
-- **Backend Logs:** Check uvicorn output via BashOutput tool
-- **Database:** Direct SQL via Supabase dashboard or Postgres MCP
+✅ **Read SESSION_PROGRESS.md on every session start** - Know where we are and what's next
+✅ **Use @plan for complex features** - Get roadmap before building
+✅ **Use @orchestrator after features complete** - Auto-runs QA, Security, Review in parallel
+✅ **Reference skills for domain patterns** - Single source of truth
+✅ **Call agents in parallel for speed** - 3x faster than sequential
+✅ **Update docs immediately** - Install package → Update CLAUDE.md → Inform user
+✅ **Always put actual timestamp** when creating/editing documents - Easy to understand history
 
 ---
 
-## Troubleshooting
-
-### VS Code Remote WSL Disconnection During Testing
-
-**Problem:** VS Code loses connection to WSL2 and shows "Connection timeout" when trying to reconnect. This usually happens after running Chrome DevTools MCP tests for extended periods.
-
-**Root Cause:** Chrome browser accumulates memory over time, pushing WSL2 close to its memory limit. When memory usage exceeds ~85%, WSL2 becomes unresponsive and VS Code Remote WSL extension can't maintain connection.
-
-**Prevention (Recommended Approach):**
-
-1. **Use Safe Test Session Manager** (automatically handles cleanup):
-   ```bash
-   # Run tests with automatic resource management
-   ./.claude/scripts/testing/safe-test-session.sh headless http://localhost:3001 10
-
-   # Parameters: [mode] [url] [timeout_minutes]
-   # - mode: headless (500MB) or full (1.2GB)
-   # - url: page to test (default: localhost:3000/quotes/create)
-   # - timeout: auto-stop after N minutes (default: 10)
-   ```
-
-   **What it does:**
-   - ✅ Automatically monitors memory usage
-   - ✅ Kills Chrome if memory exceeds 85%
-   - ✅ Ensures cleanup even if interrupted (Ctrl+C)
-   - ✅ Shows memory usage summary
-   - ✅ Prevents WSL2 freeze before it happens
-
-2. **Manual Monitoring** (if not using safe session):
-   ```bash
-   # Terminal 1: Monitor resources
-   ./.claude/scripts/monitoring/monitor-wsl-resources.sh
-
-   # Terminal 2: Run tests normally
-   ./.claude/scripts/testing/launch-chrome-testing.sh headless
-
-   # Kill Chrome when memory hits 75%
-   ./.claude/scripts/testing/launch-chrome-testing.sh kill
-   ```
-
-3. **Auto-Cleanup Script** (background protection):
-   ```bash
-   # Runs in background, auto-kills Chrome at 85% memory
-   ./.claude/scripts/testing/auto-cleanup-chrome.sh 85 &
-
-   # Then run tests normally
-   ./.claude/scripts/testing/launch-chrome-testing.sh full
-
-   # Cleanup script will automatically kill Chrome if needed
-   ```
-
-**Recovery (If VS Code Already Disconnected):**
-
-1. **Check WSL2 Health:**
-   ```bash
-   # From a new WSL2 terminal (if VS Code frozen)
-   wsl bash /home/novi/quotation-app-dev/.claude/scripts/diagnostics/wsl2-health-check.sh
-
-   # Or from Windows PowerShell
-   wsl bash /home/novi/quotation-app-dev/.claude/scripts/diagnostics/wsl2-health-check.sh
-   ```
-
-2. **If WSL2 Responsive (memory < 85%):**
-   ```bash
-   # Kill Chrome processes
-   pkill -9 chrome
-
-   # Clear Chrome profile
-   rm -rf /tmp/chrome-wsl-profile
-
-   # Restart VS Code (close and reopen)
-   ```
-
-3. **If WSL2 Unresponsive (memory > 85%):**
-   ```powershell
-   # From Windows PowerShell
-   wsl --shutdown
-
-   # Wait 8 seconds
-   Start-Sleep -Seconds 8
-
-   # Restart WSL2
-   wsl
-
-   # Then restart VS Code
-   ```
-
-**Configuration:**
-
-- **WSL2 Memory Limit:** `.wslconfig` at `C:\Users\Lenovo\.wslconfig`
-  - Currently: 6GB RAM, 4 CPU cores, 2GB swap
-  - Adjust if needed (use 50-75% of total RAM)
-
-- **VS Code Remote WSL Settings:** `.vscode/settings.json`
-  - Connection timeout: 60s (increased from default 30s)
-  - Auto-reconnect: enabled
-  - File watchers: optimized to reduce load
-
-**Best Practices:**
-
-1. ✅ **Always use tiered testing** - Start with backend tests (Tier 1-2) before browser tests (Tier 3-4)
-2. ✅ **Use headless mode** when possible (60% less memory than full Chrome)
-3. ✅ **Kill Chrome after tests** - Don't leave it running idle
-4. ✅ **Monitor memory** during long sessions
-5. ✅ **Prefer safe-test-session.sh** for automated cleanup
-
-**Scripts Summary:**
-
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `scripts/testing/safe-test-session.sh` | All-in-one wrapper with auto-cleanup | Recommended for all testing |
-| `scripts/testing/auto-cleanup-chrome.sh` | Background memory monitor | Auto-kills Chrome at threshold |
-| `scripts/diagnostics/wsl2-health-check.sh` | Diagnose WSL2 issues | Run when VS Code disconnects |
-| `scripts/monitoring/monitor-wsl-resources.sh` | Real-time resource display | Monitor during manual testing |
-| `scripts/testing/launch-chrome-testing.sh` | Chrome launcher | Direct Chrome control |
-
-**See `.claude/scripts/README.md` for complete scripts documentation.**
-
----
-
-## Installed Tools & Dependencies
-
-**Last Updated:** 2025-10-26 (Session 26 - Pre-deployment infrastructure with parallel agents)
-
-### Frontend (package.json)
-- **Next.js:** 15.5.4 (App Router with Turbopack)
-- **React:** 19.1.0
-- **Ant Design:** 5.27.4 (UI components)
-- **ag-Grid:** 34.2.0 (Community - Excel-like tables)
-- **Supabase:** 2.58.0 (@supabase/supabase-js, @supabase/ssr)
-- **Tailwind CSS:** 4.0 (@tailwindcss/postcss)
-- **TypeScript:** 5.x (strict mode enabled)
-- **Playwright:** 1.56.1 (E2E testing)
-- **Day.js:** 1.11.18 (date handling)
-
-**Code Quality Tools:**
-- **ESLint:** 9.x (linting with Next.js config)
-- **Prettier:** 3.6.2 (code formatting)
-- **Husky:** 9.1.7 (pre-commit hooks)
-- **lint-staged:** 16.2.4 (staged files linting)
-
-### Backend (Python)
-- **FastAPI:** Latest (async web framework)
-- **Supabase:** Python client
-- **Pydantic:** Latest (validation)
-- **asyncpg:** Latest (PostgreSQL driver)
-- **pandas:** Latest (Excel/CSV parsing)
-- **openpyxl:** Latest (Excel reading)
-- **python-multipart:** Latest (file uploads)
-- **numpy-financial:** Latest (FV calculations)
-- **psycopg2-binary:** Latest (PostgreSQL)
-- **uvicorn:** Latest (ASGI server)
-- **APScheduler:** 3.10.4 (cron jobs for exchange rates)
-- **slowapi:** 0.1.9 (rate limiting middleware)
-- **psutil:** 7.1.2 (system monitoring for health checks)
-
-**Testing:**
-- **pytest:** 8.3.5 (test framework)
-- **pytest-asyncio:** Latest (async test support)
-- **pytest-cov:** Latest (coverage reporting)
-- **httpx:** Latest (API testing)
-
-### Development Tools
-- **Git:** Version control with SSH authentication
-- **GitHub:** Repository at https://github.com/AgasiArgent/kvota
-- **GitHub Actions:** CI/CD for automated testing
-- **Pre-commit hooks:** Auto-format and lint before commits
-
-### MCP Servers (Model Context Protocol)
-- **chrome-devtools** ✅ **PRIORITY TOOL** - Browser automation via Chrome DevTools Protocol
-  - **Status:** FULLY WORKING with WSLg (Windows 11 X server)
-  - **Usage:** See `.claude/AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md` for complete guide
-  - **Launch:** `DISPLAY=:0 google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-wsl-profile "http://localhost:3001" &`
-  - **Tools:** `mcp__chrome-devtools__*` (take_snapshot, click, fill, upload_file, evaluate_script, etc.)
-  - **Best For:** Automated testing, file uploads, console monitoring, screenshots
-- **postgres** - Direct Supabase database queries and schema inspection ✅ Working
-- **github** - ❌ Not functional (returns empty resources)
-  - **Workaround:** Use curl commands with GitHub API directly
-  - Token: `***REMOVED***`
-  - Example commands:
-    ```bash
-    # Get repo info
-    curl -H "Authorization: token ***REMOVED***" https://api.github.com/repos/AgasiArgent/kvota
-
-    # List issues
-    curl -H "Authorization: token ***REMOVED***" https://api.github.com/repos/AgasiArgent/kvota/issues
-
-    # Create issue
-    curl -X POST -H "Authorization: token ***REMOVED***" \
-      -d '{"title":"Issue title","body":"Issue description"}' \
-      https://api.github.com/repos/AgasiArgent/kvota/issues
-    ```
-- **puppeteer** - ⚠️ **NOT RECOMMENDED** - Browser automation with limitations
-  - **Issues:** Cannot reliably interact with Ant Design dropdowns (portal rendering, React synthetic events)
-  - **File upload:** Doesn't work with WSL2 file paths
-  - **Timing:** No built-in waiting for React state updates
-  - **Use instead:** Chrome DevTools MCP (better React support, accessibility tree, network waiting)
-  - **See:** `.claude/SESSION_17_AUTOMATION_FINDINGS.md` for detailed analysis
-- **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers + permissions)
-
-### Database
-- **Supabase PostgreSQL** - Multi-tenant with RLS
-- **Connection:** Direct via DATABASE_URL + REST API via Supabase client
-- **Migrations:** Tracked in `backend/migrations/MIGRATIONS.md`
-
----
-
-**Remember:** Read SESSION_PROGRESS.md on every session start to maintain context!
-- always put actual timestamp when creating/editing documents, this way histroy will be easy to understand in case something goes wrong
+**Last Updated:** 2025-10-30 (Session 26, Phase 3 - CLAUDE.md Restructure)
