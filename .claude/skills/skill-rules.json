@@ -268,6 +268,62 @@
     }
   },
 
+  "skill-developer": {
+    "type": "domain",
+    "enforcement": "suggest",
+    "priority": "medium",
+    "description": "Meta-skill for creating and managing Claude Code skills. Covers skill structure, trigger patterns, hook mechanisms, 500-line rule, progressive disclosure, and troubleshooting.",
+    "promptTriggers": {
+      "keywords": [
+        "skill",
+        "skills",
+        "create skill",
+        "new skill",
+        "add skill",
+        "modify skill",
+        "skill trigger",
+        "skill activation",
+        "skill-rules",
+        "skill-rules.json",
+        "hook",
+        "hooks",
+        "user prompt submit",
+        "post tool use",
+        "trigger pattern",
+        "keyword trigger",
+        "intent pattern",
+        "file pattern",
+        "500-line rule",
+        "progressive disclosure",
+        "enforcement level",
+        "guardrail",
+        "domain skill"
+      ],
+      "intentPatterns": [
+        "(create|add|build|implement).*?(skill|trigger|pattern)",
+        "(modify|change|update|edit).*?(skill|trigger|skill-rules)",
+        "(how to|guide|help).*?(create|add|modify).*?skill",
+        "(debug|troubleshoot|fix).*?(skill|trigger|activation)",
+        "(skill|trigger).*(not.*(work|activat)|issue|problem)"
+      ]
+    },
+    "fileTriggers": {
+      "pathPatterns": [
+        ".claude/skills/**/*.md",
+        ".claude/skills/skill-rules.json",
+        ".claude/hooks/skill-*.ts",
+        ".claude/hooks/skill-*.sh"
+      ],
+      "contentPatterns": [
+        "---\\nname:",
+        "promptTriggers",
+        "fileTriggers",
+        "enforcement.*block|suggest",
+        "skill-rules.json"
+      ]
+    }
+  },
+
   "database-verification": {
     "type": "guardrail",
     "enforcement": "block",
