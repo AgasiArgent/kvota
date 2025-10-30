@@ -1,0 +1,285 @@
+{
+  "frontend-dev-guidelines": {
+    "type": "domain",
+    "enforcement": "suggest",
+    "priority": "high",
+    "description": "React 19, Ant Design v5, ag-Grid patterns for Next.js 15 App Router",
+    "promptTriggers": {
+      "keywords": [
+        "react",
+        "component",
+        "frontend",
+        "UI",
+        "UX",
+        "ant design",
+        "antd",
+        "form",
+        "table",
+        "layout",
+        "ag-grid",
+        "ag grid",
+        "data grid",
+        "grid column",
+        "state",
+        "hook",
+        "useState",
+        "useEffect",
+        "next.js",
+        "nextjs",
+        "page",
+        "router",
+        "client component",
+        "server component",
+        "tailwind",
+        "css",
+        "styling",
+        "responsive",
+        "mobile",
+        "button",
+        "input",
+        "select",
+        "modal",
+        "card",
+        "dropdown"
+      ],
+      "intentPatterns": [
+        "(create|add|build|implement|develop).*?(component|page|feature|UI|interface|screen)",
+        "(how to|best practice|pattern|approach).*?(react|frontend|component|next)",
+        "(style|design|layout|format).*?(page|component|screen)",
+        "(form|validation|submit|input)",
+        "(grid|table|ag-grid|data.*grid)",
+        "(data.*fetch|query|mutation|api.*call)",
+        "(state.*management|context|provider)",
+        "(routing|navigation|link)",
+        "(upload|file.*upload|drag.*drop)",
+        "(responsive|mobile|desktop|breakpoint)"
+      ]
+    },
+    "fileTriggers": {
+      "pathPatterns": [
+        "frontend/src/**/*.tsx",
+        "frontend/src/**/*.ts",
+        "frontend/src/app/**",
+        "frontend/src/components/**",
+        "frontend/src/lib/**"
+      ],
+      "contentPatterns": [
+        "import.*from 'react'",
+        "import.*from 'antd'",
+        "import.*ag-grid",
+        "export.*function.*Component",
+        "export default function",
+        "const.*=.*\\(\\).*=>",
+        "useState|useEffect|useCallback|useMemo",
+        "'use client'",
+        "'use server'",
+        "<Form|<Button|<Input|<Select|<Card",
+        "AgGridReact"
+      ]
+    }
+  },
+
+  "backend-dev-guidelines": {
+    "type": "domain",
+    "enforcement": "suggest",
+    "priority": "high",
+    "description": "FastAPI, Supabase, PostgreSQL, RLS patterns, Excel/PDF exports",
+    "promptTriggers": {
+      "keywords": [
+        "backend",
+        "api",
+        "endpoint",
+        "route",
+        "controller",
+        "service",
+        "fastapi",
+        "supabase",
+        "database",
+        "postgres",
+        "postgresql",
+        "rls",
+        "policy",
+        "permission",
+        "auth",
+        "authentication",
+        "authorization",
+        "export",
+        "excel",
+        "pdf",
+        "weasyprint",
+        "openpyxl",
+        "pydantic",
+        "validation",
+        "middleware",
+        "dependency",
+        "async",
+        "await"
+      ],
+      "intentPatterns": [
+        "(create|add|build|implement|develop).*?(route|endpoint|api|controller|service|function)",
+        "(how to|best practice|pattern|approach).*?(backend|api|endpoint|service)",
+        "(database|query|schema|sql|table)",
+        "(rls|policy|permission|security|auth)",
+        "(export|excel|pdf|download|generate)",
+        "(error.*handle|exception|try.*catch|validation)",
+        "(test|testing|pytest|unit.*test)",
+        "(supabase.*client|postgres.*connection)",
+        "(async.*function|await|asynchronous)",
+        "(middleware|dependency.*injection|decorator)"
+      ]
+    },
+    "fileTriggers": {
+      "pathPatterns": [
+        "backend/**/*.py",
+        "backend/routes/**",
+        "backend/services/**",
+        "backend/tests/**",
+        "backend/migrations/**"
+      ],
+      "contentPatterns": [
+        "from fastapi",
+        "@router\\.",
+        "@app\\.",
+        "async def",
+        "supabase\\.",
+        "raise HTTPException",
+        "openpyxl|weasyprint",
+        "class.*\\(BaseModel\\)",
+        "APIRouter\\(",
+        "Depends\\("
+      ]
+    }
+  },
+
+  "calculation-engine-guidelines": {
+    "type": "domain",
+    "enforcement": "suggest",
+    "priority": "critical",
+    "description": "42 variables, 13 phases, two-tier system (quote-level + product-level)",
+    "promptTriggers": {
+      "keywords": [
+        "calculation",
+        "calculate",
+        "quote price",
+        "pricing",
+        "variable",
+        "variables",
+        "rate",
+        "percent",
+        "percentage",
+        "forex",
+        "discount",
+        "markup",
+        "margin",
+        "advance payment",
+        "delivery days",
+        "customs duty",
+        "vat",
+        "insurance",
+        "commission",
+        "two-tier",
+        "product override",
+        "quote default",
+        "admin setting",
+        "calculation input",
+        "calculation output"
+      ],
+      "intentPatterns": [
+        "(calculate|computation|pricing|quote).*?(price|cost|total|value)",
+        "(add|modify|change|update).*?(variable|calculation|formula|rate)",
+        "(validation|validate).*?(quote|price|calculation|input)",
+        "(two-tier|product.*override|quote.*default|fallback)",
+        "(mapper|mapping).*?(variable|input|data)",
+        "(admin.*setting|admin.*variable|rate_forex|rate_fin|rate_loan)",
+        "(test|testing).*?(calculation|mapper|validation)"
+      ]
+    },
+    "fileTriggers": {
+      "pathPatterns": [
+        "backend/routes/quotes_calc.py",
+        "backend/tests/test_quotes_calc*.py",
+        ".claude/VARIABLES.md",
+        ".claude/reference/calculation_engine_summary.md"
+      ],
+      "contentPatterns": [
+        "map_variables_to_calculation_input",
+        "validate_calculation_input",
+        "fetch_admin_settings",
+        "CalculationInput",
+        "get_value.*product.*quote",
+        "rate_forex|pct_discount|pct_markup",
+        "base_price_VAT|quantity|weight_in_kg",
+        "safe_decimal|safe_str|safe_int",
+        "admin-only variable|product-only variable"
+      ]
+    }
+  },
+
+  "database-verification": {
+    "type": "guardrail",
+    "enforcement": "block",
+    "priority": "critical",
+    "description": "Database schema and migration guardrails with RLS policies - ALWAYS verify before execution",
+    "promptTriggers": {
+      "keywords": [
+        "migration",
+        "schema",
+        "column",
+        "table",
+        "alter table",
+        "create table",
+        "drop",
+        "drop table",
+        "drop column",
+        "database",
+        "postgres",
+        "postgresql",
+        "supabase",
+        "rls",
+        "policy",
+        "row level security",
+        "add column",
+        "modify column",
+        "rename",
+        "constraint",
+        "foreign key",
+        "primary key",
+        "index"
+      ],
+      "intentPatterns": [
+        "(create|add|modify|drop|alter|rename|delete).*?(table|column|schema|constraint|index)",
+        "(migration|migrate|database.*change|schema.*change)",
+        "(rls|policy|row.*level.*security|enable.*rls)",
+        "(add|create|drop).*?(column|table|constraint|policy)",
+        "(alter.*table|create.*table|drop.*table)",
+        "(foreign.*key|primary.*key|unique.*constraint)",
+        "(grant|revoke).*?(permission|access)",
+        "(backup|restore|rollback).*?(database|schema)"
+      ]
+    },
+    "fileTriggers": {
+      "pathPatterns": [
+        "backend/migrations/**/*.sql",
+        "backend/migrations/**/*.md"
+      ],
+      "contentPatterns": [
+        "CREATE TABLE",
+        "ALTER TABLE",
+        "DROP TABLE",
+        "ADD COLUMN",
+        "DROP COLUMN",
+        "MODIFY COLUMN",
+        "RENAME",
+        "ENABLE ROW LEVEL SECURITY",
+        "CREATE POLICY",
+        "DROP POLICY",
+        "ALTER POLICY",
+        "FOREIGN KEY",
+        "PRIMARY KEY",
+        "CREATE INDEX",
+        "GRANT",
+        "REVOKE"
+      ]
+    }
+  }
+}

@@ -1,7 +1,29 @@
 # Skills Documentation Index
 
 **Created:** 2025-10-29
+**Last Updated:** 2025-10-29 (Phase 3 - Auto-Activation)
 **Purpose:** Quick navigation to all skill resources
+
+---
+
+## How Skills Auto-Activate
+
+**Configuration:** `.claude/skills/skill-rules.json`
+
+Skills automatically load based on:
+- **File paths** - Editing files matching path patterns
+- **Prompt keywords** - User message contains skill keywords
+- **Content patterns** - File contains skill-specific code
+
+**Example:**
+```
+User: "Add form validation to quote creation"
+Files: frontend/src/app/quotes/create/page.tsx
+→ frontend-dev-guidelines auto-loads
+→ Shows Ant Design validation patterns
+```
+
+**Testing:** See `.claude/SKILLS_ACTIVATION_TEST_PLAN.md` for verification procedures
 
 ---
 
@@ -30,6 +52,31 @@
 - [Error Handling](./backend-dev-guidelines/resources/error-handling.md) - HTTPException, status codes
 - [Testing Patterns](./backend-dev-guidelines/resources/testing-patterns.md) - Pytest, fixtures, TDD
 - [Common Gotchas](./backend-dev-guidelines/resources/common-gotchas.md) - 9 backend bugs + solutions
+
+### Calculation Engine (Phase 2)
+**When:** Working in `backend/routes/quotes_calc.py` or calculation features
+**Hub:** [calculation-engine-guidelines/SKILL.md](./calculation-engine-guidelines/SKILL.md)
+
+**Resources:**
+- [Calculation Phases](./calculation-engine-guidelines/resources/calculation-phases.md) ⭐ - 13-phase pipeline (1,068 lines)
+- [Variable Specification](./calculation-engine-guidelines/resources/variable-specification.md) - All 42 variables classified
+- [Two-Tier System](./calculation-engine-guidelines/resources/two-tier-system.md) - Product override > Quote default
+- [Validation Rules](./calculation-engine-guidelines/resources/validation-rules.md) - 10 required + 4 business rules
+- [Mapper Patterns](./calculation-engine-guidelines/resources/mapper-patterns.md) - 42 variables → 7 Pydantic models
+- [Common Errors](./calculation-engine-guidelines/resources/common-errors.md) - Real bugs + solutions
+- [Quick Reference](./calculation-engine-guidelines/resources/quick-reference.md) - 2-page cheat sheet
+
+### Database Verification (Phase 2) 🛡️ GUARDRAIL
+**When:** Working in `backend/migrations/**/*.sql` or schema changes
+**Hub:** [database-verification/SKILL.md](./database-verification/SKILL.md)
+**Type:** GUARDRAIL (blocks until RLS verified)
+
+**Resources:**
+- [RLS Patterns](./database-verification/resources/rls-patterns.md) ⭐ - Security templates + 7 bugs
+- [Schema Standards](./database-verification/resources/schema-standards.md) - Table structure patterns
+- [Migration Checklist](./database-verification/resources/migration-checklist.md) - 7-step safe workflow
+- [Column Naming](./database-verification/resources/column-naming.md) - Conventions from 19 migrations
+- [Common Mistakes](./database-verification/resources/common-mistakes.md) - 10 mistakes from real bugs
 
 ---
 
