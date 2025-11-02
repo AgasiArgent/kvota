@@ -846,7 +846,7 @@ class SavedReport(BaseModel):
 class AnalyticsQueryRequest(BaseModel):
     """Analytics query request"""
     filters: Dict[str, Any] = Field(..., description="Filter conditions")
-    selected_fields: List[str] = Field(..., min_length=1, description="Fields to return")
+    selected_fields: List[str] = Field(default=[], description="Fields to return (empty for aggregation-only)")
     aggregations: Optional[Dict[str, Any]] = Field(None, description="Aggregation functions")
     limit: int = Field(default=1000, ge=1, le=10000)
     offset: int = Field(default=0, ge=0)

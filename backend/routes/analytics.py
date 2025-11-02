@@ -14,7 +14,7 @@ from uuid import UUID
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks, Query
 from fastapi.responses import FileResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -471,8 +471,7 @@ async def execute_analytics_query(
 @limiter.limit("10/minute")
 async def execute_analytics_aggregation(
     request: Request,
-    filters: Dict[str, Any],
-    aggregations: Dict[str, Dict[str, str]],
+    query_request: AnalyticsQueryRequest,
     user: User = Depends(get_current_user)
 ):
     """
@@ -485,13 +484,25 @@ async def execute_analytics_aggregation(
     # Admin check
     await check_admin_permissions(user)
 
+    # Validate aggregation functions
+    valid_functions = {'sum', 'avg', 'count', 'min', 'max'}
+
+    if query_request.aggregations:
+        for field, config in query_request.aggregations.items():
+            func = config.get('function', '').lower()
+            if func not in valid_functions:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid aggregation function: {func}. Allowed: {', '.join(sorted(valid_functions))}"
+                )
+
     try:
         # Generate cache key
         cache_key = get_cache_key(
             str(user.current_organization_id),
-            filters,
+            query_request.filters,
             [],
-            aggregations=aggregations
+            aggregations=query_request.aggregations
         )
 
         # Check cache first
@@ -512,8 +523,8 @@ async def execute_analytics_aggregation(
 
             sql, params = build_aggregation_query(
                 user.current_organization_id,
-                filters,
-                aggregations
+                query_request.filters,
+                query_request.aggregations or {}
             )
 
             row = await conn.fetchrow(sql, *params)
@@ -557,8 +568,8 @@ async def export_analytics_data(
     request: Request,
     background_tasks: BackgroundTasks,
     query_request: AnalyticsQueryRequest,
-    export_format: str = "xlsx",  # xlsx or csv
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    format: str = Query(default="xlsx", description="Export format: xlsx or csv")
 ):
     """
     Export analytics data to Excel or CSV.
@@ -571,6 +582,7 @@ async def export_analytics_data(
     await check_admin_permissions(user)
 
     # Validate format
+    export_format = format.lower()  # Normalize to lowercase
     if export_format not in ["xlsx", "csv"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -610,12 +622,14 @@ async def export_analytics_data(
                     query_request.selected_fields,
                     user.current_organization_id
                 )
-            else:
+                media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            else:  # csv
                 file_path = await generate_csv_export(
                     rows,
                     query_request.selected_fields,
                     user.current_organization_id
                 )
+                media_type = "text/csv"
 
             # Upload to Supabase Storage
             file_url = await upload_to_storage(
@@ -644,7 +658,7 @@ async def export_analytics_data(
             # Return file
             return FileResponse(
                 path=file_path,
-                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if export_format == "xlsx" else "text/csv",
+                media_type=media_type,
                 filename=os.path.basename(file_path)
             )
 
