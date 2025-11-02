@@ -795,6 +795,44 @@ class AuthenticationService:
         else:  # Sales manager
             return f"user_id = '{user.id}'"
 
+
+# ============================================================================
+# ADMIN PERMISSION CHECKS
+# ============================================================================
+
+async def check_admin_permissions(user: User) -> None:
+    """
+    Check if user has admin/owner permissions.
+
+    Raises HTTPException if user is not admin or owner.
+
+    Args:
+        user: Authenticated user
+
+    Raises:
+        HTTPException: 403 Forbidden if user is not admin/owner
+    """
+    if not user.current_organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not associated with an organization"
+        )
+
+    # Check if user is owner
+    if user.is_owner:
+        return
+
+    # Check if user has admin role
+    if user.current_role_slug in ('admin', 'owner'):
+        return
+
+    # Not admin/owner - reject
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admin or owner permissions required"
+    )
+
+
 # ============================================================================
 # TESTING UTILITIES
 # ============================================================================
