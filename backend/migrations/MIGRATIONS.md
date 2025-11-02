@@ -38,6 +38,7 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 017 | `017_feedback.sql` | Feedback system table | ✅ Done | 2025-10-26 | Session 26 - Agent 6 |
 | 018 | `018_fix_quote_number_uniqueness.sql` | **Fix quote number unique constraint** | ✅ **Done** | 2025-10-27 | **Session 31** |
 | 021 | `021_performance_indexes.sql` | Performance optimization indexes | ✅ Done | 2025-10-26 | Session 26 - Agent 9 |
+| 016 (new) | `016_analytics_reporting_system.sql` | Analytics reporting tables with RLS | ⏳ Pending | 2025-11-02 | Analytics Feature |
 
 ---
 
@@ -58,14 +59,61 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 
 ---
 
-## Next Migration Number: 015
+## Next Migration Number: 022
 
 Create new migration:
 ```bash
-touch backend/migrations/015_your_migration_name.sql
+touch backend/migrations/022_your_migration_name.sql
 ```
 
 Then update this log!
+
+---
+
+## Migration 016 (new) Details: Analytics Reporting System
+
+**Tables Created:**
+- `saved_reports` - User-saved report templates
+- `report_executions` - Immutable audit log
+- `scheduled_reports` - Automated report scheduling
+- `report_versions` - Version history (immutable)
+
+**RLS Policies:** All tables have SELECT/INSERT/UPDATE/DELETE policies
+**Triggers:** Auto-versioning, auto-update timestamps
+**Functions:** `track_report_version()`, `cleanup_expired_report_files()`
+
+**Status:** ⏳ Pending (to be applied via Supabase SQL Editor)
+
+**How to Apply:**
+1. Open Supabase Dashboard > SQL Editor
+2. Copy contents of `016_analytics_reporting_system.sql`
+3. Execute
+4. Verify tables created:
+   ```sql
+   SELECT table_name FROM information_schema.tables
+   WHERE table_schema = 'public'
+   AND table_name IN ('saved_reports', 'report_executions', 'scheduled_reports', 'report_versions')
+   ORDER BY table_name;
+   ```
+   Should return 4 rows
+
+**Testing RLS Isolation:**
+```sql
+-- Get two org IDs
+SELECT id FROM organizations LIMIT 2;
+
+-- Set org 1 context
+SELECT set_config('app.current_organization_id', '<org1_uuid>', false);
+
+-- Try to select (should return 0 rows)
+SELECT * FROM saved_reports;
+
+-- Set org 2 context
+SELECT set_config('app.current_organization_id', '<org2_uuid>', false);
+
+-- Try to select (should return 0 rows)
+SELECT * FROM saved_reports;
+```
 
 ---
 
