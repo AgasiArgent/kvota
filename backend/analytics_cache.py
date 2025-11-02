@@ -89,16 +89,27 @@ async def cache_report(cache_key: str, data: Dict[str, Any]) -> None:
 
 async def invalidate_report_cache(org_id: str, report_id: Optional[str] = None) -> None:
     """
-    Invalidate cached reports.
+    Invalidate cached reports using SCAN (non-blocking).
 
-    If report_id provided: invalidate all caches for that report
-    If not provided: clear all org reports
+    Uses cursor-based iteration to prevent blocking Redis.
     """
     try:
         client = get_redis_client()
         pattern = f"report:{org_id}:*"
-        keys = client.keys(pattern)
-        if keys:
-            client.delete(*keys)
+
+        cursor = 0
+        deleted = 0
+        MAX_ITERATIONS = 1000  # Prevent infinite loops
+
+        for iteration in range(MAX_ITERATIONS):
+            cursor, keys = client.scan(cursor, match=pattern, count=100)
+            if keys:
+                deleted += client.delete(*keys)
+            if cursor == 0:
+                break
+
+        if deleted > 0:
+            logger.info(f"Invalidated {deleted} cache keys for org {org_id}")
+
     except Exception as e:
         logger.warning(f"Cache invalidation error: {e}")

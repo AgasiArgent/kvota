@@ -80,3 +80,35 @@ async def test_invalidate_report_cache_deletes_org_cache(redis_client):
     assert redis_client.get('report:org1:key1') is None
     assert redis_client.get('report:org1:key2') is None
     assert redis_client.get('report:org2:key3') == 'data3'
+
+
+@pytest.mark.asyncio
+async def test_invalidate_cache_uses_scan_not_keys(redis_client, monkeypatch):
+    """Test that invalidate uses SCAN instead of KEYS"""
+    scan_called = False
+    keys_called = False
+
+    original_scan = redis_client.scan
+    original_keys = redis_client.keys
+
+    def mock_scan(*args, **kwargs):
+        nonlocal scan_called
+        scan_called = True
+        return original_scan(*args, **kwargs)
+
+    def mock_keys(*args, **kwargs):
+        nonlocal keys_called
+        keys_called = True
+        return original_keys(*args, **kwargs)
+
+    monkeypatch.setattr(redis_client, 'scan', mock_scan)
+    monkeypatch.setattr(redis_client, 'keys', mock_keys)
+
+    # Add some keys
+    redis_client.setex('report:test_org:key1', 600, 'data1')
+    redis_client.setex('report:test_org:key2', 600, 'data2')
+
+    await invalidate_report_cache('test_org')
+
+    assert scan_called == True, "SCAN should be called"
+    assert keys_called == False, "KEYS should NOT be called (blocks Redis)"
