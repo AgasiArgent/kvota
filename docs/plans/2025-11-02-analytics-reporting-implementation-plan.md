@@ -1498,3 +1498,143 @@ After implementation:
 
 **Plan Location:** `/docs/plans/2025-11-02-analytics-reporting-implementation-plan.md`
 **Design Document:** `/docs/plans/2025-11-02-analytics-reporting-system-design.md`
+
+---
+
+## 📋 Expert Review Summary (Added 2025-11-02)
+
+### Critical Issues Fixed
+
+**1. SQL Injection Protection** ✅
+- Added QuerySecurityValidator class with field whitelisting
+- All queries use parameterized SQL ($1, $2, etc.)
+- FORBIDDEN_PATTERNS regex blocks dangerous inputs
+- Files: Task 2 (analytics_security.py)
+
+**2. RLS Context Enhancement** ✅
+- Updated set_rls_context() to set app.current_organization_id
+- Supports current_organization_id() function in policies
+- Files: backend/routes/quotes.py:76-94 (already updated)
+
+**3. Connection Pooling** ✅
+- Created db_pool.py with 10-20 connection pool
+- Prevents connection exhaustion under load
+- Files: backend/db_pool.py (already created)
+
+**4. Rate Limiting** ✅
+- 10 queries/min per user
+- 5 exports/hour per user
+- Uses slowapi (already installed)
+- Files: Task 5+ (all API endpoints)
+
+**5. Background Processing** ✅
+- Threshold: 2,000 quotes (not 5,000)
+- Prevents timeout on large datasets
+- Files: Task 8 (query endpoint)
+
+### Missing Tasks Added (Tasks 31-34)
+
+**Task 31: Performance Testing**
+- Load test with 2,000+ quotes
+- Verify background processing triggers correctly
+- Test Redis caching effectiveness
+
+**Task 32: RLS Isolation Testing**
+- Create 2 test organizations
+- Verify User A cannot access User B's data
+- Test all CRUD operations with RLS
+
+**Task 33: Security Audit**
+- SQL injection attack testing
+- Field whitelisting validation
+- Rate limiting verification
+
+**Task 34: API Documentation**
+- Generate OpenAPI/Swagger docs
+- Add endpoint examples
+- Document error responses
+
+### Execution Order Corrections
+
+**Original problematic order:**
+- Task 3 (Redis) before Task 8 (Query endpoint)
+
+**Corrected order:**
+- Tasks 1-4: Foundation (Migration, Security, Models, Cache infrastructure)
+- Tasks 5-8: Core API (Query, Aggregate, Export - Redis used here)
+- Tasks 9-15: Extended API (depends on core working)
+
+### Integration Risks Identified
+
+**1. Backend → Frontend API Contract**
+- Mitigation: Pydantic models define strict contract
+- Tasks affected: All API endpoints + Frontend components
+
+**2. Query Endpoint → Background Processing**
+- Mitigation: Clear threshold (2,000 quotes), task_id tracking
+- Tasks affected: Task 8
+
+**3. Export → Supabase Storage**
+- Mitigation: Bucket created, file path conventions documented
+- Tasks affected: Task 10
+
+**4. Scheduler → Email Service**
+- Mitigation: Deferred to Phase 2 (not in scope)
+- Tasks affected: Tasks 26-30 (implementation simplified)
+
+### Time Estimate Revision
+
+**Original:** 7-9 days  
+**Expert-revised:** 12-15 days  
+
+**Breakdown:**
+- Phase 1 Backend: 5-6 days (was 4-5)
+- Phase 2 Frontend: 4-5 days (was 3-4)
+- Phase 3 Integration/Testing: 3-4 days (was 0-1)
+
+**Reasons for increase:**
+- Infrastructure setup time
+- Integration debugging between components
+- Performance testing with large datasets
+- RLS isolation testing across all endpoints
+- E2E test failures requiring fixes
+
+### Hybrid Execution Strategy Benefits
+
+**Why 5 batches instead of 30 tasks:**
+
+1. **Fewer context switches** - 5 vs 30 subagent handoffs
+2. **Better integration** - Catch issues within domain
+3. **Parallelization** - 2 agents can work on independent batches
+4. **Context retention** - Subagent maintains context within batch
+
+**Batch structure:**
+- Batch 1: Foundation (Tasks 0-4) - Sequential
+- Batch 2: Core API (Tasks 5-8) - Sequential
+- Batch 3: Extended API (Tasks 9-15) - 2 parallel agents
+- Batch 4: Frontend (Tasks 16-25) - 2 parallel agents
+- Batch 5: Integration (Tasks 26-34) - Sequential
+
+---
+
+## 🚀 Ready for Implementation
+
+**Pre-flight checklist: ✅ COMPLETE**
+
+- [x] Redis installed and running
+- [x] Supabase Storage bucket created
+- [x] croniter package installed
+- [x] Connection pooling configured
+- [x] RLS context function updated
+- [x] Expert review incorporated
+- [x] Implementation plan updated
+- [x] Infrastructure committed to git
+
+**Next:** Start Batch 1 (Foundation) - Tasks 1-4
+
+**Command to start:**
+```
+Use superpowers:subagent-driven-development skill
+Execute Batch 1: Database migration + Security module + Pydantic models + Cache module
+```
+
