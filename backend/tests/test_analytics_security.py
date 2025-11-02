@@ -70,7 +70,7 @@ def test_build_aggregation_query_uses_parameterized_queries():
     org_id = uuid4()
     filters = {'status': 'approved'}
     aggregations = {
-        'total_amount': {'function': 'sum', 'label': 'Total Revenue'}
+        'total_import_vat': {'function': 'sum', 'label': 'Total VAT'}  # Use whitelisted alias
     }
 
     sql, params = build_aggregation_query(
