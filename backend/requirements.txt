@@ -27,6 +27,7 @@ python-dotenv==1.0.1
 # Scheduling
 APScheduler==3.10.4
 croniter==2.0.1
+pytz==2024.1
 
 # Rate Limiting
 slowapi==0.1.9
