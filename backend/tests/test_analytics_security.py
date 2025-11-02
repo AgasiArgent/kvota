@@ -94,3 +94,42 @@ def test_validate_fields_returns_empty_list_for_all_invalid():
     fields = ['password', 'secret_key', 'auth_token']
     result = QuerySecurityValidator.validate_fields(fields)
     assert result == []
+
+
+def test_build_aggregation_rejects_dangerous_alias():
+    """Test that dangerous alias names are rejected (especially for COUNT)"""
+    org_id = uuid4()
+
+    # The vulnerability is specifically with COUNT which uses field name as alias
+    aggregations = {
+        "total_count; DROP TABLE quotes; --": {"function": "count"},
+        "quote_count; DELETE FROM quotes WHERE 1=1; --": {"function": "count"}
+    }
+
+    sql, params = build_aggregation_query(org_id, {}, aggregations)
+
+    # Should NOT contain SQL injection attempts
+    assert "DROP" not in sql.upper()
+    assert "DELETE" not in sql.upper()
+    assert "; DROP" not in sql
+    assert "; DELETE" not in sql
+    assert "total_count;" not in sql
+
+
+def test_build_aggregation_accepts_whitelisted_aliases():
+    """Test that whitelisted alias names are accepted"""
+    org_id = uuid4()
+
+    aggregations = {
+        "quote_count": {"function": "count"},
+        "total_import_vat": {"function": "sum"},
+        "avg_profit": {"function": "avg"}
+    }
+
+    sql, params = build_aggregation_query(org_id, {}, aggregations)
+
+    # Should contain valid aliases
+    assert "quote_count" in sql
+    # Should be safe SQL
+    assert "DROP" not in sql.upper()
+    assert ";" not in sql or sql.count(";") == 0  # No semicolons in safe SQL

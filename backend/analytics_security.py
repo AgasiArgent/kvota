@@ -7,6 +7,9 @@ Prevents SQL injection and validates all user inputs for analytics queries.
 from typing import List, Dict, Any, Tuple
 from uuid import UUID
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class QuerySecurityValidator:
@@ -23,6 +26,19 @@ class QuerySecurityValidator:
             'import_vat', 'export_vat', 'customs_duty', 'excise_tax',
             'logistics_cost', 'cogs', 'profit', 'margin_percent'
         ]
+    }
+
+    # Whitelist of allowed alias names (for aggregations)
+    ALLOWED_ALIAS_NAMES = {
+        'quote_count', 'total_import_vat', 'avg_import_vat', 'sum_import_vat',
+        'total_export_vat', 'avg_export_vat', 'sum_export_vat',
+        'total_customs_duty', 'avg_customs_duty', 'sum_customs_duty',
+        'total_excise_tax', 'avg_excise_tax', 'sum_excise_tax',
+        'total_logistics_cost', 'avg_logistics_cost', 'sum_logistics_cost',
+        'total_cogs', 'avg_cogs', 'sum_cogs',
+        'total_profit', 'avg_profit', 'sum_profit', 'min_profit', 'max_profit',
+        'total_amount', 'avg_total_amount', 'sum_total_amount', 'min_total_amount', 'max_total_amount',
+        'avg_margin_percent', 'min_margin_percent', 'max_margin_percent'
     }
 
     # SQL injection patterns to reject
@@ -156,10 +172,25 @@ def build_aggregation_query(
         if func not in ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX']:
             continue
 
+        # Validate alias name against whitelist
+        if field not in QuerySecurityValidator.ALLOWED_ALIAS_NAMES:
+            # Skip unsafe alias - don't generate this aggregation
+            logger.warning(f"Rejected non-whitelisted alias: {field}")
+            continue
+
         if func == 'COUNT':
             agg_clauses.append(f"COUNT(*) as {field}")
-        elif field in all_allowed_fields:
-            agg_clauses.append(f"{func}({field}) as {field}")
+        else:
+            # Extract actual column name from alias
+            # Remove prefixes: total_, avg_, sum_, min_, max_
+            col_name = field
+            for prefix in ['total_', 'avg_', 'sum_', 'min_', 'max_']:
+                if col_name.startswith(prefix):
+                    col_name = col_name[len(prefix):]
+                    break
+
+            if col_name in all_allowed_fields:
+                agg_clauses.append(f"{func}({col_name}) as {field}")
 
     if not agg_clauses:
         agg_clauses = ["COUNT(*) as quote_count"]
