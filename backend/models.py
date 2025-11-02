@@ -807,9 +807,9 @@ class SuccessResponse(BaseModel):
 class SavedReportCreate(BaseModel):
     """Create saved report template"""
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=5000)
     filters: Dict[str, Any] = Field(default_factory=dict)
-    selected_fields: List[str] = Field(..., min_length=1)
+    selected_fields: List[str] = Field(..., min_length=1, max_items=50)
     aggregations: Optional[Dict[str, Any]] = None
     visibility: str = Field(default='personal', pattern='^(personal|shared)$')
 
@@ -900,12 +900,12 @@ class ScheduledReportCreate(BaseModel):
     """Create scheduled report"""
     saved_report_id: UUID
     name: str = Field(..., min_length=1, max_length=255)
-    schedule_cron: str = Field(..., description="Cron expression")
-    timezone: str = Field(default='Europe/Moscow')
-    email_recipients: List[str] = Field(..., min_length=1)
+    schedule_cron: str = Field(..., description="Cron expression", max_length=50)
+    timezone: str = Field(default='Europe/Moscow', max_length=50)
+    email_recipients: List[EmailStr] = Field(..., min_length=1, max_items=20)
     include_file: bool = Field(default=True)
-    email_subject: Optional[str] = None
-    email_body: Optional[str] = None
+    email_subject: Optional[str] = Field(None, max_length=255)
+    email_body: Optional[str] = Field(None, max_length=10000)
 
 
 class ScheduledReportUpdate(BaseModel):
