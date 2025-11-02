@@ -75,9 +75,22 @@ async def get_db_connection():
 
 async def set_rls_context(conn, user: User):
     """Set Row Level Security context for database queries"""
+    import json
+
+    # Set organization ID for current_organization_id() function
     await conn.execute(
-        "SELECT set_config('request.jwt.claims', $1, true)",
-        f'{{"sub": "{user.id}", "role": "authenticated"}}'
+        "SELECT set_config('app.current_organization_id', $1, false)",
+        str(user.current_organization_id)
+    )
+
+    # Set JWT claims for auth.uid()
+    await conn.execute(
+        "SELECT set_config('request.jwt.claims', $1, false)",
+        json.dumps({
+            "sub": str(user.id),
+            "organization_id": str(user.current_organization_id),
+            "role": user.current_role
+        })
     )
 
 
