@@ -184,6 +184,11 @@ CREATE INDEX idx_scheduled_reports_saved_report ON scheduled_reports(saved_repor
 CREATE INDEX idx_scheduled_reports_active_next_run ON scheduled_reports(organization_id, next_run_at) WHERE is_active = true;
 CREATE INDEX idx_scheduled_reports_created_by ON scheduled_reports(created_by);
 
+-- Global index for scheduler queries (non-org-scoped background job)
+CREATE INDEX idx_scheduled_reports_next_run_global
+  ON scheduled_reports(next_run_at)
+  WHERE is_active = true;
+
 -- RLS for scheduled_reports
 ALTER TABLE scheduled_reports ENABLE ROW LEVEL SECURITY;
 
@@ -288,6 +293,18 @@ BEGIN
     FROM report_versions
     WHERE saved_report_id = NEW.id;
 
+    -- Clean old versions (keep last 100 OR last 90 days, whichever is more)
+    DELETE FROM report_versions
+    WHERE saved_report_id = NEW.id
+      AND version_number NOT IN (
+        -- Keep last 99 versions (we're adding 1 = 100 total)
+        SELECT version_number FROM report_versions
+        WHERE saved_report_id = NEW.id
+        ORDER BY version_number DESC
+        LIMIT 99
+      )
+      AND created_at < NOW() - INTERVAL '90 days';
+
     -- Create version record
     INSERT INTO report_versions (
       saved_report_id, version_number, name, description,
@@ -313,13 +330,15 @@ CREATE TRIGGER track_saved_report_versions
 CREATE OR REPLACE FUNCTION cleanup_expired_report_files()
 RETURNS void AS $$
 BEGIN
+  -- Respects RLS - only cleans current org's files
   UPDATE report_executions
   SET export_file_url = NULL,
       file_size_bytes = NULL
   WHERE file_expires_at < NOW()
-    AND export_file_url IS NOT NULL;
+    AND export_file_url IS NOT NULL
+    AND organization_id = current_organization_id();
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;  -- Removed SECURITY DEFINER for RLS compliance
 
 -- 8. COMMENTS FOR DOCUMENTATION
 COMMENT ON TABLE saved_reports IS 'User-saved report templates for financial analytics';
