@@ -172,25 +172,26 @@ def build_aggregation_query(
         if func not in ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX']:
             continue
 
-        # Validate alias name against whitelist
-        if field not in QuerySecurityValidator.ALLOWED_ALIAS_NAMES:
-            # Skip unsafe alias - don't generate this aggregation
-            logger.warning(f"Rejected non-whitelisted alias: {field}")
-            continue
-
         if func == 'COUNT':
             agg_clauses.append(f"COUNT(*) as {field}")
         else:
-            # Extract actual column name from alias
-            # Remove prefixes: total_, avg_, sum_, min_, max_
-            col_name = field
-            for prefix in ['total_', 'avg_', 'sum_', 'min_', 'max_']:
-                if col_name.startswith(prefix):
-                    col_name = col_name[len(prefix):]
-                    break
+            # Get the column name from config or derive from alias
+            col_name = config.get('field')  # Check if field is explicitly provided
 
+            if not col_name:
+                # Extract actual column name from alias
+                # Remove prefixes: total_, avg_, sum_, min_, max_
+                col_name = field
+                for prefix in ['total_', 'avg_', 'sum_', 'min_', 'max_']:
+                    if col_name.startswith(prefix):
+                        col_name = col_name[len(prefix):]
+                        break
+
+            # Validate column name
             if col_name in all_allowed_fields:
                 agg_clauses.append(f"{func}({col_name}) as {field}")
+            else:
+                logger.warning(f"Rejected aggregation with invalid column: {col_name}")
 
     if not agg_clauses:
         agg_clauses = ["COUNT(*) as quote_count"]
