@@ -758,3 +758,392 @@ async def test_generate_csv_export():
 
     # Cleanup
     os.remove(file_path)
+
+
+# ============================================================================
+# TASK 9-11: EXECUTION HISTORY TESTS
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_list_executions_success(mock_user, mock_supabase_result):
+    """Test listing execution history with pagination"""
+    mock_executions = [
+        {
+            "id": str(uuid4()),
+            "organization_id": str(mock_user.current_organization_id),
+            "executed_by": str(mock_user.id),
+            "execution_type": "manual",
+            "quote_count": 10,
+            "executed_at": datetime.utcnow().isoformat()
+        }
+    ]
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_result = mock_supabase_result(mock_executions)
+        mock_result.count = 1
+        mock_call.return_value = mock_result
+
+        from routes.analytics import list_executions
+
+        result = await list_executions(
+            page=1,
+            page_size=50,
+            user=mock_user
+        )
+
+        assert result["total"] == 1
+        assert result["page"] == 1
+        assert result["pages"] == 1
+        assert len(result["items"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_executions_with_filters(mock_user, mock_supabase_result):
+    """Test listing executions with filters"""
+    from routes.analytics import list_executions
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_result = mock_supabase_result([])
+        mock_result.count = 0
+        mock_call.return_value = mock_result
+
+        result = await list_executions(
+            page=1,
+            page_size=50,
+            execution_type="scheduled",
+            date_from="2025-01-01",
+            date_to="2025-12-31",
+            user=mock_user
+        )
+
+        assert result["total"] == 0
+        assert result["pages"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_execution_success(mock_user, mock_supabase_result):
+    """Test getting single execution record"""
+    execution_id = uuid4()
+    mock_execution = {
+        "id": str(execution_id),
+        "organization_id": str(mock_user.current_organization_id),
+        "executed_by": str(mock_user.id),
+        "execution_type": "manual",
+        "quote_count": 10
+    }
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_call.return_value = mock_supabase_result([mock_execution])
+
+        from routes.analytics import get_execution
+
+        result = await get_execution(
+            execution_id=execution_id,
+            user=mock_user
+        )
+
+        assert result["id"] == str(execution_id)
+        assert result["quote_count"] == 10
+
+
+@pytest.mark.asyncio
+async def test_get_execution_not_found(mock_user, mock_supabase_result):
+    """Test getting non-existent execution returns 404"""
+    execution_id = uuid4()
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_call.return_value = mock_supabase_result([])
+
+        from routes.analytics import get_execution
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_execution(
+                execution_id=execution_id,
+                user=mock_user
+            )
+
+        assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_download_execution_file_expired(mock_user, mock_supabase_result):
+    """Test downloading expired file returns 410 Gone"""
+    execution_id = uuid4()
+    expired_date = (datetime.utcnow() - timedelta(days=10)).isoformat()
+
+    mock_execution = {
+        "id": str(execution_id),
+        "organization_id": str(mock_user.current_organization_id),
+        "export_file_url": "https://storage/file.xlsx",
+        "file_expires_at": expired_date,
+        "export_format": "xlsx"
+    }
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_call.return_value = mock_supabase_result([mock_execution])
+
+        from routes.analytics import download_execution_file
+
+        with pytest.raises(HTTPException) as exc_info:
+            await download_execution_file(
+                execution_id=execution_id,
+                user=mock_user
+            )
+
+        assert exc_info.value.status_code == 410
+        assert "expired" in str(exc_info.value.detail).lower()
+
+
+# ============================================================================
+# TASK 12-13: SCHEDULED REPORTS TESTS
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_list_scheduled_reports_success(mock_user, mock_supabase_result):
+    """Test listing scheduled reports"""
+    mock_schedules = [
+        {
+            "id": str(uuid4()),
+            "organization_id": str(mock_user.current_organization_id),
+            "name": "Weekly VAT Report",
+            "schedule_cron": "0 9 * * 1",
+            "is_active": True,
+            "saved_report": {
+                "id": str(uuid4()),
+                "name": "VAT Summary"
+            }
+        }
+    ]
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_call.return_value = mock_supabase_result(mock_schedules)
+
+        from routes.analytics import list_scheduled_reports
+
+        result = await list_scheduled_reports(user=mock_user)
+
+        assert len(result) == 1
+        assert result[0]["name"] == "Weekly VAT Report"
+
+
+@pytest.mark.asyncio
+async def test_create_scheduled_report_success(mock_user, mock_supabase_result):
+    """Test creating scheduled report"""
+    schedule_data = {
+        "saved_report_id": str(uuid4()),
+        "name": "Monthly Report",
+        "schedule_cron": "0 9 1 * *",
+        "timezone": "Europe/Moscow",
+        "email_recipients": ["admin@test.com"],
+        "include_file": True
+    }
+
+    mock_created = {
+        "id": str(uuid4()),
+        **schedule_data,
+        "organization_id": str(mock_user.current_organization_id),
+        "next_run_at": datetime.utcnow().isoformat()
+    }
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call, \
+         patch("routes.analytics.calculate_next_run") as mock_next_run:
+
+        mock_next_run.return_value = datetime.utcnow()
+        mock_call.return_value = mock_supabase_result([mock_created])
+
+        from routes.analytics import create_scheduled_report
+
+        result = await create_scheduled_report(
+            schedule_data=schedule_data,
+            user=mock_user
+        )
+
+        assert result["name"] == "Monthly Report"
+
+
+@pytest.mark.asyncio
+async def test_create_scheduled_report_invalid_cron(mock_user):
+    """Test creating scheduled report with invalid cron expression"""
+    schedule_data = {
+        "saved_report_id": str(uuid4()),
+        "name": "Monthly Report",
+        "schedule_cron": "invalid cron",
+        "email_recipients": ["admin@test.com"]
+    }
+
+    with patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock):
+        from routes.analytics import create_scheduled_report
+
+        with pytest.raises(HTTPException) as exc_info:
+            await create_scheduled_report(
+                schedule_data=schedule_data,
+                user=mock_user
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "cron" in str(exc_info.value.detail).lower()
+
+
+@pytest.mark.asyncio
+async def test_update_scheduled_report_success(mock_user, mock_supabase_result):
+    """Test updating scheduled report"""
+    schedule_id = uuid4()
+    update_data = {
+        "name": "Updated Report Name",
+        "is_active": False
+    }
+
+    mock_updated = {
+        "id": str(schedule_id),
+        "organization_id": str(mock_user.current_organization_id),
+        "name": "Updated Report Name",
+        "is_active": False
+    }
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_call.return_value = mock_supabase_result([mock_updated])
+
+        from routes.analytics import update_scheduled_report
+
+        result = await update_scheduled_report(
+            schedule_id=schedule_id,
+            update_data=update_data,
+            user=mock_user
+        )
+
+        assert result["name"] == "Updated Report Name"
+        assert result["is_active"] == False
+
+
+@pytest.mark.asyncio
+async def test_delete_scheduled_report_success(mock_user, mock_supabase_result):
+    """Test deleting scheduled report"""
+    schedule_id = uuid4()
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call:
+
+        mock_call.return_value = mock_supabase_result([{"id": str(schedule_id)}])
+
+        from routes.analytics import delete_scheduled_report
+
+        result = await delete_scheduled_report(
+            schedule_id=schedule_id,
+            user=mock_user
+        )
+
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_run_scheduled_report_success(mock_user, mock_supabase_result):
+    """Test manual trigger of scheduled report"""
+    schedule_id = uuid4()
+
+    mock_schedule = {
+        "id": str(schedule_id),
+        "organization_id": str(mock_user.current_organization_id),
+        "name": "Test Schedule",
+        "schedule_cron": "0 9 * * *",
+        "email_recipients": ["test@test.com"],
+        "saved_report": {
+            "id": str(uuid4()),
+            "name": "Test Report",
+            "filters": {"status": "approved"},
+            "selected_fields": ["quote_number", "total_amount"]
+        }
+    }
+
+    mock_execution = {
+        "id": str(uuid4()),
+        "organization_id": str(mock_user.current_organization_id),
+        "execution_type": "manual",
+        "quote_count": 5
+    }
+
+    with patch("routes.analytics.create_client") as mock_client, \
+         patch("routes.analytics.check_admin_permissions", new_callable=AsyncMock), \
+         patch("routes.analytics.async_supabase_call", new_callable=AsyncMock) as mock_call, \
+         patch("routes.analytics.execute_scheduled_report_internal", new_callable=AsyncMock) as mock_exec:
+
+        mock_call.return_value = mock_supabase_result([mock_schedule])
+        mock_exec.return_value = mock_execution
+
+        from routes.analytics import run_scheduled_report
+
+        result = await run_scheduled_report(
+            schedule_id=schedule_id,
+            user=mock_user
+        )
+
+        assert result["quote_count"] == 5
+        mock_exec.assert_called_once()
+
+
+# ============================================================================
+# TASK 15: HELPER FUNCTION TESTS
+# ============================================================================
+
+def test_calculate_next_run():
+    """Test cron expression parsing and next run calculation"""
+    from routes.analytics import calculate_next_run
+
+    cron_expr = "0 9 1 * *"  # 9am on 1st of month
+    next_run = calculate_next_run(cron_expr, "Europe/Moscow")
+
+    assert next_run.hour == 9
+    assert next_run.day == 1
+
+
+def test_calculate_summary():
+    """Test summary calculation from query results"""
+    from routes.analytics import calculate_summary
+
+    mock_rows = [
+        {"quote_number": "Q-001", "total_amount": Decimal("1000.00")},
+        {"quote_number": "Q-002", "total_amount": Decimal("2000.00")},
+        {"quote_number": "Q-003", "total_amount": Decimal("1500.00")}
+    ]
+    selected_fields = ["quote_number", "total_amount"]
+
+    summary = calculate_summary(mock_rows, selected_fields)
+
+    assert summary["count"] == 3
+    assert "total_amount" in summary["fields"]
+    assert summary["fields"]["total_amount"]["sum"] == 4500.0
+    assert summary["fields"]["total_amount"]["avg"] == 1500.0
+    assert summary["fields"]["total_amount"]["min"] == 1000.0
+    assert summary["fields"]["total_amount"]["max"] == 2000.0
+
+
+def test_calculate_summary_empty_rows():
+    """Test summary calculation with no rows"""
+    from routes.analytics import calculate_summary
+
+    summary = calculate_summary([], ["quote_number"])
+
+    assert summary["count"] == 0

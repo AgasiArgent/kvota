@@ -864,3 +864,790 @@ async def cleanup_temp_file(file_path: str) -> None:
             logger.info(f"Cleaned up temp file: {file_path}")
     except Exception as e:
         logger.warning(f"Failed to cleanup temp file {file_path}: {e}")
+
+
+# ============================================================================
+# TASK 9: EXECUTION HISTORY - LIST ENDPOINT
+# ============================================================================
+
+@router.get("/executions")
+async def list_executions(
+    page: int = 1,
+    page_size: int = 50,
+    saved_report_id: Optional[UUID] = None,
+    execution_type: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    user: User = Depends(get_current_user)
+):
+    """
+    List execution history with pagination and filters.
+
+    Returns paginated list of report executions with filters.
+    Organization isolation via RLS.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Build query with filters
+        query = supabase.table("report_executions") \
+            .select("*", count="exact") \
+            .eq("organization_id", str(user.current_organization_id))
+
+        # Apply filters
+        if saved_report_id:
+            query = query.eq("saved_report_id", str(saved_report_id))
+
+        if execution_type:
+            query = query.eq("execution_type", execution_type)
+
+        if date_from:
+            query = query.gte("executed_at", date_from)
+
+        if date_to:
+            query = query.lte("executed_at", date_to)
+
+        # Calculate pagination
+        start = (page - 1) * page_size
+        end = start + page_size - 1
+
+        # Execute with pagination and ordering
+        query = query.order("executed_at", desc=True).range(start, end)
+
+        result = await async_supabase_call(query)
+
+        total = result.count if result.count is not None else 0
+        pages = max(1, (total + page_size - 1) // page_size) if page_size > 0 else 1
+
+        return {
+            "items": result.data,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": pages
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing executions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list executions: {str(e)}"
+        )
+
+
+# ============================================================================
+# TASK 10: EXECUTION HISTORY - GET SINGLE EXECUTION
+# ============================================================================
+
+@router.get("/executions/{execution_id}")
+async def get_execution(
+    execution_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Get detailed execution record by ID.
+
+    Returns full execution record including query snapshot and results.
+    Organization isolation via RLS.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        query = supabase.table("report_executions") \
+            .select("*") \
+            .eq("id", str(execution_id)) \
+            .eq("organization_id", str(user.current_organization_id))
+
+        result = await async_supabase_call(query)
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Execution record not found"
+            )
+
+        return result.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching execution: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch execution: {str(e)}"
+        )
+
+
+# ============================================================================
+# TASK 11: EXECUTION HISTORY - DOWNLOAD FILE
+# ============================================================================
+
+@router.get("/executions/{execution_id}/download")
+async def download_execution_file(
+    execution_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Download exported file from execution record.
+
+    Checks file expiration (7-day retention).
+    Returns 410 Gone if file expired.
+    Downloads from Supabase Storage and streams to client.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Get execution record
+        query = supabase.table("report_executions") \
+            .select("*") \
+            .eq("id", str(execution_id)) \
+            .eq("organization_id", str(user.current_organization_id))
+
+        result = await async_supabase_call(query)
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Execution record not found"
+            )
+
+        execution = result.data[0]
+
+        # Check if file exists
+        if not execution.get("export_file_url"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No export file available for this execution"
+            )
+
+        # Check expiration
+        file_expires_at = execution.get("file_expires_at")
+        if file_expires_at:
+            expiry_date = datetime.fromisoformat(file_expires_at.replace('Z', '+00:00'))
+            if datetime.now(expiry_date.tzinfo) > expiry_date:
+                raise HTTPException(
+                    status_code=status.HTTP_410_GONE,
+                    detail="Export file has expired (7-day retention)"
+                )
+
+        # Download file from storage
+        file_url = execution["export_file_url"]
+        temp_path = await download_from_storage(file_url)
+
+        # Determine content type
+        export_format = execution.get("export_format", "xlsx")
+        media_type = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            if export_format == "xlsx"
+            else "text/csv"
+        )
+
+        # Return file
+        return FileResponse(
+            path=temp_path,
+            media_type=media_type,
+            filename=os.path.basename(temp_path)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download file: {str(e)}"
+        )
+
+
+# ============================================================================
+# TASK 12: SCHEDULED REPORTS - CRUD ENDPOINTS
+# ============================================================================
+
+@router.get("/scheduled")
+async def list_scheduled_reports(user: User = Depends(get_current_user)):
+    """
+    List all scheduled reports for current organization.
+
+    Returns scheduled reports with saved_report details (JOIN).
+    Organization isolation via RLS.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Query with JOIN to get saved_report details
+        query = supabase.table("scheduled_reports") \
+            .select("*, saved_report:saved_reports(id, name, description, filters, selected_fields)") \
+            .eq("organization_id", str(user.current_organization_id)) \
+            .order("created_at", desc=True)
+
+        result = await async_supabase_call(query)
+
+        return result.data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing scheduled reports: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list scheduled reports: {str(e)}"
+        )
+
+
+@router.get("/scheduled/{schedule_id}")
+async def get_scheduled_report(
+    schedule_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Get single scheduled report by ID.
+
+    Returns scheduled report with saved_report details.
+    Organization isolation via RLS.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        query = supabase.table("scheduled_reports") \
+            .select("*, saved_report:saved_reports(*)") \
+            .eq("id", str(schedule_id)) \
+            .eq("organization_id", str(user.current_organization_id))
+
+        result = await async_supabase_call(query)
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scheduled report not found"
+            )
+
+        return result.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching scheduled report: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch scheduled report: {str(e)}"
+        )
+
+
+@router.post("/scheduled")
+async def create_scheduled_report(
+    schedule_data: Dict[str, Any],
+    user: User = Depends(get_current_user)
+):
+    """
+    Create new scheduled report.
+
+    Validates cron expression and calculates next_run_at.
+    Requires admin permissions.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        from croniter import croniter
+
+        # Validate required fields
+        if "saved_report_id" not in schedule_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="saved_report_id is required"
+            )
+
+        if "name" not in schedule_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="name is required"
+            )
+
+        if "schedule_cron" not in schedule_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="schedule_cron is required"
+            )
+
+        if "email_recipients" not in schedule_data or not schedule_data["email_recipients"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one email recipient is required"
+            )
+
+        # Validate cron expression
+        try:
+            cron_expr = schedule_data["schedule_cron"]
+            timezone = schedule_data.get("timezone", "Europe/Moscow")
+            next_run = calculate_next_run(cron_expr, timezone)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid cron expression: {str(e)}"
+            )
+
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Create schedule
+        query = supabase.table("scheduled_reports").insert({
+            "organization_id": str(user.current_organization_id),
+            "saved_report_id": str(schedule_data["saved_report_id"]),
+            "name": schedule_data["name"],
+            "schedule_cron": cron_expr,
+            "timezone": timezone,
+            "email_recipients": schedule_data["email_recipients"],
+            "include_file": schedule_data.get("include_file", True),
+            "email_subject": schedule_data.get("email_subject"),
+            "email_body": schedule_data.get("email_body"),
+            "is_active": schedule_data.get("is_active", True),
+            "next_run_at": next_run.isoformat(),
+            "created_by": str(user.id)
+        })
+
+        result = await async_supabase_call(query)
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create scheduled report"
+            )
+
+        return result.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating scheduled report: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create scheduled report: {str(e)}"
+        )
+
+
+@router.put("/scheduled/{schedule_id}")
+async def update_scheduled_report(
+    schedule_id: UUID,
+    update_data: Dict[str, Any],
+    user: User = Depends(get_current_user)
+):
+    """
+    Update existing scheduled report.
+
+    Recalculates next_run_at if cron expression changed.
+    Requires admin permissions.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # If cron expression changed, recalculate next_run_at
+        if "schedule_cron" in update_data:
+            try:
+                cron_expr = update_data["schedule_cron"]
+                timezone = update_data.get("timezone", "Europe/Moscow")
+                next_run = calculate_next_run(cron_expr, timezone)
+                update_data["next_run_at"] = next_run.isoformat()
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid cron expression: {str(e)}"
+                )
+
+        # Update schedule
+        query = supabase.table("scheduled_reports") \
+            .update(update_data) \
+            .eq("id", str(schedule_id)) \
+            .eq("organization_id", str(user.current_organization_id))
+
+        result = await async_supabase_call(query)
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scheduled report not found or you don't have permission to update it"
+            )
+
+        return result.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating scheduled report: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update scheduled report: {str(e)}"
+        )
+
+
+@router.delete("/scheduled/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_scheduled_report(
+    schedule_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Delete scheduled report.
+
+    Hard delete (removes record from database).
+    Requires admin permissions.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        query = supabase.table("scheduled_reports") \
+            .delete() \
+            .eq("id", str(schedule_id)) \
+            .eq("organization_id", str(user.current_organization_id))
+
+        result = await async_supabase_call(query)
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scheduled report not found or you don't have permission to delete it"
+            )
+
+        return None
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting scheduled report: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete scheduled report: {str(e)}"
+        )
+
+
+# ============================================================================
+# TASK 13: SCHEDULED REPORTS - MANUAL TRIGGER
+# ============================================================================
+
+@router.post("/scheduled/{schedule_id}/run")
+async def run_scheduled_report(
+    schedule_id: UUID,
+    user: User = Depends(get_current_user)
+):
+    """
+    Manually trigger scheduled report execution.
+
+    Executes report, generates file, creates execution record,
+    sends email (stub), and updates schedule status.
+    """
+    # Admin check
+    await check_admin_permissions(user)
+
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Load schedule with saved_report
+        query = supabase.table("scheduled_reports") \
+            .select("*, saved_report:saved_reports(*)") \
+            .eq("id", str(schedule_id)) \
+            .eq("organization_id", str(user.current_organization_id))
+
+        result = await async_supabase_call(query)
+
+        if not result.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scheduled report not found"
+            )
+
+        schedule = result.data[0]
+        saved_report = schedule.get("saved_report")
+
+        if not saved_report:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Saved report not found for this schedule"
+            )
+
+        # Execute report
+        execution = await execute_scheduled_report_internal(
+            schedule=schedule,
+            saved_report=saved_report,
+            user=user,
+            execution_type="manual"
+        )
+
+        return execution
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error running scheduled report: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run scheduled report: {str(e)}"
+        )
+
+
+# ============================================================================
+# TASK 15: HELPER FUNCTIONS
+# ============================================================================
+
+async def download_from_storage(file_url: str) -> str:
+    """
+    Download file from Supabase Storage to temp directory.
+
+    Returns: Path to temporary file
+    """
+    import tempfile
+
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    # Extract bucket and path from URL
+    # URL format: https://xxx.supabase.co/storage/v1/object/public/analytics/{path}
+    bucket = "analytics"
+    path = file_url.split(f"/{bucket}/")[1] if f"/{bucket}/" in file_url else file_url.split("/")[-1]
+
+    # Download file
+    file_data = supabase.storage.from_(bucket).download(path)
+
+    # Save to temp
+    filename = os.path.basename(path)
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
+    temp_file.write(file_data)
+    temp_file.close()
+
+    return temp_file.name
+
+
+def calculate_next_run(cron_expr: str, timezone: str = "Europe/Moscow") -> datetime:
+    """
+    Calculate next run time from cron expression.
+
+    Returns: Datetime of next run (with timezone)
+    """
+    from croniter import croniter
+    import pytz
+
+    tz = pytz.timezone(timezone)
+    now = datetime.now(tz)
+    cron = croniter(cron_expr, now)
+    next_run = cron.get_next(datetime)
+
+    return next_run
+
+
+def calculate_summary(rows: List[Any], selected_fields: List[str]) -> Dict[str, Any]:
+    """
+    Calculate aggregations from query results.
+
+    Returns: Dictionary with count and field-specific aggregations
+    """
+    if not rows:
+        return {"count": 0}
+
+    summary = {
+        "count": len(rows),
+        "fields": {}
+    }
+
+    # Calculate aggregations for numeric fields
+    for field in selected_fields:
+        values = []
+        for row in rows:
+            value = row.get(field)
+            if value is not None and isinstance(value, (int, float, Decimal)):
+                values.append(float(value))
+
+        if values:
+            summary["fields"][field] = {
+                "sum": sum(values),
+                "avg": sum(values) / len(values),
+                "min": min(values),
+                "max": max(values)
+            }
+
+    return summary
+
+
+async def execute_scheduled_report_internal(
+    schedule: Dict,
+    saved_report: Dict,
+    user: User,
+    execution_type: str = "manual"
+) -> Dict:
+    """
+    Execute scheduled report and create audit record.
+
+    Generates file, uploads to storage, creates execution record,
+    sends email (stub), and updates schedule status.
+    """
+    start_time = time.time()
+
+    try:
+        # Execute query
+        conn = await get_db_connection()
+        try:
+            await set_rls_context(conn, user)
+
+            sql, params = build_analytics_query(
+                user.current_organization_id,
+                saved_report.get("filters", {}),
+                saved_report.get("selected_fields", []),
+                limit=100000,  # High limit for exports
+                offset=0
+            )
+
+            rows = await conn.fetch(sql, *params)
+
+        finally:
+            await release_db_connection(conn)
+
+        if not rows:
+            raise ValueError("No data found for report")
+
+        # Generate file
+        file_path = await generate_excel_export(
+            rows,
+            saved_report["selected_fields"],
+            user.current_organization_id
+        )
+
+        # Upload to storage
+        file_url = await upload_to_storage(
+            file_path,
+            str(user.current_organization_id)
+        )
+
+        # Get file size
+        file_size_bytes = os.path.getsize(file_path)
+
+        execution_time_ms = int((time.time() - start_time) * 1000)
+
+        # Calculate summary
+        result_summary = calculate_summary(rows, saved_report["selected_fields"])
+
+        # Create execution record
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        file_expires_at = datetime.utcnow() + timedelta(days=7)
+
+        query = supabase.table("report_executions").insert({
+            "organization_id": str(user.current_organization_id),
+            "executed_by": str(user.id),
+            "saved_report_id": str(saved_report["id"]),
+            "report_name": saved_report["name"],
+            "execution_type": execution_type,
+            "filters": saved_report.get("filters", {}),
+            "selected_fields": saved_report["selected_fields"],
+            "aggregations": saved_report.get("aggregations"),
+            "result_summary": result_summary,
+            "quote_count": len(rows),
+            "export_file_url": file_url,
+            "export_format": "xlsx",
+            "file_size_bytes": file_size_bytes,
+            "file_expires_at": file_expires_at.isoformat(),
+            "ip_address": "system",
+            "user_agent": "scheduled_task",
+            "execution_time_ms": execution_time_ms
+        })
+
+        execution_result = await async_supabase_call(query)
+
+        if not execution_result.data:
+            raise ValueError("Failed to create execution record")
+
+        execution = execution_result.data[0]
+
+        # Update schedule status
+        next_run = calculate_next_run(schedule["schedule_cron"], schedule.get("timezone", "Europe/Moscow"))
+
+        update_query = supabase.table("scheduled_reports").update({
+            "last_run_at": datetime.utcnow().isoformat(),
+            "next_run_at": next_run.isoformat(),
+            "last_run_status": "success",
+            "consecutive_failures": 0,
+            "last_error": None
+        }).eq("id", schedule["id"])
+
+        await async_supabase_call(update_query)
+
+        # Stub: Send email
+        logger.info(f"Email would be sent to: {schedule.get('email_recipients', [])}")
+        logger.info(f"Subject: {schedule.get('email_subject', f'Scheduled Report: {saved_report['name']}')}")
+        logger.info(f"Attachment: {file_url}")
+
+        # Cleanup temp file
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        return execution
+
+    except Exception as e:
+        # Update schedule with failure status
+        logger.error(f"Failed to execute scheduled report: {e}")
+
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        consecutive_failures = schedule.get("consecutive_failures", 0) + 1
+
+        update_query = supabase.table("scheduled_reports").update({
+            "last_run_status": "failure",
+            "last_error": str(e),
+            "consecutive_failures": consecutive_failures
+        }).eq("id", schedule["id"])
+
+        await async_supabase_call(update_query)
+
+        raise
