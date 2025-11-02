@@ -26,6 +26,7 @@ import {
   ApartmentOutlined,
   DeleteOutlined,
   HistoryOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -107,6 +108,33 @@ export default function MainLayout({ children }: MainLayoutProps) {
       baseItems[1].children?.push({
         key: '/quotes/approval',
         label: 'На утверждении',
+      });
+    }
+
+    // Add analytics menu for admin/owner
+    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
+      baseItems.push({
+        key: 'analytics-menu',
+        icon: <BarChartOutlined />,
+        label: 'Аналитика',
+        children: [
+          {
+            key: '/analytics',
+            label: 'Запросы',
+          },
+          {
+            key: '/analytics/saved',
+            label: 'Сохранённые отчёты',
+          },
+          {
+            key: '/analytics/history',
+            label: 'История',
+          },
+          {
+            key: '/analytics/scheduled',
+            label: 'Расписание',
+          },
+        ],
       });
     }
 
