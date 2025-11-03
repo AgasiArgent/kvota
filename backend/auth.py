@@ -822,14 +822,14 @@ async def check_admin_permissions(user: User) -> None:
     if user.is_owner:
         return
 
-    # Check if user has admin role
-    if user.current_role_slug in ('admin', 'owner'):
+    # Check if user has admin role (case-insensitive)
+    if user.current_role_slug and user.current_role_slug.lower() in ('admin', 'owner'):
         return
 
     # Not admin/owner - reject
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Admin or owner permissions required"
+        detail=f"Admin or owner permissions required. Current role: {user.current_role_slug}"
     )
 
 
