@@ -41,6 +41,19 @@ class QuerySecurityValidator:
         'avg_margin_percent', 'min_margin_percent', 'max_margin_percent'
     }
 
+    # Map analytics field names to JSONB keys in quote_calculation_results.phase_results
+    CALCULATION_FIELD_MAP = {
+        'customs_duty': 'customs_fee',
+        'excise_tax': 'excise_tax_amount',
+        'logistics_cost': 'logistics_total',
+        'cogs': 'cogs_per_product',
+        'profit': 'profit',
+        # Calculated from other fields:
+        'export_vat': None,  # sales_price_total_with_vat - sales_price_total_no_vat
+        'import_vat': None,  # Not stored directly - need to research or calculate
+        'margin_percent': None  # (profit / sales_price_total_no_vat) * 100
+    }
+
     # SQL injection patterns to reject
     FORBIDDEN_PATTERNS = [
         r'(DROP|ALTER|CREATE|TRUNCATE|DELETE|INSERT|UPDATE)\s+',
@@ -104,7 +117,7 @@ def build_analytics_query(
     offset: int = 0
 ) -> Tuple[str, List[Any]]:
     """
-    Build parameterized query with SQL injection protection.
+    Build parameterized query with JOIN to quote_calculation_results.
 
     Returns: (sql_query, parameters)
     """
@@ -113,33 +126,98 @@ def build_analytics_query(
     safe_filters = QuerySecurityValidator.sanitize_filters(filters)
 
     if not validated_fields:
-        validated_fields = ['id', 'quote_number', 'total_amount']
+        validated_fields = ['quote_number', 'status', 'total_amount']
 
-    # Build parameterized query
+    # Separate quote fields vs calculated fields
+    quote_fields = []
+    calc_fields = []
+
+    for field in validated_fields:
+        if field in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
+            quote_fields.append(f'q.{field}')
+        elif field in QuerySecurityValidator.ALLOWED_FIELDS['calculated']:
+            calc_fields.append(field)
+
+    # Build SELECT clause
+    select_clauses = []
+
+    # Quote-level fields (no aggregation needed)
+    if quote_fields:
+        select_clauses.extend(quote_fields)
+
+    # Calculated fields (aggregate from products)
+    for field in calc_fields:
+        jsonb_key = QuerySecurityValidator.CALCULATION_FIELD_MAP.get(field)
+
+        if jsonb_key:
+            # Direct JSONB extraction with SUM
+            select_clauses.append(
+                f"COALESCE(SUM((qcr.phase_results->>'{jsonb_key}')::numeric), 0) as {field}"
+            )
+        elif field == 'export_vat':
+            # Calculate from two JSONB fields
+            select_clauses.append(
+                "COALESCE(SUM((qcr.phase_results->>'sales_price_total_with_vat')::numeric - "
+                "(qcr.phase_results->>'sales_price_total_no_vat')::numeric), 0) as export_vat"
+            )
+        elif field == 'margin_percent':
+            # Calculate percentage (average across products)
+            select_clauses.append(
+                "COALESCE(AVG(CASE WHEN (qcr.phase_results->>'sales_price_total_no_vat')::numeric > 0 "
+                "THEN ((qcr.phase_results->>'profit')::numeric / "
+                "(qcr.phase_results->>'sales_price_total_no_vat')::numeric) * 100 "
+                "ELSE 0 END), 0) as margin_percent"
+            )
+        elif field == 'import_vat':
+            # TODO: Research how import_vat is calculated/stored
+            # For now, return 0 as placeholder
+            select_clauses.append("0 as import_vat")
+
+    # Build WHERE clause with parameterized filters
     params = []
-    where_clauses = ["organization_id = $1"]
+    where_clauses = ["q.organization_id = $1"]
     params.append(str(organization_id))
 
-    # Add filters with parameterization
     param_count = 2
     for key, value in safe_filters.items():
-        if isinstance(value, list):
-            placeholders = [f"${i}" for i in range(param_count, param_count + len(value))]
-            where_clauses.append(f"{key} = ANY(ARRAY[{','.join(placeholders)}])")
-            params.extend(value)
-            param_count += len(value)
-        else:
-            where_clauses.append(f"{key} = ${param_count}")
-            params.append(value)
-            param_count += 1
+        if key in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
+            # Quote-level filter
+            if isinstance(value, list):
+                placeholders = [f"${i}" for i in range(param_count, param_count + len(value))]
+                where_clauses.append(f"q.{key} = ANY(ARRAY[{','.join(placeholders)}])")
+                params.extend(value)
+                param_count += len(value)
+            else:
+                where_clauses.append(f"q.{key} = ${param_count}")
+                params.append(value)
+                param_count += 1
 
-    sql = f"""
-        SELECT {', '.join(validated_fields)}
-        FROM quotes
-        WHERE {' AND '.join(where_clauses)}
-        ORDER BY created_at DESC
-        LIMIT ${param_count} OFFSET ${param_count + 1}
-    """
+    # Build GROUP BY (needed because of aggregations)
+    group_by_fields = quote_fields if quote_fields else []
+
+    # Build SQL with JOIN
+    if calc_fields:
+        # Need JOIN when calculated fields requested
+        sql = f"""
+            SELECT {', '.join(select_clauses)}
+            FROM quotes q
+            LEFT JOIN quote_items qi ON qi.quote_id = q.id
+            LEFT JOIN quote_calculation_results qcr ON qcr.quote_item_id = qi.id
+            WHERE {' AND '.join(where_clauses)}
+            {f'GROUP BY {", ".join(group_by_fields)}' if group_by_fields else ''}
+            ORDER BY q.created_at DESC
+            LIMIT ${param_count} OFFSET ${param_count + 1}
+        """
+    else:
+        # No calculated fields - simple query without JOIN
+        sql = f"""
+            SELECT {', '.join([f.replace('q.', '') for f in select_clauses])}
+            FROM quotes q
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY q.created_at DESC
+            LIMIT ${param_count} OFFSET ${param_count + 1}
+        """
+
     params.extend([limit, offset])
 
     return sql, params
@@ -151,11 +229,11 @@ def build_aggregation_query(
     aggregations: Dict[str, Dict[str, str]]
 ) -> Tuple[str, List[Any]]:
     """
-    Build aggregation query with parameterized filters.
+    Build aggregation query with JOIN to quote_calculation_results.
 
     aggregations format:
     {
-        "import_vat": {"function": "sum", "label": "Total VAT"},
+        "total_import_vat": {"function": "sum", "label": "Total VAT"},
         "quote_count": {"function": "count", "label": "Number of Quotes"}
     }
 
@@ -166,17 +244,23 @@ def build_aggregation_query(
     # Build aggregation clauses
     agg_clauses = []
     all_allowed_fields = QuerySecurityValidator.ALLOWED_FIELDS['quotes'] + QuerySecurityValidator.ALLOWED_FIELDS['calculated']
+    needs_join = False  # Track if we need JOIN for calculated fields
 
     for field, config in aggregations.items():
+        # Validate alias name
+        if field not in QuerySecurityValidator.ALLOWED_ALIAS_NAMES:
+            logger.warning(f"Rejected aggregation with invalid alias: {field}")
+            continue
+
         func = config.get('function', 'sum').upper()
         if func not in ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX']:
             continue
 
         if func == 'COUNT':
-            agg_clauses.append(f"COUNT(*) as {field}")
+            agg_clauses.append(f"COUNT(DISTINCT q.id) as {field}")
         else:
             # Get the column name from config or derive from alias
-            col_name = config.get('field')  # Check if field is explicitly provided
+            col_name = config.get('field')
 
             if not col_name:
                 # Extract actual column name from alias
@@ -188,34 +272,83 @@ def build_aggregation_query(
                         break
 
             # Validate column name
-            if col_name in all_allowed_fields:
-                agg_clauses.append(f"{func}({col_name}) as {field}")
-            else:
+            if col_name not in all_allowed_fields:
                 logger.warning(f"Rejected aggregation with invalid column: {col_name}")
+                continue
+
+            # Check if it's a calculated field
+            if col_name in QuerySecurityValidator.ALLOWED_FIELDS['calculated']:
+                needs_join = True
+                jsonb_key = QuerySecurityValidator.CALCULATION_FIELD_MAP.get(col_name)
+
+                if jsonb_key:
+                    # Direct JSONB extraction
+                    agg_clauses.append(
+                        f"COALESCE({func}((qcr.phase_results->>'{jsonb_key}')::numeric), 0) as {field}"
+                    )
+                elif col_name == 'export_vat':
+                    # Calculate from two JSONB fields
+                    agg_clauses.append(
+                        f"COALESCE({func}((qcr.phase_results->>'sales_price_total_with_vat')::numeric - "
+                        f"(qcr.phase_results->>'sales_price_total_no_vat')::numeric), 0) as {field}"
+                    )
+                elif col_name == 'margin_percent':
+                    # Calculate percentage
+                    if func == 'AVG':
+                        agg_clauses.append(
+                            "COALESCE(AVG(CASE WHEN (qcr.phase_results->>'sales_price_total_no_vat')::numeric > 0 "
+                            "THEN ((qcr.phase_results->>'profit')::numeric / "
+                            "(qcr.phase_results->>'sales_price_total_no_vat')::numeric) * 100 "
+                            "ELSE 0 END), 0) as " + field
+                        )
+                    else:
+                        # MIN/MAX of margin_percent
+                        agg_clauses.append(
+                            f"COALESCE({func}(CASE WHEN (qcr.phase_results->>'sales_price_total_no_vat')::numeric > 0 "
+                            "THEN ((qcr.phase_results->>'profit')::numeric / "
+                            "(qcr.phase_results->>'sales_price_total_no_vat')::numeric) * 100 "
+                            "ELSE 0 END), 0) as " + field
+                        )
+                elif col_name == 'import_vat':
+                    # TODO: Research how import_vat is calculated
+                    agg_clauses.append(f"0 as {field}")
+            else:
+                # Quote-level field
+                agg_clauses.append(f"COALESCE({func}(q.{col_name}), 0) as {field}")
 
     if not agg_clauses:
-        agg_clauses = ["COUNT(*) as quote_count"]
+        agg_clauses = ["COUNT(DISTINCT q.id) as quote_count"]
 
     # Build WHERE clause
     params = [str(organization_id)]
-    where_clauses = ["organization_id = $1"]
+    where_clauses = ["q.organization_id = $1"]
 
     param_count = 2
     for key, value in safe_filters.items():
         if isinstance(value, list):
             placeholders = [f"${i}" for i in range(param_count, param_count + len(value))]
-            where_clauses.append(f"{key} = ANY(ARRAY[{','.join(placeholders)}])")
+            where_clauses.append(f"q.{key} = ANY(ARRAY[{','.join(placeholders)}])")
             params.extend(value)
             param_count += len(value)
         else:
-            where_clauses.append(f"{key} = ${param_count}")
+            where_clauses.append(f"q.{key} = ${param_count}")
             params.append(value)
             param_count += 1
 
-    sql = f"""
-        SELECT {', '.join(agg_clauses)}
-        FROM quotes
-        WHERE {' AND '.join(where_clauses)}
-    """
+    # Build SQL with or without JOIN
+    if needs_join:
+        sql = f"""
+            SELECT {', '.join(agg_clauses)}
+            FROM quotes q
+            LEFT JOIN quote_items qi ON qi.quote_id = q.id
+            LEFT JOIN quote_calculation_results qcr ON qcr.quote_item_id = qi.id
+            WHERE {' AND '.join(where_clauses)}
+        """
+    else:
+        sql = f"""
+            SELECT {', '.join(agg_clauses)}
+            FROM quotes q
+            WHERE {' AND '.join(where_clauses)}
+        """
 
     return sql, params
