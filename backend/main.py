@@ -47,6 +47,11 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting B2B Quotation Platform API")
 
+    # Initialize database connection pool
+    from db_pool import init_db_pool, close_db_pool
+    await init_db_pool()
+    print("✅ Database connection pool initialized (10-20 connections)")
+
     # Start exchange rate scheduler
     from services.exchange_rate_service import get_exchange_rate_service
     exchange_service = get_exchange_rate_service()
@@ -91,6 +96,10 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     print("🔄 Shutting down B2B Quotation Platform API")
+
+    # Close database connection pool
+    await close_db_pool()
+    print("✅ Database connection pool closed")
 
     # Stop exchange rate scheduler
     from services.exchange_rate_service import get_exchange_rate_service
