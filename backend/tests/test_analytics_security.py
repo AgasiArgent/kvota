@@ -70,7 +70,7 @@ def test_build_aggregation_query_uses_parameterized_queries():
     org_id = uuid4()
     filters = {'status': 'approved'}
     aggregations = {
-        'total_import_vat': {'function': 'sum', 'label': 'Total VAT'}  # Use whitelisted alias
+        'total_profit': {'function': 'sum', 'label': 'Total Profit'}  # Use real calculated field
     }
 
     sql, params = build_aggregation_query(
@@ -81,7 +81,7 @@ def test_build_aggregation_query_uses_parameterized_queries():
 
     # Should use $1, $2, etc
     assert '$1' in sql
-    assert 'SUM' in sql.upper()
+    assert 'SUM' in sql.upper() or 'COALESCE' in sql.upper()  # May use COALESCE wrapper
     assert 'DROP' not in sql.upper()
 
     # Params should match
@@ -133,3 +133,83 @@ def test_build_aggregation_accepts_whitelisted_aliases():
     # Should be safe SQL
     assert "DROP" not in sql.upper()
     assert ";" not in sql or sql.count(";") == 0  # No semicolons in safe SQL
+
+
+def test_build_analytics_query_with_calculated_fields():
+    """Test that calculated fields use JOIN with quote_calculation_results"""
+    org_id = uuid4()
+    fields = ['quote_number', 'cogs', 'profit']
+
+    sql, params = build_analytics_query(org_id, {}, fields)
+
+    # Should have JOIN
+    assert 'quote_calculation_results' in sql
+    assert 'LEFT JOIN' in sql
+
+    # Should extract JSONB
+    assert "phase_results->>" in sql
+    assert "cogs_per_product" in sql
+    assert "profit" in sql
+
+    # Should have proper GROUP BY
+    assert 'GROUP BY' in sql
+
+
+def test_build_analytics_query_without_calculated_fields():
+    """Test that query without calculated fields doesn't include JOIN"""
+    org_id = uuid4()
+    fields = ['quote_number', 'status', 'total_amount']
+
+    sql, params = build_analytics_query(org_id, {}, fields)
+
+    # Should NOT have JOIN
+    assert 'quote_calculation_results' not in sql
+    assert 'LEFT JOIN' not in sql
+
+    # Should be simple query
+    assert 'FROM quotes q' in sql
+
+
+def test_build_aggregation_query_with_calculated_fields():
+    """Test that aggregation with calculated fields uses JOIN"""
+    org_id = uuid4()
+    aggregations = {
+        "total_cogs": {"function": "sum"},
+        "avg_profit": {"function": "avg"}
+    }
+
+    sql, params = build_aggregation_query(org_id, {}, aggregations)
+
+    # Should have JOIN
+    assert 'quote_calculation_results' in sql
+    assert 'LEFT JOIN' in sql
+
+    # Should extract JSONB
+    assert "phase_results->>" in sql
+    assert "cogs_per_product" in sql
+
+
+def test_build_analytics_query_export_vat_calculation():
+    """Test that export_vat is calculated from two JSONB fields"""
+    org_id = uuid4()
+    fields = ['quote_number', 'export_vat']
+
+    sql, params = build_analytics_query(org_id, {}, fields)
+
+    # Should calculate export_vat
+    assert 'sales_price_total_with_vat' in sql
+    assert 'sales_price_total_no_vat' in sql
+    assert 'export_vat' in sql
+
+
+def test_build_analytics_query_margin_percent_calculation():
+    """Test that margin_percent is calculated correctly"""
+    org_id = uuid4()
+    fields = ['quote_number', 'margin_percent']
+
+    sql, params = build_analytics_query(org_id, {}, fields)
+
+    # Should calculate margin_percent with division check
+    assert 'margin_percent' in sql
+    assert 'CASE WHEN' in sql  # Should have division by zero protection
+    assert 'profit' in sql
