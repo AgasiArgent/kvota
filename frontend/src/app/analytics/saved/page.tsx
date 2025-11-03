@@ -14,6 +14,7 @@ import {
   Tag,
   Popconfirm,
   Typography,
+  Spin,
 } from 'antd';
 import {
   PlayCircleOutlined,
@@ -33,12 +34,14 @@ import {
   createSavedReport,
   type SavedReport,
 } from '@/lib/api/analytics-service';
+import MainLayout from '@/components/layout/MainLayout';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 export default function SavedReportsPage() {
   const router = useRouter();
+  const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [reports, setReports] = useState<SavedReport[]>([]);
   const [filteredReports, setFilteredReports] = useState<SavedReport[]>([]);
@@ -61,6 +64,7 @@ export default function SavedReportsPage() {
       message.error(error instanceof Error ? error.message : 'Ошибка загрузки отчётов');
     } finally {
       setLoading(false);
+      setPageLoading(false);
     }
   }, []);
 
@@ -249,8 +253,25 @@ export default function SavedReportsPage() {
     },
   ];
 
+  if (pageLoading) {
+    return (
+      <MainLayout>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '80vh',
+          }}
+        >
+          <Spin size="large" tip="Загрузка отчётов..." />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
-    <div style={{ padding: 24 }}>
+    <MainLayout>
       <Card>
         <div style={{ marginBottom: 16 }}>
           <Title level={2}>
@@ -326,6 +347,6 @@ export default function SavedReportsPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </MainLayout>
   );
 }

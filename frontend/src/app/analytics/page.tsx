@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Card,
   Row,
@@ -19,6 +19,7 @@ import {
   Checkbox,
   Transfer,
   Input,
+  Tooltip,
 } from 'antd';
 import {
   SearchOutlined,
@@ -44,6 +45,7 @@ import {
   type AnalyticsFilter,
   type Aggregation,
 } from '@/lib/api/analytics-service';
+import MainLayout from '@/components/layout/MainLayout';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -99,6 +101,7 @@ const AGG_FUNCTIONS = [
 
 export default function AnalyticsPage() {
   const [form] = Form.useForm();
+  const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -125,6 +128,12 @@ export default function AnalyticsPage() {
 
   // Filters collapsed state
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+
+  // Simulate initial page load
+  useEffect(() => {
+    const timer = setTimeout(() => setPageLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // All available fields (flat list for Transfer component)
   const allFields = useMemo(() => {
@@ -321,8 +330,25 @@ export default function AnalyticsPage() {
     });
   }, [selectedFields, allFields]);
 
+  if (pageLoading) {
+    return (
+      <MainLayout>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '80vh',
+          }}
+        >
+          <Spin size="large" tip="Загрузка аналитики..." />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
-    <div style={{ padding: 24 }}>
+    <MainLayout>
       <Row gutter={[16, 16]}>
         {/* Header */}
         <Col span={24}>
@@ -338,12 +364,20 @@ export default function AnalyticsPage() {
               </div>
               <Space>
                 <span>Режим отображения:</span>
-                <Switch
-                  checkedChildren={<TableOutlined />}
-                  unCheckedChildren={<BarChartOutlined />}
-                  checked={viewMode === 'standard'}
-                  onChange={(checked) => setViewMode(checked ? 'standard' : 'lightweight')}
-                />
+                <Tooltip
+                  title={
+                    viewMode === 'standard'
+                      ? 'Стандартный режим: таблица с отдельными котировками'
+                      : 'Облегчённый режим: только итоговые суммы (быстрее для больших отчётов)'
+                  }
+                >
+                  <Switch
+                    checkedChildren={<TableOutlined />}
+                    unCheckedChildren={<BarChartOutlined />}
+                    checked={viewMode === 'standard'}
+                    onChange={(checked) => setViewMode(checked ? 'standard' : 'lightweight')}
+                  />
+                </Tooltip>
               </Space>
             </div>
           </Card>
@@ -572,6 +606,6 @@ export default function AnalyticsPage() {
           </Col>
         )}
       </Row>
-    </div>
+    </MainLayout>
   );
 }

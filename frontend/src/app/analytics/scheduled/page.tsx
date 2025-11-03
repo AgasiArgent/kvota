@@ -17,6 +17,7 @@ import {
   Typography,
   Badge,
   Alert,
+  Spin,
 } from 'antd';
 import {
   PlusOutlined,
@@ -40,6 +41,7 @@ import {
   type ScheduledReport,
   type SavedReport,
 } from '@/lib/api/analytics-service';
+import MainLayout from '@/components/layout/MainLayout';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -54,6 +56,7 @@ const CRON_PRESETS = [
 ];
 
 export default function ScheduledReportsPage() {
+  const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [schedules, setSchedules] = useState<ScheduledReport[]>([]);
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
@@ -73,6 +76,7 @@ export default function ScheduledReportsPage() {
       message.error(error instanceof Error ? error.message : 'Ошибка загрузки расписаний');
     } finally {
       setLoading(false);
+      setPageLoading(false);
     }
   }, []);
 
@@ -289,8 +293,25 @@ export default function ScheduledReportsPage() {
     },
   ];
 
+  if (pageLoading) {
+    return (
+      <MainLayout>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '80vh',
+          }}
+        >
+          <Spin size="large" tip="Загрузка расписаний..." />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
-    <div style={{ padding: 24 }}>
+    <MainLayout>
       <Card>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
           <div>
@@ -398,6 +419,6 @@ export default function ScheduledReportsPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </MainLayout>
   );
 }
