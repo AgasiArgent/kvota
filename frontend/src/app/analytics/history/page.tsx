@@ -14,6 +14,7 @@ import {
   Modal,
   DatePicker,
   Select,
+  Spin,
 } from 'antd';
 import {
   DownloadOutlined,
@@ -32,6 +33,7 @@ import {
   type ReportExecution,
   type PaginatedResponse,
 } from '@/lib/api/analytics-service';
+import MainLayout from '@/components/layout/MainLayout';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -52,6 +54,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function ExecutionHistoryPage() {
+  const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [executions, setExecutions] = useState<ReportExecution[]>([]);
   const [pagination, setPagination] = useState({
@@ -83,6 +86,7 @@ export default function ExecutionHistoryPage() {
       message.error(error instanceof Error ? error.message : 'Ошибка загрузки истории');
     } finally {
       setLoading(false);
+      setPageLoading(false);
     }
   }, []);
 
@@ -259,8 +263,25 @@ export default function ExecutionHistoryPage() {
     [loadExecutions]
   );
 
+  if (pageLoading) {
+    return (
+      <MainLayout>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '80vh',
+          }}
+        >
+          <Spin size="large" tip="Загрузка истории..." />
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
-    <div style={{ padding: 24 }}>
+    <MainLayout>
       <Card>
         <div style={{ marginBottom: 16 }}>
           <Title level={2}>
@@ -403,6 +424,6 @@ export default function ExecutionHistoryPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </MainLayout>
   );
 }
