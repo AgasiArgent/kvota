@@ -8,6 +8,10 @@ Replaces get_db_connection() single connections with pooled connections.
 import asyncpg
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# Ensure environment variables are loaded
+load_dotenv()
 
 # Global connection pool
 _pool: Optional[asyncpg.Pool] = None
@@ -18,12 +22,33 @@ async def init_db_pool():
     global _pool
 
     if _pool is None:
-        db_url = os.getenv("POSTGRES_DIRECT_URL") or os.getenv("DATABASE_URL")
+        # IMPORTANT: Only use DIRECT URL - pooler URL doesn't work with asyncpg
+        # The pooler uses username format "postgres.projectid" which asyncpg can't parse
+        db_url = os.getenv("POSTGRES_DIRECT_URL")
+
+        if not db_url:
+            # Critical error - cannot use pooler URL with asyncpg
+            pooler_url = os.getenv("DATABASE_URL")
+            if pooler_url and "pooler.supabase.com" in pooler_url:
+                raise ValueError(
+                    "❌ Cannot use pooler URL with asyncpg! "
+                    "The pooler uses 'postgres.projectid' username format which asyncpg cannot parse. "
+                    "Please ensure POSTGRES_DIRECT_URL is set in .env file. "
+                    "Direct URL format: postgresql://postgres:password@db.projectid.supabase.co:5432/postgres"
+                )
+            raise ValueError("❌ No database URL configured. Set POSTGRES_DIRECT_URL in .env")
+
+        # Verify it's a direct URL, not pooler
+        if "pooler.supabase.com" in db_url:
+            raise ValueError(
+                "❌ POSTGRES_DIRECT_URL is pointing to pooler, not direct connection! "
+                "Use format: postgresql://postgres:password@db.projectid.supabase.co:5432/postgres"
+            )
 
         _pool = await asyncpg.create_pool(
             dsn=db_url,
-            min_size=10,  # Minimum connections
-            max_size=20,  # Maximum connections
+            min_size=0,   # Start with 0 connections (lazy initialization)
+            max_size=10,  # Maximum 10 connections (reduced from 20)
             command_timeout=60,  # Query timeout in seconds
             max_queries=50000,  # Max queries per connection before recycling
             max_inactive_connection_lifetime=300  # Close idle connections after 5 min
