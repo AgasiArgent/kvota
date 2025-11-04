@@ -195,6 +195,13 @@ def build_analytics_query(
     # Build GROUP BY (needed because of aggregations)
     group_by_fields = quote_fields if quote_fields else []
 
+    # Always include q.id and q.created_at in GROUP BY for ORDER BY
+    if calc_fields:
+        if 'q.id' not in group_by_fields:
+            group_by_fields.insert(0, 'q.id')
+        if 'q.created_at' not in group_by_fields:
+            group_by_fields.append('q.created_at')
+
     # Build SQL with JOIN
     if calc_fields:
         # Need JOIN when calculated fields requested
@@ -204,7 +211,7 @@ def build_analytics_query(
             LEFT JOIN quote_items qi ON qi.quote_id = q.id
             LEFT JOIN quote_calculation_results qcr ON qcr.quote_item_id = qi.id
             WHERE {' AND '.join(where_clauses)}
-            {f'GROUP BY {", ".join(group_by_fields)}' if group_by_fields else ''}
+            GROUP BY {", ".join(group_by_fields)}
             ORDER BY q.created_at DESC
             LIMIT ${param_count} OFFSET ${param_count + 1}
         """
