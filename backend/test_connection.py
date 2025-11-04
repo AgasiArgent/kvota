@@ -1,127 +1,97 @@
+#!/usr/bin/env python3
 """
-Supabase Connection Test
-Tests both Supabase client and direct database connections
+Test database connection - diagnose asyncpg hanging issue
 """
-import os
 import asyncio
-from dotenv import load_dotenv
-from supabase import create_client, Client
 import asyncpg
+import os
+import sys
+from dotenv import load_dotenv
+import time
+import socket
 
 # Load environment variables
 load_dotenv()
 
-def test_environment_variables():
-    """Test that all required environment variables are loaded"""
-    print("🔧 Testing environment variables...")
-    
-    required_vars = [
-        'SUPABASE_URL', 
-        'SUPABASE_ANON_KEY', 
-        'SUPABASE_SERVICE_ROLE_KEY',
-        'DATABASE_URL',
-        'SECRET_KEY'
-    ]
-    
-    missing_vars = []
-    for var in required_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-        else:
-            print(f"   ✅ {var}: {'*' * 20}... (loaded)")
-    
-    if missing_vars:
-        print(f"   ❌ Missing variables: {missing_vars}")
-        return False
-    
-    print("   ✅ All environment variables loaded successfully!")
-    return True
+async def test_connection():
+    """Test different connection methods"""
 
-def test_supabase_client():
-    """Test Supabase client connection"""
-    print("\n🌐 Testing Supabase client connection...")
-    
-    try:
-        url = os.getenv("SUPABASE_URL")
-        key = os.getenv("SUPABASE_ANON_KEY")
-        
-        if not url or not key:
-            print("   ❌ Missing Supabase URL or key")
-            return False
-            
-        # Create client
-        supabase: Client = create_client(url, key)
-        
-        # Test basic connection by trying to get current user (will be None, but tests connection)
-        response = supabase.auth.get_user()
-        
-        print("   ✅ Supabase client created successfully!")
-        print(f"   📍 Connected to: {url}")
-        return True
-        
-    except Exception as e:
-        print(f"   ❌ Supabase client connection failed: {str(e)}")
-        return False
+    print("=" * 60)
+    print("DATABASE CONNECTION DIAGNOSTICS")
+    print("=" * 60)
 
-async def test_database_connection():
-    """Test direct database connection using asyncpg"""
-    print("\n🗄️  Testing direct database connection...")
-    
-    try:
-        database_url = os.getenv("DATABASE_URL")
-        
-        if not database_url:
-            print("   ❌ Missing DATABASE_URL")
-            return False
-            
-        # Test connection
-        conn = await asyncpg.connect(database_url)
-        
-        # Test basic query
-        result = await conn.fetchval("SELECT version()")
-        
-        await conn.close()
-        
-        print("   ✅ Database connection successful!")
-        print(f"   🐘 PostgreSQL version: {result.split(',')[0]}")
-        return True
-        
-    except Exception as e:
-        print(f"   ❌ Database connection failed: {str(e)}")
-        return False
+    # Get URLs
+    pooler_url = os.getenv("DATABASE_URL")
+    direct_url = os.getenv("POSTGRES_DIRECT_URL")
 
-async def main():
-    """Run all connection tests"""
-    print("🚀 Starting Supabase Connection Tests")
-    print("=" * 50)
-    
-    # Test 1: Environment variables
-    env_ok = test_environment_variables()
-    
-    if not env_ok:
-        print("\n❌ Environment setup failed. Please check your .env file.")
-        return
-    
-    # Test 2: Supabase client
-    client_ok = test_supabase_client()
-    
-    # Test 3: Database connection
-    db_ok = await test_database_connection()
-    
-    # Summary
-    print("\n" + "=" * 50)
-    print("📊 CONNECTION TEST SUMMARY")
-    print("=" * 50)
-    
-    print(f"Environment Variables: {'✅ PASS' if env_ok else '❌ FAIL'}")
-    print(f"Supabase Client:      {'✅ PASS' if client_ok else '❌ FAIL'}")
-    print(f"Database Connection:  {'✅ PASS' if db_ok else '❌ FAIL'}")
-    
-    if env_ok and client_ok and db_ok:
-        print("\n🎉 ALL TESTS PASSED! Supabase is ready to use.")
-        print("✨ You can now proceed to database schema setup.")
+    print("\n🔍 Environment Variables:")
+    print(f"  DATABASE_URL (pooler): {pooler_url[:50] if pooler_url else 'NOT SET'}...")
+    print(f"  POSTGRES_DIRECT_URL: {direct_url[:50] if direct_url else 'NOT SET'}...")
+
+    # Test 1: Direct connection WITHOUT pool
+    print("\n" + "=" * 60)
+    print("TEST 1: Direct connection (no pool)")
+    print("=" * 60)
+
+    if direct_url:
+        start = time.time()
+        try:
+            print(f"⏳ Connecting to direct URL (5-second timeout)...")
+            conn = await asyncio.wait_for(
+                asyncpg.connect(direct_url),
+                timeout=5.0
+            )
+            elapsed = time.time() - start
+            print(f"✅ SUCCESS: Connected in {elapsed:.2f} seconds")
+
+            # Test query
+            version = await conn.fetchval("SELECT version()")
+            print(f"  PostgreSQL version: {version[:50]}...")
+
+            await conn.close()
+            print("  Connection closed")
+
+        except asyncio.TimeoutError:
+            elapsed = time.time() - start
+            print(f"❌ TIMEOUT: Connection attempt timed out after {elapsed:.2f} seconds")
+            print("  This means asyncpg cannot establish connection to Supabase")
+
+        except Exception as e:
+            elapsed = time.time() - start
+            print(f"❌ ERROR after {elapsed:.2f} seconds: {type(e).__name__}: {e}")
     else:
-        print("\n⚠️  Some tests failed. Please check your configuration.")
+        print("⚠️  POSTGRES_DIRECT_URL not configured")
+
+    # Test 2: Pooler with statement_cache_size=0
+    print("\n" + "=" * 60)
+    print("TEST 2: Pooler with statement_cache_size=0")
+    print("=" * 60)
+
+    if pooler_url:
+        start = time.time()
+        try:
+            print(f"⏳ Connecting with statement_cache_size=0 (5-second timeout)...")
+            conn = await asyncio.wait_for(
+                asyncpg.connect(pooler_url, statement_cache_size=0),
+                timeout=5.0
+            )
+            elapsed = time.time() - start
+            print(f"✅ SUCCESS: Connected in {elapsed:.2f} seconds")
+
+            # Test query
+            version = await conn.fetchval("SELECT version()")
+            print(f"  PostgreSQL version: {version[:50]}...")
+
+            await conn.close()
+            print("  Connection closed")
+
+        except asyncio.TimeoutError:
+            elapsed = time.time() - start
+            print(f"❌ TIMEOUT: Connection attempt timed out after {elapsed:.2f} seconds")
+
+        except Exception as e:
+            elapsed = time.time() - start
+            print(f"❌ ERROR after {elapsed:.2f} seconds: {type(e).__name__}: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_connection())

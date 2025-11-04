@@ -394,7 +394,7 @@ async def execute_analytics_query(
             count_sql = count_sql.replace(
                 "SELECT id",
                 "SELECT COUNT(*) as total"
-            ).replace("ORDER BY created_at DESC", "").replace("LIMIT $", "-- LIMIT $")
+            ).replace("ORDER BY q.created_at DESC", "").replace("LIMIT $", "-- LIMIT $")
 
             # Remove LIMIT and OFFSET params (last 2)
             count_params = count_params[:-2]
