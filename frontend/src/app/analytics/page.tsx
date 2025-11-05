@@ -155,11 +155,16 @@ export default function AnalyticsPage() {
   const buildFilters = useCallback((values: any): AnalyticsFilter => {
     const filters: AnalyticsFilter = {};
 
-    if (values.date_range) {
-      filters.date_range = {
-        from: values.date_range[0]?.format('YYYY-MM-DD'),
-        to: values.date_range[1]?.format('YYYY-MM-DD'),
-      };
+    // Filter by created_at range
+    if (values.created_date_range) {
+      filters.created_at_from = values.created_date_range[0]?.format('YYYY-MM-DD');
+      filters.created_at_to = values.created_date_range[1]?.format('YYYY-MM-DD');
+    }
+
+    // Filter by quote_date range
+    if (values.sent_date_range) {
+      filters.quote_date_from = values.sent_date_range[0]?.format('YYYY-MM-DD');
+      filters.quote_date_to = values.sent_date_range[1]?.format('YYYY-MM-DD');
     }
 
     if (values.status && values.status.length > 0) {
@@ -408,7 +413,12 @@ export default function AnalyticsPage() {
               <Form form={form} layout="vertical">
                 <Row gutter={[16, 8]}>
                   <Col xs={24} md={12} lg={6}>
-                    <Form.Item label="Период" name="date_range">
+                    <Form.Item label="Период (по дате создания)" name="created_date_range">
+                      <RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12} lg={6}>
+                    <Form.Item label="Период (по дате отправки)" name="sent_date_range">
                       <RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
                     </Form.Item>
                   </Col>
