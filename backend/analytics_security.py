@@ -187,24 +187,32 @@ def build_analytics_query(
     param_count = 2
 
     # Date range filters (special handling)
+    from datetime import datetime, timedelta
+
     if 'created_at_from' in safe_filters:
-        where_clauses.append(f"q.created_at >= ${param_count}::timestamp")
-        params.append(safe_filters['created_at_from'])
+        where_clauses.append(f"q.created_at >= ${param_count}")
+        # Convert string to datetime
+        date_from = datetime.fromisoformat(safe_filters['created_at_from'])
+        params.append(date_from)
         param_count += 1
 
     if 'created_at_to' in safe_filters:
-        where_clauses.append(f"q.created_at <= ${param_count}::timestamp + interval '1 day'")
-        params.append(safe_filters['created_at_to'])
+        where_clauses.append(f"q.created_at <= ${param_count}")
+        # Convert string to datetime + 1 day to include full day
+        date_to = datetime.fromisoformat(safe_filters['created_at_to']) + timedelta(days=1)
+        params.append(date_to)
         param_count += 1
 
     if 'quote_date_from' in safe_filters:
-        where_clauses.append(f"q.quote_date >= ${param_count}::date")
-        params.append(safe_filters['quote_date_from'])
+        where_clauses.append(f"q.quote_date >= ${param_count}")
+        date_from = datetime.fromisoformat(safe_filters['quote_date_from']).date()
+        params.append(date_from)
         param_count += 1
 
     if 'quote_date_to' in safe_filters:
-        where_clauses.append(f"q.quote_date <= ${param_count}::date")
-        params.append(safe_filters['quote_date_to'])
+        where_clauses.append(f"q.quote_date <= ${param_count}")
+        date_to = datetime.fromisoformat(safe_filters['quote_date_to']).date()
+        params.append(date_to)
         param_count += 1
 
     # Other filters
