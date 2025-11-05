@@ -193,14 +193,22 @@ def build_analytics_query(
                 param_count += 1
 
     # Build GROUP BY (needed because of aggregations)
-    group_by_fields = quote_fields if quote_fields else []
+    group_by_fields = quote_fields.copy() if quote_fields else []
 
-    # Always include q.id and q.created_at in GROUP BY for ORDER BY
+    # When using JOIN (calculated fields), ALWAYS need q.id and q.created_at in GROUP BY
+    # (for ORDER BY and uniqueness)
     if calc_fields:
+        # Ensure q.id is first
         if 'q.id' not in group_by_fields:
             group_by_fields.insert(0, 'q.id')
+
+        # Ensure q.created_at is included (for ORDER BY)
         if 'q.created_at' not in group_by_fields:
             group_by_fields.append('q.created_at')
+
+        # Also ensure created_at is in SELECT if not already
+        if 'q.created_at' not in select_clauses:
+            select_clauses.append('q.created_at')
 
     # Build SQL with JOIN
     if calc_fields:
