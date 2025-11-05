@@ -170,20 +170,38 @@ export interface PaginatedResponse<T> {
 export async function executeQuery(
   request: AnalyticsQueryRequest
 ): Promise<AnalyticsQueryResponse> {
-  const headers = await getAuthHeaders();
+  try {
+    const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}/api/analytics/query`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(request),
-  });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to execute query');
+    const response = await fetch(`${API_BASE_URL}/api/analytics/query`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Query failed' }));
+      throw new Error(
+        error.message || error.detail || `Request failed with status ${response.status}`
+      );
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Запрос превысил время ожидания (30 секунд)');
+      }
+      throw error;
+    }
+    throw new Error('Неизвестная ошибка при выполнении запроса');
   }
-
-  return response.json();
 }
 
 /**
