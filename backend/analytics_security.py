@@ -93,9 +93,15 @@ class QuerySecurityValidator:
         """Sanitize filter values"""
         safe_filters = {}
 
+        # Allowed filter keys (including special date range keys)
+        allowed_filter_keys = cls.ALLOWED_FIELDS['quotes'] + [
+            'created_at_from', 'created_at_to',
+            'quote_date_from', 'quote_date_to'
+        ]
+
         for key, value in filters.items():
             # Validate key
-            if key not in cls.ALLOWED_FIELDS['quotes']:
+            if key not in allowed_filter_keys:
                 continue
 
             # Validate value(s)
