@@ -34,6 +34,16 @@
         "-y",
         "puppeteer-mcp-server"
       ]
+    },
+    "notion": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-notion"
+      ],
+      "env": {
+        "NOTION_API_KEY": "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"
+      }
     }
   }
 }

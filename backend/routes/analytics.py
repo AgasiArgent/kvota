@@ -357,6 +357,8 @@ async def execute_analytics_query(
     await check_admin_permissions(user)
 
     try:
+        # DEBUG: Print incoming filters
+        print(f"\n=== ANALYTICS QUERY DEBUG ===\nFilters: {query_request.filters}\nFields: {query_request.selected_fields}\n===\n")
         # Generate cache key
         cache_key = get_cache_key(
             str(user.current_organization_id),
