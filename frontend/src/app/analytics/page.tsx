@@ -60,7 +60,8 @@ const { RangePicker } = DatePicker;
 const AVAILABLE_FIELDS = {
   'Основная информация': [
     { key: 'quote_number', label: 'Номер КП' },
-    { key: 'quote_date', label: 'Дата КП' },
+    { key: 'created_at', label: 'Дата создания' },
+    { key: 'quote_date', label: 'Дата отправки' },
     { key: 'status', label: 'Статус' },
     { key: 'sale_type', label: 'Тип продажи' },
     { key: 'seller_company', label: 'Компания-продавец' },
