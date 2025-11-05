@@ -32,9 +32,15 @@ import {
 } from '@ant-design/icons';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef } from 'ag-grid-community';
+import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import dayjs from 'dayjs';
+
+// Register AG Grid modules
+if (typeof window !== 'undefined') {
+  ModuleRegistry.registerModules([AllCommunityModule]);
+}
 
 import {
   executeQuery,
