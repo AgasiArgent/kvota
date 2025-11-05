@@ -179,7 +179,33 @@ def build_analytics_query(
     params.append(str(organization_id))
 
     param_count = 2
+
+    # Date range filters (special handling)
+    if 'created_at_from' in safe_filters:
+        where_clauses.append(f"q.created_at >= ${param_count}::timestamp")
+        params.append(safe_filters['created_at_from'])
+        param_count += 1
+
+    if 'created_at_to' in safe_filters:
+        where_clauses.append(f"q.created_at <= ${param_count}::timestamp + interval '1 day'")
+        params.append(safe_filters['created_at_to'])
+        param_count += 1
+
+    if 'quote_date_from' in safe_filters:
+        where_clauses.append(f"q.quote_date >= ${param_count}::date")
+        params.append(safe_filters['quote_date_from'])
+        param_count += 1
+
+    if 'quote_date_to' in safe_filters:
+        where_clauses.append(f"q.quote_date <= ${param_count}::date")
+        params.append(safe_filters['quote_date_to'])
+        param_count += 1
+
+    # Other filters
     for key, value in safe_filters.items():
+        # Skip date range keys (already handled above)
+        if key in ['created_at_from', 'created_at_to', 'quote_date_from', 'quote_date_to']:
+            continue
         if key in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
             # Quote-level filter
             if isinstance(value, list):
