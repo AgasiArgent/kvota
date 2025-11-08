@@ -29,6 +29,8 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { getAuthToken } from '@/lib/auth/auth-helper';
 import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
+import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -96,6 +98,8 @@ export default function QuoteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [workflow, setWorkflow] = useState<WorkflowStatus | null>(null);
+  const [workflowLoading, setWorkflowLoading] = useState(true);
 
   const quoteService = new QuoteService();
   const quoteId = params?.id as string;
@@ -105,6 +109,24 @@ export default function QuoteDetailPage() {
       fetchQuoteDetails();
     }
   }, [quoteId, profile?.organization_id]);
+
+  useEffect(() => {
+    if (quote?.id) {
+      loadWorkflowStatus();
+    }
+  }, [quote?.id]);
+
+  async function loadWorkflowStatus() {
+    try {
+      setWorkflowLoading(true);
+      const status = await getWorkflowStatus(quote!.id);
+      setWorkflow(status);
+    } catch (error) {
+      console.error('Failed to load workflow:', error);
+    } finally {
+      setWorkflowLoading(false);
+    }
+  }
 
   const fetchQuoteDetails = async () => {
     setLoading(true);
@@ -492,6 +514,15 @@ export default function QuoteDetailPage() {
             </Space>
           </Col>
         </Row>
+
+        {/* Workflow Section */}
+        {!workflowLoading && workflow && (
+          <Row gutter={[16, 16]}>
+            <Col span={24}>
+              <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
+            </Col>
+          </Row>
+        )}
 
         {/* Section 2: Quote Info Card */}
         <Card title="Информация о КП" variant="borderless">
