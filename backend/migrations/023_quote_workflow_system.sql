@@ -169,35 +169,54 @@ COMMENT ON COLUMN quotes.customs_complete IS 'Flag for parallel customs completi
 -- TASK 1.4: Add new roles to roles table
 -- ============================================================================
 
--- Add workflow-specific roles
-INSERT INTO roles (name, slug, description, permissions) VALUES
-('Sales Manager', 'sales_manager', 'Creates quotes and sets client terms',
- '["quotes:create", "quotes:read", "quotes:update", "quotes:submit_procurement", "quotes:submit_approval"]'),
+-- Ensure composite unique constraint on (organization_id, slug)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'roles_org_slug_key'
+    ) THEN
+        ALTER TABLE roles ADD CONSTRAINT roles_org_slug_key UNIQUE (organization_id, slug);
+    END IF;
+END $$;
 
-('Procurement Manager', 'procurement_manager', 'Negotiates supplier prices and terms',
- '["quotes:read", "quotes:update_procurement"]'),
+-- Add workflow-specific roles (system-wide, not org-specific)
+-- Note: Insert for each organization if roles are org-specific
+DO $$
+DECLARE
+    org_record RECORD;
+BEGIN
+    FOR org_record IN SELECT id FROM organizations LOOP
+        INSERT INTO roles (organization_id, name, slug, description, permissions, is_system_role) VALUES
+        (org_record.id, 'Sales Manager', 'sales_manager', 'Creates quotes and sets client terms',
+         '["quotes:create", "quotes:read", "quotes:update", "quotes:submit_procurement", "quotes:submit_approval"]', false),
 
-('Logistics Manager', 'logistics_manager', 'Calculates shipping and logistics costs',
- '["quotes:read", "quotes:update_logistics", "quotes:complete_logistics"]'),
+        (org_record.id, 'Procurement Manager', 'procurement_manager', 'Negotiates supplier prices and terms',
+         '["quotes:read", "quotes:update_procurement"]', false),
 
-('Customs Manager', 'customs_manager', 'Determines tariffs and clearance fees',
- '["quotes:read", "quotes:update_customs", "quotes:complete_customs"]'),
+        (org_record.id, 'Logistics Manager', 'logistics_manager', 'Calculates shipping and logistics costs',
+         '["quotes:read", "quotes:update_logistics", "quotes:complete_logistics"]', false),
 
-('Financial Manager', 'financial_manager', 'Approves quotes financially',
- '["quotes:read", "quotes:approve_financial"]'),
+        (org_record.id, 'Customs Manager', 'customs_manager', 'Determines tariffs and clearance fees',
+         '["quotes:read", "quotes:update_customs", "quotes:complete_customs"]', false),
 
-('Top Sales Manager', 'top_sales_manager', 'Senior approval for high-value quotes',
- '["quotes:read", "quotes:approve_senior", "quotes:update"]'),
+        (org_record.id, 'Financial Manager', 'financial_manager', 'Approves quotes financially',
+         '["quotes:read", "quotes:approve_financial"]', false),
 
-('CFO', 'cfo', 'Chief Financial Officer - senior approvals',
- '["quotes:read", "quotes:approve_senior", "quotes:approve_all", "settings:update"]'),
+        (org_record.id, 'Top Sales Manager', 'top_sales_manager', 'Senior approval for high-value quotes',
+         '["quotes:read", "quotes:approve_senior", "quotes:update"]', false),
 
-('CEO', 'ceo', 'Chief Executive Officer - final approvals',
- '["quotes:read", "quotes:approve_senior", "quotes:approve_all", "settings:update"]')
+        (org_record.id, 'CFO', 'cfo', 'Chief Financial Officer - senior approvals',
+         '["quotes:read", "quotes:approve_senior", "quotes:approve_all", "settings:update"]', false),
 
-ON CONFLICT (slug) DO UPDATE SET
-  permissions = EXCLUDED.permissions,
-  description = EXCLUDED.description;
+        (org_record.id, 'CEO', 'ceo', 'Chief Executive Officer - final approvals',
+         '["quotes:read", "quotes:approve_senior", "quotes:approve_all", "settings:update"]', false)
+
+        ON CONFLICT (organization_id, slug) DO UPDATE SET
+          permissions = EXCLUDED.permissions,
+          description = EXCLUDED.description;
+    END LOOP;
+END $$;
 
 -- ============================================================================
 -- Migration Complete
