@@ -66,29 +66,82 @@ export default function ExecutionHistoryPage() {
   // Filters
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [executionTypeFilter, setExecutionTypeFilter] = useState<string | null>(null);
+  const [appliedFilters, setAppliedFilters] = useState<{
+    dateRange: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null;
+    executionType: string | null;
+  }>({
+    dateRange: null,
+    executionType: null,
+  });
 
   // Detail modal
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedExecution, setSelectedExecution] = useState<ReportExecution | null>(null);
 
   // Load executions
-  const loadExecutions = useCallback(async (page: number = 1, pageSize: number = 50) => {
-    try {
-      setLoading(true);
-      const data: PaginatedResponse<ReportExecution> = await getExecutionHistory(page, pageSize);
-      setExecutions(data.items);
-      setPagination({
-        current: data.page,
-        pageSize: data.page_size,
-        total: data.total,
-      });
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка загрузки истории');
-    } finally {
-      setLoading(false);
-      setPageLoading(false);
-    }
-  }, []);
+  const loadExecutions = useCallback(
+    async (page: number = 1, pageSize: number = 50) => {
+      try {
+        setLoading(true);
+        const data: PaginatedResponse<ReportExecution> = await getExecutionHistory(page, pageSize);
+
+        // Apply client-side filters
+        let filtered = data.items;
+
+        if (
+          appliedFilters.dateRange &&
+          appliedFilters.dateRange[0] &&
+          appliedFilters.dateRange[1]
+        ) {
+          filtered = filtered.filter((exec) => {
+            const execDate = dayjs(exec.executed_at);
+            const startOfDay = appliedFilters.dateRange![0]!.startOf('day');
+            const endOfDay = appliedFilters.dateRange![1]!.endOf('day');
+            return execDate.isSameOrAfter(startOfDay) && execDate.isSameOrBefore(endOfDay);
+          });
+        }
+
+        if (appliedFilters.executionType) {
+          filtered = filtered.filter(
+            (exec) => exec.execution_type === appliedFilters.executionType
+          );
+        }
+
+        setExecutions(filtered);
+        setPagination({
+          current: data.page,
+          pageSize: data.page_size,
+          total: filtered.length,
+        });
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : 'Ошибка загрузки истории');
+      } finally {
+        setLoading(false);
+        setPageLoading(false);
+      }
+    },
+    [appliedFilters]
+  );
+
+  // Apply filters
+  const handleApplyFilters = useCallback(() => {
+    setAppliedFilters({
+      dateRange,
+      executionType: executionTypeFilter,
+    });
+    loadExecutions(1, pagination.pageSize);
+  }, [dateRange, executionTypeFilter, loadExecutions, pagination.pageSize]);
+
+  // Reset filters
+  const handleResetFilters = useCallback(() => {
+    setDateRange(null);
+    setExecutionTypeFilter(null);
+    setAppliedFilters({
+      dateRange: null,
+      executionType: null,
+    });
+    loadExecutions(1, pagination.pageSize);
+  }, [loadExecutions, pagination.pageSize]);
 
   useEffect(() => {
     loadExecutions();
@@ -106,7 +159,12 @@ export default function ExecutionHistoryPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `report_${execution.id}.${execution.export_format}`;
+
+      // Generate filename with timestamp format: analytics_YYYYMMDD_HHMMSS_history.xlsx
+      const timestamp = dayjs(execution.executed_at).format('YYYYMMDD_HHmmss');
+      const format = execution.export_format || 'xlsx';
+      link.download = `analytics_${timestamp}_history.${format}`;
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -291,17 +349,19 @@ export default function ExecutionHistoryPage() {
         </div>
 
         {/* Filters */}
-        <div style={{ marginBottom: 16, display: 'flex', gap: 16 }}>
+        <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
           <RangePicker
             style={{ width: 300 }}
             format="DD.MM.YYYY"
             placeholder={['Дата от', 'Дата до']}
+            value={dateRange}
             onChange={setDateRange}
           />
           <Select
             placeholder="Тип выполнения"
             allowClear
             style={{ width: 200 }}
+            value={executionTypeFilter}
             onChange={setExecutionTypeFilter}
             options={[
               { value: 'manual', label: 'Вручную' },
@@ -309,6 +369,10 @@ export default function ExecutionHistoryPage() {
               { value: 'api', label: 'API' },
             ]}
           />
+          <Button type="primary" onClick={handleApplyFilters}>
+            Применить фильтры
+          </Button>
+          <Button onClick={handleResetFilters}>Сбросить</Button>
         </div>
 
         {/* Table */}

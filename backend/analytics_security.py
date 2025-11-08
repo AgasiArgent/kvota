@@ -18,9 +18,13 @@ class QuerySecurityValidator:
     # Whitelist of allowed fields
     ALLOWED_FIELDS = {
         'quotes': [
-            'id', 'quote_number', 'status', 'sale_type', 'seller_company',
-            'created_at', 'updated_at', 'total_amount', 'quote_date',
-            'customer_id', 'organization_id'
+            'id', 'quote_number', 'status', 'created_at', 'updated_at',
+            'total_amount', 'quote_date', 'customer_id', 'organization_id'
+        ],
+        'variables': [
+            # Fields from quote_calculation_variables.variables JSONB
+            'offer_sale_type', 'seller_company', 'currency_of_quote',
+            'markup', 'discount'
         ],
         'calculated': [
             'import_vat', 'export_vat', 'customs_duty', 'excise_tax',
@@ -40,6 +44,15 @@ class QuerySecurityValidator:
         'total_amount', 'avg_total_amount', 'sum_total_amount', 'min_total_amount', 'max_total_amount',
         'avg_margin_percent', 'min_margin_percent', 'max_margin_percent'
     }
+
+    @classmethod
+    def is_valid_custom_alias(cls, alias: str) -> bool:
+        """Check if custom aggregation alias is valid (starts with agg_ and alphanumeric)"""
+        if alias.startswith('agg_') and len(alias) > 4:
+            # Check that part after 'agg_' is alphanumeric
+            suffix = alias[4:]
+            return suffix.replace('_', '').isalnum()
+        return False
 
     # Map analytics field names to JSONB keys in quote_calculation_results.phase_results
     CALCULATION_FIELD_MAP = {
@@ -66,7 +79,9 @@ class QuerySecurityValidator:
     @classmethod
     def validate_fields(cls, fields: List[str]) -> List[str]:
         """Return only whitelisted fields"""
-        all_allowed = cls.ALLOWED_FIELDS['quotes'] + cls.ALLOWED_FIELDS['calculated']
+        all_allowed = (cls.ALLOWED_FIELDS['quotes'] +
+                      cls.ALLOWED_FIELDS['variables'] +
+                      cls.ALLOWED_FIELDS['calculated'])
         return [f for f in fields if f in all_allowed]
 
     @classmethod
@@ -94,10 +109,11 @@ class QuerySecurityValidator:
         safe_filters = {}
 
         # Allowed filter keys (including special date range keys)
-        allowed_filter_keys = cls.ALLOWED_FIELDS['quotes'] + [
+        allowed_filter_keys = (cls.ALLOWED_FIELDS['quotes'] +
+                              cls.ALLOWED_FIELDS['variables'] + [
             'created_at_from', 'created_at_to',
             'quote_date_from', 'quote_date_to'
-        ]
+        ])
 
         for key, value in filters.items():
             # Validate key
@@ -134,13 +150,16 @@ def build_analytics_query(
     if not validated_fields:
         validated_fields = ['quote_number', 'status', 'total_amount']
 
-    # Separate quote fields vs calculated fields
+    # Separate quote fields vs variable fields vs calculated fields
     quote_fields = []
+    variable_fields = []
     calc_fields = []
 
     for field in validated_fields:
         if field in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
             quote_fields.append(f'q.{field}')
+        elif field in QuerySecurityValidator.ALLOWED_FIELDS['variables']:
+            variable_fields.append(field)
         elif field in QuerySecurityValidator.ALLOWED_FIELDS['calculated']:
             calc_fields.append(field)
 
@@ -150,6 +169,10 @@ def build_analytics_query(
     # Quote-level fields (no aggregation needed)
     if quote_fields:
         select_clauses.extend(quote_fields)
+
+    # Variable fields from JSONB
+    for field in variable_fields:
+        select_clauses.append(f"qcv.variables->>'{field}' as {field}")
 
     # Calculated fields (aggregate from products)
     for field in calc_fields:
@@ -215,11 +238,15 @@ def build_analytics_query(
         params.append(date_to)
         param_count += 1
 
+    # Track if we need variable JOIN (either in SELECT or in WHERE filters)
+    has_variable_filters = False
+
     # Other filters
     for key, value in safe_filters.items():
         # Skip date range keys (already handled above)
         if key in ['created_at_from', 'created_at_to', 'quote_date_from', 'quote_date_to']:
             continue
+
         if key in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
             # Quote-level filter
             if isinstance(value, list):
@@ -232,12 +259,32 @@ def build_analytics_query(
                 params.append(value)
                 param_count += 1
 
+        elif key in QuerySecurityValidator.ALLOWED_FIELDS['variables']:
+            # Variable-level filter (from JSONB)
+            has_variable_filters = True  # Mark that we need JOIN
+            if isinstance(value, list):
+                placeholders = [f"${i}" for i in range(param_count, param_count + len(value))]
+                where_clauses.append(f"qcv.variables->>'{key}' = ANY(ARRAY[{','.join(placeholders)}])")
+                params.extend(value)
+                param_count += len(value)
+            else:
+                where_clauses.append(f"qcv.variables->>'{key}' = ${param_count}")
+                params.append(value)
+                param_count += 1
+
     # Build GROUP BY (needed because of aggregations)
     group_by_fields = quote_fields.copy() if quote_fields else []
 
-    # When using JOIN (calculated fields), ALWAYS need q.id and q.created_at in GROUP BY
+    # Add variable fields to GROUP BY
+    for field in variable_fields:
+        group_by_fields.append(f"qcv.variables->>'{field}'")
+
+    # Check if we need JOIN (calculated fields, variable fields in SELECT, or variable filters in WHERE)
+    needs_join = calc_fields or variable_fields or has_variable_filters
+
+    # When using JOIN, ALWAYS need q.id and q.created_at in GROUP BY
     # (for ORDER BY and uniqueness)
-    if calc_fields:
+    if needs_join:
         # Ensure q.id is first
         if 'q.id' not in group_by_fields:
             group_by_fields.insert(0, 'q.id')
@@ -251,11 +298,12 @@ def build_analytics_query(
             select_clauses.append('q.created_at')
 
     # Build SQL with JOIN
-    if calc_fields:
-        # Need JOIN when calculated fields requested
+    if needs_join:
+        # Need JOIN when calculated or variable fields requested
         sql = f"""
             SELECT {', '.join(select_clauses)}
             FROM quotes q
+            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id
             LEFT JOIN quote_items qi ON qi.quote_id = q.id
             LEFT JOIN quote_calculation_results qcr ON qcr.quote_item_id = qi.id
             WHERE {' AND '.join(where_clauses)}
@@ -264,7 +312,7 @@ def build_analytics_query(
             LIMIT ${param_count} OFFSET ${param_count + 1}
         """
     else:
-        # No calculated fields - simple query without JOIN
+        # No calculated/variable fields - simple query without JOIN
         sql = f"""
             SELECT {', '.join([f.replace('q.', '') for f in select_clauses])}
             FROM quotes q
@@ -298,12 +346,15 @@ def build_aggregation_query(
 
     # Build aggregation clauses
     agg_clauses = []
-    all_allowed_fields = QuerySecurityValidator.ALLOWED_FIELDS['quotes'] + QuerySecurityValidator.ALLOWED_FIELDS['calculated']
+    all_allowed_fields = (QuerySecurityValidator.ALLOWED_FIELDS['quotes'] +
+                         QuerySecurityValidator.ALLOWED_FIELDS['variables'] +
+                         QuerySecurityValidator.ALLOWED_FIELDS['calculated'])
     needs_join = False  # Track if we need JOIN for calculated fields
+    needs_variable_join = False  # Track if we need JOIN for variable fields
 
     for field, config in aggregations.items():
-        # Validate alias name
-        if field not in QuerySecurityValidator.ALLOWED_ALIAS_NAMES:
+        # Validate alias name (whitelist OR custom agg_* pattern)
+        if field not in QuerySecurityValidator.ALLOWED_ALIAS_NAMES and not QuerySecurityValidator.is_valid_custom_alias(field):
             logger.warning(f"Rejected aggregation with invalid alias: {field}")
             continue
 
@@ -331,10 +382,30 @@ def build_aggregation_query(
                 logger.warning(f"Rejected aggregation with invalid column: {col_name}")
                 continue
 
-            # Check if it's a calculated field
-            if col_name in QuerySecurityValidator.ALLOWED_FIELDS['calculated']:
-                needs_join = True
+            # Check field type and build appropriate SQL
+            if col_name in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
+                # Quote table field (e.g., total_amount)
+                agg_clauses.append(f"COALESCE({func}(q.{col_name}), 0) as {field}")
+
+            elif col_name in QuerySecurityValidator.ALLOWED_FIELDS['variables']:
+                # Variable field from JSONB (e.g., seller_company)
+                needs_variable_join = True
+                # For text fields in variables, only COUNT makes sense
+                if func == 'COUNT':
+                    agg_clauses.append(f"COUNT(DISTINCT q.id) as {field}")
+                else:
+                    # For numeric variables, extract and aggregate
+                    agg_clauses.append(
+                        f"COALESCE({func}((qcv.variables->>'{col_name}')::numeric), 0) as {field}"
+                    )
+
+            elif col_name in QuerySecurityValidator.ALLOWED_FIELDS['calculated']:
                 jsonb_key = QuerySecurityValidator.CALCULATION_FIELD_MAP.get(col_name)
+
+                # Only set needs_join if we actually use the JOIN
+                # (import_vat returns 0, so doesn't need JOIN)
+                if jsonb_key or col_name in ['export_vat', 'margin_percent']:
+                    needs_join = True
 
                 if jsonb_key:
                     # Direct JSONB extraction
@@ -367,39 +438,68 @@ def build_aggregation_query(
                 elif col_name == 'import_vat':
                     # TODO: Research how import_vat is calculated
                     agg_clauses.append(f"0 as {field}")
-            else:
-                # Quote-level field
-                agg_clauses.append(f"COALESCE({func}(q.{col_name}), 0) as {field}")
 
     if not agg_clauses:
         agg_clauses = ["COUNT(DISTINCT q.id) as quote_count"]
 
-    # Build WHERE clause
+    # Build WHERE clause (same logic as build_analytics_query)
     params = [str(organization_id)]
     where_clauses = ["q.organization_id = $1"]
 
     param_count = 2
     for key, value in safe_filters.items():
-        if isinstance(value, list):
-            placeholders = [f"${i}" for i in range(param_count, param_count + len(value))]
-            where_clauses.append(f"q.{key} = ANY(ARRAY[{','.join(placeholders)}])")
-            params.extend(value)
-            param_count += len(value)
-        else:
-            where_clauses.append(f"q.{key} = ${param_count}")
-            params.append(value)
-            param_count += 1
+        # Skip date range keys
+        if key in ['created_at_from', 'created_at_to', 'quote_date_from', 'quote_date_to']:
+            continue
+
+        if key in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
+            # Quote-level filter
+            if isinstance(value, list):
+                placeholders = [f"${i}" for i in range(param_count, param_count + len(value))]
+                where_clauses.append(f"q.{key} = ANY(ARRAY[{','.join(placeholders)}])")
+                params.extend(value)
+                param_count += len(value)
+            else:
+                where_clauses.append(f"q.{key} = ${param_count}")
+                params.append(value)
+                param_count += 1
+
+        elif key in QuerySecurityValidator.ALLOWED_FIELDS['variables']:
+            # Variable-level filter
+            needs_variable_join = True
+            if isinstance(value, list):
+                placeholders = [f"${i}" for i in range(param_count, param_count + len(value))]
+                where_clauses.append(f"qcv.variables->>'{key}' = ANY(ARRAY[{','.join(placeholders)}])")
+                params.extend(value)
+                param_count += len(value)
+            else:
+                where_clauses.append(f"qcv.variables->>'{key}' = ${param_count}")
+                params.append(value)
+                param_count += 1
 
     # Build SQL with or without JOIN
+    # Only add JOIN if we actually need calculated fields
+    # Variable JOIN and quote-level fields don't need quote_items/qcr
     if needs_join:
+        # Need full JOIN for calculated fields
         sql = f"""
             SELECT {', '.join(agg_clauses)}
             FROM quotes q
+            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id
             LEFT JOIN quote_items qi ON qi.quote_id = q.id
             LEFT JOIN quote_calculation_results qcr ON qcr.quote_item_id = qi.id
             WHERE {' AND '.join(where_clauses)}
         """
+    elif needs_variable_join:
+        # Need only variable JOIN (no quote_items/qcr to avoid duplicates)
+        sql = f"""
+            SELECT {', '.join(agg_clauses)}
+            FROM quotes q
+            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id
+            WHERE {' AND '.join(where_clauses)}
+        """
     else:
+        # No JOIN needed
         sql = f"""
             SELECT {', '.join(agg_clauses)}
             FROM quotes q

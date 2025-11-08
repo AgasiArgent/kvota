@@ -37,7 +37,7 @@ export interface AnalyticsFilter {
     to?: string;
   };
   status?: string[];
-  sale_type?: string;
+  offer_sale_type?: string;
   seller_company?: string;
   [key: string]: any;
 }
@@ -236,10 +236,10 @@ export async function exportData(
 ): Promise<{ file_url: string; file_name: string }> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}/api/analytics/export`, {
+  const response = await fetch(`${API_BASE_URL}/api/analytics/export?format=${format}`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ ...request, format }),
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {
@@ -247,7 +247,19 @@ export async function exportData(
     throw new Error(error.detail || 'Failed to export data');
   }
 
-  return response.json();
+  // Backend returns FileResponse (binary file), not JSON
+  const blob = await response.blob();
+  const file_url = URL.createObjectURL(blob);
+
+  // Extract filename from Content-Disposition header
+  const contentDisposition = response.headers.get('content-disposition');
+  let file_name = `analytics_export.${format}`;
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?(.+?)"?$/);
+    if (match) file_name = match[1];
+  }
+
+  return { file_url, file_name };
 }
 
 /**

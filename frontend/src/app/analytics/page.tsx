@@ -61,9 +61,9 @@ const AVAILABLE_FIELDS = {
   'Основная информация': [
     { key: 'quote_number', label: 'Номер КП' },
     { key: 'created_at', label: 'Дата создания' },
-    { key: 'quote_date', label: 'Дата отправки' },
+    { key: 'quote_date', label: 'Дата КП' },
     { key: 'status', label: 'Статус' },
-    { key: 'sale_type', label: 'Тип продажи' },
+    { key: 'offer_sale_type', label: 'Тип продажи' },
     { key: 'seller_company', label: 'Компания-продавец' },
   ],
   'Финансовые показатели': [
@@ -94,7 +94,17 @@ const STATUS_OPTIONS = [
 const SALE_TYPE_OPTIONS = [
   { value: 'поставка', label: 'Поставка' },
   { value: 'транзит', label: 'Транзит' },
-  { value: 'закупка за рубежом', label: 'Закупка за рубежом' },
+  { value: 'финтранзит', label: 'Финтранзит' },
+];
+
+// Seller company options
+const SELLER_COMPANY_OPTIONS = [
+  { value: 'МАСТЕР БЭРИНГ ООО', label: 'МАСТЕР БЭРИНГ ООО (Россия)' },
+  {
+    value: 'TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ',
+    label: 'TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ (Турция)',
+  },
+  { value: 'UPDOOR Limited', label: 'UPDOOR Limited (Китай)' },
 ];
 
 // Aggregation functions
@@ -136,11 +146,43 @@ export default function AnalyticsPage() {
   // Filters collapsed state
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
 
+  // Flag to trigger auto-execution of saved report
+  const [shouldExecuteReport, setShouldExecuteReport] = useState(false);
+
   // Simulate initial page load
   useEffect(() => {
     const timer = setTimeout(() => setPageLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Load saved report from localStorage (when redirected from saved reports page)
+  useEffect(() => {
+    const storedReport = localStorage.getItem('analytics_load_report');
+    if (!storedReport) return;
+
+    try {
+      const report = JSON.parse(storedReport);
+
+      // Load filters into form
+      if (report.query_config?.filters) {
+        form.setFieldsValue(report.query_config.filters);
+      }
+
+      // Load selected fields
+      if (report.query_config?.selected_fields) {
+        setSelectedFields(report.query_config.selected_fields);
+      }
+
+      // Clear localStorage
+      localStorage.removeItem('analytics_load_report');
+
+      // Set flag to trigger execution in separate effect
+      setShouldExecuteReport(true);
+    } catch (error) {
+      console.error('Failed to load saved report:', error);
+      localStorage.removeItem('analytics_load_report');
+    }
+  }, [form]);
 
   // All available fields (flat list for Transfer component)
   const allFields = useMemo(() => {
@@ -171,8 +213,8 @@ export default function AnalyticsPage() {
       filters.status = values.status;
     }
 
-    if (values.sale_type) {
-      filters.sale_type = values.sale_type;
+    if (values.offer_sale_type) {
+      filters.offer_sale_type = values.offer_sale_type;
     }
 
     if (values.seller_company) {
@@ -211,13 +253,29 @@ export default function AnalyticsPage() {
 
       if (viewMode === 'lightweight') {
         // Lightweight mode: aggregations only
-        const aggObj = buildAggregationsObject();
+        console.log('[DEBUG] Lightweight mode activated');
+        let aggObj = buildAggregationsObject();
+        console.log('[DEBUG] Custom aggregations:', aggObj);
+
+        // If no custom aggregations, use default ones
         if (!aggObj || Object.keys(aggObj).length === 0) {
-          message.warning('Добавьте хотя бы одну агрегацию для просмотра статистики');
-          return;
+          aggObj = {
+            sum_total_amount: {
+              function: 'sum',
+              field: 'total_amount',
+              label: 'Общая выручка',
+            },
+            quote_count: {
+              function: 'count',
+              label: 'Количество КП',
+            },
+          };
+          console.log('[DEBUG] Using default aggregations:', aggObj);
         }
 
+        console.log('[DEBUG] Calling executeAggregate with filters:', filters, 'aggObj:', aggObj);
         const result = await executeAggregate(filters, aggObj);
+        console.log('[DEBUG] executeAggregate result:', result);
         setAggregationResults(result.aggregations);
         setExecutionTime(result.execution_time_ms);
         message.success('Агрегация выполнена успешно');
@@ -242,6 +300,14 @@ export default function AnalyticsPage() {
       setLoading(false);
     }
   }, [form, buildFilters, selectedFields, viewMode, buildAggregationsObject]);
+
+  // Auto-execute saved report query after state loaded
+  useEffect(() => {
+    if (shouldExecuteReport && !loading && !pageLoading) {
+      setShouldExecuteReport(false);
+      handleExecuteQuery();
+    }
+  }, [shouldExecuteReport, loading, pageLoading, handleExecuteQuery]);
 
   // Export to Excel/CSV
   const handleExport = useCallback(
@@ -303,6 +369,34 @@ export default function AnalyticsPage() {
     }
   }, [form, buildFilters, selectedFields, buildAggregationsObject]);
 
+  // Generate auto label for aggregation
+  const generateAggregationLabel = (field: string, func: string): string => {
+    const fieldLabels: Record<string, string> = {
+      total_amount: 'общая сумма',
+      import_vat: 'НДС импорт',
+      export_vat: 'НДС экспорт',
+      customs_duty: 'таможенная пошлина',
+      excise_tax: 'акциз',
+      logistics_cost: 'логистика',
+      cogs: 'себестоимость',
+      profit: 'прибыль',
+      margin_percent: 'маржа %',
+    };
+
+    const funcLabels: Record<string, string> = {
+      sum: 'Сумма',
+      avg: 'Среднее',
+      count: 'Количество',
+      min: 'Минимум',
+      max: 'Максимум',
+    };
+
+    const fieldLabel = fieldLabels[field] || field;
+    const funcLabel = funcLabels[func] || func;
+
+    return `${funcLabel} ${fieldLabel}`;
+  };
+
   // Add aggregation
   const handleAddAggregation = useCallback(() => {
     setAggregations((prev) => [
@@ -311,7 +405,7 @@ export default function AnalyticsPage() {
         id: `agg_${Date.now()}`,
         field: 'total_amount',
         function: 'sum',
-        label: 'Новая агрегация',
+        label: generateAggregationLabel('total_amount', 'sum'),
       },
     ]);
   }, []);
@@ -324,7 +418,25 @@ export default function AnalyticsPage() {
   // Update aggregation
   const handleUpdateAggregation = useCallback((id: string, field: string, value: any) => {
     setAggregations((prev) =>
-      prev.map((agg) => (agg.id === id ? { ...agg, [field]: value } : agg))
+      prev.map((agg) => {
+        if (agg.id !== id) return agg;
+
+        const updated = { ...agg, [field]: value };
+
+        // Auto-generate label if field or function changed and label is default/empty
+        if (
+          (field === 'field' || field === 'function') &&
+          (agg.label === '' ||
+            agg.label.startsWith('Новая агрегация') ||
+            agg.label.match(/^(Сумма|Среднее|Количество|Минимум|Максимум)/))
+        ) {
+          const fieldValue = field === 'field' ? value : agg.field;
+          const funcValue = field === 'function' ? value : agg.function;
+          updated.label = generateAggregationLabel(fieldValue, funcValue);
+        }
+
+        return updated;
+      })
     );
   }, []);
 
@@ -433,13 +545,17 @@ export default function AnalyticsPage() {
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12} lg={6}>
-                    <Form.Item label="Тип продажи" name="sale_type">
+                    <Form.Item label="Тип продажи" name="offer_sale_type">
                       <Select placeholder="Все типы" options={SALE_TYPE_OPTIONS} allowClear />
                     </Form.Item>
                   </Col>
                   <Col xs={24} md={12} lg={6}>
                     <Form.Item label="Компания-продавец" name="seller_company">
-                      <Input placeholder="Введите название" />
+                      <Select
+                        placeholder="Все компании"
+                        options={SELLER_COMPANY_OPTIONS}
+                        allowClear
+                      />
                     </Form.Item>
                   </Col>
                 </Row>
@@ -581,13 +697,32 @@ export default function AnalyticsPage() {
             <Card title="Результаты агрегации">
               <Row gutter={[16, 16]}>
                 {Object.entries(aggregationResults).map(([key, value]) => {
+                  // Try to find label from custom aggregations first
                   const agg = aggregations.find((a) => a.id === key);
+
+                  // Fallback labels for default aggregations
+                  const defaultLabels: Record<string, string> = {
+                    sum_total_amount: 'Общая выручка',
+                    quote_count: 'Количество КП',
+                  };
+
+                  const label = agg?.label || defaultLabels[key] || key;
+
                   return (
                     <Col xs={24} sm={12} md={8} lg={6} key={key}>
-                      <Statistic
-                        title={agg?.label || key}
-                        value={typeof value === 'number' ? value.toFixed(2) : value}
-                      />
+                      <Card
+                        hoverable
+                        onClick={() => {
+                          setViewMode('standard');
+                          handleExecuteQuery();
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <Statistic
+                          title={label}
+                          value={typeof value === 'number' ? value.toFixed(2) : value}
+                        />
+                      </Card>
                     </Col>
                   );
                 })}
