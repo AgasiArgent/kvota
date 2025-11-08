@@ -68,14 +68,25 @@ const AVAILABLE_FIELDS = {
   ],
   'Финансовые показатели': [
     { key: 'total_amount', label: 'Общая сумма' },
-    { key: 'import_vat', label: 'НДС импорт' },
-    { key: 'export_vat', label: 'НДС экспорт' },
-    { key: 'customs_duty', label: 'Таможенная пошлина' },
-    { key: 'excise_tax', label: 'Акциз' },
-    { key: 'logistics_cost', label: 'Логистика' },
-    { key: 'cogs', label: 'Себестоимость' },
-    { key: 'profit', label: 'Прибыль' },
-    { key: 'margin_percent', label: 'Маржа %' },
+  ],
+  'Расчетные показатели (детально)': [
+    // Phase 1-2: Purchase prices
+    { key: 'calc_s16_total_purchase_price', label: 'Цена закупки (итого)' },
+    // Phase 3: Logistics
+    { key: 'calc_v16_total_logistics', label: 'Логистика (итого)' },
+    // Phase 4: Duties
+    { key: 'calc_y16_customs_duty', label: 'Таможенная пошлина' },
+    { key: 'calc_z16_excise_tax', label: 'Акциз' },
+    // Phase 10: COGS
+    { key: 'calc_ab16_cogs_total', label: 'Себестоимость (итого)' },
+    // Phase 11: Sales pricing
+    { key: 'calc_af16_profit_margin', label: 'Маржа прибыли %' },
+    { key: 'calc_ag16_dm_fee', label: 'Вознаграждение ЛПР' },
+    { key: 'calc_ak16_final_price_total', label: 'Финальная цена (итого)' },
+    // Phase 12: VAT
+    { key: 'calc_an16_sales_vat', label: 'НДС к уплате' },
+    { key: 'calc_ao16_deductible_vat', label: 'НДС к вычету' },
+    { key: 'calc_ap16_net_vat_payable', label: 'НДС (чистый)' },
   ],
 };
 
@@ -372,15 +383,20 @@ export default function AnalyticsPage() {
   // Generate auto label for aggregation
   const generateAggregationLabel = (field: string, func: string): string => {
     const fieldLabels: Record<string, string> = {
+      // Legacy fields
       total_amount: 'общая сумма',
-      import_vat: 'НДС импорт',
-      export_vat: 'НДС экспорт',
-      customs_duty: 'таможенная пошлина',
-      excise_tax: 'акциз',
-      logistics_cost: 'логистика',
-      cogs: 'себестоимость',
-      profit: 'прибыль',
-      margin_percent: 'маржа %',
+      // New calculated fields
+      calc_s16_total_purchase_price: 'цена закупки',
+      calc_v16_total_logistics: 'логистика',
+      calc_y16_customs_duty: 'таможенная пошлина',
+      calc_z16_excise_tax: 'акциз',
+      calc_ab16_cogs_total: 'себестоимость',
+      calc_af16_profit_margin: 'маржа прибыли',
+      calc_ag16_dm_fee: 'вознаграждение ЛПР',
+      calc_ak16_final_price_total: 'финальная цена',
+      calc_an16_sales_vat: 'НДС продажи',
+      calc_ao16_deductible_vat: 'НДС к вычету',
+      calc_ap16_net_vat_payable: 'НДС (чистый)',
     };
 
     const funcLabels: Record<string, string> = {
