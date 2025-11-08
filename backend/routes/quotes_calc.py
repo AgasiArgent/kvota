@@ -900,6 +900,138 @@ def convert_decimals_to_float(obj):
         return obj
 
 
+def aggregate_product_results_to_summary(results_list: List) -> Dict[str, float]:
+    """
+    Aggregate product-level calculation results to quote-level summary.
+
+    Args:
+        results_list: List of ProductCalculationResult objects
+
+    Returns:
+        Dict with 43 calculated fields ready for quote_calculation_summaries table
+    """
+    from decimal import Decimal
+
+    if not results_list:
+        return {}
+
+    # Initialize sums for monetary fields (Phase 1-13)
+    summary = {
+        # Phase 1: Purchase prices (sum across products)
+        "calc_n16_price_without_vat": Decimal("0"),
+        "calc_p16_after_supplier_discount": Decimal("0"),
+        "calc_r16_per_unit_quote_currency": Decimal("0"),
+        "calc_s16_total_purchase_price": Decimal("0"),
+
+        # Phase 3: Logistics (sum across products)
+        "calc_t16_first_leg_logistics": Decimal("0"),
+        "calc_u16_last_leg_logistics": Decimal("0"),
+        "calc_v16_total_logistics": Decimal("0"),
+
+        # Phase 4: Duties and internal pricing (sum across products)
+        "calc_ax16_internal_price_unit": Decimal("0"),
+        "calc_ay16_internal_price_total": Decimal("0"),
+        "calc_y16_customs_duty": Decimal("0"),
+        "calc_z16_excise_tax": Decimal("0"),
+        "calc_az16_with_vat_restored": Decimal("0"),
+
+        # Phase 9: Financing costs (sum across products)
+        "calc_ba16_financing_per_product": Decimal("0"),
+        "calc_bb16_credit_interest_per_product": Decimal("0"),
+
+        # Phase 10: COGS (sum across products)
+        "calc_aa16_cogs_per_unit": Decimal("0"),
+        "calc_ab16_cogs_total": Decimal("0"),
+
+        # Phase 11: Sales pricing (sum across products)
+        "calc_ag16_dm_fee": Decimal("0"),
+        "calc_ad16_sale_price_unit": Decimal("0"),
+        "calc_ae16_sale_price_total": Decimal("0"),
+        "calc_aj16_final_price_unit": Decimal("0"),
+        "calc_ak16_final_price_total": Decimal("0"),
+
+        # Phase 12: VAT (sum across products)
+        "calc_am16_price_with_vat": Decimal("0"),
+        "calc_al16_total_with_vat": Decimal("0"),
+        "calc_an16_sales_vat": Decimal("0"),
+        "calc_ao16_deductible_vat": Decimal("0"),
+        "calc_ap16_net_vat_payable": Decimal("0"),
+
+        # Phase 13: Transit commission (sum across products)
+        "calc_aq16_transit_commission": Decimal("0"),
+    }
+
+    # Sum monetary fields across all products
+    for result in results_list:
+        summary["calc_n16_price_without_vat"] += result.purchase_price_no_vat
+        summary["calc_p16_after_supplier_discount"] += result.purchase_price_after_discount
+        summary["calc_r16_per_unit_quote_currency"] += result.purchase_price_per_unit_quote_currency
+        summary["calc_s16_total_purchase_price"] += result.purchase_price_total_quote_currency
+
+        summary["calc_t16_first_leg_logistics"] += result.logistics_first_leg
+        summary["calc_u16_last_leg_logistics"] += result.logistics_last_leg
+        summary["calc_v16_total_logistics"] += result.logistics_total
+
+        summary["calc_ax16_internal_price_unit"] += result.internal_sale_price_per_unit
+        summary["calc_ay16_internal_price_total"] += result.internal_sale_price_total
+        summary["calc_y16_customs_duty"] += result.customs_fee
+        summary["calc_z16_excise_tax"] += result.excise_tax_amount
+        summary["calc_az16_with_vat_restored"] += Decimal("0")  # AZ16 not in model, placeholder
+
+        summary["calc_ba16_financing_per_product"] += result.financing_cost_initial
+        summary["calc_bb16_credit_interest_per_product"] += result.financing_cost_credit
+
+        summary["calc_aa16_cogs_per_unit"] += result.cogs_per_unit
+        summary["calc_ab16_cogs_total"] += result.cogs_per_product
+
+        summary["calc_ag16_dm_fee"] += result.dm_fee
+        summary["calc_ad16_sale_price_unit"] += result.sale_price_per_unit_excl_financial
+        summary["calc_ae16_sale_price_total"] += result.sale_price_total_excl_financial
+        summary["calc_aj16_final_price_unit"] += result.sales_price_per_unit_no_vat
+        summary["calc_ak16_final_price_total"] += result.sales_price_total_no_vat
+
+        summary["calc_am16_price_with_vat"] += result.sales_price_per_unit_with_vat
+        summary["calc_al16_total_with_vat"] += result.sales_price_total_with_vat
+        summary["calc_an16_sales_vat"] += result.vat_from_sales
+        summary["calc_ao16_deductible_vat"] += result.vat_on_import
+        summary["calc_ap16_net_vat_payable"] += result.vat_net_payable
+
+        summary["calc_aq16_transit_commission"] += result.transit_commission
+
+    # Phase 2: Quote-level distribution base (from first product)
+    summary["calc_s13_sum_purchase_prices"] = results_list[0].quote_level_supplier_payment or Decimal("0")
+
+    # Phase 5-8: Quote-level financing values (from first product)
+    first = results_list[0]
+    summary["calc_bh6_supplier_payment"] = first.quote_level_supplier_payment or Decimal("0")
+    summary["calc_bh4_before_forwarding"] = first.quote_level_total_before_forwarding or Decimal("0")
+    summary["calc_bh2_revenue_estimated"] = first.quote_level_evaluated_revenue or Decimal("0")
+    summary["calc_bh3_client_advance"] = first.quote_level_client_advance or Decimal("0")
+    summary["calc_bh7_supplier_financing_need"] = first.quote_level_supplier_financing_need or Decimal("0")
+    summary["calc_bj7_supplier_financing_cost"] = first.quote_level_supplier_financing_cost or Decimal("0")
+    summary["calc_bh10_operational_financing"] = first.quote_level_operational_financing_need or Decimal("0")
+    summary["calc_bj10_operational_cost"] = first.quote_level_operational_financing_cost or Decimal("0")
+    summary["calc_bj11_total_financing_cost"] = first.quote_level_total_financing_cost or Decimal("0")
+    summary["calc_bl3_credit_sales_amount"] = first.quote_level_credit_sales_amount or Decimal("0")
+    summary["calc_bl4_credit_sales_with_interest"] = first.quote_level_credit_sales_fv or Decimal("0")
+    summary["calc_bl5_credit_sales_interest"] = first.quote_level_credit_sales_interest or Decimal("0")
+
+    # Phase 11: Calculate profit margin from aggregated totals (not average!)
+    total_revenue = summary["calc_ak16_final_price_total"]
+    total_cogs = summary["calc_ab16_cogs_total"]
+    if total_revenue > 0:
+        summary["calc_af16_profit_margin"] = ((total_revenue - total_cogs) / total_revenue)
+    else:
+        summary["calc_af16_profit_margin"] = Decimal("0")
+
+    # Phase 11: Quote-level forex and agent fees (from first product)
+    summary["calc_ah16_forex_risk_reserve"] = first.forex_reserve
+    summary["calc_ai16_agent_fee"] = first.financial_agent_fee
+
+    # Convert all Decimals to float for JSON/database
+    return convert_decimals_to_float(summary)
+
+
 # ============================================================================
 # QUOTE CALCULATION ENDPOINT
 # ============================================================================
@@ -1146,6 +1278,15 @@ async def calculate_quote(
             "subtotal": float(total_subtotal),
             "total_amount": float(total_amount)
         }).eq("id", quote_id).execute()
+
+        # 8b. Aggregate product results to quote-level summary
+        quote_summary = aggregate_product_results_to_summary(results_list)
+        quote_summary["quote_id"] = quote_id
+
+        # Upsert (insert or update) quote calculation summary
+        supabase.table("quote_calculation_summaries")\
+            .upsert(quote_summary)\
+            .execute()
 
         # 9. Return complete result
         return QuoteCalculationResult(

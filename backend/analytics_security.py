@@ -26,9 +26,35 @@ class QuerySecurityValidator:
             'offer_sale_type', 'seller_company', 'currency_of_quote',
             'markup', 'discount'
         ],
-        'calculated': [
-            'import_vat', 'export_vat', 'customs_duty', 'excise_tax',
-            'logistics_cost', 'cogs', 'profit', 'margin_percent'
+        'quote_calculation_summaries': [
+            # Pre-aggregated quote-level totals (all 43 calculated fields)
+            # Phase 1-2: Purchase prices
+            'calc_n16_price_without_vat', 'calc_p16_after_supplier_discount',
+            'calc_r16_per_unit_quote_currency', 'calc_s16_total_purchase_price',
+            'calc_s13_sum_purchase_prices',
+            # Phase 3: Logistics
+            'calc_t16_first_leg_logistics', 'calc_u16_last_leg_logistics', 'calc_v16_total_logistics',
+            # Phase 4: Duties and internal pricing
+            'calc_ax16_internal_price_unit', 'calc_ay16_internal_price_total',
+            'calc_y16_customs_duty', 'calc_z16_excise_tax', 'calc_az16_with_vat_restored',
+            # Phase 5-8: Financing
+            'calc_bh6_supplier_payment', 'calc_bh4_before_forwarding', 'calc_bh2_revenue_estimated',
+            'calc_bh3_client_advance', 'calc_bh7_supplier_financing_need', 'calc_bj7_supplier_financing_cost',
+            'calc_bh10_operational_financing', 'calc_bj10_operational_cost', 'calc_bj11_total_financing_cost',
+            'calc_bl3_credit_sales_amount', 'calc_bl4_credit_sales_with_interest', 'calc_bl5_credit_sales_interest',
+            # Phase 9: Financing distribution
+            'calc_ba16_financing_per_product', 'calc_bb16_credit_interest_per_product',
+            # Phase 10: COGS
+            'calc_aa16_cogs_per_unit', 'calc_ab16_cogs_total',
+            # Phase 11: Sales pricing
+            'calc_af16_profit_margin', 'calc_ag16_dm_fee', 'calc_ah16_forex_risk_reserve',
+            'calc_ai16_agent_fee', 'calc_ad16_sale_price_unit', 'calc_ae16_sale_price_total',
+            'calc_aj16_final_price_unit', 'calc_ak16_final_price_total',
+            # Phase 12: VAT
+            'calc_am16_price_with_vat', 'calc_al16_total_with_vat', 'calc_an16_sales_vat',
+            'calc_ao16_deductible_vat', 'calc_ap16_net_vat_payable',
+            # Phase 13: Transit commission
+            'calc_aq16_transit_commission'
         ]
     }
 
@@ -81,7 +107,7 @@ class QuerySecurityValidator:
         """Return only whitelisted fields"""
         all_allowed = (cls.ALLOWED_FIELDS['quotes'] +
                       cls.ALLOWED_FIELDS['variables'] +
-                      cls.ALLOWED_FIELDS['calculated'])
+                      cls.ALLOWED_FIELDS['quote_calculation_summaries'])
         return [f for f in fields if f in all_allowed]
 
     @classmethod
@@ -150,18 +176,18 @@ def build_analytics_query(
     if not validated_fields:
         validated_fields = ['quote_number', 'status', 'total_amount']
 
-    # Separate quote fields vs variable fields vs calculated fields
+    # Separate quote fields vs variable fields vs summary fields
     quote_fields = []
     variable_fields = []
-    calc_fields = []
+    summary_fields = []
 
     for field in validated_fields:
         if field in QuerySecurityValidator.ALLOWED_FIELDS['quotes']:
             quote_fields.append(f'q.{field}')
         elif field in QuerySecurityValidator.ALLOWED_FIELDS['variables']:
             variable_fields.append(field)
-        elif field in QuerySecurityValidator.ALLOWED_FIELDS['calculated']:
-            calc_fields.append(field)
+        elif field in QuerySecurityValidator.ALLOWED_FIELDS['quote_calculation_summaries']:
+            summary_fields.append(field)
 
     # Build SELECT clause
     select_clauses = []
@@ -174,33 +200,9 @@ def build_analytics_query(
     for field in variable_fields:
         select_clauses.append(f"qcv.variables->>'{field}' as {field}")
 
-    # Calculated fields (aggregate from products)
-    for field in calc_fields:
-        jsonb_key = QuerySecurityValidator.CALCULATION_FIELD_MAP.get(field)
-
-        if jsonb_key:
-            # Direct JSONB extraction with SUM
-            select_clauses.append(
-                f"COALESCE(SUM((qcr.phase_results->>'{jsonb_key}')::numeric), 0) as {field}"
-            )
-        elif field == 'export_vat':
-            # Calculate from two JSONB fields
-            select_clauses.append(
-                "COALESCE(SUM((qcr.phase_results->>'sales_price_total_with_vat')::numeric - "
-                "(qcr.phase_results->>'sales_price_total_no_vat')::numeric), 0) as export_vat"
-            )
-        elif field == 'margin_percent':
-            # Calculate percentage (average across products)
-            select_clauses.append(
-                "COALESCE(AVG(CASE WHEN (qcr.phase_results->>'sales_price_total_no_vat')::numeric > 0 "
-                "THEN ((qcr.phase_results->>'profit')::numeric / "
-                "(qcr.phase_results->>'sales_price_total_no_vat')::numeric) * 100 "
-                "ELSE 0 END), 0) as margin_percent"
-            )
-        elif field == 'import_vat':
-            # TODO: Research how import_vat is calculated/stored
-            # For now, return 0 as placeholder
-            select_clauses.append("0 as import_vat")
+    # Summary fields (pre-aggregated quote-level totals)
+    for field in summary_fields:
+        select_clauses.append(f"qcs.{field}")
 
     # Build WHERE clause with parameterized filters
     params = []
@@ -272,54 +274,27 @@ def build_analytics_query(
                 params.append(value)
                 param_count += 1
 
-    # Build GROUP BY (needed because of aggregations)
-    group_by_fields = quote_fields.copy() if quote_fields else []
+    # Check if we need JOINs
+    needs_variable_join = variable_fields or has_variable_filters
+    needs_summary_join = summary_fields
 
-    # Add variable fields to GROUP BY
-    for field in variable_fields:
-        group_by_fields.append(f"qcv.variables->>'{field}'")
+    # Build SQL with appropriate JOINs
+    from_clause = "FROM quotes q"
 
-    # Check if we need JOIN (calculated fields, variable fields in SELECT, or variable filters in WHERE)
-    needs_join = calc_fields or variable_fields or has_variable_filters
+    if needs_variable_join:
+        from_clause += "\n            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id"
 
-    # When using JOIN, ALWAYS need q.id and q.created_at in GROUP BY
-    # (for ORDER BY and uniqueness)
-    if needs_join:
-        # Ensure q.id is first
-        if 'q.id' not in group_by_fields:
-            group_by_fields.insert(0, 'q.id')
+    if needs_summary_join:
+        from_clause += "\n            LEFT JOIN quote_calculation_summaries qcs ON qcs.quote_id = q.id"
 
-        # Ensure q.created_at is included (for ORDER BY)
-        if 'q.created_at' not in group_by_fields:
-            group_by_fields.append('q.created_at')
-
-        # Also ensure created_at is in SELECT if not already
-        if 'q.created_at' not in select_clauses:
-            select_clauses.append('q.created_at')
-
-    # Build SQL with JOIN
-    if needs_join:
-        # Need JOIN when calculated or variable fields requested
-        sql = f"""
-            SELECT {', '.join(select_clauses)}
-            FROM quotes q
-            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id
-            LEFT JOIN quote_items qi ON qi.quote_id = q.id
-            LEFT JOIN quote_calculation_results qcr ON qcr.quote_item_id = qi.id
-            WHERE {' AND '.join(where_clauses)}
-            GROUP BY {", ".join(group_by_fields)}
-            ORDER BY q.created_at DESC
-            LIMIT ${param_count} OFFSET ${param_count + 1}
-        """
-    else:
-        # No calculated/variable fields - simple query without JOIN
-        sql = f"""
-            SELECT {', '.join([f.replace('q.', '') for f in select_clauses])}
-            FROM quotes q
-            WHERE {' AND '.join(where_clauses)}
-            ORDER BY q.created_at DESC
-            LIMIT ${param_count} OFFSET ${param_count + 1}
-        """
+    # Build SQL
+    sql = f"""
+        SELECT {', '.join(select_clauses)}
+        {from_clause}
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY q.created_at DESC
+        LIMIT ${param_count} OFFSET ${param_count + 1}
+    """
 
     params.extend([limit, offset])
 
@@ -348,8 +323,8 @@ def build_aggregation_query(
     agg_clauses = []
     all_allowed_fields = (QuerySecurityValidator.ALLOWED_FIELDS['quotes'] +
                          QuerySecurityValidator.ALLOWED_FIELDS['variables'] +
-                         QuerySecurityValidator.ALLOWED_FIELDS['calculated'])
-    needs_join = False  # Track if we need JOIN for calculated fields
+                         QuerySecurityValidator.ALLOWED_FIELDS['quote_calculation_summaries'])
+    needs_summary_join = False  # Track if we need JOIN for summary fields
     needs_variable_join = False  # Track if we need JOIN for variable fields
 
     for field, config in aggregations.items():
@@ -399,45 +374,10 @@ def build_aggregation_query(
                         f"COALESCE({func}((qcv.variables->>'{col_name}')::numeric), 0) as {field}"
                     )
 
-            elif col_name in QuerySecurityValidator.ALLOWED_FIELDS['calculated']:
-                jsonb_key = QuerySecurityValidator.CALCULATION_FIELD_MAP.get(col_name)
-
-                # Only set needs_join if we actually use the JOIN
-                # (import_vat returns 0, so doesn't need JOIN)
-                if jsonb_key or col_name in ['export_vat', 'margin_percent']:
-                    needs_join = True
-
-                if jsonb_key:
-                    # Direct JSONB extraction
-                    agg_clauses.append(
-                        f"COALESCE({func}((qcr.phase_results->>'{jsonb_key}')::numeric), 0) as {field}"
-                    )
-                elif col_name == 'export_vat':
-                    # Calculate from two JSONB fields
-                    agg_clauses.append(
-                        f"COALESCE({func}((qcr.phase_results->>'sales_price_total_with_vat')::numeric - "
-                        f"(qcr.phase_results->>'sales_price_total_no_vat')::numeric), 0) as {field}"
-                    )
-                elif col_name == 'margin_percent':
-                    # Calculate percentage
-                    if func == 'AVG':
-                        agg_clauses.append(
-                            "COALESCE(AVG(CASE WHEN (qcr.phase_results->>'sales_price_total_no_vat')::numeric > 0 "
-                            "THEN ((qcr.phase_results->>'profit')::numeric / "
-                            "(qcr.phase_results->>'sales_price_total_no_vat')::numeric) * 100 "
-                            "ELSE 0 END), 0) as " + field
-                        )
-                    else:
-                        # MIN/MAX of margin_percent
-                        agg_clauses.append(
-                            f"COALESCE({func}(CASE WHEN (qcr.phase_results->>'sales_price_total_no_vat')::numeric > 0 "
-                            "THEN ((qcr.phase_results->>'profit')::numeric / "
-                            "(qcr.phase_results->>'sales_price_total_no_vat')::numeric) * 100 "
-                            "ELSE 0 END), 0) as " + field
-                        )
-                elif col_name == 'import_vat':
-                    # TODO: Research how import_vat is calculated
-                    agg_clauses.append(f"0 as {field}")
+            elif col_name in QuerySecurityValidator.ALLOWED_FIELDS['quote_calculation_summaries']:
+                # Summary field (pre-aggregated quote totals)
+                needs_summary_join = True
+                agg_clauses.append(f"COALESCE({func}(qcs.{col_name}), 0) as {field}")
 
     if not agg_clauses:
         agg_clauses = ["COUNT(DISTINCT q.id) as quote_count"]
@@ -477,33 +417,19 @@ def build_aggregation_query(
                 params.append(value)
                 param_count += 1
 
-    # Build SQL with or without JOIN
-    # Only add JOIN if we actually need calculated fields
-    # Variable JOIN and quote-level fields don't need quote_items/qcr
-    if needs_join:
-        # Need full JOIN for calculated fields
-        sql = f"""
-            SELECT {', '.join(agg_clauses)}
-            FROM quotes q
-            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id
-            LEFT JOIN quote_items qi ON qi.quote_id = q.id
-            LEFT JOIN quote_calculation_results qcr ON qcr.quote_item_id = qi.id
-            WHERE {' AND '.join(where_clauses)}
-        """
-    elif needs_variable_join:
-        # Need only variable JOIN (no quote_items/qcr to avoid duplicates)
-        sql = f"""
-            SELECT {', '.join(agg_clauses)}
-            FROM quotes q
-            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id
-            WHERE {' AND '.join(where_clauses)}
-        """
-    else:
-        # No JOIN needed
-        sql = f"""
-            SELECT {', '.join(agg_clauses)}
-            FROM quotes q
-            WHERE {' AND '.join(where_clauses)}
-        """
+    # Build SQL with appropriate JOINs (1:1 only, no duplication!)
+    from_clause = "FROM quotes q"
+
+    if needs_variable_join:
+        from_clause += "\n            LEFT JOIN quote_calculation_variables qcv ON qcv.quote_id = q.id"
+
+    if needs_summary_join:
+        from_clause += "\n            LEFT JOIN quote_calculation_summaries qcs ON qcs.quote_id = q.id"
+
+    sql = f"""
+        SELECT {', '.join(agg_clauses)}
+        {from_clause}
+        WHERE {' AND '.join(where_clauses)}
+    """
 
     return sql, params
