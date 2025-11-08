@@ -392,14 +392,36 @@ async def execute_analytics_query(
                 limit=1000000,  # High limit for counting
                 offset=0
             )
+
+            # DEBUG: Print count SQL before replace
+            print(f"\n=== COUNT SQL (BEFORE) ===\n{count_sql}\n=== PARAMS ===\n{count_params}\n===\n")
+
             # Replace SELECT fields with COUNT(*)
-            count_sql = count_sql.replace(
-                "SELECT id",
-                "SELECT COUNT(*) as total"
-            ).replace("ORDER BY q.created_at DESC", "").replace("LIMIT $", "-- LIMIT $")
+            # Handle both "SELECT id" and "SELECT q.id, ..." patterns
+            import re
+            if "SELECT q.id" in count_sql:
+                # When there's JOIN, SELECT starts with "q.id, ..."
+                # Replace everything between SELECT and FROM with COUNT(DISTINCT q.id)
+                count_sql = re.sub(
+                    r'SELECT .+? FROM',
+                    'SELECT COUNT(DISTINCT q.id) as total FROM',
+                    count_sql,
+                    count=1,
+                    flags=re.DOTALL
+                )
+            else:
+                # Simple case: "SELECT id FROM"
+                count_sql = count_sql.replace("SELECT id", "SELECT COUNT(*) as total")
+
+            # Remove GROUP BY, ORDER BY and LIMIT
+            count_sql = re.sub(r'GROUP BY .+?(?=ORDER BY|LIMIT|$)', '', count_sql, flags=re.DOTALL)
+            count_sql = count_sql.replace("ORDER BY q.created_at DESC", "").replace("LIMIT $", "-- LIMIT $")
 
             # Remove LIMIT and OFFSET params (last 2)
             count_params = count_params[:-2]
+
+            # DEBUG: Print count SQL after replace
+            print(f"\n=== COUNT SQL (AFTER) ===\n{count_sql}\n=== PARAMS ===\n{count_params}\n===\n")
 
             total_count = await conn.fetchval(count_sql, *count_params)
 
@@ -429,6 +451,9 @@ async def execute_analytics_query(
                 limit=query_request.limit,
                 offset=query_request.offset
             )
+
+            # DEBUG: Print generated SQL
+            print(f"\n=== GENERATED SQL ===\n{sql}\n=== PARAMS ===\n{params}\n===\n")
 
             rows = await conn.fetch(sql, *params)
 
@@ -483,8 +508,14 @@ async def execute_analytics_aggregation(
     Faster than standard query for summary data.
     Uses Redis cache (10-min TTL).
     """
+    # DEBUG: Print BEFORE everything
+    print(f"\n=== AGGREGATE ENDPOINT CALLED ===\nFilters: {query_request.filters}\nAggregations: {query_request.aggregations}\n===\n")
+
     # Admin check
     await check_admin_permissions(user)
+
+    # DEBUG: Print aggregate request
+    print(f"\n=== AGGREGATE REQUEST (after admin check) ===\nFilters: {query_request.filters}\nAggregations: {query_request.aggregations}\n===\n")
 
     # Validate aggregation functions
     valid_functions = {'sum', 'avg', 'count', 'min', 'max'}
@@ -529,7 +560,13 @@ async def execute_analytics_aggregation(
                 query_request.aggregations or {}
             )
 
+            # DEBUG: Print aggregation SQL
+            print(f"\n=== AGGREGATION SQL ===\n{sql}\n=== PARAMS ===\n{params}\n===\n")
+
             row = await conn.fetchrow(sql, *params)
+
+            # DEBUG: Print result
+            print(f"\n=== AGGREGATION RESULT ===\n{dict(row) if row else 'None'}\n===\n")
 
             execution_time_ms = int((time.time() - start_time) * 1000)
 
@@ -734,15 +771,15 @@ async def generate_excel_export(
         adjusted_width = min(max_length + 2, 50)
         ws.column_dimensions[column_letter].width = adjusted_width
 
-    # Save to temp file
-    temp_file = tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".xlsx",
-        prefix=f"analytics_export_{org_id}_"
-    )
-    wb.save(temp_file.name)
+    # Generate filename with timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"/tmp/analytics_{timestamp}.xlsx"
 
-    return temp_file.name
+    # Save to file
+    wb.save(filename)
+
+    return filename
 
 
 async def generate_csv_export(
@@ -757,15 +794,14 @@ async def generate_csv_export(
     """
     import tempfile
 
-    # Create temp file
-    temp_file = tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".csv",
-        prefix=f"analytics_export_{org_id}_",
-        mode="w",
-        newline="",
-        encoding="utf-8"
-    )
+    # Generate filename with timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"/tmp/analytics_{timestamp}.csv"
+
+    # Open file for writing with UTF-8 BOM (for Excel compatibility)
+    import io
+    temp_file = open(filename, 'w', newline='', encoding='utf-8-sig')
 
     # Write CSV
     writer = csv.DictWriter(temp_file, fieldnames=selected_fields)
@@ -785,7 +821,7 @@ async def generate_csv_export(
 
     temp_file.close()
 
-    return temp_file.name
+    return filename
 
 
 async def upload_to_storage(file_path: str, org_id: str) -> str:
