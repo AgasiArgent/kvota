@@ -73,7 +73,9 @@ const AVAILABLE_FIELDS = {
     // Phase 1-2: Purchase prices
     { key: 'calc_s16_total_purchase_price', label: 'Цена закупки (итого)' },
     // Phase 3: Logistics
-    { key: 'calc_v16_total_logistics', label: 'Логистика (итого)' },
+    { key: 'calc_v16_total_logistics', label: 'Логистика (транспорт)' },
+    { key: 'calc_total_brokerage', label: 'Брокеридж и таможня' },
+    { key: 'calc_total_logistics_and_brokerage', label: 'Логистика + Брокеридж (всего)' },
     // Phase 4: Duties
     { key: 'calc_y16_customs_duty', label: 'Таможенная пошлина' },
     { key: 'calc_z16_excise_tax', label: 'Акциз' },
@@ -400,7 +402,9 @@ export default function AnalyticsPage() {
       total_amount: 'общая сумма',
       // New calculated fields
       calc_s16_total_purchase_price: 'цена закупки',
-      calc_v16_total_logistics: 'логистика',
+      calc_v16_total_logistics: 'логистика (транспорт)',
+      calc_total_brokerage: 'брокеридж',
+      calc_total_logistics_and_brokerage: 'логистика + брокеридж',
       calc_y16_customs_duty: 'таможенная пошлина',
       calc_z16_excise_tax: 'акциз',
       calc_ab16_cogs_total: 'себестоимость',
