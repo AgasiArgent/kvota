@@ -49,28 +49,29 @@ VAT_SELLER_COUNTRY_MAP = {
 }
 
 # (Supplier country, Seller region) → Internal markup mapping (AW16)
+# Updated 2025-11-09: New markup percentages based on trade routes
 INTERNAL_MARKUP_MAP = {
-    (SupplierCountry.TURKEY, "RU"): Decimal("0.10"),
+    (SupplierCountry.TURKEY, "RU"): Decimal("0.02"),  # 2%
     (SupplierCountry.TURKEY, "TR"): Decimal("0.00"),
-    (SupplierCountry.TURKEY_TRANSIT, "RU"): Decimal("0.10"),
+    (SupplierCountry.TURKEY_TRANSIT, "RU"): Decimal("0.02"),  # 2%
     (SupplierCountry.TURKEY_TRANSIT, "TR"): Decimal("0.00"),
     (SupplierCountry.RUSSIA, "RU"): Decimal("0.00"),
     (SupplierCountry.RUSSIA, "TR"): Decimal("0.00"),
-    (SupplierCountry.CHINA, "RU"): Decimal("0.10"),
+    (SupplierCountry.CHINA, "RU"): Decimal("0.02"),  # 2%
     (SupplierCountry.CHINA, "TR"): Decimal("0.00"),
-    (SupplierCountry.LITHUANIA, "RU"): Decimal("0.13"),
-    (SupplierCountry.LITHUANIA, "TR"): Decimal("0.03"),
-    (SupplierCountry.LATVIA, "RU"): Decimal("0.13"),
-    (SupplierCountry.LATVIA, "TR"): Decimal("0.03"),
-    (SupplierCountry.BULGARIA, "RU"): Decimal("0.13"),
-    (SupplierCountry.BULGARIA, "TR"): Decimal("0.03"),
-    (SupplierCountry.POLAND, "RU"): Decimal("0.13"),
-    (SupplierCountry.POLAND, "TR"): Decimal("0.03"),
-    (SupplierCountry.EU_CROSS_BORDER, "RU"): Decimal("0.13"),
-    (SupplierCountry.EU_CROSS_BORDER, "TR"): Decimal("0.03"),
-    (SupplierCountry.UAE, "RU"): Decimal("0.11"),
-    (SupplierCountry.UAE, "TR"): Decimal("0.01"),
-    (SupplierCountry.OTHER, "RU"): Decimal("0.10"),
+    (SupplierCountry.LITHUANIA, "RU"): Decimal("0.04"),  # 4%
+    (SupplierCountry.LITHUANIA, "TR"): Decimal("0.02"),  # 2%
+    (SupplierCountry.LATVIA, "RU"): Decimal("0.04"),  # 4%
+    (SupplierCountry.LATVIA, "TR"): Decimal("0.02"),  # 2%
+    (SupplierCountry.BULGARIA, "RU"): Decimal("0.04"),  # 4%
+    (SupplierCountry.BULGARIA, "TR"): Decimal("0.02"),  # 2%
+    (SupplierCountry.POLAND, "RU"): Decimal("0.04"),  # 4%
+    (SupplierCountry.POLAND, "TR"): Decimal("0.02"),  # 2%
+    (SupplierCountry.EU_CROSS_BORDER, "RU"): Decimal("0.04"),  # 4%
+    (SupplierCountry.EU_CROSS_BORDER, "TR"): Decimal("0.02"),  # 2%
+    (SupplierCountry.UAE, "RU"): Decimal("0.03"),  # 3%
+    (SupplierCountry.UAE, "TR"): Decimal("0.01"),  # 1%
+    (SupplierCountry.OTHER, "RU"): Decimal("0.02"),  # 2%
     (SupplierCountry.OTHER, "TR"): Decimal("0.00")
 }
 
@@ -200,6 +201,41 @@ def phase2_distribution_base(
 
 
 # ============================================================================
+# PHASE 2.5: INTERNAL PRICING (for insurance calculation)
+# ============================================================================
+
+def phase2_5_internal_pricing(
+    S16: Decimal,
+    quantity: int,
+    internal_markup: Decimal
+) -> Dict[str, Decimal]:
+    """
+    Calculate internal sale price (without duties)
+
+    This phase calculates AY16 early so it can be used for insurance calculation
+    before Phase 3 (logistics distribution).
+
+    Steps: Final-46, Final-45
+    Returns: AX16, AY16
+
+    Created: 2025-11-09 (to resolve Phase 3 → Phase 4 circular dependency)
+    """
+    # Final-46: AX16 = S16 * (1 + AW16) / E16
+    if quantity > 0:
+        AX16 = round_decimal(S16 * (Decimal("1") + internal_markup) / Decimal(quantity))
+    else:
+        AX16 = Decimal("0")
+
+    # Final-45: AY16 = E16 * AX16
+    AY16 = round_decimal(Decimal(quantity) * AX16)
+
+    return {
+        "AX16": AX16,  # Internal sale price per unit
+        "AY16": AY16   # Internal sale price total
+    }
+
+
+# ============================================================================
 # PHASE 3: LOGISTICS DISTRIBUTION
 # ============================================================================
 
@@ -257,59 +293,47 @@ def phase3_logistics_distribution(
 
 
 # ============================================================================
-# PHASE 4: INTERNAL PRICING & DUTIES
+# PHASE 4: DUTIES & VAT RESTORATION
 # ============================================================================
 
-def phase4_internal_pricing_duties(
+def phase4_duties(
+    AY16: Decimal,
+    T16: Decimal,
     S16: Decimal,
     quantity: int,
-    internal_markup: Decimal,
     import_tariff: Decimal,
     excise_tax: Decimal,
     weight_in_kg: Decimal,
     vat_seller_country: Decimal,
-    offer_incoterms: Incoterms,
-    offer_sale_type: OfferSaleType,
-    seller_company: SellerCompany
+    offer_incoterms: Incoterms
 ) -> Dict[str, Decimal]:
     """
-    Calculate internal sale price and duties
+    Calculate customs duties and VAT restoration
 
-    Steps: Final-46, Final-45, Final-11, Final-8
-    Returns: AX16, AY16, Y16, Z16, AZ16
+    This phase is called AFTER Phase 3 (logistics) so T16 is available.
+    AX16 and AY16 are calculated in Phase 2.5.
+
+    Steps: Final-11, excise calculation, Final-8
+    Returns: Y16, Z16, AZ16
+
+    Updated 2025-11-09: Y16 formula changed to import_tariff × (AY16 + T16)
     """
-    # Final-46: AX16 = S16 * (1 + AW16) / E16
-    if quantity > 0:
-        AX16 = round_decimal(S16 * (Decimal("1") + internal_markup) / Decimal(quantity))
-    else:
-        AX16 = Decimal("0")
-
-    # Final-45: AY16 = E16 * AX16
-    AY16 = round_decimal(Decimal(quantity) * AX16)
-
     # Final-11: Y16 = customs fee
-    # Turkish seller exports = no customs duty (Y16 = 0)
-    if seller_company == SellerCompany.TEXCEL_TR:
-        Y16 = Decimal("0")
-    elif offer_incoterms == Incoterms.DDP:
-        if offer_sale_type == OfferSaleType.SUPPLY:
-            customs_base = AY16
-        else:  # транзит
-            customs_base = S16
-        Y16 = round_decimal((import_tariff / Decimal("100")) * customs_base)
+    # Updated 2025-11-09: New formula includes T16 (first-leg logistics)
+    # Y16 = import_tariff × (AY16 + T16) if DDP
+    if offer_incoterms == Incoterms.DDP:
+        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16))
     else:
         Y16 = Decimal("0")
-    
+
     # Excise tax: Z16 = excise_tax * weight_in_kg * quantity
     Z16 = round_decimal(excise_tax * weight_in_kg * Decimal(quantity))
 
     # Final-8: AZ16 = S16 * (1 + M16) - Purchase with supplier VAT
     AZ16 = round_decimal(S16 * (Decimal("1") + vat_seller_country))
-    
+
     return {
-        "AX16": AX16,  # Internal sale price per unit
-        "AY16": AY16,  # Internal sale price total
-        "Y16": Y16,    # Customs fee
+        "Y16": Y16,    # Customs fee (includes logistics T16)
         "Z16": Z16,    # Excise tax
         "AZ16": AZ16   # Purchase with VAT
     }
@@ -322,6 +346,9 @@ def phase4_internal_pricing_duties(
 def phase5_supplier_payment(
     AZ13: Decimal,
     T13: Decimal,
+    Y13: Decimal,
+    Z13: Decimal,
+    AO13: Decimal,
     advance_to_supplier: Decimal,
     rate_fin_comm: Decimal
 ) -> Dict[str, Decimal]:
@@ -331,7 +358,9 @@ def phase5_supplier_payment(
     Steps: Final-23, Final-27
     Excel formulas:
     - BH6 = AZ13 * D11 * (1 + rate_fin_comm)
-    - BH4 = SUM(AZ13, T13) * (1 + rate_fin_comm)
+    - BH4 = SUM(AZ13, T13) * (1 + rate_fin_comm) + Y13 + Z13 + AO13
+
+    Updated 2025-11-09: BH4 now includes customs duties, excise tax, and import VAT
 
     Returns: BH6, BH4
     """
@@ -340,14 +369,13 @@ def phase5_supplier_payment(
     fin_multiplier = Decimal("1") + (rate_fin_comm / Decimal("100"))
     BH6 = round_decimal(AZ13 * advance_multiplier * fin_multiplier)
 
-    # Final-27: BH4 = SUM(AZ13, T13) * (1 + rate_fin_comm)
-    # For single product: T13 = T16 (first leg logistics total)
-    # For multi-product: T13 = sum of all T16 values
-    BH4 = round_decimal((AZ13 + T13) * fin_multiplier)
+    # Final-27: BH4 = SUM(AZ13, T13) * (1 + rate_fin_comm) + Y13 + Z13 + AO13
+    # Updated 2025-11-09: Added customs duties (Y13), excise tax (Z13), and import VAT (AO13)
+    BH4 = round_decimal((AZ13 + T13) * fin_multiplier + Y13 + Z13 + AO13)
 
     return {
         "BH6": BH6,  # Supplier payment
-        "BH4": BH4   # Total before forwarding
+        "BH4": BH4   # Total before forwarding (includes duties and VAT)
     }
 
 
@@ -414,21 +442,24 @@ def phase7_financing_costs(
     BH4: Decimal,
     advance_from_client: Decimal,
     delivery_time: int,
-    time_to_advance: int,
-    time_to_advance_on_receiving: int,
-    time_to_advance_loading: int,
+    customs_logistics_pmt_due: int,
     rate_loan_interest_daily: Decimal
 ) -> Dict[str, Decimal]:
     """
-    Calculate financing needs and costs (Option 1: Simple Excel match)
-    
-    Steps: Final-17, Final-16, Final-22, Final-24, Final-21, 
+    Calculate financing needs and costs
+
+    Steps: Final-17, Final-16, Final-22, Final-24, Final-21,
            Final-15, Final-14 (BJ7), Final-25, Final-14 (BJ10), Final-13
     Returns: BH3, BH7, BH9, BH8, BH10, BI7, BJ7, BI10, BJ10, BJ11
+
+    Updated 2025-11-09:
+    - BI7 simplified to BH7 × (1 + rate_loan_interest_daily × D9) (simple interest)
+    - BI10 simplified to BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
+    - Removed time_to_advance, time_to_advance_on_receiving, time_to_advance_loading parameters
     """
     # Final-17: BH3 = BH2 * (J5 / 100)
     BH3 = round_decimal(BH2 * (advance_from_client / Decimal("100")))
-    
+
     # Final-16: BH7 = IF(BH3>0, IF(BH3>=BH6, 0, BH6-BH3), BH6)
     if BH3 > 0:
         if BH3 >= BH6:
@@ -437,13 +468,13 @@ def phase7_financing_costs(
             BH7 = round_decimal(BH6 - BH3)
     else:
         BH7 = BH6
-    
+
     # Final-22: BH9 = 1 - J5
     BH9 = Decimal("1") - (advance_from_client / Decimal("100"))
-    
+
     # Final-24: BH8 = BH4 - BH6
     BH8 = round_decimal(BH4 - BH6)
-    
+
     # Final-21: BH10 = IF((BH9 + IF(BH3>BH6, BH3-BH6, 0)) > BH8, 0, BH8 - (BH9 + IF(BH3>BH6, BH3-BH6, 0)))
     excess_advance = BH3 - BH6 if BH3 > BH6 else Decimal("0")
     remaining_after_advance = BH9 + excess_advance
@@ -451,38 +482,34 @@ def phase7_financing_costs(
         BH10 = Decimal("0")
     else:
         BH10 = round_decimal(BH8 - remaining_after_advance)
-    
-    # Calculate D9 + K9 (total financing period)
+
+    # Final-15: BI7 = BH7 × (1 + rate_loan_interest_daily × D9)
+    # Updated 2025-11-09: Simplified to simple interest, only D9 (no K9)
     D9 = delivery_time
-    K9 = time_to_advance_on_receiving
-    total_period = D9 + K9
-    
-    # Final-15: BI7 = FV(rate, D9+K9, , -BH7)
-    BI7 = calculate_future_value(BH7, rate_loan_interest_daily, total_period)
-    
+    BI7 = round_decimal(BH7 * (Decimal("1") + rate_loan_interest_daily * Decimal(D9)))
+
     # Final-14: BJ7 = BI7 - BH7
     BJ7 = round_decimal(BI7 - BH7)
-    
-    # Final-25: BI10 = FV(rate, D9+K9-K6, , -BH10)
-    K6 = time_to_advance_loading
-    operational_period = D9 + K9 - K6
-    BI10 = calculate_future_value(BH10, rate_loan_interest_daily, operational_period)
-    
+
+    # Final-25: BI10 = BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
+    # Updated 2025-11-09: Simplified to simple interest with fixed payment term
+    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(customs_logistics_pmt_due)))
+
     # Final-14: BJ10 = BI10 - BH10
     BJ10 = round_decimal(BI10 - BH10)
-    
+
     # Final-13: BJ11 = BJ7 + BJ10
     BJ11 = round_decimal(BJ7 + BJ10)
-    
+
     return {
         "BH3": BH3,    # Client advance
         "BH7": BH7,    # Supplier financing need
         "BH9": BH9,    # Remaining % after advance
         "BH8": BH8,    # Amount payable after supplier payment
         "BH10": BH10,  # Operational financing need
-        "BI7": BI7,    # FV of supplier financing
+        "BI7": BI7,    # FV of supplier financing (simple interest)
         "BJ7": BJ7,    # Supplier financing COST
-        "BI10": BI10,  # FV of operational financing
+        "BI10": BI10,  # FV of operational financing (simple interest)
         "BJ10": BJ10,  # Operational financing COST
         "BJ11": BJ11   # TOTAL financing cost
     }
@@ -688,15 +715,18 @@ def phase12_vat_calculations(
     AY16: Decimal,
     Y16: Decimal,
     Z16: Decimal,
+    T16: Decimal,
     offer_incoterms: Incoterms,
     offer_sale_type: OfferSaleType,
     rate_vat_ru: Decimal
 ) -> Dict[str, Decimal]:
     """
     Calculate VAT for sales and import
-    
+
     Steps: Final-39, Final-40, Final-41, Final-42, Final-43
     Returns: AM16, AL16, AN16, AO16, AP16
+
+    Updated 2025-11-09: AO16 formula now includes T16 (first-leg logistics)
     """
     # Final-39: AM16 = AJ16 * (1 + IF(offer_incoterms="DDP", rate_vatRu, 0))
     if offer_incoterms == Incoterms.DDP:
@@ -704,29 +734,30 @@ def phase12_vat_calculations(
     else:
         vat_multiplier = Decimal("1")
     AM16 = round_decimal(AJ16 * vat_multiplier)
-    
+
     # Final-40: AL16 = IFERROR(AM16 * E16, 0)
     AL16 = round_decimal(AM16 * Decimal(quantity))
-    
+
     # Final-41: AN16 = AL16 - AK16
     AK16 = AJ16 * Decimal(quantity)  # Sales price total no VAT
     AN16 = round_decimal(AL16 - AK16)
-    
-    # Final-42: AO16 = SUM(AY16, Y16, Z16) * IF(AND(DDP, not export), rate_vatRu, 0)
+
+    # Final-42: AO16 = SUM(AY16, Y16, Z16, T16) * IF(AND(DDP, not export), rate_vatRu, 0)
+    # Updated 2025-11-09: Now includes T16 in the sum
     if offer_incoterms == Incoterms.DDP and offer_sale_type != OfferSaleType.EXPORT:
         import_vat_rate = rate_vat_ru
     else:
         import_vat_rate = Decimal("0")
-    AO16 = round_decimal((AY16 + Y16 + Z16) * import_vat_rate)
-    
+    AO16 = round_decimal((AY16 + Y16 + Z16 + T16) * import_vat_rate)
+
     # Final-43: AP16 = AN16 - AO16
     AP16 = round_decimal(AN16 - AO16)
-    
+
     return {
         "AM16": AM16,  # Sales price per unit with VAT
         "AL16": AL16,  # Sales price total with VAT
         "AN16": AN16,  # VAT from sales
-        "AO16": AO16,  # VAT on import
+        "AO16": AO16,  # VAT on import (includes T16)
         "AP16": AP16   # Net VAT payable
     }
 
@@ -811,63 +842,105 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
     S13 = sum(p["S16"] for p in phase1_results_list)
     BD16_list = [p["S16"] / S13 for p in phase1_results_list]
 
-    # STEP 3: Calculate quote-level logistics ONCE
-    # T13 = total logistics supplier to hub
-    T13 = shared.logistics.logistics_supplier_hub
-    # U13 = total logistics hub to customs
-    U13 = shared.logistics.logistics_hub_customs
-
-    # STEP 4: Calculate Phase 4 for all products to get AZ16 for each
-    phase4_results_list = []
+    # STEP 2.5: Calculate internal pricing (AY16) for insurance calculation
+    phase2_5_results_list = []
     internal_markup_list = []  # Store per-product internal markup
-    AZ13 = Decimal("0")  # Sum of all AZ16
     for i, product_input in enumerate(products):
         # Calculate internal markup for THIS product's supplier country
         internal_markup = get_internal_markup(product_input.logistics.supplier_country, seller_region)
         internal_markup_list.append(internal_markup)
 
-        phase4 = phase4_internal_pricing_duties(
+        phase2_5 = phase2_5_internal_pricing(
             phase1_results_list[i]["S16"],
             product_input.product.quantity,
-            internal_markup,
-            product_input.taxes.import_tariff,
-            product_input.taxes.excise_tax,
-            product_input.product.weight_in_kg,
-            vat_seller_country_list[i],  # Use per-product VAT rate
-            product_input.logistics.offer_incoterms,
-            product_input.company.offer_sale_type,
-            product_input.company.seller_company
+            internal_markup
         )
-        phase4_results_list.append(phase4)
-        AZ13 += phase4["AZ16"]
+        phase2_5_results_list.append(phase2_5)
 
-    # STEP 5: Calculate quote-level supplier payment ONCE
-    phase5_results = phase5_supplier_payment(
-        AZ13,
-        T13,
-        shared.payment.advance_to_supplier,
-        shared.system.rate_fin_comm
-    )
-
-    # STEP 5.5: Calculate quote-level insurance for U16 distribution
+    # STEP 2.6: Calculate quote-level insurance using AY16
     # AY13_total = sum of all AY16 (internal sale price total for all products)
-    AY13_total = sum(phase4["AY16"] for phase4 in phase4_results_list)
+    AY13_total = sum(phase2_5["AY16"] for phase2_5 in phase2_5_results_list)
 
     # Insurance cost (ROUNDUP in Excel is ceiling to 1 decimal place)
     from decimal import ROUND_CEILING
     insurance_total = (AY13_total * shared.system.rate_insurance * Decimal("10")).quantize(Decimal("1"), rounding=ROUND_CEILING) / Decimal("10")
 
+    # STEP 3: Process each product to calculate Phase 3 and Phase 4
+    # We need to do this BEFORE aggregating for Phase 5-8
+    phase3_results_list = []
+    phase4_results_list = []
+
+    for i, product_input in enumerate(products):
+        BD16 = BD16_list[i]
+
+        # Calculate insurance for this product (distributed by value proportion BD16)
+        insurance_per_product = insurance_total * BD16
+
+        # PHASE 3: Distribute logistics costs
+        phase3 = phase3_logistics_distribution(
+            BD16,
+            shared.logistics.logistics_supplier_hub,
+            shared.logistics.logistics_hub_customs,
+            shared.logistics.logistics_customs_client,
+            shared.customs.brokerage_hub,
+            shared.customs.brokerage_customs,
+            shared.customs.warehousing_at_customs,
+            shared.customs.customs_documentation,
+            shared.customs.brokerage_extra,
+            insurance_per_product
+        )
+        phase3_results_list.append(phase3)
+
+        # PHASE 4: Calculate duties (Y16, Z16, AZ16) using T16 from Phase 3
+        phase4 = phase4_duties(
+            phase2_5_results_list[i]["AY16"],  # From Phase 2.5
+            phase3["T16"],  # From Phase 3 just calculated
+            phase1_results_list[i]["S16"],  # From Phase 1
+            product_input.product.quantity,
+            product_input.taxes.import_tariff,
+            product_input.taxes.excise_tax,
+            product_input.product.weight_in_kg,
+            vat_seller_country_list[i],
+            product_input.company.offer_incoterms
+        )
+        phase4_results_list.append(phase4)
+
+        # Calculate AO16 (deductible VAT) right after Phase 4
+        # New formula (2025-11-09): AO16 = (AY16 + Y16 + Z16 + T16) × rate_vat_ru
+        if (product_input.company.offer_incoterms == Incoterms.DDP and
+            product_input.company.offer_sale_type != OfferSaleType.EXPORT):
+            AO16 = round_decimal((phase2_5_results_list[i]["AY16"] + phase4["Y16"] + phase4["Z16"] + phase3["T16"]) * rate_vat_ru)
+        else:
+            AO16 = Decimal("0")
+
+        # Store AO16 temporarily for aggregation
+        phase4["AO16_temp"] = AO16
+
+    # STEP 4: Aggregate for Phase 5 (supplier payment)
+    T13 = sum(phase3["T16"] for phase3 in phase3_results_list)
+    U13 = sum(phase3["U16"] for phase3 in phase3_results_list)
+    AZ13 = sum(phase4["AZ16"] for phase4 in phase4_results_list)
+    Y13 = sum(phase4["Y16"] for phase4 in phase4_results_list)
+    Z13 = sum(phase4["Z16"] for phase4 in phase4_results_list)
+    AO13 = sum(phase4["AO16_temp"] for phase4 in phase4_results_list)
+
+    # STEP 5: Calculate quote-level supplier payment ONCE
+    phase5_results = phase5_supplier_payment(
+        AZ13,
+        T13,
+        Y13,
+        Z13,
+        AO13,
+        shared.payment.advance_to_supplier,
+        shared.system.rate_fin_comm
+    )
+
     # STEP 6: Calculate estimated COGS for each product (for revenue estimation)
     AB16_est_list = []
     for i in range(len(products)):
-        # For multi-product, distribute logistics using BD16
-        V16_est = (T13 + U13 +
-                   shared.customs.brokerage_hub +
-                   shared.customs.customs_documentation) * BD16_list[i]
-
         AB16_est = round_decimal(
             phase1_results_list[i]["S16"] +
-            V16_est +
+            phase3_results_list[i]["V16"] +
             phase4_results_list[i]["Y16"] +
             phase4_results_list[i]["Z16"]
         )
@@ -891,9 +964,7 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         phase5_results["BH4"],
         shared.payment.advance_from_client,
         shared.logistics.delivery_time,
-        shared.payment.time_to_advance,
-        shared.payment.time_to_advance_on_receiving,
-        shared.payment.time_to_advance_loading,
+        shared.system.customs_logistics_pmt_due,  # New admin variable
         shared.system.rate_loan_interest_daily
     )
 
@@ -905,29 +976,14 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         shared.system.rate_loan_interest_daily
     )
 
-    # STEP 10: Now process each product with distributed costs
+    # STEP 10: Now finalize each product with financing and sales pricing
     results = []
     for i, product_input in enumerate(products):
         BD16 = BD16_list[i]
         phase1 = phase1_results_list[i]
+        phase2_5 = phase2_5_results_list[i]
+        phase3 = phase3_results_list[i]
         phase4 = phase4_results_list[i]
-
-        # Calculate insurance for this product (distributed by value proportion BD16)
-        insurance_per_product = insurance_total * BD16
-
-        # PHASE 3: Distribute logistics costs
-        phase3_results = phase3_logistics_distribution(
-            BD16,
-            shared.logistics.logistics_supplier_hub,
-            shared.logistics.logistics_hub_customs,
-            shared.logistics.logistics_customs_client,
-            shared.customs.brokerage_hub,
-            shared.customs.brokerage_customs,
-            shared.customs.warehousing_at_customs,
-            shared.customs.customs_documentation,
-            shared.customs.brokerage_extra,
-            insurance_per_product
-        )
 
         # PHASE 9: Distribute financing costs
         phase9_results = phase9_distribute_financing(
@@ -939,7 +995,7 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         # PHASE 10: Final COGS
         phase10_results = phase10_final_cogs(
             phase1["S16"],
-            phase3_results["V16"],
+            phase3["V16"],
             phase4["Y16"],
             phase4["Z16"],
             phase9_results["BA16"],
@@ -951,7 +1007,7 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         phase11_results = phase11_sales_price(
             phase10_results["AB16"],
             phase1["S16"],
-            phase3_results["V16"],
+            phase3["V16"],
             product_input.product.quantity,
             product_input.financial.markup,
             BD16,
@@ -961,7 +1017,7 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
             product_input.system.rate_fin_comm,
             phase4["AZ16"],
             internal_markup_list[i],  # Use per-product internal markup
-            phase3_results["T16"],
+            phase3["T16"],
             product_input.company.offer_sale_type,
             seller_region
         )
@@ -970,10 +1026,11 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         phase12_results = phase12_vat_calculations(
             phase11_results["AJ16"],
             product_input.product.quantity,
-            phase4["AY16"],
+            phase2_5["AY16"],
             phase4["Y16"],
             phase4["Z16"],
-            product_input.logistics.offer_incoterms,
+            phase3["T16"],  # Added T16 for new AO16 formula
+            product_input.company.offer_incoterms,
             product_input.company.offer_sale_type,
             rate_vat_ru
         )
@@ -998,13 +1055,14 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
             purchase_price_total_quote_currency=phase1["S16"],
             # Phase 2
             distribution_base=BD16,
+            # Phase 2.5
+            internal_sale_price_per_unit=phase2_5["AX16"],
+            internal_sale_price_total=phase2_5["AY16"],
             # Phase 3
-            logistics_first_leg=phase3_results["T16"],
-            logistics_last_leg=phase3_results["U16"],
-            logistics_total=phase3_results["V16"],
+            logistics_first_leg=phase3["T16"],
+            logistics_last_leg=phase3["U16"],
+            logistics_total=phase3["V16"],
             # Phase 4
-            internal_sale_price_per_unit=phase4["AX16"],
-            internal_sale_price_total=phase4["AY16"],
             customs_fee=phase4["Y16"],
             excise_tax_amount=phase4["Z16"],
             # Phase 9
@@ -1076,22 +1134,15 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
     BD16 = Decimal("1.0")
     S13 = phase1_results["S16"]
 
-    # PHASE 4: Internal Pricing & Duties (calculate before phase3 to get AY16 for insurance)
-    phase4_results = phase4_internal_pricing_duties(
+    # PHASE 2.5: Internal Pricing (for insurance calculation)
+    phase2_5_results = phase2_5_internal_pricing(
         phase1_results["S16"],
         inputs.product.quantity,
-        internal_markup,
-        inputs.taxes.import_tariff,
-        inputs.taxes.excise_tax,
-        inputs.product.weight_in_kg,
-        vat_seller_country,
-        inputs.logistics.offer_incoterms,
-        inputs.company.offer_sale_type,
-        inputs.company.seller_company
+        internal_markup
     )
 
     # Calculate insurance for single product
-    AY13_for_insurance = phase4_results["AY16"]  # For single product, AY13 = AY16
+    AY13_for_insurance = phase2_5_results["AY16"]  # For single product, AY13 = AY16
     from decimal import ROUND_CEILING
     insurance_total = (AY13_for_insurance * inputs.system.rate_insurance * Decimal("10")).quantize(Decimal("1"), rounding=ROUND_CEILING) / Decimal("10")
 
@@ -1109,6 +1160,28 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         insurance_total  # For single product, no distribution needed
     )
 
+    # PHASE 4: Duties (calculate after Phase 3 so T16 is available)
+    phase4_results = phase4_duties(
+        phase2_5_results["AY16"],  # From Phase 2.5
+        phase3_results["T16"],  # From Phase 3
+        phase1_results["S16"],
+        inputs.product.quantity,
+        inputs.taxes.import_tariff,
+        inputs.taxes.excise_tax,
+        inputs.product.weight_in_kg,
+        vat_seller_country,
+        inputs.company.offer_incoterms
+    )
+
+    # Calculate AO16 (deductible VAT) right after Phase 4
+    # New formula (2025-11-09): AO16 = (AY16 + Y16 + Z16 + T16) × rate_vat_ru
+    if (inputs.company.offer_incoterms == Incoterms.DDP and
+        inputs.company.offer_sale_type != OfferSaleType.EXPORT):
+        AO16 = round_decimal((phase2_5_results["AY16"] + phase4_results["Y16"] +
+                              phase4_results["Z16"] + phase3_results["T16"]) * rate_vat_ru)
+    else:
+        AO16 = Decimal("0")
+
     # Estimated COGS (without financing)
     AB16_est = round_decimal(
         phase1_results["S16"] +
@@ -1116,13 +1189,20 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         phase4_results["Y16"] +
         phase4_results["Z16"]
     )
-    
+
     # PHASE 5: Supplier Payment
     AZ13 = phase4_results["AZ16"]  # For single product
     T13 = phase3_results["T16"]  # For single product, T13 = T16
+    Y13 = phase4_results["Y16"]  # For single product, Y13 = Y16
+    Z13 = phase4_results["Z16"]  # For single product, Z13 = Z16
+    AO13 = AO16  # For single product, AO13 = AO16
+
     phase5_results = phase5_supplier_payment(
         AZ13,
         T13,
+        Y13,
+        Z13,
+        AO13,
         inputs.payment.advance_to_supplier,
         inputs.system.rate_fin_comm
     )
@@ -1145,9 +1225,7 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         phase5_results["BH4"],
         inputs.payment.advance_from_client,
         inputs.logistics.delivery_time,
-        inputs.payment.time_to_advance,
-        inputs.payment.time_to_advance_on_receiving,
-        inputs.payment.time_to_advance_loading,
+        inputs.system.customs_logistics_pmt_due,  # New admin variable
         inputs.system.rate_loan_interest_daily
     )
     
@@ -1200,10 +1278,11 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
     phase12_results = phase12_vat_calculations(
         phase11_results["AJ16"],
         inputs.product.quantity,
-        phase4_results["AY16"],
+        phase2_5_results["AY16"],  # From Phase 2.5
         phase4_results["Y16"],
         phase4_results["Z16"],
-        inputs.logistics.offer_incoterms,
+        phase3_results["T16"],  # Added T16 for new AO16 formula
+        inputs.company.offer_incoterms,
         inputs.company.offer_sale_type,
         rate_vat_ru
     )
@@ -1226,13 +1305,13 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         purchase_price_per_unit_quote_currency=phase1_results["R16"],
         purchase_price_total_quote_currency=phase1_results["S16"],
         distribution_base=BD16,
+        internal_sale_price_per_unit=phase2_5_results["AX16"],
+        internal_sale_price_total=phase2_5_results["AY16"],
         logistics_first_leg=phase3_results["T16"],
         logistics_last_leg=phase3_results["U16"],
         logistics_total=phase3_results["V16"],
         customs_fee=phase4_results["Y16"],
         excise_tax_amount=phase4_results["Z16"],
-        internal_sale_price_per_unit=phase4_results["AX16"],
-        internal_sale_price_total=phase4_results["AY16"],
         financing_cost_initial=phase9_results["BA16"],
         financing_cost_credit=phase9_results["BB16"],
         cogs_per_product=phase10_results["AB16"],

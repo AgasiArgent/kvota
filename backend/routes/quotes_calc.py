@@ -348,7 +348,8 @@ def map_variables_to_calculation_input(
     system = SystemConfig(
         rate_fin_comm=admin_settings.get('rate_fin_comm', Decimal("2")),
         rate_loan_interest_daily=admin_settings.get('rate_loan_interest_daily', Decimal("0.00069")),
-        rate_insurance=safe_decimal(variables.get('rate_insurance'), Decimal("0.00047"))
+        rate_insurance=safe_decimal(variables.get('rate_insurance'), Decimal("0.00047")),
+        customs_logistics_pmt_due=admin_settings.get('customs_logistics_pmt_due', 10)
     )
 
     # ========== Construct final input ==========
@@ -383,23 +384,30 @@ async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
     try:
         # Fetch from calculation_settings table
         response = supabase.table("calculation_settings")\
-            .select("rate_forex_risk, rate_fin_comm, rate_loan_interest_daily")\
+            .select("rate_forex_risk, rate_fin_comm, rate_loan_interest_annual, customs_logistics_pmt_due")\
             .eq("organization_id", organization_id)\
             .execute()
 
         if response.data and len(response.data) > 0:
             settings = response.data[0]
+
+            # Calculate daily rate from annual rate (2025-11-09 update)
+            rate_annual = Decimal(str(settings.get('rate_loan_interest_annual', "0.25")))
+            rate_daily = rate_annual / Decimal("365")
+
             return {
                 'rate_forex_risk': Decimal(str(settings.get('rate_forex_risk', "3"))),
                 'rate_fin_comm': Decimal(str(settings.get('rate_fin_comm', "2"))),
-                'rate_loan_interest_daily': Decimal(str(settings.get('rate_loan_interest_daily', "0.00069")))
+                'rate_loan_interest_daily': rate_daily,
+                'customs_logistics_pmt_due': int(settings.get('customs_logistics_pmt_due', 10))
             }
         else:
             # Return defaults if no settings found
             return {
                 'rate_forex_risk': Decimal("3"),
                 'rate_fin_comm': Decimal("2"),
-                'rate_loan_interest_daily': Decimal("0.00069")
+                'rate_loan_interest_daily': Decimal("0.25") / Decimal("365"),  # 25% annual / 365 days
+                'customs_logistics_pmt_due': 10
             }
 
     except Exception as e:
@@ -408,7 +416,8 @@ async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
         return {
             'rate_forex_risk': Decimal("3"),
             'rate_fin_comm': Decimal("2"),
-            'rate_loan_interest_daily': Decimal("0.00069")
+            'rate_loan_interest_daily': Decimal("0.25") / Decimal("365"),  # 25% annual / 365 days
+            'customs_logistics_pmt_due': 10
         }
 
 

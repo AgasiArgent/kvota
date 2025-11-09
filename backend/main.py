@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries
 
 
 # Import our authentication system
@@ -556,6 +556,7 @@ app.include_router(quotes.router)
 app.include_router(quotes_calc.router)
 app.include_router(organizations.router)
 app.include_router(calculation_settings.router)
+app.include_router(supplier_countries.router)
 app.include_router(users.router)
 app.include_router(activity_logs.router)
 app.include_router(exchange_rates.router)
