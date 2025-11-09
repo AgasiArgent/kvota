@@ -38,7 +38,9 @@ class CalculationSettings(BaseModel):
     organization_id: str
     rate_forex_risk: float = Field(..., description="Резерв на потери на курсовой разнице (%)")
     rate_fin_comm: float = Field(..., description="Комиссия ФинАгента (%)")
-    rate_loan_interest_daily: float = Field(..., description="Дневная стоимость денег (%)")
+    rate_loan_interest_daily: float = Field(..., description="Дневная стоимость денег (%) - auto-calculated from annual")
+    rate_loan_interest_annual: Optional[float] = Field(None, description="Годовая ставка займа (%)")
+    customs_logistics_pmt_due: Optional[int] = Field(None, description="Срок оплаты таможни/логистики (дни)")
     created_at: str
     updated_at: str
     updated_by: Optional[str] = None
@@ -57,6 +59,8 @@ class CalculationSettings(BaseModel):
                 "rate_forex_risk": 3.0,
                 "rate_fin_comm": 2.0,
                 "rate_loan_interest_daily": 0.00069,
+                "rate_loan_interest_annual": 0.25,
+                "customs_logistics_pmt_due": 10,
                 "created_at": "2025-10-18T10:00:00Z",
                 "updated_at": "2025-10-18T10:00:00Z",
                 "updated_by": "550e8400-e29b-41d4-a716-446655440002",
@@ -72,14 +76,16 @@ class CalculationSettingsCreate(BaseModel):
     """Create/Update calculation settings"""
     rate_forex_risk: float = Field(..., ge=0, le=100, description="Резерв на потери на курсовой разнице (%)")
     rate_fin_comm: float = Field(..., ge=0, le=100, description="Комиссия ФинАгента (%)")
-    rate_loan_interest_daily: float = Field(..., gt=0, description="Дневная стоимость денег (decimal)")
+    rate_loan_interest_annual: float = Field(..., gt=0, le=100, description="Годовая ставка займа (%)")
+    customs_logistics_pmt_due: int = Field(..., ge=0, le=365, description="Срок оплаты таможни/логистики (дни)")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "rate_forex_risk": 3.0,
                 "rate_fin_comm": 2.0,
-                "rate_loan_interest_daily": 0.00069
+                "rate_loan_interest_annual": 25.0,
+                "customs_logistics_pmt_due": 10
             }
         }
 
@@ -175,6 +181,8 @@ async def get_calculation_settings(user: User = Depends(get_current_user)):
             rate_forex_risk=3.0,
             rate_fin_comm=2.0,
             rate_loan_interest_daily=0.00069,
+            rate_loan_interest_annual=0.25,  # 25%
+            customs_logistics_pmt_due=10,  # 10 days
             created_at=datetime.utcnow().isoformat(),
             updated_at=datetime.utcnow().isoformat(),
             updated_by=None,
@@ -197,6 +205,8 @@ async def get_calculation_settings(user: User = Depends(get_current_user)):
         rate_forex_risk=float(settings['rate_forex_risk']),
         rate_fin_comm=float(settings['rate_fin_comm']),
         rate_loan_interest_daily=float(settings['rate_loan_interest_daily']),
+        rate_loan_interest_annual=float(settings.get('rate_loan_interest_annual', 0.25)),
+        customs_logistics_pmt_due=int(settings.get('customs_logistics_pmt_due', 10)),
         created_at=settings['created_at'],
         updated_at=settings['updated_at'],
         updated_by=settings.get('updated_by'),
@@ -236,13 +246,18 @@ async def create_or_update_calculation_settings(
         .limit(1)\
         .execute()
 
+    # Calculate daily rate from annual rate
+    rate_daily = settings_data.rate_loan_interest_annual / 365.0
+
     if existing_response.data:
         # Update existing settings
         response = supabase.table('calculation_settings')\
             .update({
                 'rate_forex_risk': settings_data.rate_forex_risk,
                 'rate_fin_comm': settings_data.rate_fin_comm,
-                'rate_loan_interest_daily': settings_data.rate_loan_interest_daily,
+                'rate_loan_interest_annual': settings_data.rate_loan_interest_annual,
+                'rate_loan_interest_daily': rate_daily,
+                'customs_logistics_pmt_due': settings_data.customs_logistics_pmt_due,
                 'updated_by': str(user.id)
             })\
             .eq('organization_id', organization_id)\
@@ -254,7 +269,9 @@ async def create_or_update_calculation_settings(
                 'organization_id': organization_id,
                 'rate_forex_risk': settings_data.rate_forex_risk,
                 'rate_fin_comm': settings_data.rate_fin_comm,
-                'rate_loan_interest_daily': settings_data.rate_loan_interest_daily,
+                'rate_loan_interest_annual': settings_data.rate_loan_interest_annual,
+                'rate_loan_interest_daily': rate_daily,
+                'customs_logistics_pmt_due': settings_data.customs_logistics_pmt_due,
                 'updated_by': str(user.id)
             })\
             .execute()

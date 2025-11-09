@@ -167,8 +167,9 @@ class CompanySettings(BaseModel):
 class SystemConfig(BaseModel):
     """System-wide configuration (admin controlled)"""
     rate_fin_comm: Decimal = Field(default=Decimal("2"), ge=0, le=100, description="Financial agent fee %")
-    rate_loan_interest_daily: Decimal = Field(default=Decimal("0.00069"), gt=0, description="Daily loan interest rate")
+    rate_loan_interest_daily: Decimal = Field(default=Decimal("0.00069"), gt=0, description="Daily loan interest rate (auto-calculated from annual rate)")
     rate_insurance: Decimal = Field(default=Decimal("0.00047"), ge=0, le=1, description="Insurance rate (default 0.047%)")
+    customs_logistics_pmt_due: int = Field(default=10, ge=0, le=365, description="Payment term for customs/logistics costs (days)")
 
 
 # ============================================================================

@@ -16,7 +16,9 @@ export interface CalculationSettings {
   organization_id: string;
   rate_forex_risk: number; // Резерв на потери на курсовой разнице (%)
   rate_fin_comm: number; // Комиссия ФинАгента (%)
-  rate_loan_interest_daily: number; // Дневная стоимость денег
+  rate_loan_interest_daily: number; // Дневная стоимость денег (deprecated, calculated from annual)
+  rate_loan_interest_annual?: number; // Годовая ставка займа (%)
+  customs_logistics_pmt_due?: number; // Срок оплаты таможни/логистики (дни)
   created_at: string;
   updated_at: string;
   updated_by?: string;
@@ -34,7 +36,8 @@ export interface CalculationSettings {
 export interface CalculationSettingsUpdate {
   rate_forex_risk: number;
   rate_fin_comm: number;
-  rate_loan_interest_daily: number;
+  rate_loan_interest_annual: number; // Годовая ставка займа (%)
+  customs_logistics_pmt_due: number; // Срок оплаты таможни/логистики (дни)
 }
 
 /**

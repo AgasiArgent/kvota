@@ -73,6 +73,11 @@ import {
   CalculationSettings,
 } from '@/lib/api/calculation-settings-service';
 import { exchangeRateService } from '@/lib/api/exchange-rate-service';
+import {
+  getSupplierCountries,
+  formatSupplierCountryOptions,
+  type SupplierCountry,
+} from '@/lib/api/supplier-countries-service';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -166,6 +171,7 @@ export default function CreateQuotePage() {
   const [exchangeRateUsdCny, setExchangeRateUsdCny] = useState<number | null>(null);
   const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState<string | null>(null);
   const [rateLoading, setRateLoading] = useState(false);
+  const [supplierCountries, setSupplierCountries] = useState<Array<{label: string; value: string}>>([]);
 
   // Load customers, templates, and admin settings on mount
   useEffect(() => {
@@ -173,6 +179,7 @@ export default function CreateQuotePage() {
     loadTemplates();
     loadAdminSettings();
     loadExchangeRate(); // Auto-load USD/CNY rate on mount
+    loadSupplierCountries(); // Load supplier countries for dropdown
 
     // Set default values
     const defaultVars = quotesCalcService.getDefaultVariables();
@@ -298,6 +305,18 @@ export default function CreateQuotePage() {
       message.error('Не удалось загрузить курс USD/CNY');
     } finally {
       setRateLoading(false);
+    }
+  };
+
+  const loadSupplierCountries = async () => {
+    try {
+      const countries = await getSupplierCountries();
+      const options = formatSupplierCountryOptions(countries);
+      setSupplierCountries(options);
+    } catch (error) {
+      console.error('Failed to load supplier countries:', error);
+      // Fallback to empty array - graceful degradation
+      setSupplierCountries([]);
     }
   };
 
@@ -757,6 +776,10 @@ export default function CreateQuotePage() {
             flex: 1,
             minWidth: 110,
             editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+              values: supplierCountries.map(c => c.value),
+            },
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
@@ -1701,7 +1724,13 @@ export default function CreateQuotePage() {
                         </Col>
                         <Col span={12}>
                           <Form.Item name="supplier_country" label="Страна закупки">
-                            <Input placeholder="Турция" />
+                            <Select
+                              placeholder="Выберите страну"
+                              showSearch
+                              optionFilterProp="label"
+                              options={supplierCountries}
+                              loading={supplierCountries.length === 0}
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
@@ -2151,11 +2180,22 @@ export default function CreateQuotePage() {
                         { value: 'CNY', label: 'CNY (Юань)' },
                       ]}
                     />
-                  ) : bulkEditField === 'supplier_country' || bulkEditField === 'customs_code' ? (
+                  ) : bulkEditField === 'supplier_country' ? (
+                    <Select
+                      value={bulkEditValue}
+                      onChange={setBulkEditValue}
+                      placeholder="Выберите страну"
+                      showSearch
+                      optionFilterProp="label"
+                      options={supplierCountries}
+                      loading={supplierCountries.length === 0}
+                      style={{ width: '100%' }}
+                    />
+                  ) : bulkEditField === 'customs_code' ? (
                     <Input
                       value={bulkEditValue}
                       onChange={(e) => setBulkEditValue(e.target.value)}
-                      placeholder="Введите значение"
+                      placeholder="Введите код ТН ВЭД"
                       onPressEnter={applyBulkEdit}
                     />
                   ) : (

@@ -44,17 +44,19 @@ export default function CalculationSettingsPage() {
       if (response.success && response.data) {
         setSettings(response.data);
 
-        // Convert daily rate to annual rate for display
-        const annualFromDaily =
-          calculationSettingsService.dailyToAnnualRate(response.data.rate_loan_interest_daily) *
-          100;
-        setAnnualRate(annualFromDaily);
+        // Use annual rate directly if available, otherwise calculate from daily
+        const annualRatePercent = response.data.rate_loan_interest_annual
+          ? response.data.rate_loan_interest_annual * 100
+          : calculationSettingsService.dailyToAnnualRate(response.data.rate_loan_interest_daily) * 100;
+
+        setAnnualRate(annualRatePercent);
 
         // Set form values
         form.setFieldsValue({
           rate_forex_risk: response.data.rate_forex_risk,
           rate_fin_comm: response.data.rate_fin_comm,
-          annual_interest_rate: annualFromDaily,
+          annual_interest_rate: annualRatePercent,
+          customs_logistics_pmt_due: response.data.customs_logistics_pmt_due || 10,
         });
       } else {
         messageApi.error(response.error || 'Не удалось загрузить настройки');
@@ -68,15 +70,11 @@ export default function CalculationSettingsPage() {
   };
 
   const handleSave = async (values: any) => {
-    // Convert annual rate to daily rate for backend
-    const dailyRate = calculationSettingsService.annualToDailyRate(
-      values.annual_interest_rate / 100
-    );
-
     const settingsData: CalculationSettingsUpdate = {
       rate_forex_risk: values.rate_forex_risk,
       rate_fin_comm: values.rate_fin_comm,
-      rate_loan_interest_daily: dailyRate,
+      rate_loan_interest_annual: values.annual_interest_rate / 100,  // Convert % to decimal
+      customs_logistics_pmt_due: values.customs_logistics_pmt_due,
     };
 
     // Validate
@@ -111,21 +109,28 @@ export default function CalculationSettingsPage() {
   };
 
   const handleReset = async () => {
-    const defaults = calculationSettingsService.getDefaultSettings();
-    const defaultAnnual =
-      calculationSettingsService.dailyToAnnualRate(defaults.rate_loan_interest_daily) * 100;
+    const defaultAnnual = 25.0; // 25% annual rate
+    const defaultCustomsPmt = 10; // 10 days
 
     form.setFieldsValue({
-      rate_forex_risk: defaults.rate_forex_risk,
-      rate_fin_comm: defaults.rate_fin_comm,
+      rate_forex_risk: 3.0,
+      rate_fin_comm: 2.0,
       annual_interest_rate: defaultAnnual,
+      customs_logistics_pmt_due: defaultCustomsPmt,
     });
     setAnnualRate(defaultAnnual);
 
     // Save the default values to backend
     setSaving(true);
     try {
-      const response = await calculationSettingsService.saveSettings(defaults);
+      const defaultSettings: CalculationSettingsUpdate = {
+        rate_forex_risk: 3.0,
+        rate_fin_comm: 2.0,
+        rate_loan_interest_annual: 0.25,  // 25% as decimal
+        customs_logistics_pmt_due: 10,
+      };
+
+      const response = await calculationSettingsService.saveSettings(defaultSettings);
 
       if (response.success && response.data) {
         setSettings(response.data);
@@ -183,6 +188,7 @@ export default function CalculationSettingsPage() {
               rate_forex_risk: 3.0,
               rate_fin_comm: 2.0,
               annual_interest_rate: 25.0, // Default annual rate
+              customs_logistics_pmt_due: 10, // Default payment term (days)
             }}
           >
             {/* Currency Exchange Risk */}
@@ -294,6 +300,39 @@ export default function CalculationSettingsPage() {
                 </Text>
               </Space>
             </Card>
+
+            <Divider />
+
+            {/* Customs/Logistics Payment Term */}
+            <Form.Item
+              label={
+                <Space>
+                  <Text strong>Срок оплаты таможни и логистики</Text>
+                  <Text type="secondary">(customs_logistics_pmt_due)</Text>
+                </Space>
+              }
+              name="customs_logistics_pmt_due"
+              rules={[
+                { required: true, message: 'Обязательное поле' },
+                {
+                  type: 'number',
+                  min: 0,
+                  max: 365,
+                  message: 'Значение должно быть от 0 до 365 дней',
+                },
+              ]}
+              tooltip="Количество дней на оплату таможенных и логистических расходов. Используется в формуле BI10"
+            >
+              <InputNumber
+                style={{ width: '200px' }}
+                min={0}
+                max={365}
+                step={1}
+                precision={0}
+                addonAfter="дней"
+                placeholder="10"
+              />
+            </Form.Item>
 
             <Divider />
 
