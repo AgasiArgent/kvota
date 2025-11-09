@@ -379,7 +379,18 @@ def build_aggregation_query(
             elif col_name in QuerySecurityValidator.ALLOWED_FIELDS['quote_calculation_summaries']:
                 # Summary field (pre-aggregated quote totals)
                 needs_summary_join = True
-                agg_clauses.append(f"COALESCE({func}(qcs.{col_name}), 0) as {field}")
+
+                # Special handling for profit margin - calculate from revenue and COGS totals
+                if col_name == 'calc_af16_profit_margin':
+                    # Calculate overall margin from aggregated revenue and COGS
+                    # Margin = (total_revenue - total_cogs) / total_revenue
+                    agg_clauses.append(
+                        f"CASE WHEN SUM(qcs.calc_ak16_final_price_total) > 0 "
+                        f"THEN (SUM(qcs.calc_ak16_final_price_total) - SUM(qcs.calc_ab16_cogs_total)) / SUM(qcs.calc_ak16_final_price_total) "
+                        f"ELSE 0 END as {field}"
+                    )
+                else:
+                    agg_clauses.append(f"COALESCE({func}(qcs.{col_name}), 0) as {field}")
 
     if not agg_clauses:
         agg_clauses = ["COUNT(DISTINCT q.id) as quote_count"]
