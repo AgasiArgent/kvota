@@ -1,8 +1,8 @@
-# Calculation Engine - 13 Sequential Phases
+# Calculation Engine - 13 Sequential Phases (+ Phase 2.5)
 
-**Reference:** `calculation_engine.py` (lines 143-763)
-**Last Updated:** 2025-10-29
-**Status:** Production Ready (✅ 15/15 tests passing)
+**Reference:** `calculation_engine.py`
+**Last Updated:** 2025-11-09
+**Status:** Updated formulas - tests pending update
 
 ---
 
@@ -12,28 +12,38 @@
 INPUT: Quote + Products
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 1: Purchase Price Calculations      │ (143-179)
+    │ PHASE 1: Purchase Price Calculations      │
     │ Variables: N16, P16, R16, S16            │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 2: Distribution Base                │ (186-201)
+    │ PHASE 2: Distribution Base                │
     │ Variables: S13, BD16 [Distribution Key]  │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 3: Logistics Distribution           │ (208-258)
+    │ PHASE 2.5: Internal Pricing (NEW 2025-11-09)│
+    │ Variables: AX16, AY16                    │
+    │ Purpose: Calculate AY16 early for insurance│
+    └───────────────────────────────────────────┘
+        ↓
+    ┌───────────────────────────────────────────┐
+    │ PHASE 3: Logistics Distribution           │
     │ Variables: T16, U16, V16                 │
+    │ Uses: AY16 (for insurance calculation)   │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 4: Internal Pricing & Duties        │ (265-319)
-    │ Variables: AX16, AY16, Y16, Z16, AZ16    │
+    │ PHASE 4: Duties & VAT Restoration         │
+    │ Variables: Y16, Z16, AZ16                │
+    │ Uses: AY16 (from 2.5), T16 (from 3)     │
+    │ UPDATED 2025-11-09: Y16 = tariff×(AY16+T16)│
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 5: Supplier Payment                 │ (326-359)
+    │ PHASE 5: Supplier Payment                 │
     │ Variables: BH6, BH4                       │
+    │ UPDATED 2025-11-09: BH4 includes Y13+Z13+AO13│
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
@@ -42,34 +52,38 @@ INPUT: Quote + Products
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 7: Financing Costs                  │ (415-492)
+    │ PHASE 7: Financing Costs                  │
     │ Variables: BH3, BH7, BJ7, BH10, BJ10, BJ11│
+    │ UPDATED 2025-11-09: Simple interest formulas│
+    │ BI7 = BH7 × (1 + rate × D9)             │
+    │ BI10 = BH10 × (1 + rate × customs_pmt_due)│
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 8: Credit Sales Interest            │ (499-529)
+    │ PHASE 8: Credit Sales Interest            │
     │ Variables: BL3, BL4, BL5                 │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 9: Distribute Financing             │ (532-556)
+    │ PHASE 9: Distribute Financing             │
     │ Variables: BA16, BB16                     │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 10: Final COGS                      │ (559-590)
+    │ PHASE 10: Final COGS                      │
     │ Variables: AB16, AA16                     │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 11: Sales Price Calculation         │ (593-686)
+    │ PHASE 11: Sales Price Calculation         │
     │ Variables: AF16, AG16, AH16, AI16, AD16,  │
     │            AE16, AJ16, AK16              │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
-    │ PHASE 12: VAT Calculations                │ (689-735)
+    │ PHASE 12: VAT Calculations                │
     │ Variables: AM16, AL16, AN16, AO16, AP16  │
+    │ UPDATED 2025-11-09: AO16 includes T16    │
     └───────────────────────────────────────────┘
         ↓
     ┌───────────────────────────────────────────┐
@@ -204,6 +218,73 @@ def phase2_distribution_base(S16_list: list[Decimal]) -> dict:
 
 ---
 
+## Phase 2.5: Internal Pricing (Early Calculation)
+
+**Location:** `calculation_engine.py` (new function)
+**Execution:** Per-product (loop)
+**Dependencies:** Phase 1 (S16)
+
+### Purpose
+Calculate internal sale price (AX16, AY16) BEFORE Phase 3 to enable insurance calculation.
+This resolves circular dependency: insurance needs AY16, but logistics (Phase 3) needs insurance.
+
+**Created:** 2025-11-09
+
+### Inputs
+- `S16` - Purchase price total (from Phase 1)
+- `quantity` - Units
+- `internal_markup` - Internal markup % (derived from supplier_country + seller_region)
+
+### Outputs
+| Variable | Excel Cell | Description | Type |
+|----------|-----------|-------------|------|
+| AX16 | AX column | Internal sale price per unit | Decimal |
+| AY16 | AY column | Internal sale price total | Decimal |
+
+### Formula
+```
+AX16 = S16 × (1 + internal_markup / 100) / quantity
+AY16 = AX16 × quantity
+```
+
+**Simplified:** `AY16 = S16 × (1 + internal_markup / 100)`
+
+### Implementation Pattern
+```python
+def phase2_5_internal_pricing(
+    S16: Decimal,
+    quantity: int,
+    internal_markup: Decimal
+) -> Dict[str, Decimal]:
+    """Calculate internal sale price for insurance calculation."""
+    if quantity > 0:
+        AX16 = round_decimal(S16 * (Decimal("1") + internal_markup) / Decimal(quantity))
+    else:
+        AX16 = Decimal("0")
+
+    AY16 = round_decimal(Decimal(quantity) * AX16)
+
+    return {
+        "AX16": AX16,  # Internal sale price per unit
+        "AY16": AY16   # Internal sale price total
+    }
+```
+
+### Why This Phase Exists
+
+**Problem:** Circular dependency
+1. Phase 3 (logistics) needs insurance
+2. Insurance calculation needs AY16
+3. AY16 was calculated in Phase 4
+4. But Phase 4 was called after Phase 3
+
+**Solution:** Extract AX16/AY16 calculation into Phase 2.5
+- No dependencies on Phase 3 or 4
+- Provides AY16 for insurance before Phase 3
+- Phase 4 now focuses only on duties (Y16, Z16, AZ16)
+
+---
+
 ## Phase 3: Logistics Distribution
 
 **Location:** `calculation_engine.py` lines 208-258
@@ -263,31 +344,34 @@ def phase3_logistics_distribution(
 
 ---
 
-## Phase 4: Internal Pricing & Duties
+## Phase 4: Duties & VAT Restoration
 
-**Location:** `calculation_engine.py` lines 265-319
+**Location:** `calculation_engine.py` (updated function)
 **Execution:** Per-product (loop)
-**Dependencies:** Phase 1 (R16, P16), Phase 2 (BD16)
+**Dependencies:** Phase 2.5 (AY16), Phase 3 (T16), Phase 1 (S16)
 
 ### Purpose
-Calculate internal sale price (AY16), customs duty (Y16), excise tax (Z16), and restore VAT for supplier payment (AZ16).
+Calculate customs duty (Y16), excise tax (Z16), and restore VAT for supplier payment (AZ16).
+
+**IMPORTANT:** This phase now executes AFTER Phase 3 (logistics) to access T16.
+AX16/AY16 are calculated in Phase 2.5.
+
+**Updated:** 2025-11-09
 
 ### Inputs
-- `R16` - Per-unit purchase price (from Phase 1)
+- `AY16` - Internal sale price total (from Phase 2.5)
+- `T16` - First-leg logistics costs (from Phase 3)
+- `S16` - Purchase price total (from Phase 1)
 - `quantity` - Units
-- `internal_markup` - Additional markup % for internal pricing
-- `import_tariff_rate` - Customs duty rate
-- `excise_tax_type` - "percent" or "per_kg"
-- `excise_tax_value` - Rate or RUB/kg
-- `weight_kg` - Total weight
-- `supplier_country` - For VAT restoration
-- `incoterms` - DDP, EXW, CPT, etc.
+- `import_tariff` - Customs duty rate (percentage)
+- `excise_tax` - Excise tax amount
+- `weight_in_kg` - Total weight
+- `vat_seller_country` - VAT rate in supplier country
+- `offer_incoterms` - DDP or EXW
 
 ### Outputs
 | Variable | Excel Cell | Description | Type |
 |----------|-----------|-------------|------|
-| AX16 | AX column | Internal sale price per unit | Decimal |
-| AY16 | AY column | Internal sale price total | Decimal |
 | Y16 | Y column | Customs fee (import tariff) | Decimal |
 | Z16 | Z column | Excise tax | Decimal |
 | AZ16 | AZ column | Purchase price with VAT restored | Decimal |
@@ -295,9 +379,9 @@ Calculate internal sale price (AY16), customs duty (Y16), excise tax (Z16), and 
 ### Special Cases
 
 **Customs Duty (Y16):**
-- Turkish seller export: Y16 = 0 (no tariff on export)
-- DDP incoterms: Y16 calculated on AY16 (supply value)
-- Transit: Y16 calculated on S16 (transit value)
+- **Updated 2025-11-09:** Now includes T16 (first-leg logistics)
+- DDP incoterms: Y16 = import_tariff × (AY16 + T16)
+- EXW/other incoterms: Y16 = 0
 
 **VAT Restoration (AZ16):**
 - Used for supplier payment calculation
@@ -308,55 +392,43 @@ Calculate internal sale price (AY16), customs duty (Y16), excise tax (Z16), and 
 
 ### Formula
 ```
-AX16 = R16 × (1 + internal_markup / 100)
-AY16 = AX16 × quantity
-Y16 = AY16 × import_tariff_rate (depends on incoterms/region)
-Z16 = Calculate excise based on type (percent of AY16 or RUB/kg × weight)
-AZ16 = S16 + T16 × (1 + VAT_seller_country)
+Y16 = import_tariff × (AY16 + T16) if DDP, else 0  [UPDATED 2025-11-09]
+Z16 = excise_tax × weight_in_kg × quantity
+AZ16 = S16 × (1 + vat_seller_country)
 ```
+
+**Key Change (2025-11-09):**
+- OLD: Y16 = AY16 × import_tariff
+- NEW: Y16 = import_tariff × (AY16 + T16) - includes first-leg logistics
 
 ### Implementation Pattern
 ```python
-def phase4_internal_pricing_duties(
-    R16: Decimal,
-    quantity: Decimal,
-    internal_markup: Decimal,
-    import_tariff_rate: Decimal,
-    excise_tax_type: str,
-    excise_tax_value: Decimal,
-    weight_kg: Decimal,
-    supplier_country: str,
-    incoterms: str,
-    seller_region: str,
+def phase4_duties(
+    AY16: Decimal,  # From Phase 2.5
+    T16: Decimal,   # From Phase 3
     S16: Decimal,
-    T16: Decimal
+    quantity: int,
+    import_tariff: Decimal,
+    excise_tax: Decimal,
+    weight_in_kg: Decimal,
+    vat_seller_country: Decimal,
+    offer_incoterms: Incoterms
 ) -> dict:
-    """Calculate internal pricing and duties."""
-    # Internal sale price
-    AX16 = R16 * (Decimal("1") + internal_markup / Decimal("100"))
-    AY16 = AX16 * quantity
+    """Calculate duties and VAT restoration."""
 
-    # Customs duty (0 if Turkish export or seller region = TR)
-    if seller_region == "TR":
-        Y16 = Decimal("0")
+    # Customs duty - UPDATED 2025-11-09
+    if offer_incoterms == Incoterms.DDP:
+        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16))
     else:
-        Y16 = AY16 * import_tariff_rate if incoterms == "DDP" else Decimal("0")
+        Y16 = Decimal("0")
 
     # Excise tax
-    if excise_tax_type == "percent":
-        Z16 = AY16 * excise_tax_value / Decimal("100")
-    elif excise_tax_type == "per_kg":
-        Z16 = weight_kg * excise_tax_value
-    else:
-        Z16 = Decimal("0")
+    Z16 = round_decimal(excise_tax * weight_in_kg * Decimal(quantity))
 
     # VAT restoration
-    vat_rate = get_vat_seller_country(supplier_country)
-    AZ16 = S16 + T16 * (Decimal("1") + vat_rate)
+    AZ16 = round_decimal(S16 * (Decimal("1") + vat_seller_country))
 
     return {
-        "AX16": round_decimal(AX16),
-        "AY16": round_decimal(AY16),
         "Y16": round_decimal(Y16),
         "Z16": round_decimal(Z16),
         "AZ16": round_decimal(AZ16)
@@ -367,51 +439,61 @@ def phase4_internal_pricing_duties(
 
 ## Phase 5: Supplier Payment
 
-**Location:** `calculation_engine.py` lines 326-359
+**Location:** `calculation_engine.py`
 **Execution:** Quote-level (uses aggregated values)
-**Dependencies:** Phase 3 (T13, U13), Phase 4 (AZ13)
+**Dependencies:** Phase 3 (T13), Phase 4 (AZ13, Y13, Z13), Inline AO13 calculation
 
 ### Purpose
-Calculate total amount needed to pay supplier, including advance and financing commission.
+Calculate total amount needed to pay supplier, including advance, financing commission, duties, excise tax, and import VAT.
+
+**Updated:** 2025-11-09 - BH4 formula now includes Y13, Z13, AO13
 
 ### Inputs
-- `AZ13` - Total purchase price with VAT (from Phase 4, aggregated)
-- `T13` - Total first-leg logistics (from Phase 3, aggregated)
-- `U13` - Total last-leg logistics (from Phase 3, aggregated)
-- `advance_to_supplier_percent` - % of advance payment to supplier (0-100)
+- `AZ13` - Total purchase price with VAT (sum of all AZ16)
+- `T13` - Total first-leg logistics (sum of all T16)
+- `Y13` - Total customs duties (sum of all Y16)
+- `Z13` - Total excise tax (sum of all Z16)
+- `AO13` - Total deductible VAT (sum of all AO16)
+- `advance_to_supplier` - % of advance payment to supplier (0-100)
 - `rate_fin_comm` - Financial commission rate (admin setting)
 
 ### Outputs
 | Variable | Excel Cell | Description | Type |
 |----------|-----------|-------------|------|
 | BH6 | BH column | Supplier payment with advance and commission | Decimal |
-| BH4 | BH column | Total before forwarding | Decimal |
+| BH4 | BH column | Total before forwarding (includes duties & VAT) | Decimal |
 
 ### Formula
 ```
-BH6 = (AZ13 + T13) × (1 + advance_to_supplier / 100) × (1 + rate_fin_comm / 100)
-BH4 = BH6 + U13
+BH6 = AZ13 × (advance_to_supplier / 100) × (1 + rate_fin_comm / 100)
+BH4 = (AZ13 + T13) × (1 + rate_fin_comm / 100) + Y13 + Z13 + AO13  [UPDATED 2025-11-09]
 ```
+
+**Key Change (2025-11-09):**
+- OLD: BH4 = (AZ13 + T13) × (1 + rate_fin_comm)
+- NEW: BH4 = (AZ13 + T13) × (1 + rate_fin_comm) + Y13 + Z13 + AO13
 
 ### Implementation Pattern
 ```python
 def phase5_supplier_payment(
     AZ13: Decimal,
     T13: Decimal,
-    U13: Decimal,
-    advance_to_supplier_percent: Decimal,
+    Y13: Decimal,   # NEW
+    Z13: Decimal,   # NEW
+    AO13: Decimal,  # NEW
+    advance_to_supplier: Decimal,
     rate_fin_comm: Decimal
 ) -> dict:
     """Calculate supplier payment amount."""
-    advance_factor = Decimal("1") + advance_to_supplier_percent / Decimal("100")
-    commission_factor = Decimal("1") + rate_fin_comm / Decimal("100")
+    advance_multiplier = advance_to_supplier / Decimal("100")
+    fin_multiplier = Decimal("1") + (rate_fin_comm / Decimal("100"))
 
-    BH6 = (AZ13 + T13) * advance_factor * commission_factor
-    BH4 = BH6 + U13
+    BH6 = round_decimal(AZ13 * advance_multiplier * fin_multiplier)
+    BH4 = round_decimal((AZ13 + T13) * fin_multiplier + Y13 + Z13 + AO13)
 
     return {
-        "BH6": round_decimal(BH6),
-        "BH4": round_decimal(BH4)
+        "BH6": BH6,  # Supplier payment
+        "BH4": BH4   # Total before forwarding (includes duties and VAT)
     }
 ```
 
@@ -475,75 +557,118 @@ def phase6_revenue_estimation(
 
 ## Phase 7: Financing Costs
 
-**Location:** `calculation_engine.py` lines 415-492
+**Location:** `calculation_engine.py`
 **Execution:** Quote-level
-**Dependencies:** Phase 5 (BH6), Phase 6 (BH2)
+**Dependencies:** Phase 5 (BH6, BH4), Phase 6 (BH2)
 
 ### Purpose
-Calculate loan interest for supplier payments and operational financing using compound interest formula (FV - Future Value).
+Calculate loan interest for supplier payments and operational financing using SIMPLE interest formula.
+
+**Updated:** 2025-11-09 - Simplified from compound to simple interest
 
 ### Inputs
 - `BH6` - Supplier payment amount (from Phase 5)
+- `BH4` - Total before forwarding (from Phase 5)
 - `BH2` - Revenue estimation (from Phase 6)
-- `BH3` - Client advance amount (input)
-- `advance_from_client_percent` - % of advance from client (0-100)
-- `delivery_days` - Days until delivery (for time-based interest)
-- `rate_loan_interest_daily` - Daily interest rate % (admin setting)
+- `advance_from_client` - % of advance from client (0-100)
+- `delivery_time` - Days until delivery (D9)
+- `customs_logistics_pmt_due` - Payment term for customs/logistics (days) - NEW admin variable
+- `rate_loan_interest_daily` - Daily interest rate (calculated from annual rate)
 
 ### Outputs
 | Variable | Excel Cell | Description | Type |
 |----------|-----------|-------------|------|
 | BH3 | BH column | Client advance amount | Decimal |
-| BH7 | BH column | Supplier financing need (BH6 - client advance) | Decimal |
-| BJ7 | BJ column | Supplier financing cost (interest) | Decimal |
+| BH7 | BH column | Supplier financing need | Decimal |
+| BH8 | BH column | Amount payable after supplier payment | Decimal |
+| BH9 | BH column | Remaining % after advance | Decimal |
 | BH10 | BH column | Operational financing need | Decimal |
-| BJ10 | BJ column | Operational financing cost (interest) | Decimal |
-| BJ11 | BJ column | Total financing cost (BJ7 + BJ10) | Decimal |
+| BI7 | BI column | FV of supplier financing (simple interest) | Decimal |
+| BJ7 | BJ column | Supplier financing COST | Decimal |
+| BI10 | BI column | FV of operational financing (simple interest) | Decimal |
+| BJ10 | BJ column | Operational financing COST | Decimal |
+| BJ11 | BJ column | TOTAL financing cost | Decimal |
 
 ### Formula
 ```
-BH3 = BH2 × (advance_from_client_percent / 100)
-BH7 = BH6 - BH3 (supplier financing gap)
-BJ7 = BH7 × ((1 + rate_loan_interest_daily/100)^delivery_days - 1)
+BH3 = BH2 × (advance_from_client / 100)
+BH7 = IF(BH3 > 0, IF(BH3 >= BH6, 0, BH6 - BH3), BH6)
+BH9 = 1 - (advance_from_client / 100)
+BH8 = BH4 - BH6
+BH10 = IF((BH9 + IF(BH3>BH6, BH3-BH6, 0)) > BH8, 0, BH8 - (BH9 + IF(BH3>BH6, BH3-BH6, 0)))
 
-BH10 = BH3 (operational: money paid by client upfront)
-BJ10 = BH10 × ((1 + rate_loan_interest_daily/100)^delivery_days - 1)
+BI7 = BH7 × (1 + rate_loan_interest_daily × D9)  [UPDATED 2025-11-09: Simple interest]
+BJ7 = BI7 - BH7
+
+BI10 = BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)  [UPDATED 2025-11-09]
+BJ10 = BI10 - BH10
 
 BJ11 = BJ7 + BJ10
 ```
 
+**Key Changes (2025-11-09):**
+- OLD BI7: FV(rate, D9+K9, , -BH7) - compound interest over delivery + payment period
+- NEW BI7: BH7 × (1 + rate × D9) - simple interest over delivery period only
+
+- OLD BI10: FV(rate, D9+K9-K6, , -BH10) - compound interest
+- NEW BI10: BH10 × (1 + rate × customs_logistics_pmt_due) - simple interest with fixed term
+
 ### Implementation Pattern
 ```python
 def phase7_financing_costs(
-    BH6: Decimal,
     BH2: Decimal,
-    advance_from_client_percent: Decimal,
-    delivery_days: Decimal,
+    BH6: Decimal,
+    BH4: Decimal,
+    advance_from_client: Decimal,
+    delivery_time: int,  # D9
+    customs_logistics_pmt_due: int,  # NEW admin variable
     rate_loan_interest_daily: Decimal
 ) -> dict:
-    """Calculate financing costs using compound interest."""
-    # Client advance
-    BH3 = BH2 * advance_from_client_percent / Decimal("100")
+    """Calculate financing costs using SIMPLE interest."""
 
-    # Supplier financing need
-    BH7 = BH6 - BH3
+    BH3 = round_decimal(BH2 * (advance_from_client / Decimal("100")))
 
-    # Financing interest (using FV formula)
-    rate_daily = rate_loan_interest_daily / Decimal("100")
-    interest_factor = (Decimal("1") + rate_daily) ** delivery_days - Decimal("1")
+    # BH7 calculation
+    if BH3 > 0:
+        if BH3 >= BH6:
+            BH7 = Decimal("0")
+        else:
+            BH7 = round_decimal(BH6 - BH3)
+    else:
+        BH7 = BH6
 
-    BJ7 = BH7 * interest_factor
-    BH10 = BH3
-    BJ10 = BH10 * interest_factor
-    BJ11 = BJ7 + BJ10
+    BH9 = Decimal("1") - (advance_from_client / Decimal("100"))
+    BH8 = round_decimal(BH4 - BH6)
+
+    # BH10 calculation
+    excess_advance = BH3 - BH6 if BH3 > BH6 else Decimal("0")
+    remaining_after_advance = BH9 + excess_advance
+    if remaining_after_advance > BH8:
+        BH10 = Decimal("0")
+    else:
+        BH10 = round_decimal(BH8 - remaining_after_advance)
+
+    # Simple interest formulas - UPDATED 2025-11-09
+    D9 = delivery_time
+    BI7 = round_decimal(BH7 * (Decimal("1") + rate_loan_interest_daily * Decimal(D9)))
+    BJ7 = round_decimal(BI7 - BH7)
+
+    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(customs_logistics_pmt_due)))
+    BJ10 = round_decimal(BI10 - BH10)
+
+    BJ11 = round_decimal(BJ7 + BJ10)
 
     return {
-        "BH3": round_decimal(BH3),
-        "BH7": round_decimal(BH7),
-        "BJ7": round_decimal(BJ7),
-        "BH10": round_decimal(BH10),
-        "BJ10": round_decimal(BJ10),
-        "BJ11": round_decimal(BJ11)
+        "BH3": BH3,
+        "BH7": BH7,
+        "BH9": BH9,
+        "BH8": BH8,
+        "BH10": BH10,
+        "BI7": BI7,
+        "BJ7": BJ7,
+        "BI10": BI10,
+        "BJ10": BJ10,
+        "BJ11": BJ11
     }
 ```
 
@@ -838,23 +963,25 @@ def phase11_sales_price(
 
 ## Phase 12: VAT Calculations
 
-**Location:** `calculation_engine.py` lines 689-735
+**Location:** `calculation_engine.py`
 **Execution:** Per-product (loop)
-**Dependencies:** Phase 11 (AJ16, AK16), Phase 4 (AY16, Y16, Z16), Phase 1 (S16)
+**Dependencies:** Phase 11 (AJ16, AK16), Phase 2.5 (AY16), Phase 4 (Y16, Z16), Phase 3 (T16)
 
 ### Purpose
-Calculate VAT on sales and deductible VAT on imports. Russia VAT rate is 18% (standard).
+Calculate VAT on sales and deductible VAT on imports. Russia VAT rate is 20% (standard).
+
+**Updated:** 2025-11-09 - AO16 formula now includes T16
 
 ### Inputs
 - `AJ16` - Sale price per unit (from Phase 11)
-- `AK16` - Sale price total (from Phase 11)
-- `AY16` - Internal sale price total (from Phase 4)
+- `quantity` - Units
+- `AY16` - Internal sale price total (from Phase 2.5)
 - `Y16` - Customs duty (from Phase 4)
 - `Z16` - Excise tax (from Phase 4)
-- `rate_vat_ru` - Russian VAT rate (default 18%)
-- `incoterms` - DDP, EXW, etc.
-- `sale_type` - "supply" or "export"
-- `S16` - Purchase price (for deductible VAT calculation)
+- `T16` - First-leg logistics (from Phase 3) - NEW in AO16 formula
+- `offer_incoterms` - DDP, EXW, etc.
+- `offer_sale_type` - "supply" or "export"
+- `rate_vat_ru` - Russian VAT rate (default 20%)
 
 ### Outputs
 | Variable | Excel Cell | Description | Type |
@@ -873,7 +1000,8 @@ Calculate VAT on sales and deductible VAT on imports. Russia VAT rate is 18% (st
 
 **Deductible VAT (AO16):**
 - Only deductible if DDP AND not export
-- Calculated on import costs (AY16 + Y16 + Z16)
+- **Updated 2025-11-09:** Now includes T16 (first-leg logistics)
+- Calculated on import costs (AY16 + Y16 + Z16 + T16)
 - Represents VAT paid on import that can be deducted
 
 **Net VAT (AP16):**
@@ -882,58 +1010,64 @@ Calculate VAT on sales and deductible VAT on imports. Russia VAT rate is 18% (st
 
 ### Formula
 ```
-# Sales VAT (18% if DDP, 0% if EXW/export)
+# Sales VAT (20% if DDP, 0% if EXW/export)
 AM16 = AJ16 × (1 + rate_vat_ru) if DDP else AJ16
 AL16 = AM16 × quantity
 AN16 = AL16 - AK16 if DDP else 0
 
-# Deductible VAT (on imports, if not export)
-AO16 = (AY16 + Y16 + Z16) × rate_vat_ru if (DDP and not export) else 0
+# Deductible VAT (on imports, if not export) - UPDATED 2025-11-09
+AO16 = (AY16 + Y16 + Z16 + T16) × rate_vat_ru if (DDP and not export) else 0
 
 # Net VAT
 AP16 = AN16 - AO16
 ```
 
+**Key Change (2025-11-09):**
+- OLD: AO16 = (AY16 + Y16 + Z16) × rate_vat_ru
+- NEW: AO16 = (AY16 + Y16 + Z16 + T16) × rate_vat_ru - includes first-leg logistics
+
 ### Implementation Pattern
 ```python
 def phase12_vat_calculations(
     AJ16: Decimal,
-    AK16: Decimal,
+    quantity: int,
     AY16: Decimal,
     Y16: Decimal,
     Z16: Decimal,
-    rate_vat_ru: Decimal,
-    quantity: Decimal,
-    incoterms: str,
-    sale_type: str,
-    S16: Decimal
+    T16: Decimal,  # NEW - first-leg logistics
+    offer_incoterms: Incoterms,
+    offer_sale_type: OfferSaleType,
+    rate_vat_ru: Decimal
 ) -> dict:
     """Calculate VAT on sales and imports."""
     # Sales VAT (only if DDP incoterms)
-    if incoterms == "DDP":
-        AM16 = AJ16 * (Decimal("1") + rate_vat_ru)
-        AL16 = AM16 * quantity
-        AN16 = AL16 - AK16
+    if offer_incoterms == Incoterms.DDP:
+        vat_multiplier = Decimal("1") + rate_vat_ru
     else:
-        AM16 = AJ16
-        AL16 = AK16
-        AN16 = Decimal("0")
+        vat_multiplier = Decimal("1")
+    AM16 = round_decimal(AJ16 * vat_multiplier)
 
-    # Deductible VAT (DDP and not export)
-    if incoterms == "DDP" and sale_type != "export":
-        AO16 = (AY16 + Y16 + Z16) * rate_vat_ru
+    AL16 = round_decimal(AM16 * Decimal(quantity))
+
+    AK16 = AJ16 * Decimal(quantity)  # Sales price total no VAT
+    AN16 = round_decimal(AL16 - AK16)
+
+    # Deductible VAT (DDP and not export) - UPDATED 2025-11-09
+    if offer_incoterms == Incoterms.DDP and offer_sale_type != OfferSaleType.EXPORT:
+        import_vat_rate = rate_vat_ru
     else:
-        AO16 = Decimal("0")
+        import_vat_rate = Decimal("0")
+    AO16 = round_decimal((AY16 + Y16 + Z16 + T16) * import_vat_rate)
 
     # Net VAT
-    AP16 = AN16 - AO16
+    AP16 = round_decimal(AN16 - AO16)
 
     return {
-        "AM16": round_decimal(AM16),
-        "AL16": round_decimal(AL16),
-        "AN16": round_decimal(AN16),
-        "AO16": round_decimal(AO16),
-        "AP16": round_decimal(AP16)
+        "AM16": AM16,  # Sales price per unit with VAT
+        "AL16": AL16,  # Sales price total with VAT
+        "AN16": AN16,  # VAT from sales
+        "AO16": AO16,  # VAT on import (includes T16)
+        "AP16": AP16   # Net VAT payable
     }
 ```
 

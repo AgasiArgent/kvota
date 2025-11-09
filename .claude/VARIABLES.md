@@ -1,9 +1,11 @@
 # Variables Reference Guide
 
-**Complete reference for all 42 variables in B2B quotation platform**
+**Complete reference for all 44 variables in B2B quotation platform**
+
+**Last Updated:** 2025-11-09
 
 Quick navigation:
-- [Section 1: Master Variables Table](#section-1-master-variables-table) - All 42 variables overview
+- [Section 1: Master Variables Table](#section-1-master-variables-table) - All 44 variables overview
 - [Section 2: UI Implementation](#section-2-ui-implementation) - Where variables appear in UI
 - [Section 3: Derived Variables](#section-3-derived-variables) - Auto-calculated from user inputs
 - [Section 4: Admin Variables](#section-4-admin-variables) - System-wide settings
@@ -13,11 +15,11 @@ Quick navigation:
 
 ## Section 1: Master Variables Table
 
-**Total: 42 variables**
+**Total: 44 variables** (Updated 2025-11-09: +2 new admin variables)
 - Product-only: 5 (sku, brand, base_price_VAT, quantity, weight_in_kg)
 - Quote-only: 19
 - Both levels: 15 (can be quote default OR product override)
-- Admin-only: 3 (rate_forex_risk, rate_fin_comm, rate_loan_interest_daily)
+- Admin-only: 5 (rate_forex_risk, rate_fin_comm, rate_loan_interest_annual, rate_loan_interest_daily, customs_logistics_pmt_due)
 
 ### Complete Variables List
 
@@ -64,7 +66,9 @@ Quick navigation:
 | 39 | dm_fee_value | Quote | User | Вознаграждение ЛПР (значение) | Financial | Form | AG7 |
 | 40 | util_fee | Quote | User | Утилизационный сбор | Taxes & Duties | Form | - |
 | 41 | rate_fin_comm | Quote | Admin | Комиссия ФинАгента (%) | Financial | Admin Settings | - |
-| 42 | rate_loan_interest_daily | Quote | Admin | Дневная стоимость денег (%) | Financial | Admin Settings | - |
+| 42 | rate_loan_interest_annual | Quote | Admin | Годовая ставка займа (%) | Financial | Admin Settings | - |
+| 43 | rate_loan_interest_daily | Quote | Admin | Дневная стоимость денег (%) | Financial | Admin Settings (auto-calc) | - |
+| 44 | customs_logistics_pmt_due | Quote | Admin | Срок оплаты таможни/логистики (дни) | Payment Terms | Admin Settings | - |
 
 ---
 
@@ -75,7 +79,9 @@ Quick navigation:
 **Admin Settings Info Box** (Read-only, auto-loaded)
 - rate_forex_risk (#15)
 - rate_fin_comm (#41)
-- rate_loan_interest_daily (#42)
+- rate_loan_interest_annual (#42) - NEW 2025-11-09
+- rate_loan_interest_daily (#43) - auto-calculated from annual
+- customs_logistics_pmt_due (#44) - NEW 2025-11-09
 
 **Quote-Level Defaults Form** (6 collapsible cards)
 
@@ -239,12 +245,29 @@ SELLER_REGION_MAP = {
 - **Range:** 0-100%
 - **Note:** Not applied for Turkey sellers or Export deals
 
-### rate_loan_interest_daily (#42)
-- **Default:** 0.00069 (approximately 25% annual)
+### rate_loan_interest_annual (#42) - NEW 2025-11-09
+- **Default:** 25% (0.25 as decimal)
+- **Purpose:** Annual loan interest rate for financing
+- **Range:** 0-100%
+- **Input:** Admin enters annual rate in UI
+- **Storage:** Saved in `calculation_settings` table
+- **Usage:** Auto-converted to daily rate (annual / 365) for calculations
+
+### rate_loan_interest_daily (#43)
+- **Default:** 0.000685 (25% / 365)
 - **Purpose:** Daily cost of borrowing money to finance deals
-- **Input:** User enters annual rate, system calculates daily rate
+- **Calculation:** AUTOMATIC - calculated as rate_loan_interest_annual / 365
 - **Formula:** daily_rate = annual_rate / 365
-- **Usage:** Used in FV calculations for financing costs
+- **Usage:** Used in BI7, BI10, BL4 formulas (simple interest)
+- **Updated 2025-11-09:** Now calculated from annual rate, not stored directly
+
+### customs_logistics_pmt_due (#44) - NEW 2025-11-09
+- **Default:** 10 days
+- **Purpose:** Payment term for customs and logistics costs
+- **Range:** 0-365 days
+- **Input:** Admin enters number of days in UI
+- **Usage:** Used in BI10 formula: BI10 = BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
+- **Example:** If 10 days and rate = 0.000685, interest factor = 1 + 0.000685 × 10 = 1.00685
 
 ---
 
@@ -319,13 +342,13 @@ Interest_cost = FV - PV
 
 **Product Info (7):** sku, brand, base_price_VAT, quantity, weight_in_kg, customs_code, currency_of_base_price
 
-**Financial (9):** currency_of_quote, exchange_rate_base_price_to_quote, supplier_discount, markup, rate_forex_risk, dm_fee_type, dm_fee_value, rate_fin_comm, rate_loan_interest_daily
+**Financial (10):** currency_of_quote, exchange_rate_base_price_to_quote, supplier_discount, markup, rate_forex_risk, dm_fee_type, dm_fee_value, rate_fin_comm, rate_loan_interest_annual, rate_loan_interest_daily
 
 **Logistics (7):** supplier_country, delivery_time, offer_incoterms, logistics_supplier_hub, logistics_hub_customs, logistics_customs_client
 
-**Taxes & Duties (3):** import_tariff, excise_tax, util_fee
+**Payment Terms (11):** advance_from_client, advance_to_supplier, time_to_advance, advance_on_loading, time_to_advance_loading, advance_on_going_to_country_destination, time_to_advance_going_to_country_destination, advance_on_customs_clearance, time_to_advance_on_customs_clearance, time_to_advance_on_receiving, customs_logistics_pmt_due
 
-**Payment Terms (12):** advance_from_client, advance_to_supplier, time_to_advance, advance_on_loading, time_to_advance_loading, advance_on_going_to_country_destination, time_to_advance_going_to_country_destination, advance_on_customs_clearance, time_to_advance_on_customs_clearance, time_to_advance_on_receiving
+**Taxes & Duties (3):** import_tariff, excise_tax, util_fee
 
 **Customs & Clearance (5):** brokerage_hub, brokerage_customs, warehousing_at_customs, customs_documentation, brokerage_extra
 
@@ -333,5 +356,5 @@ Interest_cost = FV - PV
 
 ---
 
-**Last Updated:** 2025-10-19
-**Status:** Complete - All 42 variables documented
+**Last Updated:** 2025-11-09
+**Status:** Complete - All 44 variables documented (Added rate_loan_interest_annual, customs_logistics_pmt_due)
