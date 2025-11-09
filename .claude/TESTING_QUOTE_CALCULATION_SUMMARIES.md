@@ -288,19 +288,19 @@ If testing reveals issues:
 
 ## Success Criteria
 
-- [ ] New quotes populate quote_calculation_summaries table
-- [ ] Mixed aggregations return correct values (no duplication)
-- [ ] All 43 calculated fields work in analytics
-- [ ] Standard mode shows calculated fields in grid
-- [ ] Filters work with calculated fields
-- [ ] Export includes calculated fields correctly
-- [ ] Saved reports work with calculated fields
-- [ ] Query performance improved 5-10x
-- [ ] No RLS bypasses (org isolation maintained)
+- [x] New quotes populate quote_calculation_summaries table (Test 1)
+- [x] Mixed aggregations return correct values (no duplication) (Test 2)
+- [x] All 43 calculated fields work in analytics (Test 3)
+- [x] Standard mode shows calculated fields in grid (Test 4)
+- [x] Filters work with calculated fields (Test 5)
+- [x] Export includes calculated fields correctly (Test 6)
+- [ ] Saved reports work with calculated fields (Test 7 - not tested yet)
+- [ ] Query performance improved 5-10x (not measured yet)
+- [x] No RLS bypasses (org isolation maintained)
 
 ---
 
-**Status:** Ready for testing
-**Estimated Testing Time:** 30-45 minutes
-**Tester:** Andrey
-**Date:** 2025-11-08
+**Status:** ✅ CORE TESTS PASSED (Tests 1-6)
+**Testing Completed:** 2025-11-09
+**Tested By:** Andrey
+**Result:** Core functionality verified. Tests 1-6 passed successfully. Saved reports and performance benchmarking pending.
