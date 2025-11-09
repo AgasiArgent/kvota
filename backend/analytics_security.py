@@ -387,8 +387,37 @@ def build_aggregation_query(
     where_clauses = ["q.organization_id = $1"]
 
     param_count = 2
+
+    # Handle date range filters FIRST (before the loop)
+    from datetime import datetime, timedelta
+
+    if 'created_at_from' in safe_filters:
+        where_clauses.append(f"q.created_at >= ${param_count}")
+        date_from = datetime.fromisoformat(safe_filters['created_at_from'])
+        params.append(date_from)
+        param_count += 1
+
+    if 'created_at_to' in safe_filters:
+        where_clauses.append(f"q.created_at <= ${param_count}")
+        date_to = datetime.fromisoformat(safe_filters['created_at_to']) + timedelta(days=1)
+        params.append(date_to)
+        param_count += 1
+
+    if 'quote_date_from' in safe_filters:
+        where_clauses.append(f"q.quote_date >= ${param_count}")
+        date_from = datetime.fromisoformat(safe_filters['quote_date_from']).date()
+        params.append(date_from)
+        param_count += 1
+
+    if 'quote_date_to' in safe_filters:
+        where_clauses.append(f"q.quote_date <= ${param_count}")
+        date_to = datetime.fromisoformat(safe_filters['quote_date_to']).date()
+        params.append(date_to)
+        param_count += 1
+
+    # Handle other filters
     for key, value in safe_filters.items():
-        # Skip date range keys
+        # Skip date range keys (already handled above)
         if key in ['created_at_from', 'created_at_to', 'quote_date_from', 'quote_date_to']:
             continue
 
