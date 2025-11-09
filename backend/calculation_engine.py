@@ -901,13 +901,13 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
             product_input.taxes.excise_tax,
             product_input.product.weight_in_kg,
             vat_seller_country_list[i],
-            product_input.company.offer_incoterms
+            product_input.logistics.offer_incoterms  # FIX: logistics not company
         )
         phase4_results_list.append(phase4)
 
         # Calculate AO16 (deductible VAT) right after Phase 4
         # New formula (2025-11-09): AO16 = (AY16 + Y16 + Z16 + T16) × rate_vat_ru
-        if (product_input.company.offer_incoterms == Incoterms.DDP and
+        if (product_input.logistics.offer_incoterms == Incoterms.DDP and
             product_input.company.offer_sale_type != OfferSaleType.EXPORT):
             AO16 = round_decimal((phase2_5_results_list[i]["AY16"] + phase4["Y16"] + phase4["Z16"] + phase3["T16"]) * rate_vat_ru)
         else:
@@ -1030,7 +1030,7 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
             phase4["Y16"],
             phase4["Z16"],
             phase3["T16"],  # Added T16 for new AO16 formula
-            product_input.company.offer_incoterms,
+            product_input.logistics.offer_incoterms,  # FIX: logistics not company
             product_input.company.offer_sale_type,
             rate_vat_ru
         )
@@ -1170,12 +1170,12 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         inputs.taxes.excise_tax,
         inputs.product.weight_in_kg,
         vat_seller_country,
-        inputs.company.offer_incoterms
+        inputs.logistics.offer_incoterms  # FIX: logistics not company
     )
 
     # Calculate AO16 (deductible VAT) right after Phase 4
     # New formula (2025-11-09): AO16 = (AY16 + Y16 + Z16 + T16) × rate_vat_ru
-    if (inputs.company.offer_incoterms == Incoterms.DDP and
+    if (inputs.logistics.offer_incoterms == Incoterms.DDP and
         inputs.company.offer_sale_type != OfferSaleType.EXPORT):
         AO16 = round_decimal((phase2_5_results["AY16"] + phase4_results["Y16"] +
                               phase4_results["Z16"] + phase3_results["T16"]) * rate_vat_ru)
@@ -1282,7 +1282,7 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         phase4_results["Y16"],
         phase4_results["Z16"],
         phase3_results["T16"],  # Added T16 for new AO16 formula
-        inputs.company.offer_incoterms,
+        inputs.logistics.offer_incoterms,  # FIX: logistics not company
         inputs.company.offer_sale_type,
         rate_vat_ru
     )

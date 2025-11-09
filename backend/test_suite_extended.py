@@ -168,7 +168,7 @@ def test_11_china_supply_ru():
   - All other logic same as Test 1 (SUPPLY, 50% advance)"""
 
     print_key_results(result, "TEST 11", special_checks)
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -248,7 +248,7 @@ def test_12_china_transit_ru():
   - Profit (AF16) based on S16"""
 
     print_key_results(result, "TEST 12", special_checks)
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -329,7 +329,7 @@ def test_13_china_turkish_seller():
   - Lower COGS vs Test 11 (no internal markup)"""
 
     print_key_results(result, "TEST 13", special_checks)
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -411,7 +411,7 @@ def test_14_lithuania_supply_ru():
   - Higher COGS and final price vs Test 1 and Test 11"""
 
     print_key_results(result, "TEST 14", special_checks)
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -493,7 +493,7 @@ def test_15_lithuania_turkish_seller():
   - Compare: Test 14 vs Test 15 shows seller impact"""
 
     print_key_results(result, "TEST 15", special_checks)
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
