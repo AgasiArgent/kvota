@@ -262,6 +262,19 @@ export default function AnalyticsPage() {
         return;
       }
 
+      // Validate aggregations - text fields can only use COUNT
+      const textFields = ['quote_number', 'status', 'offer_sale_type', 'seller_company'];
+      const numericFunctions = ['sum', 'avg', 'min', 'max'];
+
+      for (const agg of aggregations) {
+        if (textFields.includes(agg.field) && numericFunctions.includes(agg.function)) {
+          message.error(
+            `Поле "${agg.field}" является текстовым. Используйте функцию "Количество" вместо "${agg.function}"`
+          );
+          return;
+        }
+      }
+
       if (viewMode === 'lightweight') {
         // Lightweight mode: aggregations only
         console.log('[DEBUG] Lightweight mode activated');
