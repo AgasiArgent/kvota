@@ -27,13 +27,15 @@ class QuerySecurityValidator:
             'markup', 'discount'
         ],
         'quote_calculation_summaries': [
-            # Pre-aggregated quote-level totals (all 43 calculated fields)
+            # Pre-aggregated quote-level totals (all 45 calculated fields)
             # Phase 1-2: Purchase prices
             'calc_n16_price_without_vat', 'calc_p16_after_supplier_discount',
             'calc_r16_per_unit_quote_currency', 'calc_s16_total_purchase_price',
             'calc_s13_sum_purchase_prices',
             # Phase 3: Logistics
             'calc_t16_first_leg_logistics', 'calc_u16_last_leg_logistics', 'calc_v16_total_logistics',
+            # Brokerage (custom calculated fields)
+            'calc_total_brokerage', 'calc_total_logistics_and_brokerage',
             # Phase 4: Duties and internal pricing
             'calc_ax16_internal_price_unit', 'calc_ay16_internal_price_total',
             'calc_y16_customs_duty', 'calc_z16_excise_tax', 'calc_az16_with_vat_restored',

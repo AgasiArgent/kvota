@@ -900,20 +900,24 @@ def convert_decimals_to_float(obj):
         return obj
 
 
-def aggregate_product_results_to_summary(results_list: List) -> Dict[str, float]:
+def aggregate_product_results_to_summary(results_list: List, quote_variables: Dict[str, Any] = None) -> Dict[str, float]:
     """
     Aggregate product-level calculation results to quote-level summary.
 
     Args:
         results_list: List of ProductCalculationResult objects
+        quote_variables: Quote-level variables dict (for brokerage calculation)
 
     Returns:
-        Dict with 43 calculated fields ready for quote_calculation_summaries table
+        Dict with 45 calculated fields ready for quote_calculation_summaries table
     """
     from decimal import Decimal
 
     if not results_list:
         return {}
+
+    if quote_variables is None:
+        quote_variables = {}
 
     # Initialize sums for monetary fields (Phase 1-13)
     summary = {
@@ -1027,6 +1031,17 @@ def aggregate_product_results_to_summary(results_list: List) -> Dict[str, float]
     # Phase 11: Quote-level forex and agent fees (from first product)
     summary["calc_ah16_forex_risk_reserve"] = first.forex_reserve
     summary["calc_ai16_agent_fee"] = first.financial_agent_fee
+
+    # Calculate brokerage total from quote variables
+    brokerage_total = Decimal("0")
+    brokerage_total += Decimal(str(quote_variables.get('brokerage_hub', 0)))
+    brokerage_total += Decimal(str(quote_variables.get('brokerage_customs', 0)))
+    brokerage_total += Decimal(str(quote_variables.get('warehousing_at_customs', 0)))
+    brokerage_total += Decimal(str(quote_variables.get('customs_documentation', 0)))
+    brokerage_total += Decimal(str(quote_variables.get('brokerage_extra', 0)))
+
+    summary["calc_total_brokerage"] = brokerage_total
+    summary["calc_total_logistics_and_brokerage"] = summary["calc_v16_total_logistics"] + brokerage_total
 
     # Convert all Decimals to float for JSON/database
     return convert_decimals_to_float(summary)
@@ -1280,7 +1295,7 @@ async def calculate_quote(
         }).eq("id", quote_id).execute()
 
         # 8b. Aggregate product results to quote-level summary
-        quote_summary = aggregate_product_results_to_summary(results_list)
+        quote_summary = aggregate_product_results_to_summary(results_list, request.variables)
         quote_summary["quote_id"] = quote_id
 
         # Upsert (insert or update) quote calculation summary
