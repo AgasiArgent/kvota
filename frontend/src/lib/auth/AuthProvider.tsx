@@ -181,6 +181,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Safety check: Re-fetch profile if user exists but profile is missing
+  useEffect(() => {
+    const recheckProfile = async () => {
+      if (user && !profile && !loading) {
+        console.log('[AuthProvider] Profile missing but user exists - re-fetching...');
+        const userProfile = await fetchProfile(user.id);
+        setProfile(userProfile);
+      }
+    };
+
+    recheckProfile();
+  }, [user, profile, loading]);
+
   // Sign in function
   const signIn = async (email: string, password: string) => {
     try {
