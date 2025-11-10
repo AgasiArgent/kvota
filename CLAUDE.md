@@ -8,6 +8,23 @@ Russian B2B quotation platform for cross-border trade (import/export).
 
 ## Core Principles
 
+### 0. ⚠️ NEVER DELETE FILES WITHOUT PERMISSION
+
+**Rule:** ALWAYS ask user for permission before deleting ANY files or directories.
+
+**Why:** Untracked files cannot be recovered from git. Data loss is unacceptable.
+
+**Process:**
+1. Identify files/directories to delete
+2. Show user what will be deleted: `ls -la path/`
+3. Ask: "Delete these files? (yes/no)"
+4. Wait for explicit confirmation
+5. Only then execute deletion
+
+**Examples:**
+- ❌ WRONG: `rm -rf PMM/` (deletes without asking)
+- ✅ CORRECT: Show contents → Ask permission → Delete after "yes"
+
 ### 1. PREFER EXISTING SOLUTIONS
 
 **Rule:** Always search for 2-3 existing libraries before building custom code.
