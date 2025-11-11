@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Upload,
   Button,
@@ -29,16 +29,29 @@ import {
   ValidationResponse,
   ValidationResult,
 } from '@/lib/api/excel-validation-service';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
 export default function ExcelValidationPage() {
+  const { profile } = useAuth();
+  const router = useRouter();
+
   const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<'summary' | 'detailed'>('summary');
   const [tolerance, setTolerance] = useState(2.0);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ValidationResponse | null>(null);
+
+  // Admin role check
+  useEffect(() => {
+    if (profile && profile.role !== 'admin') {
+      message.error('Доступ запрещён');
+      router.push('/dashboard');
+    }
+  }, [profile, router]);
 
   const handleUpload = async () => {
     if (files.length === 0) {
