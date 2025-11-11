@@ -218,6 +218,17 @@ class CalculatorValidator:
             "Poland": "Польша"
         }
 
+        DM_FEE_TYPE_MAP = {
+            "Фикс": "fixed",
+            "фикс": "fixed",
+            "Процент": "percent",
+            "процент": "percent",
+            "fixed": "fixed",
+            "percent": "percent",
+            "none": "none",
+            None: "none"
+        }
+
         # Helper to get value with fallback
         def get_value(key: str, default=None):
             return product.get(key) or quote_vars.get(key) or default
@@ -235,6 +246,10 @@ class CalculatorValidator:
         def translate_country(country: str) -> str:
             return COUNTRY_MAP.get(country, country)
 
+        # Translate DM fee type from Russian
+        def translate_dm_fee_type(fee_type) -> str:
+            return DM_FEE_TYPE_MAP.get(fee_type, "none")
+
         # ProductInfo
         customs_code_raw = str(get_value("customs_code", "0000000000")).replace(".", "")
         customs_code_padded = customs_code_raw.ljust(10, "0")  # Pad to 10 digits
@@ -248,13 +263,21 @@ class CalculatorValidator:
         )
 
         # FinancialParams
+        # Note: Excel stores markup as decimal (0.19 = 19%), calculation engine expects percentage (19)
+        markup_raw = get_value("markup")
+        markup_percent = to_decimal(markup_raw, Decimal("0.15")) * Decimal("100") if markup_raw else Decimal("15")
+
+        # Note: Excel stores rate_forex_risk as decimal (0.03 = 3%), calculation engine expects percentage (3)
+        forex_risk_raw = quote_vars.get("rate_forex_risk")
+        forex_risk_percent = to_decimal(forex_risk_raw, Decimal("0.03")) * Decimal("100") if forex_risk_raw else Decimal("3")
+
         financial = FinancialParams(
             currency_of_quote=Currency(quote_vars.get("currency_of_quote", "RUB")),
             exchange_rate_base_price_to_quote=to_decimal(get_value("exchange_rate_base_price_to_quote"), Decimal("1")),
             supplier_discount=to_decimal(get_value("supplier_discount"), Decimal("0")),
-            markup=to_decimal(get_value("markup"), Decimal("15")),
-            rate_forex_risk=Decimal("3"),
-            dm_fee_type=DMFeeType(get_value("dm_fee_type", "fixed")),
+            markup=markup_percent,
+            rate_forex_risk=forex_risk_percent,
+            dm_fee_type=DMFeeType(translate_dm_fee_type(quote_vars.get("dm_fee_type"))),
             dm_fee_value=to_decimal(get_value("dm_fee_value"), Decimal("0"))
         )
 
@@ -265,30 +288,41 @@ class CalculatorValidator:
         logistics = LogisticsParams(
             supplier_country=SupplierCountry(country_translated),
             offer_incoterms=Incoterms(quote_vars.get("offer_incoterms", "DDP")),
-            delivery_time=int(get_value("delivery_time", 60)),
-            logistics_supplier_hub=to_decimal(get_value("logistics_supplier_hub"), Decimal("0")),
-            logistics_hub_customs=to_decimal(get_value("logistics_hub_customs"), Decimal("0")),
-            logistics_customs_client=to_decimal(get_value("logistics_customs_client"), Decimal("0"))
+            delivery_time=int(quote_vars.get("delivery_time", 60)),
+            logistics_supplier_hub=to_decimal(quote_vars.get("logistics_supplier_hub"), Decimal("0")),
+            logistics_hub_customs=to_decimal(quote_vars.get("logistics_hub_customs"), Decimal("0")),
+            logistics_customs_client=to_decimal(quote_vars.get("logistics_customs_client"), Decimal("0"))
         )
 
         # TaxesAndDuties
+        # Note: Excel stores import_tariff as decimal (0.05 = 5%), engine expects percentage (5)
+        import_tariff_raw = get_value("import_tariff")
+        import_tariff_pct = to_decimal(import_tariff_raw, Decimal("0")) * Decimal("100") if import_tariff_raw and import_tariff_raw < 1 else to_decimal(import_tariff_raw, Decimal("0"))
+
         taxes = TaxesAndDuties(
-            import_tariff=to_decimal(get_value("import_tariff"), Decimal("0")),
+            import_tariff=import_tariff_pct,
             excise_tax=to_decimal(get_value("excise_tax"), Decimal("0")),
             util_fee=to_decimal(get_value("util_fee"), Decimal("0"))
         )
 
         # PaymentTerms
+        # Note: Excel stores advances as decimals (1 = 100%), convert to percentage
+        advance_from_client_raw = quote_vars.get("advance_from_client", 1)
+        advance_from_client_pct = to_decimal(advance_from_client_raw, Decimal("1")) * Decimal("100")
+
+        advance_to_supplier_raw = quote_vars.get("advance_to_supplier", 1)
+        advance_to_supplier_pct = to_decimal(advance_to_supplier_raw, Decimal("1")) * Decimal("100")
+
         payment = PaymentTerms(
-            advance_from_client=to_decimal(get_value("advance_from_client"), Decimal("100")),
-            advance_to_supplier=to_decimal(get_value("advance_to_supplier"), Decimal("100")),
+            advance_from_client=advance_from_client_pct,
+            advance_to_supplier=advance_to_supplier_pct,
             time_to_advance=int(get_value("time_to_advance", 0))
         )
 
         # CustomsAndClearance
         customs = CustomsAndClearance(
-            brokerage_hub=to_decimal(get_value("brokerage_hub"), Decimal("0")),
-            brokerage_customs=to_decimal(get_value("brokerage_customs"), Decimal("0")),
+            brokerage_hub=to_decimal(quote_vars.get("brokerage_hub"), Decimal("0")),
+            brokerage_customs=to_decimal(quote_vars.get("brokerage_customs"), Decimal("0")),
             warehousing_at_customs=to_decimal(get_value("warehousing_at_customs"), Decimal("0")),
             customs_documentation=to_decimal(get_value("customs_documentation"), Decimal("0")),
             brokerage_extra=to_decimal(get_value("brokerage_extra"), Decimal("0"))
@@ -317,9 +351,17 @@ class CalculatorValidator:
         )
 
         # SystemConfig (admin settings)
+        # Note: rate_fin_comm not in BJ11, it's on separate sheet in Excel (default: 2%)
+        # For validation, use current default rate
+        fin_comm_pct = Decimal("2")
+
+        # Note: rate_loan_interest_daily is on separate sheet (helpsheet) in Excel
+        # Hardcoded: 25% annual / 365 days = 0.0685% daily
+        loan_rate_daily = Decimal("25") / Decimal("365") / Decimal("100")  # 0.000684931506849315
+
         system = SystemConfig(
-            rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_fin_comm=fin_comm_pct,
+            rate_loan_interest_daily=loan_rate_daily,
             rate_insurance=Decimal("0.00047"),
             customs_logistics_pmt_due=10
         )

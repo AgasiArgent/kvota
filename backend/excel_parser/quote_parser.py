@@ -80,8 +80,28 @@ class ExcelQuoteParser:
             "offer_sale_type": self.sheet["D6"].value,
             "offer_incoterms": self.sheet["D7"].value,
             "currency_of_quote": self.sheet["D8"].value,
+            "delivery_time": self.sheet["D9"].value,  # Days
+            "advance_to_supplier": self.sheet["D11"].value,  # %
             "advance_from_client": self.sheet["J5"].value,
             "time_to_advance": self.sheet["K5"].value,
+
+            # Financial params (critical for accuracy)
+            "rate_forex_risk": self.sheet["AH11"].value,  # Forex risk %
+            # Note: rate_fin_comm and rate_loan_interest_daily are on separate sheet (helpsheet)
+            # BL5 is intermediate calculation value, not input
+            "dm_fee_type": self.sheet["AG3"].value,  # DM fee type
+            "dm_fee_value": self.sheet["AG7"].value,  # DM fee value
+
+            # Logistics (quote-level totals)
+            "logistics_supplier_hub": self.sheet["W2"].value,
+            "logistics_hub_customs": self.sheet["W3"].value,
+            "logistics_customs_client": self.sheet["W4"].value,
+            "brokerage_hub": self.sheet["W5"].value,
+            "brokerage_customs": self.sheet["W6"].value,
+            "warehousing_at_customs": self.sheet["W7"].value,
+            "customs_documentation": self.sheet["W8"].value,
+            "brokerage_extra": self.sheet["W9"].value,
+            "insurance": self.sheet["W10"].value,  # Insurance (quote-level)
         }
 
         # Products (dynamic rows starting from 16)
@@ -89,17 +109,27 @@ class ExcelQuoteParser:
         row = 16  # First product
 
         while self.sheet[f"E{row}"].value:  # While quantity exists
+            base_price = self.sheet[f"K{row}"].value
+
+            # Skip products with zero or null price (empty rows, bonuses, etc.)
+            if base_price is None or base_price == 0:
+                row += 1
+                continue
+
             product = {
                 "quantity": self.sheet[f"E{row}"].value,
                 "weight_in_kg": self.sheet[f"G{row}"].value,
                 "currency_of_base_price": self.sheet[f"J{row}"].value,
-                "base_price_VAT": self.sheet[f"K{row}"].value,
+                "base_price_VAT": base_price,
                 "supplier_country": self.sheet[f"L{row}"].value,
                 "supplier_discount": self.sheet[f"O{row}"].value,
                 "exchange_rate_base_price_to_quote": self.sheet[f"Q{row}"].value,
                 "customs_code": self.sheet[f"W{row}"].value,
                 "import_tariff": self.sheet[f"X{row}"].value,
                 "excise_tax": self.sheet[f"Z{row}"].value,
+
+                # Product-level overrides (critical for accuracy)
+                "markup": self.sheet[f"AC{row}"].value,  # Markup % per product
             }
             products.append(product)
             row += 1
@@ -112,6 +142,13 @@ class ExcelQuoteParser:
         row = 16
 
         while self.sheet[f"E{row}"].value:
+            base_price = self.sheet[f"K{row}"].value
+
+            # Skip products with zero or null price (must match _extract_inputs logic)
+            if base_price is None or base_price == 0:
+                row += 1
+                continue
+
             result = {
                 # Summary fields
                 "AK16": self.sheet[f"AK{row}"].value,  # Final price
