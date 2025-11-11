@@ -33,6 +33,12 @@ class BulkQuoteImporter:
 
         conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
 
+        # Set RLS context for multi-tenant security
+        await conn.execute(
+            "SELECT set_config('request.jwt.claims', $1, true)",
+            f'{{"sub": "{self.user_id}", "role": "authenticated"}}'
+        )
+
         try:
             results = {
                 "total": total,
@@ -46,27 +52,45 @@ class BulkQuoteImporter:
             for i in range(0, total, self.batch_size):
                 batch = file_paths[i:i + self.batch_size]
 
-                for filepath in batch:
-                    try:
-                        await self._import_single_file(conn, filepath)
-                        results["successful"] += 1
-                        self.tracker.increment(status="✅")
-
-                    except FileExistsError:
-                        results["skipped"] += 1
-                        self.tracker.increment(status="⏭️", message="Duplicate")
-
-                    except Exception as e:
-                        results["failed"] += 1
-                        results["errors"].append({
-                            "file": Path(filepath).name,
-                            "error": str(e)
-                        })
-                        self.tracker.increment(status="❌", message=str(e))
-
-                # Commit batch
+                # Wrap batch in transaction (only in non-dry-run mode)
                 if not self.dry_run:
-                    await conn.execute("COMMIT")
+                    async with conn.transaction():
+                        for filepath in batch:
+                            try:
+                                await self._import_single_file(conn, filepath)
+                                results["successful"] += 1
+                                self.tracker.increment(status="✅")
+
+                            except FileExistsError:
+                                results["skipped"] += 1
+                                self.tracker.increment(status="⏭️", message="Duplicate")
+
+                            except Exception as e:
+                                results["failed"] += 1
+                                results["errors"].append({
+                                    "file": Path(filepath).name,
+                                    "error": str(e)
+                                })
+                                self.tracker.increment(status="❌", message=str(e))
+                else:
+                    # Dry-run mode - no transaction needed
+                    for filepath in batch:
+                        try:
+                            await self._import_single_file(conn, filepath)
+                            results["successful"] += 1
+                            self.tracker.increment(status="✅")
+
+                        except FileExistsError:
+                            results["skipped"] += 1
+                            self.tracker.increment(status="⏭️", message="Duplicate")
+
+                        except Exception as e:
+                            results["failed"] += 1
+                            results["errors"].append({
+                                "file": Path(filepath).name,
+                                "error": str(e)
+                            })
+                            self.tracker.increment(status="❌", message=str(e))
 
                 await asyncio.sleep(0.1)
 
@@ -99,6 +123,8 @@ class BulkQuoteImporter:
         if self.dry_run:
             return
 
+        # TODO(Phase 5): Parse customer info from Excel metadata
+        # Currently hardcoded to "Imported Customer"
         # Create customer
         customer_id = await self._ensure_customer(conn, "Imported Customer")
 
@@ -147,6 +173,9 @@ class BulkQuoteImporter:
 
     async def _create_products(self, conn, quote_id: str, products: List[Dict]):
         """Create product records"""
+        # TODO(Phase 5): Parse full product fields from Excel
+        # Currently only saves minimal fields (name, quantity, price)
+        # Missing: SKU, brand, weight, dimensions, supplier info, etc.
         for i, product in enumerate(products):
             await conn.execute(
                 "INSERT INTO quote_items (quote_id, product_name, quantity, "
