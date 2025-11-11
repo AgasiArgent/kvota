@@ -15,6 +15,7 @@ import {
   Row,
   Col,
   Dropdown,
+  Tabs,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -31,6 +32,7 @@ import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
+import PlanFactTab from '@/components/quotes/PlanFactTab';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -100,6 +102,7 @@ export default function QuoteDetailPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [workflow, setWorkflow] = useState<WorkflowStatus | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>('details');
 
   const quoteService = new QuoteService();
   const quoteId = params?.id as string;
@@ -515,57 +518,89 @@ export default function QuoteDetailPage() {
           </Col>
         </Row>
 
-        {/* Workflow Section */}
-        {!workflowLoading && workflow && (
-          <Row gutter={[16, 16]}>
-            <Col span={24}>
-              <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
-            </Col>
-          </Row>
-        )}
+        {/* Tabs for Details and Plan-Fact */}
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'details',
+              label: 'Детали',
+              children: (
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  {/* Workflow Section */}
+                  {!workflowLoading && workflow && (
+                    <Row gutter={[16, 16]}>
+                      <Col span={24}>
+                        <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
+                      </Col>
+                    </Row>
+                  )}
 
-        {/* Section 2: Quote Info Card */}
-        <Card title="Информация о КП" variant="borderless">
-          <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
-            <Descriptions.Item label="Клиент">
-              {quote.customer?.name || 'Не указан'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Название КП">{quote.title || '—'}</Descriptions.Item>
-            <Descriptions.Item label="Статус">{getStatusTag(quote.status)}</Descriptions.Item>
-            <Descriptions.Item label="Дата КП">{formatDate(quote.quote_date)}</Descriptions.Item>
-            <Descriptions.Item label="Действительно до">
-              {formatDate(quote.valid_until)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Создано">{formatDate(quote.created_at)}</Descriptions.Item>
-            <Descriptions.Item label="Валюта">{quote.currency || 'RUB'}</Descriptions.Item>
-            <Descriptions.Item label="Общая сумма">
-              <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                {formatCurrency(quote.total_amount, quote.currency)}
-              </Text>
-            </Descriptions.Item>
-          </Descriptions>
-        </Card>
+                  {/* Quote Info Card */}
+                  <Card title="Информация о КП" variant="borderless">
+                    <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
+                      <Descriptions.Item label="Клиент">
+                        {quote.customer?.name || 'Не указан'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Название КП">
+                        {quote.title || '—'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Статус">
+                        {getStatusTag(quote.status)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Дата КП">
+                        {formatDate(quote.quote_date)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Действительно до">
+                        {formatDate(quote.valid_until)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Создано">
+                        {formatDate(quote.created_at)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Валюта">
+                        {quote.currency || 'RUB'}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Общая сумма">
+                        <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                          {formatCurrency(quote.total_amount, quote.currency)}
+                        </Text>
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </Card>
 
-        {/* Section 3: Products Table (ag-Grid, read-only) */}
-        <Card
-          title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
-          variant="borderless"
-          styles={{ body: { padding: '16px' } }}
-        >
-          {quote.items && quote.items.length > 0 ? (
-            <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
-              <AgGridReact
-                rowData={quote.items}
-                columnDefs={columnDefs}
-                defaultColDef={defaultColDef}
-                animateRows={true}
-                suppressHorizontalScroll={false}
-              />
-            </div>
-          ) : (
-            <Text type="secondary">Нет товаров в этом КП</Text>
-          )}
-        </Card>
+                  {/* Products Table (ag-Grid, read-only) */}
+                  <Card
+                    title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
+                    variant="borderless"
+                    styles={{ body: { padding: '16px' } }}
+                  >
+                    {quote.items && quote.items.length > 0 ? (
+                      <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+                        <AgGridReact
+                          rowData={quote.items}
+                          columnDefs={columnDefs}
+                          defaultColDef={defaultColDef}
+                          animateRows={true}
+                          suppressHorizontalScroll={false}
+                        />
+                      </div>
+                    ) : (
+                      <Text type="secondary">Нет товаров в этом КП</Text>
+                    )}
+                  </Card>
+                </Space>
+              ),
+            },
+            {
+              key: 'plan-fact',
+              label: 'План-Факт',
+              children: (
+                <PlanFactTab quoteId={quoteId} organizationId={profile?.organization_id || ''} />
+              ),
+            },
+          ]}
+        />
       </Space>
     </MainLayout>
   );

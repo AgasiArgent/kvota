@@ -6,9 +6,9 @@ from decimal import Decimal
 from excel_parser.quote_parser import ExcelQuoteParser
 from validation.calculator_validator import CalculatorValidator, ValidationMode
 
-# Collect all Excel files
+# Collect all Excel files (.xlsx and .xlsm)
 VALIDATION_DIR = Path(__file__).parent.parent.parent.parent / "validation_data"
-excel_files = glob.glob(str(VALIDATION_DIR / "*.xlsx"))
+excel_files = glob.glob(str(VALIDATION_DIR / "*.xlsx")) + glob.glob(str(VALIDATION_DIR / "*.xlsm"))
 
 @pytest.fixture
 def validator_summary():
