@@ -23,15 +23,15 @@ class ValidationMode(Enum):
 # Field definitions (Excel cell codes → description)
 SUMMARY_FIELDS = {
     "AK16": "Final Price Total",
-    "AM16": "Price with VAT",
-    "AQ16": "Profit",
+    "AM16": "Price with VAT (per unit)",
+    "AQ16": "Transit Commission",
 }
 
 # Mapping from Excel cell codes to ProductCalculationResult field names
 EXCEL_TO_MODEL_FIELD_MAP = {
     "AK16": "sales_price_total_no_vat",
-    "AM16": "sales_price_total_with_vat",  # AL16 according to model, but Excel uses AM16
-    "AQ16": "profit",  # AF16 in model
+    "AM16": "sales_price_per_unit_with_vat",  # AM16 = per-unit with VAT (AL16 = total with VAT)
+    "AQ16": "transit_commission",  # AQ16 = transit commission (AF16 = profit)
 }
 
 DETAILED_FIELDS = {
@@ -42,8 +42,8 @@ DETAILED_FIELDS = {
     "Y16": "Customs duty",
     "AB16": "COGS",
     "AK16": "Final price total",
-    "AM16": "Price with VAT",
-    "AQ16": "Profit",
+    "AM16": "Price with VAT (per unit)",
+    "AQ16": "Transit Commission",
 }
 
 @dataclass
