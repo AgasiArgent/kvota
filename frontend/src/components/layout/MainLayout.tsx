@@ -198,6 +198,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
             key: '/admin/feedback',
             label: 'Обратная связь',
           },
+          {
+            key: '/admin/excel-validation',
+            label: 'Валидация Excel',
+          },
         ],
       });
     }
