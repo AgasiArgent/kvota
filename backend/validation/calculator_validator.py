@@ -8,17 +8,30 @@ from pathlib import Path
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import calculation_engine
+from calculation_models import (
+    QuoteCalculationInput, ProductInfo, FinancialParams,
+    LogisticsParams, TaxesAndDuties, PaymentTerms,
+    CustomsAndClearance, CompanySettings, SystemConfig,
+    Currency, Incoterms, SupplierCountry, DMFeeType, SellerCompany, OfferSaleType
+)
 
 class ValidationMode(Enum):
     """Validation comparison modes"""
     SUMMARY = "summary"
     DETAILED = "detailed"
 
-# Field definitions
+# Field definitions (Excel cell codes → description)
 SUMMARY_FIELDS = {
     "AK16": "Final Price Total",
     "AM16": "Price with VAT",
     "AQ16": "Profit",
+}
+
+# Mapping from Excel cell codes to ProductCalculationResult field names
+EXCEL_TO_MODEL_FIELD_MAP = {
+    "AK16": "sales_price_total_no_vat",
+    "AM16": "sales_price_total_with_vat",  # AL16 according to model, but Excel uses AM16
+    "AQ16": "profit",  # AF16 in model
 }
 
 DETAILED_FIELDS = {
@@ -84,13 +97,17 @@ class CalculatorValidator:
             else DETAILED_FIELDS
         )
 
+        # Map Excel data to QuoteCalculationInput models
+        quote_vars = excel_data.inputs["quote"]
+        products_list = []
+
+        for product_dict in excel_data.inputs["products"]:
+            # Map to QuoteCalculationInput
+            calc_input = self._map_to_calculation_input(product_dict, quote_vars)
+            products_list.append(calc_input)
+
         # Run through calculation engine
-        # Note: This is a placeholder - actual mapping to QuoteCalculationInput will be added later
-        # For now, we pass raw data and expect the calculation engine to handle it
-        # (In production, this would be mapped to proper Pydantic models first)
-        our_results = calculation_engine.calculate_multiproduct_quote(
-            excel_data.inputs["products"]
-        )
+        our_results = calculation_engine.calculate_multiproduct_quote(products_list)
 
         # Compare products
         comparisons = []
@@ -123,7 +140,7 @@ class CalculatorValidator:
 
     def _compare_product(
         self,
-        our: Dict,
+        our,  # ProductCalculationResult (Pydantic model)
         excel: Dict,
         fields_to_check: Dict,
         product_index: int
@@ -132,7 +149,13 @@ class CalculatorValidator:
         field_comparisons = []
 
         for field_code, field_name in fields_to_check.items():
-            our_value = Decimal(str(our.get(field_code, 0)))
+            # Map Excel cell code to model field name
+            model_field = EXCEL_TO_MODEL_FIELD_MAP.get(field_code, field_code)
+
+            # Get value from Pydantic model using mapped field name
+            our_value = Decimal(str(getattr(our, model_field, 0)))
+
+            # Get value from Excel dict
             excel_value = Decimal(str(excel.get(field_code, 0)))
             diff = abs(our_value - excel_value)
             passed = diff <= self.tolerance
@@ -180,3 +203,134 @@ class CalculatorValidator:
                 if not fc.passed:
                     failed.add(fc.field)
         return list(failed)
+
+    def _map_to_calculation_input(self, product: Dict, quote_vars: Dict) -> QuoteCalculationInput:
+        """Map Excel data to QuoteCalculationInput Pydantic model"""
+
+        # Translation maps for enums
+        COUNTRY_MAP = {
+            "China": "Китай",
+            "Turkey": "Турция",
+            "Russia": "Россия",
+            "Lithuania": "Литва",
+            "Latvia": "Латвия",
+            "Bulgaria": "Болгария",
+            "Poland": "Польша"
+        }
+
+        # Helper to get value with fallback
+        def get_value(key: str, default=None):
+            return product.get(key) or quote_vars.get(key) or default
+
+        # Convert to Decimal safely
+        def to_decimal(val, default=Decimal("0")):
+            if val is None:
+                return default
+            try:
+                return Decimal(str(val))
+            except:
+                return default
+
+        # Translate country name
+        def translate_country(country: str) -> str:
+            return COUNTRY_MAP.get(country, country)
+
+        # ProductInfo
+        customs_code_raw = str(get_value("customs_code", "0000000000")).replace(".", "")
+        customs_code_padded = customs_code_raw.ljust(10, "0")  # Pad to 10 digits
+
+        product_info = ProductInfo(
+            base_price_VAT=to_decimal(product.get("base_price_VAT"), Decimal("0")),
+            quantity=int(product.get("quantity", 1)),
+            weight_in_kg=to_decimal(product.get("weight_in_kg"), Decimal("0")),
+            currency_of_base_price=Currency(get_value("currency_of_base_price", "USD")),
+            customs_code=customs_code_padded
+        )
+
+        # FinancialParams
+        financial = FinancialParams(
+            currency_of_quote=Currency(quote_vars.get("currency_of_quote", "RUB")),
+            exchange_rate_base_price_to_quote=to_decimal(get_value("exchange_rate_base_price_to_quote"), Decimal("1")),
+            supplier_discount=to_decimal(get_value("supplier_discount"), Decimal("0")),
+            markup=to_decimal(get_value("markup"), Decimal("15")),
+            rate_forex_risk=Decimal("3"),
+            dm_fee_type=DMFeeType(get_value("dm_fee_type", "fixed")),
+            dm_fee_value=to_decimal(get_value("dm_fee_value"), Decimal("0"))
+        )
+
+        # LogisticsParams
+        country_raw = get_value("supplier_country", "Турция")
+        country_translated = translate_country(country_raw)
+
+        logistics = LogisticsParams(
+            supplier_country=SupplierCountry(country_translated),
+            offer_incoterms=Incoterms(quote_vars.get("offer_incoterms", "DDP")),
+            delivery_time=int(get_value("delivery_time", 60)),
+            logistics_supplier_hub=to_decimal(get_value("logistics_supplier_hub"), Decimal("0")),
+            logistics_hub_customs=to_decimal(get_value("logistics_hub_customs"), Decimal("0")),
+            logistics_customs_client=to_decimal(get_value("logistics_customs_client"), Decimal("0"))
+        )
+
+        # TaxesAndDuties
+        taxes = TaxesAndDuties(
+            import_tariff=to_decimal(get_value("import_tariff"), Decimal("0")),
+            excise_tax=to_decimal(get_value("excise_tax"), Decimal("0")),
+            util_fee=to_decimal(get_value("util_fee"), Decimal("0"))
+        )
+
+        # PaymentTerms
+        payment = PaymentTerms(
+            advance_from_client=to_decimal(get_value("advance_from_client"), Decimal("100")),
+            advance_to_supplier=to_decimal(get_value("advance_to_supplier"), Decimal("100")),
+            time_to_advance=int(get_value("time_to_advance", 0))
+        )
+
+        # CustomsAndClearance
+        customs = CustomsAndClearance(
+            brokerage_hub=to_decimal(get_value("brokerage_hub"), Decimal("0")),
+            brokerage_customs=to_decimal(get_value("brokerage_customs"), Decimal("0")),
+            warehousing_at_customs=to_decimal(get_value("warehousing_at_customs"), Decimal("0")),
+            customs_documentation=to_decimal(get_value("customs_documentation"), Decimal("0")),
+            brokerage_extra=to_decimal(get_value("brokerage_extra"), Decimal("0"))
+        )
+
+        # CompanySettings
+        # For validation, use default company if Excel has unknown value
+        seller_company_raw = quote_vars.get("seller_company", "МАСТЕР БЭРИНГ ООО")
+        try:
+            seller_company = SellerCompany(seller_company_raw)
+        except ValueError:
+            # Unknown company in Excel, use default for validation
+            seller_company = SellerCompany.MASTER_BEARING_RU
+
+        # Same for sale type
+        sale_type_raw = quote_vars.get("offer_sale_type", "поставка")
+        try:
+            sale_type = OfferSaleType(sale_type_raw.lower() if sale_type_raw else "поставка")
+        except ValueError:
+            # Use default if unknown
+            sale_type = OfferSaleType.SUPPLY
+
+        company = CompanySettings(
+            seller_company=seller_company,
+            offer_sale_type=sale_type
+        )
+
+        # SystemConfig (admin settings)
+        system = SystemConfig(
+            rate_fin_comm=Decimal("2"),
+            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_insurance=Decimal("0.00047"),
+            customs_logistics_pmt_due=10
+        )
+
+        return QuoteCalculationInput(
+            product=product_info,
+            financial=financial,
+            logistics=logistics,
+            taxes=taxes,
+            payment=payment,
+            customs=customs,
+            company=company,
+            system=system
+        )
