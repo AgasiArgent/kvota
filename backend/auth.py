@@ -192,6 +192,8 @@ async def get_user_from_database(user_id: str) -> Optional[Dict[str, Any]]:
                 "roles(id, name, slug, permissions)"
             ).eq("user_id", user_id).eq("status", "active").execute()
 
+            print(f"[get_user_from_database] org_members_response for user {user_id}: {org_members_response.data}")
+
             # Transform the response to match expected format
             organizations = []
             for member in org_members_response.data:
@@ -424,16 +426,21 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     current_org = None
     last_active_org_id = user_data.get("last_active_organization_id")
 
+    print(f"[get_current_user] user {user_data.get('email')} - last_active_org_id: {last_active_org_id}, organizations count: {len(organizations)}")
+
     if last_active_org_id and organizations:
         # Find last active organization
         current_org = next((org for org in organizations if org['organization_id'] == last_active_org_id), None)
+        print(f"[get_current_user] Found last active org: {current_org}")
 
     # If not found, use first organization
     if not current_org and organizations:
         current_org = organizations[0]
+        print(f"[get_current_user] Using first org: {current_org}")
 
     # Extract current organization details
     current_organization_id = current_org['organization_id'] if current_org else None
+    print(f"[get_current_user] Final current_organization_id: {current_organization_id}")
     current_role = current_org['role_name'] if current_org else user_data.get("role", UserRole.SALES_MANAGER)
     current_role_slug = current_org['role_slug'] if current_org else 'sales_manager'
     is_owner = current_org['is_owner'] if current_org else False

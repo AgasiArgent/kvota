@@ -21,17 +21,32 @@ class ValidationMode(Enum):
     DETAILED = "detailed"
 
 # Field definitions (Excel cell codes → description)
+# Quote-level fields from row 13 (5 key fields)
 SUMMARY_FIELDS = {
-    "AK16": "Final Price Total",
-    "AM16": "Price with VAT (per unit)",
-    "AQ16": "Transit Commission",
+    "AK13": "Цена",                    # Final Price Total without VAT (quote-level)
+    "AL13": "Цена с НДС",              # Final Price Total with VAT (quote-level)
+    "AB13": "Себестоимость (COGS)",    # Cost of Goods Sold (quote-level)
+    "V13": "Логистика",                # Total Logistics (quote-level)
+    "Y13": "Пошлина",                  # Customs Duty (quote-level)
 }
 
-# Mapping from Excel cell codes to ProductCalculationResult field names
-EXCEL_TO_MODEL_FIELD_MAP = {
-    "AK16": "sales_price_total_no_vat",
-    "AM16": "sales_price_per_unit_with_vat",  # AM16 = per-unit with VAT (AL16 = total with VAT)
-    "AQ16": "transit_commission",  # AQ16 = transit commission (AF16 = profit)
+# Mapping from Excel cell codes to QuoteCalculationSummary field names (quote-level)
+EXCEL_TO_QUOTE_SUMMARY_MAP = {
+    "AK13": "total_revenue_no_vat",           # Final price without VAT
+    "AL13": "total_revenue_with_vat",         # Final price with VAT (AL13, not AM13!)
+    "AB13": "total_cogs",                     # Total Cost of Goods Sold
+    "V13": "total_logistics",                 # Total logistics costs
+    "Y13": "total_customs_duty",              # Total customs duty
+}
+
+# Product-level mapping (for detailed validation if needed later)
+EXCEL_TO_PRODUCT_FIELD_MAP = {
+    "AK16": "sales_price_total_no_vat",       # Final price without VAT
+    "AM16": "sales_price_per_unit_with_vat",  # Price per unit with VAT
+    "AB16": "cogs_per_product",               # Cost of Goods Sold
+    "V16": "logistics_total",                 # Total logistics costs
+    "Y16": "customs_duty",                    # Customs duty
+    "AQ16": "transit_commission",             # Transit commission
 }
 
 DETAILED_FIELDS = {
@@ -82,20 +97,14 @@ class CalculatorValidator:
 
     def __init__(
         self,
-        tolerance_rub: Decimal = Decimal("2.0"),
+        tolerance_percent: Decimal = Decimal("0.01"),  # Tolerance in percent (default 0.01%)
         mode: ValidationMode = ValidationMode.SUMMARY
     ):
-        self.tolerance = tolerance_rub
+        self.tolerance_percent = tolerance_percent
         self.mode = mode
 
     def validate_quote(self, excel_data) -> ValidationResult:
-        """Run calculation and compare with Excel"""
-
-        # Get fields to check based on mode
-        fields_to_check = (
-            SUMMARY_FIELDS if self.mode == ValidationMode.SUMMARY
-            else DETAILED_FIELDS
-        )
+        """Run calculation and compare with Excel (both quote-level and products)"""
 
         # Map Excel data to QuoteCalculationInput models
         quote_vars = excel_data.inputs["quote"]
@@ -109,33 +118,94 @@ class CalculatorValidator:
         # Run through calculation engine
         our_results = calculation_engine.calculate_multiproduct_quote(products_list)
 
-        # Compare products
-        comparisons = []
+        # ===== QUOTE-LEVEL COMPARISON (row 13) =====
+        # Calculate quote-level sums from our results
+        our_quote_totals = {
+            "total_revenue_no_vat": sum(p.sales_price_total_no_vat for p in our_results),
+            "total_revenue_with_vat": sum(p.sales_price_total_with_vat for p in our_results),
+            "total_cogs": sum(p.cogs_per_product for p in our_results),
+            "total_logistics": sum(p.logistics_total for p in our_results),
+            "total_customs_duty": sum(p.customs_fee for p in our_results),  # Fixed: customs_fee, not customs_duty
+        }
+
+        # Get Excel quote-level values (row 13)
+        excel_quote_level = excel_data.expected_results.get("quote_level", {})
+
+        # Compare quote-level fields
+        quote_field_comparisons = []
+        for field_code, field_name in SUMMARY_FIELDS.items():
+            # Map Excel cell code to our summary field name
+            our_field = EXCEL_TO_QUOTE_SUMMARY_MAP.get(field_code, field_code)
+            our_value = Decimal(str(our_quote_totals.get(our_field, 0)))
+
+            # Get value from Excel row 13 (handle None values)
+            excel_raw = excel_quote_level.get(field_code, 0)
+            excel_value = Decimal(str(excel_raw if excel_raw is not None else 0))
+            diff = abs(our_value - excel_value)
+
+            # Calculate percent deviation
+            if excel_value != 0:
+                deviation_percent = (diff / abs(excel_value)) * 100
+                passed = deviation_percent <= self.tolerance_percent
+            else:
+                passed = diff <= Decimal("0.01")
+
+            quote_field_comparisons.append(FieldComparison(
+                field=field_code,
+                field_name=field_name,
+                our_value=our_value,
+                excel_value=excel_value,
+                difference=diff,
+                passed=passed,
+                phase="Quote-level"
+            ))
+
+        # ===== PRODUCT-LEVEL COMPARISON (rows 16+) =====
+        product_comparisons = []
+        # For products, always use basic product fields (not quote-level row 13 fields)
+        product_fields = {
+            "AK16": "Цена",
+            "AM16": "Цена с НДС",
+            "AB16": "Себестоимость"
+        }
+
         for i, (our_product, excel_product) in enumerate(
-            zip(our_results, excel_data.expected_results["products"])
+            zip(our_results, excel_data.expected_results.get("products", []))
         ):
             comparison = self._compare_product(
                 our_product,
                 excel_product,
-                fields_to_check,
+                product_fields,
                 i
             )
-            comparisons.append(comparison)
+            product_comparisons.append(comparison)
 
-        # Calculate summary stats
-        all_passed = all(c.passed for c in comparisons)
-        max_dev = max(c.max_deviation for c in comparisons) if comparisons else Decimal("0")
-        failed_fields = self._get_failed_fields(comparisons)
+        # ===== COMBINED RESULT =====
+        # Quote-level comparison as first item (index 0)
+        quote_level_comparison = ProductComparison(
+            product_index=0,
+            passed=all(fc.passed for fc in quote_field_comparisons),
+            max_deviation=max(fc.difference for fc in quote_field_comparisons) if quote_field_comparisons else Decimal("0"),
+            field_comparisons=quote_field_comparisons
+        )
+
+        # Combine: quote-level first, then products
+        all_comparisons = [quote_level_comparison] + product_comparisons
+
+        # Overall stats
+        all_passed = all(c.passed for c in all_comparisons)
+        max_dev = max(c.max_deviation for c in all_comparisons) if all_comparisons else Decimal("0")
+        failed_fields = list(set(fc.field for c in all_comparisons for fc in c.field_comparisons if not fc.passed))
 
         return ValidationResult(
             mode=self.mode,
             passed=all_passed,
-            comparisons=comparisons,
+            comparisons=all_comparisons,  # Quote-level + all products
             max_deviation=max_dev,
             failed_fields=failed_fields,
             excel_file=excel_data.filename,
-            total_products=len(comparisons),
-            fields_checked=len(fields_to_check)
+            total_products=len(products_list),
+            fields_checked=len(SUMMARY_FIELDS)  # Fixed: use SUMMARY_FIELDS
         )
 
     def _compare_product(
@@ -150,7 +220,7 @@ class CalculatorValidator:
 
         for field_code, field_name in fields_to_check.items():
             # Map Excel cell code to model field name
-            model_field = EXCEL_TO_MODEL_FIELD_MAP.get(field_code, field_code)
+            model_field = EXCEL_TO_PRODUCT_FIELD_MAP.get(field_code, field_code)
 
             # Get value from Pydantic model using mapped field name
             our_value = Decimal(str(getattr(our, model_field, 0)))
@@ -158,7 +228,14 @@ class CalculatorValidator:
             # Get value from Excel dict
             excel_value = Decimal(str(excel.get(field_code, 0)))
             diff = abs(our_value - excel_value)
-            passed = diff <= self.tolerance
+
+            # Calculate percent deviation
+            if excel_value != 0:
+                deviation_percent = (diff / abs(excel_value)) * 100
+                passed = deviation_percent <= self.tolerance_percent
+            else:
+                # If excel value is 0, check if our value is also 0 or very small
+                passed = diff <= Decimal("0.01")
 
             field_comparisons.append(FieldComparison(
                 field=field_code,

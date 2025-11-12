@@ -654,12 +654,14 @@ This sample task demonstrates:
 - `.claude/skills/` - Detailed patterns for each tier
 
 **MCP Servers:**
-- ✅ **chrome-devtools** - Browser automation (FULLY WORKING with WSLg)
+- ✅ **chrome-devtools** - Browser automation (ALWAYS USE THIS for browser/console work)
+  - **RULE:** Always use chrome-devtools MCP for browser interaction and console logs
+  - If chrome-devtools unavailable → Ask user to restart: `/mcp` command
+  - Never use puppeteer (removed from project)
 - ✅ **postgres** - Database queries and schema inspection
 - ❌ **github** - Not functional (use curl with GitHub API)
   - Token: `***REMOVED***`
   - Example: `curl -H "Authorization: token TOKEN" https://api.github.com/repos/AgasiArgent/kvota`
-- ⚠️ **puppeteer** - NOT RECOMMENDED (Chrome DevTools MCP is better)
 
 **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers + permissions)
 

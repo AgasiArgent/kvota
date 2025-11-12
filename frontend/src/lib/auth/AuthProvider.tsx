@@ -92,13 +92,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Map database fields to UserProfile interface
       // The database has 'last_active_organization_id', we map it to 'organization_id'
+      let organizationId = data.last_active_organization_id;
+
+      // If last_active_organization_id is NULL, auto-load first organization
+      if (!organizationId) {
+        console.log(
+          '[fetchProfile] No last_active_organization_id, fetching first organization...'
+        );
+        const { data: orgMember, error: orgError } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (!orgError && orgMember) {
+          organizationId = orgMember.organization_id;
+          console.log('[fetchProfile] Auto-selected organization:', organizationId);
+
+          // Update last_active_organization_id in database for future logins
+          await supabase
+            .from('user_profiles')
+            .update({ last_active_organization_id: organizationId })
+            .eq('user_id', userId);
+        } else {
+          console.warn('[fetchProfile] No organization found for user');
+        }
+      }
+
       const profile: UserProfile = {
         id: data.user_id,
         email: data.email || '',
         full_name: data.full_name,
         avatar_url: data.avatar_url,
         phone: data.phone,
-        organization_id: data.last_active_organization_id, // Map last_active to organization_id
+        organization_id: organizationId,
         role: data.role || 'sales_manager',
         created_at: data.created_at,
         updated_at: data.updated_at,
@@ -114,17 +143,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .eq('organization_id', profile.organization_id)
             .single();
 
+          console.log('[fetchProfile] orgMember query result:', { orgMember, orgError });
+
           if (!orgError && orgMember) {
-            // @ts-ignore - roles is a relation
+            // @ts-expect-error - roles is a relation
             profile.organizationRole = orgMember.roles?.slug;
             console.log(
               `[fetchProfile] Organization role for org ${profile.organization_id}:`,
               profile.organizationRole
             );
+          } else {
+            console.warn('[fetchProfile] Failed to load organization role:', orgError);
           }
         } catch (error) {
           console.error('Error fetching organization role:', error);
         }
+      } else {
+        console.warn('[fetchProfile] No organization_id - skipping role fetch');
       }
 
       console.log('[fetchProfile] Mapped profile:', profile);

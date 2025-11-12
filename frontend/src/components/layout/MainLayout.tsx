@@ -24,7 +24,6 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ApartmentOutlined,
-  DeleteOutlined,
   HistoryOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';
@@ -179,8 +178,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
       children: settingsChildren,
     });
 
-    // Add admin items
-    if (userRole && userRole.toLowerCase() === 'admin') {
+    // Add admin items (admin and owner roles)
+    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
       baseItems.push({
         key: '/admin',
         icon: <SettingOutlined />,
@@ -228,18 +227,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
       onClick: signOut,
     },
   ];
-
-  // Role display in Russian
-  const _getRoleDisplay = (role: string) => {
-    const roleMap = {
-      sales_manager: 'Менеджер по продажам',
-      finance_manager: 'Финансовый менеджер',
-      department_manager: 'Руководитель отдела',
-      director: 'Директор',
-      admin: 'Администратор',
-    };
-    return roleMap[role as keyof typeof roleMap] || role;
-  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
