@@ -28,13 +28,6 @@
         "--browser-url=http://127.0.0.1:9222"
       ]
     },
-    "puppeteer": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "puppeteer-mcp-server"
-      ]
-    },
     "notion": {
       "command": "npx",
       "args": [

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/admin/excel-validation", tags=["admin-validation
 async def validate_excel_files(
     files: List[UploadFile] = File(...),
     mode: str = "summary",
-    tolerance: float = 2.0,
+    tolerance: float = 0.01,  # Tolerance in percent (default 0.01%)
     user: User = Depends(get_current_user)
 ):
     """
@@ -34,7 +34,7 @@ async def validate_excel_files(
     Args:
         files: List of Excel files to validate (max 10)
         mode: Validation mode ("summary" or "detailed")
-        tolerance: Tolerance in rubles for deviation (default 2.0)
+        tolerance: Tolerance in percent for deviation (default 0.01%)
         user: Authenticated user (must be admin/owner)
 
     Returns:
@@ -69,7 +69,7 @@ async def validate_excel_files(
 
                 # Validate
                 validator = CalculatorValidator(
-                    tolerance_rub=Decimal(str(tolerance)),
+                    tolerance_percent=Decimal(str(tolerance)),
                     mode=ValidationMode.SUMMARY if mode == "summary" else ValidationMode.DETAILED
                 )
                 result = validator.validate_quote(excel_data)
@@ -105,6 +105,9 @@ async def validate_excel_files(
 
             except Exception as e:
                 # If specific file fails, continue with others
+                import traceback
+                error_details = traceback.format_exc()
+                print(f"[excel_validation] Error validating {file.filename}: {error_details}")
                 results.append({
                     "filename": file.filename,
                     "passed": False,

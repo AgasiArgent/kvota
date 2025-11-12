@@ -305,7 +305,8 @@ def phase4_duties(
     excise_tax: Decimal,
     weight_in_kg: Decimal,
     vat_seller_country: Decimal,
-    offer_incoterms: Incoterms
+    offer_incoterms: Incoterms,
+    insurance_per_product: Decimal = Decimal("0")
 ) -> Dict[str, Decimal]:
     """
     Calculate customs duties and VAT restoration
@@ -317,12 +318,13 @@ def phase4_duties(
     Returns: Y16, Z16, AZ16
 
     Updated 2025-11-09: Y16 formula changed to import_tariff × (AY16 + T16)
+    Updated 2025-11-12: Y16 now includes insurance: import_tariff × (AY16 + T16 + insurance)
     """
     # Final-11: Y16 = customs fee
-    # Updated 2025-11-09: New formula includes T16 (first-leg logistics)
-    # Y16 = import_tariff × (AY16 + T16) if DDP
+    # Updated 2025-11-12: Formula includes insurance (matches Excel where insurance is in T16/V11)
+    # Y16 = import_tariff × (AY16 + T16 + insurance_per_product) if DDP
     if offer_incoterms == Incoterms.DDP:
-        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16))
+        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16 + insurance_per_product))
     else:
         Y16 = Decimal("0")
 
@@ -901,7 +903,8 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
             product_input.taxes.excise_tax,
             product_input.product.weight_in_kg,
             vat_seller_country_list[i],
-            product_input.logistics.offer_incoterms  # FIX: logistics not company
+            product_input.logistics.offer_incoterms,  # FIX: logistics not company
+            insurance_per_product  # Add insurance to Y16 calculation
         )
         phase4_results_list.append(phase4)
 
@@ -1170,7 +1173,8 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         inputs.taxes.excise_tax,
         inputs.product.weight_in_kg,
         vat_seller_country,
-        inputs.logistics.offer_incoterms  # FIX: logistics not company
+        inputs.logistics.offer_incoterms,  # FIX: logistics not company
+        insurance_total  # For single product, insurance_per_product = insurance_total
     )
 
     # Calculate AO16 (deductible VAT) right after Phase 4

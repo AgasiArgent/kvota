@@ -138,7 +138,18 @@ class ExcelQuoteParser:
 
     def _extract_results(self) -> Dict[str, Any]:
         """Extract calculated results for comparison"""
-        results = []
+
+        # Extract quote-level totals from row 13
+        quote_level = {
+            "AK13": self.sheet["AK13"].value,  # Final price total (no VAT)
+            "AL13": self.sheet["AL13"].value,  # Final price total with VAT
+            "AB13": self.sheet["AB13"].value,  # COGS total
+            "V13": self.sheet["V13"].value,    # Logistics total
+            "Y13": self.sheet["Y13"].value,    # Customs duty total
+        }
+
+        # Extract product-level results starting from row 16
+        products = []
         row = 16
 
         while self.sheet[f"E{row}"].value:
@@ -163,7 +174,10 @@ class ExcelQuoteParser:
                 "Y16": self.sheet[f"Y{row}"].value,
                 "AB16": self.sheet[f"AB{row}"].value,
             }
-            results.append(result)
+            products.append(result)
             row += 1
 
-        return {"products": results}
+        return {
+            "quote_level": quote_level,
+            "products": products
+        }
