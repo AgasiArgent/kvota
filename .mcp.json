@@ -28,12 +28,15 @@
         "--browser-url=http://127.0.0.1:9222"
       ]
     },
-    "puppeteer": {
+    "notion": {
       "command": "npx",
       "args": [
         "-y",
-        "puppeteer-mcp-server"
-      ]
+        "@modelcontextprotocol/server-notion"
+      ],
+      "env": {
+        "NOTION_API_KEY": "***REMOVED***"
+      }
     }
   }
 }

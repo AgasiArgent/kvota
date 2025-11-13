@@ -67,7 +67,7 @@ List available MCP servers for chrome-devtools
 
 **Command:**
 ```bash
-./.claude/launch-chrome-testing.sh full http://localhost:3000/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3000/quotes/create
 ```
 
 **Expected output:**

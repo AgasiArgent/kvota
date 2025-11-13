@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({
             request,
           });
@@ -99,7 +99,7 @@ export async function middleware(request: NextRequest) {
 
   // If user is on dashboard but has no organization, redirect to onboarding
   if (user && request.nextUrl.pathname === '/dashboard') {
-    const { data: memberships, error: membershipError } = await supabase
+    const { data: memberships } = await supabase
       .from('organization_members')
       .select('id')
       .eq('user_id', user.id)
@@ -129,15 +129,21 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Check admin permissions
+  // Check admin permissions (check organization role, not global role)
   if (isAdminPath && user) {
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('role')
+    const { data: orgMember } = await supabase
+      .from('organization_members')
+      .select('roles(slug), is_owner')
       .eq('user_id', user.id)
+      .eq('status', 'active')
+      .limit(1)
       .single();
 
-    if (!profile || profile.role !== 'admin') {
+    // Allow if user is owner OR has admin role in organization
+    const isOwner = orgMember?.is_owner || false;
+    const roleSlug = ((orgMember as Record<string, unknown>)?.roles?.slug as string) || '';
+
+    if (!isOwner && !['admin', 'owner'].includes(roleSlug.toLowerCase())) {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
       return NextResponse.redirect(url);

@@ -24,8 +24,8 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ApartmentOutlined,
-  DeleteOutlined,
   HistoryOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -48,6 +48,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   // Menu items based on user role
   const getMenuItems = () => {
+    // Get the user's role - prefer organizationRole from organization_members table
+    const userRole = profile?.organizationRole || profile?.role || '';
+
     const baseItems = [
       {
         key: '/dashboard',
@@ -96,12 +99,41 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
     // Add approval items for managers and above
     if (
-      profile?.role &&
-      ['finance_manager', 'department_manager', 'director', 'admin'].includes(profile.role)
+      userRole &&
+      ['finance_manager', 'department_manager', 'director', 'admin', 'owner', 'manager'].includes(
+        userRole.toLowerCase()
+      )
     ) {
       baseItems[1].children?.push({
         key: '/quotes/approval',
         label: 'На утверждении',
+      });
+    }
+
+    // Add analytics menu for admin/owner
+    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
+      baseItems.push({
+        key: 'analytics-menu',
+        icon: <BarChartOutlined />,
+        label: 'Аналитика',
+        children: [
+          {
+            key: '/analytics',
+            label: 'Запросы',
+          },
+          {
+            key: '/analytics/saved',
+            label: 'Сохранённые отчёты',
+          },
+          {
+            key: '/analytics/history',
+            label: 'История',
+          },
+          {
+            key: '/analytics/scheduled',
+            label: 'Расписание',
+          },
+        ],
       });
     }
 
@@ -114,8 +146,25 @@ export default function MainLayout({ children }: MainLayoutProps) {
       label: 'Профиль',
     });
 
-    // Admin/owner can access calculation settings
-    if (profile?.role && ['admin', 'owner'].includes(profile.role)) {
+    // Admin/manager/owner can access team management
+    const managerRoles = [
+      'admin',
+      'owner',
+      'manager',
+      'sales_manager',
+      'finance_manager',
+      'department_manager',
+      'director',
+    ];
+    if (userRole && managerRoles.includes(userRole.toLowerCase())) {
+      settingsChildren.push({
+        key: '/settings/team',
+        label: 'Команда',
+      });
+    }
+
+    // Admin/owner can access calculation settings (case-insensitive)
+    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
       settingsChildren.push({
         key: '/settings/calculation',
         label: 'Настройки расчета',
@@ -129,8 +178,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
       children: settingsChildren,
     });
 
-    // Add admin items
-    if (profile?.role === 'admin') {
+    // Add admin items (admin and owner roles)
+    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
       baseItems.push({
         key: '/admin',
         icon: <SettingOutlined />,
@@ -147,6 +196,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
           {
             key: '/admin/feedback',
             label: 'Обратная связь',
+          },
+          {
+            key: '/admin/excel-validation',
+            label: 'Валидация Excel',
           },
         ],
       });
@@ -174,18 +227,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
       onClick: signOut,
     },
   ];
-
-  // Role display in Russian
-  const _getRoleDisplay = (role: string) => {
-    const roleMap = {
-      sales_manager: 'Менеджер по продажам',
-      finance_manager: 'Финансовый менеджер',
-      department_manager: 'Руководитель отдела',
-      director: 'Директор',
-      admin: 'Администратор',
-    };
-    return roleMap[role as keyof typeof roleMap] || role;
-  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

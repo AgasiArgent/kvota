@@ -13,6 +13,7 @@ interface UserProfile {
   phone?: string | null;
   organization_id?: string | null;
   role: 'sales_manager' | 'finance_manager' | 'department_manager' | 'director' | 'admin';
+  organizationRole?: string; // Role in current organization (from organization_members table)
   created_at: string;
   updated_at: string;
 }
@@ -91,17 +92,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Map database fields to UserProfile interface
       // The database has 'last_active_organization_id', we map it to 'organization_id'
+      let organizationId = data.last_active_organization_id;
+
+      // If last_active_organization_id is NULL, auto-load first organization
+      if (!organizationId) {
+        console.log(
+          '[fetchProfile] No last_active_organization_id, fetching first organization...'
+        );
+        const { data: orgMember, error: orgError } = await supabase
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (!orgError && orgMember) {
+          organizationId = orgMember.organization_id;
+          console.log('[fetchProfile] Auto-selected organization:', organizationId);
+
+          // Update last_active_organization_id in database for future logins
+          await supabase
+            .from('user_profiles')
+            .update({ last_active_organization_id: organizationId })
+            .eq('user_id', userId);
+        } else {
+          console.warn('[fetchProfile] No organization found for user');
+        }
+      }
+
       const profile: UserProfile = {
         id: data.user_id,
         email: data.email || '',
         full_name: data.full_name,
         avatar_url: data.avatar_url,
         phone: data.phone,
-        organization_id: data.last_active_organization_id, // Map last_active to organization_id
+        organization_id: organizationId,
         role: data.role || 'sales_manager',
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
+
+      // Fetch organization-specific role from organization_members table
+      if (profile.organization_id) {
+        try {
+          const { data: orgMember, error: orgError } = await supabase
+            .from('organization_members')
+            .select('roles(slug)')
+            .eq('user_id', userId)
+            .eq('organization_id', profile.organization_id)
+            .single();
+
+          console.log('[fetchProfile] orgMember query result:', { orgMember, orgError });
+
+          if (!orgError && orgMember) {
+            // @ts-expect-error - roles is a relation
+            profile.organizationRole = orgMember.roles?.slug;
+            console.log(
+              `[fetchProfile] Organization role for org ${profile.organization_id}:`,
+              profile.organizationRole
+            );
+          } else {
+            console.warn('[fetchProfile] Failed to load organization role:', orgError);
+          }
+        } catch (error) {
+          console.error('Error fetching organization role:', error);
+        }
+      } else {
+        console.warn('[fetchProfile] No organization_id - skipping role fetch');
+      }
 
       console.log('[fetchProfile] Mapped profile:', profile);
       return profile;
@@ -156,6 +215,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Safety check: Re-fetch profile if user exists but profile is missing
+  useEffect(() => {
+    const recheckProfile = async () => {
+      if (user && !profile && !loading) {
+        console.log('[AuthProvider] Profile missing but user exists - re-fetching...');
+        const userProfile = await fetchProfile(user.id);
+        setProfile(userProfile);
+      }
+    };
+
+    recheckProfile();
+  }, [user, profile, loading]);
 
   // Sign in function
   const signIn = async (email: string, password: string) => {

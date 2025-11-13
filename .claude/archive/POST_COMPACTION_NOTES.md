@@ -175,10 +175,10 @@ curl http://localhost:3001
 ### Chrome DevTools
 ```bash
 # Launch Chrome (if needed)
-bash /home/novi/quotation-app/.claude/launch-chrome-testing.sh full http://localhost:3001
+bash /home/novi/quotation-app/.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3001
 
 # Kill Chrome
-bash /home/novi/quotation-app/.claude/launch-chrome-testing.sh kill
+bash /home/novi/quotation-app/.claude/scripts/testing/launch-chrome-testing.sh kill
 ```
 
 ### Monitor Logs
