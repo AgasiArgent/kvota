@@ -1,0 +1,382 @@
+"""
+Lead Webhook Routes - Make.com Integration
+Accepts leads from Make.com email parser and creates CRM records
+"""
+from typing import Optional
+from datetime import datetime
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException, Header, status
+from pydantic import BaseModel, EmailStr
+from supabase import create_client, Client
+import os
+
+from services.activity_log_service import log_activity
+
+
+# ============================================================================
+# ROUTER SETUP
+# ============================================================================
+
+router = APIRouter(
+    prefix="/api/leads",
+    tags=["leads_webhook"]
+    # No authentication dependency - webhook validates via secret header
+)
+
+
+# ============================================================================
+# PYDANTIC MODELS
+# ============================================================================
+
+class ContactData(BaseModel):
+    """Contact person data (ЛПР)"""
+    full_name: str
+    position: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
+
+class LeadWebhookPayload(BaseModel):
+    """Payload from Make.com webhook"""
+    # External ID from call tracking system
+    external_id: Optional[str] = None
+
+    # Company information
+    company_name: str
+    inn: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phones: Optional[str] = None  # Comma-separated: "88313421843, 88313442001"
+    primary_phone: Optional[str] = None
+    segment: Optional[str] = None  # Industry/segment
+
+    # Notes
+    notes: Optional[str] = None
+
+    # Contact person (ЛПР)
+    contact: Optional[ContactData] = None
+
+    # Activity/Meeting
+    meeting_scheduled_at: Optional[datetime] = None
+    result: Optional[str] = None  # Stage name like "Онлайн-встреча"
+
+    # Organization mapping (optional - can be derived from email domain)
+    organization_id: Optional[str] = None
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def get_supabase_client() -> Client:
+    """Create Supabase client with service role key"""
+    return create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+
+async def get_organization_id(payload: LeadWebhookPayload) -> str:
+    """
+    Get organization ID from payload or default to first organization
+
+    In production, you can:
+    - Map email domain to organization
+    - Use external_id to lookup organization
+    - Require organization_id in payload
+    """
+    supabase = get_supabase_client()
+
+    # If organization_id provided in payload, use it
+    if payload.organization_id:
+        # Verify organization exists
+        result = supabase.table("organizations").select("id")\
+            .eq("id", payload.organization_id)\
+            .execute()
+
+        if result.data and len(result.data) > 0:
+            return payload.organization_id
+
+    # Otherwise, get first organization (for MVP)
+    # TODO: Implement proper organization mapping
+    result = supabase.table("organizations").select("id").limit(1).execute()
+
+    if not result.data or len(result.data) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No organizations found in database"
+        )
+
+    return result.data[0]["id"]
+
+
+async def get_or_create_stage(organization_id: str, stage_name: str) -> dict:
+    """
+    Find or create lead stage by name
+
+    Args:
+        organization_id: Organization UUID
+        stage_name: Stage name like "Онлайн-встреча"
+
+    Returns:
+        Stage record dict
+    """
+    supabase = get_supabase_client()
+
+    # Try to find existing stage
+    result = supabase.table("lead_stages")\
+        .select("*")\
+        .eq("organization_id", organization_id)\
+        .eq("name", stage_name)\
+        .execute()
+
+    if result.data and len(result.data) > 0:
+        return result.data[0]
+
+    # Create new stage if not found
+    # Get max order_index for this org
+    max_order_result = supabase.table("lead_stages")\
+        .select("order_index")\
+        .eq("organization_id", organization_id)\
+        .order("order_index", desc=True)\
+        .limit(1)\
+        .execute()
+
+    next_order = 1
+    if max_order_result.data and len(max_order_result.data) > 0:
+        next_order = max_order_result.data[0]["order_index"] + 1
+
+    new_stage = {
+        "organization_id": organization_id,
+        "name": stage_name,
+        "order_index": next_order,
+        "color": "#1890ff",
+        "is_qualified": False,
+        "is_failed": False
+    }
+
+    result = supabase.table("lead_stages").insert(new_stage).execute()
+    return result.data[0]
+
+
+async def parse_phones(phones_str: Optional[str]) -> list:
+    """
+    Parse comma-separated phone string into array
+
+    Args:
+        phones_str: "88313421843, 88313442001"
+
+    Returns:
+        ["88313421843", "88313442001"]
+    """
+    if not phones_str:
+        return []
+
+    return [phone.strip() for phone in phones_str.split(",") if phone.strip()]
+
+
+# ============================================================================
+# WEBHOOK ENDPOINT
+# ============================================================================
+
+@router.post("/webhook")
+async def receive_lead_from_webhook(
+    payload: LeadWebhookPayload,
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret")
+):
+    """
+    Receive lead data from Make.com webhook
+
+    Security: Validates webhook secret from X-Webhook-Secret header
+
+    Creates:
+    - Lead record
+    - Contact record (if provided)
+    - Activity record (if meeting scheduled)
+
+    Returns:
+        success: bool
+        lead_id: UUID
+        message: str
+    """
+    # ========================================================================
+    # STEP 1: Security - Verify webhook secret
+    # ========================================================================
+
+    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "your-secret-key-change-in-production")
+
+    if x_webhook_secret != WEBHOOK_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid webhook secret"
+        )
+
+    # ========================================================================
+    # STEP 2: Get organization ID
+    # ========================================================================
+
+    try:
+        organization_id = await get_organization_id(payload)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to determine organization: {str(e)}"
+        )
+
+    # ========================================================================
+    # STEP 3: Get or create stage
+    # ========================================================================
+
+    stage_name = payload.result if payload.result else "Новый"
+
+    try:
+        stage = await get_or_create_stage(organization_id, stage_name)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get/create stage: {str(e)}"
+        )
+
+    # ========================================================================
+    # STEP 4: Parse phones
+    # ========================================================================
+
+    phones_array = await parse_phones(payload.phones)
+    primary_phone = payload.primary_phone or (phones_array[0] if phones_array else None)
+
+    # ========================================================================
+    # STEP 5: Create lead
+    # ========================================================================
+
+    supabase = get_supabase_client()
+
+    lead_data = {
+        "organization_id": organization_id,
+        "external_id": payload.external_id,
+        "company_name": payload.company_name,
+        "inn": payload.inn,
+        "email": payload.email,
+        "phones": phones_array,
+        "primary_phone": primary_phone,
+        "segment": payload.segment,
+        "notes": payload.notes,
+        "stage_id": stage["id"],
+        "assigned_to": None  # Unassigned initially - managers can grab
+    }
+
+    try:
+        lead_result = supabase.table("leads").insert(lead_data).execute()
+
+        if not lead_result.data or len(lead_result.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create lead"
+            )
+
+        lead = lead_result.data[0]
+
+    except Exception as e:
+        # Check if it's duplicate email error
+        if "duplicate key" in str(e).lower() and "email" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Lead with email {payload.email} already exists in organization"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create lead: {str(e)}"
+        )
+
+    # ========================================================================
+    # STEP 6: Create contact (if provided)
+    # ========================================================================
+
+    if payload.contact:
+        contact_data = {
+            "lead_id": lead["id"],
+            "organization_id": organization_id,
+            "full_name": payload.contact.full_name,
+            "position": payload.contact.position,
+            "phone": payload.contact.phone,
+            "email": payload.contact.email,
+            "is_primary": True
+        }
+
+        try:
+            supabase.table("lead_contacts").insert(contact_data).execute()
+        except Exception as e:
+            # Log error but don't fail the whole webhook
+            print(f"Warning: Failed to create contact: {str(e)}")
+
+    # ========================================================================
+    # STEP 7: Create meeting activity (if scheduled)
+    # ========================================================================
+
+    activity_id = None
+
+    if payload.meeting_scheduled_at:
+        activity_data = {
+            "organization_id": organization_id,
+            "lead_id": lead["id"],
+            "customer_id": None,
+            "type": "meeting",
+            "title": f"Встреча с {payload.company_name}",
+            "notes": payload.notes,
+            "result": payload.result,
+            "scheduled_at": payload.meeting_scheduled_at.isoformat(),
+            "duration_minutes": 15,
+            "completed": False,
+            "google_event_id": None,
+            "assigned_to": None,
+            "created_by": None  # Webhook has no user context
+        }
+
+        try:
+            activity_result = supabase.table("activities").insert(activity_data).execute()
+            if activity_result.data and len(activity_result.data) > 0:
+                activity_id = activity_result.data[0]["id"]
+        except Exception as e:
+            # Log error but don't fail the whole webhook
+            print(f"Warning: Failed to create activity: {str(e)}")
+
+    # ========================================================================
+    # STEP 8: Log activity (audit trail)
+    # ========================================================================
+
+    try:
+        # Note: log_activity requires user_id, but webhook has no user
+        # Store with system user or skip for webhook-created leads
+        # For now, we skip activity logging for webhook imports
+        pass
+    except Exception as e:
+        # Log error but don't fail
+        print(f"Warning: Failed to log activity: {str(e)}")
+
+    # ========================================================================
+    # STEP 9: Return success response
+    # ========================================================================
+
+    return {
+        "success": True,
+        "lead_id": lead["id"],
+        "contact_created": payload.contact is not None,
+        "activity_created": activity_id is not None,
+        "activity_id": activity_id,
+        "stage": stage["name"],
+        "message": f"Lead '{payload.company_name}' created successfully"
+    }
+
+
+# ============================================================================
+# HEALTH CHECK ENDPOINT
+# ============================================================================
+
+@router.get("/webhook/health")
+async def webhook_health_check():
+    """Health check endpoint for webhook"""
+    return {
+        "status": "healthy",
+        "endpoint": "/api/leads/webhook",
+        "method": "POST",
+        "authentication": "X-Webhook-Secret header required"
+    }

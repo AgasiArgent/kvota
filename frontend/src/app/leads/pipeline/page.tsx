@@ -1,0 +1,346 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import {
+  Card,
+  Button,
+  Space,
+  Tag,
+  Typography,
+  message,
+  Tooltip,
+  Avatar,
+  Empty,
+  Select,
+  Input,
+  Spin,
+} from 'antd';
+import {
+  PlusOutlined,
+  UserOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  TeamOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import {
+  listLeads,
+  changeLeadStage,
+  type LeadWithDetails,
+} from '@/lib/api/lead-service';
+import { listLeadStages, type LeadStage } from '@/lib/api/lead-stage-service';
+
+const { Title, Text } = Typography;
+
+/**
+ * Lead Card Component
+ */
+interface LeadCardProps {
+  lead: LeadWithDetails;
+  onLeadClick: (leadId: string) => void;
+  onStageChange: (leadId: string, newStageId: string) => void;
+  stages: LeadStage[];
+}
+
+function LeadCard({ lead, onLeadClick, onStageChange, stages }: LeadCardProps) {
+  const primaryContact = lead.contacts?.find((c) => c.is_primary) || lead.contacts?.[0];
+
+  return (
+    <Card
+      hoverable
+      size="small"
+      style={{
+        marginBottom: 12,
+        borderRadius: 8,
+        cursor: 'pointer',
+      }}
+      onClick={() => onLeadClick(lead.id)}
+      bodyStyle={{ padding: '12px' }}
+    >
+      {/* Company Name */}
+      <div style={{ marginBottom: 8 }}>
+        <Text strong style={{ fontSize: '14px' }}>
+          {lead.company_name}
+        </Text>
+      </div>
+
+      {/* Segment */}
+      {lead.segment && (
+        <Tag style={{ marginBottom: 8, fontSize: '11px' }}>{lead.segment}</Tag>
+      )}
+
+      {/* Primary Contact */}
+      {primaryContact && (
+        <div style={{ marginBottom: 8, fontSize: '12px', color: '#666' }}>
+          <UserOutlined style={{ marginRight: 4 }} />
+          {primaryContact.full_name}
+          {primaryContact.position && ` • ${primaryContact.position}`}
+        </div>
+      )}
+
+      {/* Contact Info */}
+      <Space direction="vertical" size={2} style={{ width: '100%', fontSize: '11px' }}>
+        {lead.email && (
+          <Space size={4}>
+            <MailOutlined style={{ color: '#888' }} />
+            <Text style={{ fontSize: '11px' }} ellipsis>
+              {lead.email}
+            </Text>
+          </Space>
+        )}
+        {lead.primary_phone && (
+          <Space size={4}>
+            <PhoneOutlined style={{ color: '#888' }} />
+            <Text style={{ fontSize: '11px' }}>{lead.primary_phone}</Text>
+          </Space>
+        )}
+      </Space>
+
+      {/* Assigned To */}
+      {lead.assigned_to_name && (
+        <div style={{ marginTop: 8, fontSize: '11px', color: '#888' }}>
+          <Avatar size={16} icon={<UserOutlined />} style={{ marginRight: 4 }} />
+          {lead.assigned_to_name.split('@')[0]}
+        </div>
+      )}
+
+      {/* Quick Actions (on click stop propagation) */}
+      <div style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
+        <Select
+          size="small"
+          placeholder="Переместить в..."
+          style={{ width: '100%', fontSize: '11px' }}
+          onChange={(stageId) => onStageChange(lead.id, stageId)}
+          value={undefined}
+        >
+          {stages
+            .filter((s) => s.id !== lead.stage_id)
+            .map((stage) => (
+              <Select.Option key={stage.id} value={stage.id}>
+                {stage.name}
+              </Select.Option>
+            ))}
+        </Select>
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Pipeline Column Component
+ */
+interface PipelineColumnProps {
+  stage: LeadStage;
+  leads: LeadWithDetails[];
+  onLeadClick: (leadId: string) => void;
+  onStageChange: (leadId: string, newStageId: string) => void;
+  allStages: LeadStage[];
+}
+
+function PipelineColumn({
+  stage,
+  leads,
+  onLeadClick,
+  onStageChange,
+  allStages,
+}: PipelineColumnProps) {
+  const count = leads.length;
+
+  return (
+    <div
+      style={{
+        minWidth: 300,
+        maxWidth: 320,
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        padding: 16,
+        maxHeight: 'calc(100vh - 280px)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Column Header */}
+      <div style={{ marginBottom: 16 }}>
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Space>
+            <Tag color={stage.color} style={{ margin: 0, borderRadius: 4, fontWeight: 500 }}>
+              {stage.name}
+            </Tag>
+            <Tag>{count}</Tag>
+          </Space>
+        </Space>
+      </div>
+
+      {/* Leads List */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        {leads.length === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Нет лидов"
+            style={{ marginTop: 40 }}
+          />
+        ) : (
+          leads.map((lead) => (
+            <LeadCard
+              key={lead.id}
+              lead={lead}
+              onLeadClick={onLeadClick}
+              onStageChange={onStageChange}
+              stages={allStages}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Main Pipeline Page
+ */
+export default function LeadsPipelinePage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [leads, setLeads] = useState<LeadWithDetails[]>([]);
+  const [stages, setStages] = useState<LeadStage[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [assignedFilter, setAssignedFilter] = useState<string>('');
+
+  useEffect(() => {
+    fetchStages();
+  }, []);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [searchTerm, assignedFilter]);
+
+  const fetchStages = async () => {
+    try {
+      const stagesData = await listLeadStages();
+      setStages(stagesData);
+    } catch (error: any) {
+      message.error(`Ошибка загрузки этапов: ${error.message}`);
+    }
+  };
+
+  const fetchLeads = async () => {
+    setLoading(true);
+    try {
+      const response = await listLeads({
+        page: 1,
+        limit: 1000, // Load all for Kanban
+        search: searchTerm || undefined,
+        assigned_to: assignedFilter || undefined,
+      });
+      setLeads(response.data || []);
+    } catch (error: any) {
+      message.error(`Ошибка загрузки лидов: ${error.message}`);
+      setLeads([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStageChange = async (leadId: string, newStageId: string) => {
+    try {
+      await changeLeadStage(leadId, newStageId);
+      message.success('Лид перемещен');
+      fetchLeads(); // Refresh
+    } catch (error: any) {
+      message.error(`Ошибка перемещения: ${error.message}`);
+    }
+  };
+
+  const handleLeadClick = (leadId: string) => {
+    router.push(`/leads/${leadId}`);
+  };
+
+  // Group leads by stage
+  const leadsByStage = stages.reduce(
+    (acc, stage) => {
+      acc[stage.id] = leads.filter((lead) => lead.stage_id === stage.id);
+      return acc;
+    },
+    {} as Record<string, LeadWithDetails[]>
+  );
+
+  return (
+    <MainLayout>
+      <div style={{ padding: '24px' }}>
+        {/* Header */}
+        <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+          <Col>
+            <Title level={2}>Воронка продаж</Title>
+          </Col>
+          <Col>
+            <Space>
+              <Button type="default" onClick={() => router.push('/leads')}>
+                Таблица
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => router.push('/leads/create')}
+              >
+                Создать лид
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+
+        {/* Filters */}
+        <Card style={{ marginBottom: 16 }}>
+          <Space size="middle">
+            <Input
+              placeholder="Поиск..."
+              prefix={<SearchOutlined />}
+              allowClear
+              style={{ width: 250 }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <Select
+              placeholder="Ответственный"
+              allowClear
+              style={{ width: 200 }}
+              value={assignedFilter || undefined}
+              onChange={(value) => setAssignedFilter(value || '')}
+            >
+              <Select.Option value="me">Мои лиды</Select.Option>
+              <Select.Option value="unassigned">Не назначены</Select.Option>
+            </Select>
+          </Space>
+        </Card>
+
+        {/* Kanban Board */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 60 }}>
+            <Spin size="large" tip="Загрузка воронки..." />
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              gap: 16,
+              overflowX: 'auto',
+              paddingBottom: 16,
+            }}
+          >
+            {stages.map((stage) => (
+              <PipelineColumn
+                key={stage.id}
+                stage={stage}
+                leads={leadsByStage[stage.id] || []}
+                onLeadClick={handleLeadClick}
+                onStageChange={handleStageChange}
+                allStages={stages}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </MainLayout>
+  );
+}
