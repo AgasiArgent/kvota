@@ -149,16 +149,16 @@ lsof -i:9222 | grep LISTEN | awk '{print $2}'
 
 ```bash
 # Launch Chrome with memory limits
-./.claude/launch-chrome-testing.sh full http://localhost:3001/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh full http://localhost:3001/quotes/create
 
 # Or headless mode (60% less memory)
-./.claude/launch-chrome-testing.sh headless http://localhost:3001/quotes/create
+./.claude/scripts/testing/launch-chrome-testing.sh headless http://localhost:3001/quotes/create
 
 # Check memory usage
-./.claude/launch-chrome-testing.sh status
+./.claude/scripts/testing/launch-chrome-testing.sh status
 
 # Kill Chrome when done
-./.claude/launch-chrome-testing.sh kill
+./.claude/scripts/testing/launch-chrome-testing.sh kill
 ```
 
 **This script automatically:**
@@ -173,7 +173,7 @@ lsof -i:9222 | grep LISTEN | awk '{print $2}'
 **Run this in a separate terminal while testing:**
 
 ```bash
-./.claude/monitor-wsl-resources.sh
+./.claude/scripts/monitoring/monitor-wsl-resources.sh
 ```
 
 **Output:**
@@ -209,7 +209,7 @@ wsl --shutdown
 
 ### Tiered Testing (Use Lighter Alternatives First)
 
-**See `.claude/TIERED_TESTING_GUIDE.md` for full details.**
+**See `.claude/scripts/README.md` for full details.**
 
 **Tier 1: Backend Unit Tests** (100 MB, 5s) ⚡ **FASTEST**
 ```bash
@@ -218,17 +218,17 @@ cd backend && pytest -v
 
 **Tier 2: Backend API Tests** (200 MB, 30s) 🚀 **FAST**
 ```bash
-./.claude/test-backend-only.sh
+./.claude/scripts/testing/test-backend-only.sh
 ```
 
 **Tier 3: Headless Browser** (500 MB, 60s) 🏃 **MEDIUM**
 ```bash
-./.claude/launch-chrome-testing.sh headless
+./.claude/scripts/testing/launch-chrome-testing.sh headless
 ```
 
 **Tier 4: Full Browser** (1.2 GB, 120s) 🐢 **SLOW** (only when needed!)
 ```bash
-./.claude/launch-chrome-testing.sh full
+./.claude/scripts/testing/launch-chrome-testing.sh full
 ```
 
 **🎯 Golden Rule:** Always start with the fastest tier that covers what you need.
@@ -237,7 +237,7 @@ cd backend && pytest -v
 
 **Kill Chrome:**
 ```bash
-./.claude/launch-chrome-testing.sh kill
+./.claude/scripts/testing/launch-chrome-testing.sh kill
 # or
 pkill -9 chrome
 ```

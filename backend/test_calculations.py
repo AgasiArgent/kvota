@@ -177,7 +177,7 @@ def print_summary(result):
     print("=" * 80)
 
 
-def test_simple_quote():
+def run_simple_quote_validation():
     """
     Test with simple example - compare with your Excel
     """
@@ -315,7 +315,7 @@ def test_simple_quote():
     print("\n✅ Calculation completed successfully!")
     print("\nNow compare each cell with your Excel file and report any mismatches.\n")
     
-    return result
+    # Test passed if no exceptions
 
 
 def compare_with_excel():
@@ -340,8 +340,8 @@ def compare_with_excel():
 
 
 if __name__ == "__main__":
-    # Run test
-    result = test_simple_quote()
-    
+    # Run validation
+    result = run_simple_quote_validation()
+
     # Show comparison instructions
     compare_with_excel()

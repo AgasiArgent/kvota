@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation
 
 
 # Import our authentication system
@@ -46,6 +46,11 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("🚀 Starting B2B Quotation Platform API")
+
+    # Initialize database connection pool
+    from db_pool import init_db_pool, close_db_pool
+    await init_db_pool()
+    print("✅ Database connection pool initialized (10-20 connections)")
 
     # Start exchange rate scheduler
     from services.exchange_rate_service import get_exchange_rate_service
@@ -91,6 +96,10 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     print("🔄 Shutting down B2B Quotation Platform API")
+
+    # Close database connection pool
+    await close_db_pool()
+    print("✅ Database connection pool closed")
 
     # Stop exchange rate scheduler
     from services.exchange_rate_service import get_exchange_rate_service
@@ -547,11 +556,16 @@ app.include_router(quotes.router)
 app.include_router(quotes_calc.router)
 app.include_router(organizations.router)
 app.include_router(calculation_settings.router)
+app.include_router(supplier_countries.router)
 app.include_router(users.router)
 app.include_router(activity_logs.router)
 app.include_router(exchange_rates.router)
 app.include_router(feedback.router)
 app.include_router(dashboard.router)
+app.include_router(team.router)
+app.include_router(analytics.router)
+app.include_router(workflow.router)
+app.include_router(excel_validation.router)
 
 @app.post("/api/admin/fix-database-function")
 async def fix_database_function():

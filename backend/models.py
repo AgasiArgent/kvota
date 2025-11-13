@@ -798,3 +798,158 @@ class SuccessResponse(BaseModel):
     success: bool = True
     message: str
     data: Optional[dict] = None
+
+
+# ============================================================================
+# ANALYTICS MODELS
+# ============================================================================
+
+class SavedReportCreate(BaseModel):
+    """Create saved report template"""
+    name: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = Field(None, max_length=5000)
+    filters: Dict[str, Any] = Field(default_factory=dict)
+    selected_fields: List[str] = Field(..., min_length=1, max_items=50)
+    aggregations: Optional[Dict[str, Any]] = None
+    visibility: str = Field(default='personal', pattern='^(personal|shared)$')
+
+
+class SavedReportUpdate(BaseModel):
+    """Update saved report template"""
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    filters: Optional[Dict[str, Any]] = None
+    selected_fields: Optional[List[str]] = Field(None, min_length=1)
+    aggregations: Optional[Dict[str, Any]] = None
+    visibility: Optional[str] = Field(None, pattern='^(personal|shared)$')
+
+
+class SavedReport(BaseModel):
+    """Complete saved report with database fields"""
+    id: UUID
+    organization_id: UUID
+    created_by: UUID
+    name: str
+    description: Optional[str]
+    filters: Dict[str, Any]
+    selected_fields: List[str]
+    aggregations: Optional[Dict[str, Any]]
+    visibility: str
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class AnalyticsQueryRequest(BaseModel):
+    """Analytics query request"""
+    filters: Dict[str, Any] = Field(..., description="Filter conditions")
+    selected_fields: List[str] = Field(default=[], description="Fields to return (empty for aggregation-only)")
+    aggregations: Optional[Dict[str, Any]] = Field(None, description="Aggregation functions")
+    limit: int = Field(default=1000, ge=1, le=10000)
+    offset: int = Field(default=0, ge=0)
+
+
+class AnalyticsQueryResponse(BaseModel):
+    """Analytics query response"""
+    rows: List[Dict[str, Any]]
+    count: int
+    total_count: Optional[int] = None
+    has_more: Optional[bool] = None
+    task_id: Optional[str] = None  # For background processing
+    status: Optional[str] = None  # 'completed', 'processing'
+    message: Optional[str] = None
+
+
+class AnalyticsAggregateResponse(BaseModel):
+    """Analytics aggregation response (lightweight mode)"""
+    aggregations: Dict[str, Any]
+    execution_time_ms: int
+
+
+class ReportExecution(BaseModel):
+    """Report execution audit record"""
+    id: UUID
+    organization_id: UUID
+    saved_report_id: Optional[UUID]
+    report_name: Optional[str]
+    executed_by: UUID
+    execution_type: str
+    filters: Dict[str, Any]
+    selected_fields: List[str]
+    aggregations: Optional[Dict[str, Any]]
+    result_summary: Dict[str, Any]
+    quote_count: int
+    date_range: Optional[Dict[str, Any]]
+    export_file_url: Optional[str]
+    export_format: Optional[str]
+    file_size_bytes: Optional[int]
+    file_expires_at: Optional[datetime]
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+    execution_time_ms: Optional[int]
+    executed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ScheduledReportCreate(BaseModel):
+    """Create scheduled report"""
+    saved_report_id: UUID
+    name: str = Field(..., min_length=1, max_length=255)
+    schedule_cron: str = Field(..., description="Cron expression", max_length=50)
+    timezone: str = Field(default='Europe/Moscow', max_length=50)
+    email_recipients: List[EmailStr] = Field(..., min_length=1, max_items=20)
+    include_file: bool = Field(default=True)
+    email_subject: Optional[str] = Field(None, max_length=255)
+    email_body: Optional[str] = Field(None, max_length=10000)
+
+
+class ScheduledReportUpdate(BaseModel):
+    """Update scheduled report"""
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    schedule_cron: Optional[str] = None
+    timezone: Optional[str] = None
+    email_recipients: Optional[List[str]] = Field(None, min_length=1)
+    include_file: Optional[bool] = None
+    email_subject: Optional[str] = None
+    email_body: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ScheduledReport(BaseModel):
+    """Complete scheduled report"""
+    id: UUID
+    organization_id: UUID
+    saved_report_id: UUID
+    name: str
+    schedule_cron: str
+    timezone: str
+    email_recipients: List[str]
+    include_file: bool
+    email_subject: Optional[str]
+    email_body: Optional[str]
+    is_active: bool
+    last_run_at: Optional[datetime]
+    next_run_at: Optional[datetime]
+    last_run_status: Optional[str]
+    last_error: Optional[str]
+    consecutive_failures: int
+    created_by: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedResponse(BaseModel):
+    """Generic paginated response"""
+    items: List[Any]
+    total: int
+    page: int
+    page_size: int
+    pages: int

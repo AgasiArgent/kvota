@@ -1,0 +1,39 @@
+{
+  "autonomous_invocation": true,
+  "auto_fix_minor_issues": true,
+  "create_github_issues": true,
+  "auto_commit": false,
+  "detection_thresholds": {
+    "min_lines_changed": 200,
+    "min_files_changed": 5
+  },
+  "skip_detection_for": {
+    "file_patterns": [
+      "**/*.md",
+      "**/*.json",
+      "**/*.yaml",
+      "**/*.yml",
+      "**/*.toml",
+      ".claude/**",
+      ".github/**",
+      "**/test_*.py",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx"
+    ],
+    "commit_messages": [
+      "docs:",
+      "chore:",
+      "style:",
+      "test:",
+      "ci:"
+    ]
+  },
+  "github": {
+    "repo_owner": "AgasiArgent",
+    "repo_name": "kvota",
+    "api_token": "REDACTED_USE_ENVIRONMENT_VARIABLE",
+    "issue_labels": ["agent-found", "needs-review"]
+  }
+}

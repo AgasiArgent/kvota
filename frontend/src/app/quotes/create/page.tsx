@@ -73,6 +73,11 @@ import {
   CalculationSettings,
 } from '@/lib/api/calculation-settings-service';
 import { exchangeRateService } from '@/lib/api/exchange-rate-service';
+import {
+  getSupplierCountries,
+  formatSupplierCountryOptions,
+  type SupplierCountry,
+} from '@/lib/api/supplier-countries-service';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -98,6 +103,16 @@ const compactFormStyles = `
   .compact-form .ant-form-item-label > label {
     font-size: 12px;
     height: auto;
+  }
+  .compact-form .ant-form-item-has-error .ant-select-selector,
+  .compact-form .ant-form-item-has-error .ant-input,
+  .compact-form .ant-form-item-has-error .ant-input-number,
+  .compact-form .ant-form-item-has-error .ant-picker {
+    border-color: #ff4d4f !important;
+  }
+  .compact-form .ant-form-item-has-error .ant-form-item-explain-error {
+    font-size: 11px;
+    margin-top: 2px;
   }
 `;
 
@@ -156,6 +171,7 @@ export default function CreateQuotePage() {
   const [exchangeRateUsdCny, setExchangeRateUsdCny] = useState<number | null>(null);
   const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState<string | null>(null);
   const [rateLoading, setRateLoading] = useState(false);
+  const [supplierCountries, setSupplierCountries] = useState<Array<{label: string; value: string}>>([]);
 
   // Load customers, templates, and admin settings on mount
   useEffect(() => {
@@ -163,6 +179,7 @@ export default function CreateQuotePage() {
     loadTemplates();
     loadAdminSettings();
     loadExchangeRate(); // Auto-load USD/CNY rate on mount
+    loadSupplierCountries(); // Load supplier countries for dropdown
 
     // Set default values
     const defaultVars = quotesCalcService.getDefaultVariables();
@@ -177,11 +194,14 @@ export default function CreateQuotePage() {
   useEffect(() => {
     if (selectedCustomer) {
       loadCustomerContacts(selectedCustomer);
+      // Sync form field with state (customer_id is not in CalculationVariables type, set via setFieldsValue)
+      form.setFieldsValue({ customer_id: selectedCustomer } as any);
     } else {
       setCustomerContacts([]);
       setSelectedContact(undefined);
+      form.setFieldsValue({ customer_id: undefined } as any);
     }
-  }, [selectedCustomer]);
+  }, [selectedCustomer, form]);
 
   // Auto-calculate logistics breakdown when in "total" mode
   const handleLogisticsTotalChange = (value: number | null) => {
@@ -288,6 +308,18 @@ export default function CreateQuotePage() {
     }
   };
 
+  const loadSupplierCountries = async () => {
+    try {
+      const countries = await getSupplierCountries();
+      const options = formatSupplierCountryOptions(countries);
+      setSupplierCountries(options);
+    } catch (error) {
+      console.error('Failed to load supplier countries:', error);
+      // Fallback to empty array - graceful degradation
+      setSupplierCountries([]);
+    }
+  };
+
   const handleRefreshRate = async () => {
     try {
       setRateLoading(true);
@@ -355,9 +387,14 @@ export default function CreateQuotePage() {
     onRemove: () => {
       setUploadedProducts([]);
       setUploadedFile(null);
+      message.info('Файл удален');
+      return true;
     },
     fileList: uploadedFile ? [uploadedFile] : [],
-    showUploadList: true,
+    showUploadList: {
+      showRemoveIcon: true,
+      showPreviewIcon: false,
+    },
   };
 
   // Template selection handler
@@ -493,19 +530,69 @@ export default function CreateQuotePage() {
 
   // Clear all quote-level variables
   const handleClearVariables = () => {
-    form.resetFields();
-    message.success('Все переменные очищены');
+    try {
+      form.resetFields();
+      message.success('Все переменные очищены');
+    } catch (error) {
+      console.warn('Error clearing form:', error);
+      message.success('Все переменные очищены');
+    }
   };
 
   // Calculate quote
   const handleCalculate = async () => {
-    if (!selectedCustomer) {
-      message.error('Выберите клиента');
+    // Validate form fields first
+    try {
+      await form.validateFields();
+    } catch (error) {
+      message.error('Пожалуйста, заполните все обязательные поля');
+      // Scroll to first error field
+      const errorField = document.querySelector('.ant-form-item-has-error');
+      if (errorField) {
+        errorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
+    // Validate customer selection
+    if (!selectedCustomer) {
+      message.error('Выберите клиента');
+      // Scroll to customer select
+      const customerSelect = document.querySelector('[name="customer_id"]')?.closest('.ant-row');
+      if (customerSelect) {
+        customerSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // Validate products uploaded
     if (uploadedProducts.length === 0) {
-      message.error('Загрузите файл с товарами');
+      message.error('Добавьте минимум 1 продукт');
+      // Scroll to upload section
+      const uploadSection = document.querySelector('.ant-upload-drag');
+      if (uploadSection) {
+        uploadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // Validate each product has required fields
+    const invalidProducts = uploadedProducts.filter(
+      (p) =>
+        !p.product_name ||
+        p.base_price_vat === null ||
+        p.base_price_vat === undefined ||
+        !p.quantity
+    );
+    if (invalidProducts.length > 0) {
+      message.error(
+        `Заполните все обязательные поля продуктов (название, цена с НДС, количество). Найдено незаполненных: ${invalidProducts.length}`
+      );
+      // Scroll to products grid
+      const productsGrid = document.querySelector('.ag-theme-alpine');
+      if (productsGrid) {
+        productsGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
@@ -554,12 +641,37 @@ export default function CreateQuotePage() {
         message.success(`Котировка №${quoteNumber} создана!`, 1.5);
 
         // Redirect to quote view page (where user can see results and export)
-        console.log('Redirecting to view page:', `/quotes/${quoteId}`);
-        setTimeout(() => {
-          router.push(`/quotes/${quoteId}`);
-        }, 1500);
+        if (quoteId) {
+          console.log('Redirecting to view page:', `/quotes/${quoteId}`);
+          setTimeout(() => {
+            router.push(`/quotes/${quoteId}`);
+          }, 1500);
+        } else {
+          console.error('❌ Quote ID is undefined, cannot redirect');
+          message.warning('КП создано, но не удалось перейти к просмотру');
+        }
       } else {
-        message.error(`Ошибка расчета: ${result.error}`);
+        // Format validation errors as bullet list
+        const errorText = result.error || 'Неизвестная ошибка';
+        if (errorText.includes('\n') || errorText.length > 100) {
+          // Multi-line or long error - show in modal for better readability
+          const errorLines = errorText.split('\n').filter((line: string) => line.trim());
+          Modal.error({
+            title: 'Ошибка расчета КП',
+            content: (
+              <div>
+                {errorLines.map((line: string, idx: number) => (
+                  <div key={idx} style={{ marginBottom: '8px' }}>
+                    {line.startsWith('-') || line.startsWith('•') ? line : `• ${line}`}
+                  </div>
+                ))}
+              </div>
+            ),
+            width: 600,
+          });
+        } else {
+          message.error(`Ошибка расчета: ${errorText}`);
+        }
       }
     } catch (error: any) {
       message.error(`Ошибка: ${error.message}`);
@@ -664,6 +776,10 @@ export default function CreateQuotePage() {
             flex: 1,
             minWidth: 110,
             editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+              values: supplierCountries.map(c => c.value),
+            },
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
@@ -900,6 +1016,8 @@ export default function CreateQuotePage() {
             size="small"
             className="compact-form"
             onFinish={handleCalculate}
+            validateTrigger={['onBlur', 'onChange']}
+            scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
           >
             {/* Top Section - Form Cards (Full Width) */}
             <Row gutter={24}>
@@ -953,22 +1071,29 @@ export default function CreateQuotePage() {
                     </Text>
                   </Col>
                   <Col flex="auto" style={{ maxWidth: '300px' }}>
-                    <Select
-                      size="small"
-                      showSearch
-                      placeholder="Выберите клиента"
-                      value={selectedCustomer}
-                      onChange={setSelectedCustomer}
-                      optionFilterProp="children"
-                      style={{ width: '100%' }}
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
-                      options={customers.map((c) => ({
-                        label: `${c.name} (${c.inn || 'без ИНН'})`,
-                        value: c.id,
-                      }))}
-                    />
+                    <Form.Item
+                      name="customer_id"
+                      rules={[{ required: true, message: 'Выберите клиента' }]}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <Select
+                        size="small"
+                        showSearch
+                        placeholder="Выберите клиента"
+                        onChange={(value) => {
+                          setSelectedCustomer(value);
+                        }}
+                        optionFilterProp="children"
+                        style={{ width: '100%' }}
+                        filterOption={(input, option) =>
+                          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
+                        options={customers.map((c) => ({
+                          label: `${c.name} (${c.inn || 'без ИНН'})`,
+                          value: c.id,
+                        }))}
+                      />
+                    </Form.Item>
                   </Col>
                   {selectedCustomer && customerContacts.length > 0 && (
                     <>
@@ -1010,7 +1135,11 @@ export default function CreateQuotePage() {
                     </Text>
                   </Col>
                   <Col style={{ width: '150px' }}>
-                    <Form.Item name="quote_date" noStyle>
+                    <Form.Item
+                      name="quote_date"
+                      noStyle
+                      rules={[{ required: true, message: 'Укажите дату КП' }]}
+                    >
                       <DatePicker
                         size="small"
                         format="YYYY-MM-DD"
@@ -1032,7 +1161,11 @@ export default function CreateQuotePage() {
                     </Text>
                   </Col>
                   <Col style={{ width: '150px' }}>
-                    <Form.Item name="valid_until" noStyle>
+                    <Form.Item
+                      name="valid_until"
+                      noStyle
+                      rules={[{ required: true, message: 'Укажите срок действия' }]}
+                    >
                       <DatePicker size="small" format="YYYY-MM-DD" style={{ width: '100%' }} />
                     </Form.Item>
                   </Col>
@@ -1067,7 +1200,11 @@ export default function CreateQuotePage() {
                           </Text>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="seller_company" label="Компания-продавец">
+                          <Form.Item
+                            name="seller_company"
+                            label="Компания-продавец"
+                            rules={[{ required: true, message: 'Выберите компанию-продавца' }]}
+                          >
                             <Select placeholder="Выберите компанию-продавца">
                               <Select.Option value="МАСТЕР БЭРИНГ ООО">
                                 МАСТЕР БЭРИНГ ООО (Россия)
@@ -1082,7 +1219,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="offer_sale_type" label="Вид КП">
+                          <Form.Item
+                            name="offer_sale_type"
+                            label="Вид КП"
+                            rules={[{ required: true, message: 'Выберите вид КП' }]}
+                          >
                             <Select>
                               <Select.Option value="поставка">Поставка</Select.Option>
                               <Select.Option value="транзит">Транзит</Select.Option>
@@ -1091,7 +1232,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="currency_of_quote" label="Валюта КП">
+                          <Form.Item
+                            name="currency_of_quote"
+                            label="Валюта КП"
+                            rules={[{ required: true, message: 'Выберите валюту КП' }]}
+                          >
                             <Select>
                               <Select.Option value="RUB">RUB (Рубль)</Select.Option>
                               <Select.Option value="USD">USD</Select.Option>
@@ -1100,7 +1245,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="offer_incoterms" label="Базис поставки">
+                          <Form.Item
+                            name="offer_incoterms"
+                            label="Базис поставки"
+                            rules={[{ required: true, message: 'Выберите базис поставки' }]}
+                          >
                             <Select>
                               <Select.Option value="DDP">DDP</Select.Option>
                               <Select.Option value="EXW">EXW</Select.Option>
@@ -1110,7 +1259,11 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="delivery_time" label="Срок поставки (дни)">
+                          <Form.Item
+                            name="delivery_time"
+                            label="Срок поставки (дни)"
+                            rules={[{ required: true, message: 'Укажите срок поставки' }]}
+                          >
                             <InputNumber
                               min={0}
                               step={1}
@@ -1134,8 +1287,16 @@ export default function CreateQuotePage() {
                           <Form.Item
                             name="exchange_rate_base_price_to_quote"
                             label="Курс к валюте КП"
+                            rules={[
+                              { required: true, message: 'Укажите курс к валюте КП' },
+                              {
+                                type: 'number',
+                                min: 0.0001,
+                                message: 'Курс должен быть больше 0',
+                              },
+                            ]}
                           >
-                            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+                            <InputNumber min={0.0001} step={0.01} style={{ width: '100%' }} />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
@@ -1563,7 +1724,13 @@ export default function CreateQuotePage() {
                         </Col>
                         <Col span={12}>
                           <Form.Item name="supplier_country" label="Страна закупки">
-                            <Input placeholder="Турция" />
+                            <Select
+                              placeholder="Выберите страну"
+                              showSearch
+                              optionFilterProp="label"
+                              options={supplierCountries}
+                              loading={supplierCountries.length === 0}
+                            />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
@@ -1699,7 +1866,6 @@ export default function CreateQuotePage() {
                       size="large"
                       block
                       onClick={handleCalculate}
-                      disabled={!selectedCustomer || uploadedProducts.length === 0}
                       loading={loading}
                     >
                       Рассчитать котировку
@@ -1714,14 +1880,19 @@ export default function CreateQuotePage() {
                     </Button>
                   </Space>
                   {(!selectedCustomer || uploadedProducts.length === 0) && (
-                    <Text
-                      type="secondary"
-                      style={{ display: 'block', marginTop: 8, textAlign: 'center' }}
-                    >
-                      {!selectedCustomer && 'Выберите клиента'}
-                      {!selectedCustomer && uploadedProducts.length === 0 && ' и '}
-                      {uploadedProducts.length === 0 && 'загрузите товары'}
-                    </Text>
+                    <Alert
+                      message="Перед расчетом проверьте:"
+                      description={
+                        <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+                          {!selectedCustomer && <li>Выберите клиента из списка</li>}
+                          {uploadedProducts.length === 0 && <li>Загрузите файл с товарами</li>}
+                          <li>Заполните все обязательные поля (отмечены красным при пропуске)</li>
+                        </ul>
+                      }
+                      type="warning"
+                      showIcon
+                      style={{ marginTop: 12 }}
+                    />
                   )}
                 </Card>
               </Col>
@@ -2009,11 +2180,22 @@ export default function CreateQuotePage() {
                         { value: 'CNY', label: 'CNY (Юань)' },
                       ]}
                     />
-                  ) : bulkEditField === 'supplier_country' || bulkEditField === 'customs_code' ? (
+                  ) : bulkEditField === 'supplier_country' ? (
+                    <Select
+                      value={bulkEditValue}
+                      onChange={setBulkEditValue}
+                      placeholder="Выберите страну"
+                      showSearch
+                      optionFilterProp="label"
+                      options={supplierCountries}
+                      loading={supplierCountries.length === 0}
+                      style={{ width: '100%' }}
+                    />
+                  ) : bulkEditField === 'customs_code' ? (
                     <Input
                       value={bulkEditValue}
                       onChange={(e) => setBulkEditValue(e.target.value)}
-                      placeholder="Введите значение"
+                      placeholder="Введите код ТН ВЭД"
                       onPressEnter={applyBulkEdit}
                     />
                   ) : (

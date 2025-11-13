@@ -153,7 +153,7 @@ def test_1_baseline():
 
     result = calculate_single_product_quote(test_input)
     print_key_results(result, "TEST 1")
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -230,7 +230,7 @@ def test_2_transit():
     print(f"  - AQ16 (Transit commission) should be > 0: {result.transit_commission:,.2f}")
     print()
 
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -308,7 +308,7 @@ def test_3_export():
     print(f"  - AM16 = AJ16 (no VAT added): {result.sales_price_per_unit_with_vat:,.2f} vs {result.sales_price_per_unit_no_vat:,.2f}")
     print()
 
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -385,7 +385,7 @@ def test_4_turkish_seller():
     print(f"  - rate_vatRu should be 0% (not implemented for TR)")
     print()
 
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -466,7 +466,7 @@ def test_5_non_ddp():
     print(f"  - BL3 (Credit sales amount) should equal BH2: {result.quote_level_credit_sales_amount:,.2f}")
     print()
 
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -544,7 +544,7 @@ def test_6_full_advance():
     print(f"  - BA16+BB16 (Total financing) should be minimal: {result.financing_cost_initial + result.financing_cost_credit:,.2f}")
     print()
 
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -622,7 +622,7 @@ def test_7_zero_advance():
     print(f"  - BA16+BB16 (Total financing) should be MAXIMUM: {result.financing_cost_initial + result.financing_cost_credit:,.2f}")
     print()
 
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
@@ -698,7 +698,7 @@ def test_8_percentage_dm_fee():
     print(f"  - Compare with Test 1 fixed DM fee (1000.00)")
     print()
 
-    return result
+    # Test passed if no exceptions
 
 
 # ============================================================================
