@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities
 
 
 # Import our authentication system
@@ -566,6 +566,11 @@ app.include_router(team.router)
 app.include_router(analytics.router)
 app.include_router(workflow.router)
 app.include_router(excel_validation.router)
+app.include_router(leads_webhook.router)
+app.include_router(leads.router)
+app.include_router(lead_contacts.router)
+app.include_router(lead_stages.router)
+app.include_router(activities.router)
 
 @app.post("/api/admin/fix-database-function")
 async def fix_database_function():
