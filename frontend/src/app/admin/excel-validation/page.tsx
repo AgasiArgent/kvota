@@ -40,7 +40,7 @@ export default function ExcelValidationPage() {
   const router = useRouter();
 
   const [files, setFiles] = useState<File[]>([]);
-  const [tolerance, setTolerance] = useState(0.01); // Tolerance in percent
+  const [tolerance, setTolerance] = useState(0.011); // Tolerance in percent (0.011% default)
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ValidationResponse | null>(null);
 
@@ -97,9 +97,140 @@ export default function ExcelValidationPage() {
       }).format(num);
     };
 
-    const exportToExcel = () => {
-      // TODO: Implement Excel export with product-level data
-      messageApi.info('Excel экспорт будет добавлен');
+    const exportToExcel = async () => {
+      try {
+        // Lazy load xlsx-js-style library (supports cell styling)
+        const XLSX = await import('xlsx-js-style');
+
+        // Find original file from files array
+        const originalFile = files.find((f) => f.name === fileResult.filename);
+        if (!originalFile) {
+          messageApi.error('Исходный файл не найден');
+          return;
+        }
+
+        // Read original Excel file
+        const arrayBuffer = await originalFile.arrayBuffer();
+        const originalWb = XLSX.read(arrayBuffer, { type: 'array' });
+
+        // Find calculation sheet (расчет)
+        const sheetName =
+          originalWb.SheetNames.find((n) => n.toLowerCase().includes('расчет')) ||
+          originalWb.SheetNames[0];
+        const originalWs = originalWb.Sheets[sheetName];
+
+        // Copy row 13 and rows 16+ with our calculations appended
+        const newData: any[][] = [];
+
+        // Header row
+        const header = ['Row'];
+        // Get all columns from A to AZ (or more)
+        for (let col = 0; col < 52; col++) {
+          // A-AZ
+          const colName = XLSX.utils.encode_col(col);
+          header.push(colName, `${colName}_Our`, `${colName}_Dev%`);
+        }
+        newData.push(header);
+
+        // Helper: get cell value from original sheet
+        const getCellValue = (row: number, col: string) => {
+          const addr = `${col}${row}`;
+          return originalWs[addr]?.v;
+        };
+
+        // Helper: find our value for a field
+        const getOurValue = (fieldCode: string, comparisonIdx: number) => {
+          const comp = fileResult.comparisons[comparisonIdx];
+          const field = comp?.fields?.find((f) => f.field === fieldCode);
+          return field ? field.our_value : null;
+        };
+
+        // Add row 13 (quote-level)
+        const row13Data = [13];
+        for (let col = 0; col < 52; col++) {
+          const colName = XLSX.utils.encode_col(col);
+          const excelVal = getCellValue(13, colName);
+          const ourVal = getOurValue(`${colName}13`, 0); // comparisonIdx 0 = quote-level
+
+          row13Data.push(excelVal || '');
+          row13Data.push(ourVal !== null ? ourVal : '');
+
+          // Calculate deviation %
+          if (excelVal && ourVal !== null) {
+            const devPct = ((ourVal - excelVal) / Math.abs(excelVal)) * 100;
+            row13Data.push(`${devPct.toFixed(3)}%`);
+          } else {
+            row13Data.push('');
+          }
+        }
+        newData.push(row13Data);
+
+        // Add products (rows 16+)
+        for (let prodIdx = 0; prodIdx < fileResult.comparisons.length - 1; prodIdx++) {
+          const rowNum = 16 + prodIdx;
+          const rowData = [rowNum];
+
+          for (let col = 0; col < 52; col++) {
+            const colName = XLSX.utils.encode_col(col);
+            const excelVal = getCellValue(rowNum, colName);
+            const ourVal = getOurValue(`${colName}16`, prodIdx + 1); // comparisonIdx 1+ = products
+
+            rowData.push(excelVal || '');
+            rowData.push(ourVal !== null ? ourVal : '');
+
+            // Calculate deviation %
+            if (excelVal && ourVal !== null && typeof excelVal === 'number') {
+              const devPct = ((ourVal - excelVal) / Math.abs(excelVal)) * 100;
+              rowData.push(`${devPct.toFixed(3)}%`);
+            } else {
+              rowData.push('');
+            }
+          }
+          newData.push(rowData);
+        }
+
+        // Create worksheet from array
+        const ws = XLSX.utils.aoa_to_sheet(newData);
+
+        // Apply red background to Dev% cells where |deviation| > tolerance
+        const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+        for (let R = 1; R <= range.e.r; ++R) {
+          // Skip header row
+          for (let C = 3; C <= range.e.c; C += 3) {
+            // Every 3rd column is Dev%
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            const cell = ws[cellAddress];
+
+            if (cell && cell.v) {
+              const devValue = String(cell.v).replace('%', '');
+              const devNum = parseFloat(devValue);
+
+              if (!isNaN(devNum) && Math.abs(devNum) > tolerance) {
+                // Red background for Excel, Our, and Dev% cells
+                for (let offset = -2; offset <= 0; offset++) {
+                  const addr = XLSX.utils.encode_cell({ r: R, c: C + offset });
+                  if (ws[addr]) {
+                    if (!ws[addr].s) ws[addr].s = {};
+                    ws[addr].s.fill = { fgColor: { rgb: 'FFCCCC' } };
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Validation');
+
+        // Download
+        const filename = `${fileResult.filename.replace('.xlsm', '').replace('.xlsx', '')}_validation.xlsx`;
+        XLSX.writeFile(wb, filename);
+
+        messageApi.success('Excel файл скачан');
+      } catch (error) {
+        console.error('Export error:', error);
+        messageApi.error('Ошибка при экспорте');
+      }
     };
 
     modal.info({
@@ -237,53 +368,12 @@ export default function ExcelValidationPage() {
               </p>
             </Dragger>
 
-            {/* Quick test buttons - load real files from validation_data/ */}
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary">Быстрый выбор (для WSL): </Text>
-              <Space style={{ marginTop: 8 }}>
-                <Button
-                  size="small"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/validation_data/test_raschet.xlsm');
-                      const blob = await response.blob();
-                      const file = new File([blob], 'test_raschet.xlsm', {
-                        type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
-                      });
-                      setFiles([...files, file]);
-                    } catch {
-                      messageApi.error('Не удалось загрузить тестовый файл');
-                    }
-                  }}
-                >
-                  test_raschet.xlsm
-                </Button>
-                <Button
-                  size="small"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/validation_data/test_raschet_30pct.xlsm');
-                      const blob = await response.blob();
-                      const file = new File([blob], 'test_raschet_30pct.xlsm', {
-                        type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
-                      });
-                      setFiles([...files, file]);
-                    } catch {
-                      messageApi.error('Не удалось загрузить тестовый файл');
-                    }
-                  }}
-                >
-                  test_raschet_30pct.xlsm
-                </Button>
-              </Space>
-            </div>
-
             <Row gutter={16} style={{ marginBottom: 24 }}>
               <Col span={24}>
                 <Text strong>Допуск отклонения:</Text>
                 <InputNumber
                   value={tolerance}
-                  onChange={(v) => setTolerance(v || 0.01)}
+                  onChange={(v) => setTolerance(v || 0.011)}
                   min={0}
                   max={100}
                   step={0.01}
@@ -291,7 +381,7 @@ export default function ExcelValidationPage() {
                   style={{ marginLeft: 16, width: 140 }}
                 />
                 <Text type="secondary" style={{ marginLeft: 16 }}>
-                  (проверяются 5 ключевых полей: цена, цена+НДС, себестоимость, логистика, пошлина)
+                  (проверяются все ячейки: quote-level итоги + каждый продукт отдельно)
                 </Text>
               </Col>
             </Row>
@@ -378,6 +468,32 @@ export default function ExcelValidationPage() {
                       title: 'Макс. отклонение (₽)',
                       dataIndex: 'max_deviation',
                       render: (v?: number) => (v !== undefined ? v.toFixed(2) : '-'),
+                    },
+                    {
+                      title: 'Макс. отклонение (%)',
+                      key: 'max_deviation_percent',
+                      render: (_: unknown, record: ValidationResult) => {
+                        if (
+                          !record.max_deviation ||
+                          !record.comparisons ||
+                          record.comparisons.length === 0
+                        ) {
+                          return '-';
+                        }
+                        // Find the field with max deviation to calculate %
+                        const quoteLevelFields = record.comparisons[0].fields || [];
+                        if (quoteLevelFields.length === 0) return '-';
+
+                        // Get max deviation field
+                        const maxField = quoteLevelFields.reduce((max, f) =>
+                          Math.abs(f.difference) > Math.abs(max.difference) ? f : max
+                        );
+
+                        if (maxField.excel_value === 0) return '0%';
+                        const pct =
+                          (Math.abs(maxField.difference) / Math.abs(maxField.excel_value)) * 100;
+                        return `${pct.toFixed(3)}%`;
+                      },
                     },
                     {
                       title: 'Проблемные поля',
