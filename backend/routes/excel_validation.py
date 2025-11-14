@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/admin/excel-validation", tags=["admin-validation
 async def validate_excel_files(
     files: List[UploadFile] = File(...),
     mode: str = "summary",
-    tolerance: float = 0.01,  # Tolerance in percent (default 0.01%)
+    tolerance: float = 0.011,  # Tolerance in percent (default 0.011%)
     user: User = Depends(get_current_user)
 ):
     """

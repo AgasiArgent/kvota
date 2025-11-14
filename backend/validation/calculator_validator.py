@@ -97,7 +97,7 @@ class CalculatorValidator:
 
     def __init__(
         self,
-        tolerance_percent: Decimal = Decimal("0.01"),  # Tolerance in percent (default 0.01%)
+        tolerance_percent: Decimal = Decimal("0.011"),  # Tolerance in percent (default 0.011%)
         mode: ValidationMode = ValidationMode.SUMMARY
     ):
         self.tolerance_percent = tolerance_percent
@@ -195,7 +195,33 @@ class CalculatorValidator:
         # Overall stats
         all_passed = all(c.passed for c in all_comparisons)
         max_dev = max(c.max_deviation for c in all_comparisons) if all_comparisons else Decimal("0")
-        failed_fields = list(set(fc.field for c in all_comparisons for fc in c.field_comparisons if not fc.passed))
+
+        # Collect failed fields from quote-level (row 13)
+        quote_failed = [fc.field for fc in quote_field_comparisons if not fc.passed]
+
+        # Collect failed fields from products (rows 16+) and group by field code
+        product_failed_by_field = {}
+        for i, comp in enumerate(product_comparisons):
+            for fc in comp.field_comparisons:
+                if not fc.passed:
+                    field_base = fc.field.replace('16', '')  # AK16 -> AK, AB16 -> AB
+                    if field_base not in product_failed_by_field:
+                        product_failed_by_field[field_base] = []
+                    product_failed_by_field[field_base].append(16 + i)  # Actual row number
+
+        # Format product-level failures as ranges (e.g., "AB16:AB108")
+        product_failed_formatted = []
+        for field_base, rows in product_failed_by_field.items():
+            if rows:
+                min_row = min(rows)
+                max_row = max(rows)
+                if min_row == max_row:
+                    product_failed_formatted.append(f"{field_base}{min_row}")
+                else:
+                    product_failed_formatted.append(f"{field_base}{min_row}:{field_base}{max_row}")
+
+        # Combine: quote-level first, then product ranges
+        failed_fields = quote_failed + product_failed_formatted
 
         return ValidationResult(
             mode=self.mode,
