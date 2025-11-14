@@ -1,6 +1,7 @@
 /**
  * Excel Validation API Service
  * Handles validation of Excel files against calculation engine
+ * Uses NEXT_PUBLIC_API_URL environment variable for backend connection
  */
 
 import { createClient } from '@/lib/supabase/client';
