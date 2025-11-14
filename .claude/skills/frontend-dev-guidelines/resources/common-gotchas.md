@@ -20,6 +20,45 @@ This document contains 7 frontend-specific gotchas extracted from 41 tracked bug
 
 ---
 
+## 🔴 CRITICAL: Never Hardcode Backend URLs
+
+**Added:** 2025-11-14 (Session 40 - Deployment)
+
+### Problem
+Hardcoding `localhost:8000` or any backend URL breaks production deployments.
+
+### Why It Breaks
+Next.js substitutes `process.env.NEXT_PUBLIC_*` at **BUILD TIME**, not runtime. Hardcoded localhost gets baked into production JS bundles.
+
+### ❌ Wrong Pattern
+```typescript
+// This will FAIL on production!
+const response = await fetch('http://localhost:8000/api/endpoint', {...});
+```
+
+### ✅ Correct Pattern
+```typescript
+// ALWAYS use environment variable
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const response = await fetch(`${API_URL}/api/endpoint`, {...});
+```
+
+### Impact
+- Production shows "ERR_CONNECTION_REFUSED"
+- Requires redeploy + cache clear
+- User sees "Failed to fetch" errors
+- Caught in 6 files during Session 40 deployment
+
+### Files Fixed
+- `excel-validation-service.ts`
+- `feedback-service.ts`
+- `customers/[id]/contacts/page.tsx`
+- `quotes/create/page.tsx`
+
+**Prevention:** Always define `const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'` at top of service files.
+
+---
+
 ## 🔴 Critical Gotcha
 
 ### Case-Sensitive Role Checks
