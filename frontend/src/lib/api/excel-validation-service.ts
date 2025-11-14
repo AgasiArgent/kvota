@@ -5,6 +5,8 @@
 
 import { createClient } from '@/lib/supabase/client';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export interface FieldComparison {
   field: string;
   field_name: string;
@@ -72,7 +74,7 @@ export const ExcelValidationService = {
     formData.append('mode', mode);
     formData.append('tolerance', tolerance.toString());
 
-    const response = await fetch('http://localhost:8000/api/admin/excel-validation/validate', {
+    const response = await fetch(`${API_URL}/api/admin/excel-validation/validate`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
