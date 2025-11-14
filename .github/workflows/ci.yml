@@ -29,7 +29,8 @@ jobs:
 
       - name: Run ESLint
         working-directory: frontend
-        run: npm run lint || echo "Lint warnings ignored for now"
+        run: npm run lint
+        continue-on-error: true
 
       - name: Check code formatting
         working-directory: frontend
