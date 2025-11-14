@@ -171,7 +171,9 @@ export default function CreateQuotePage() {
   const [exchangeRateUsdCny, setExchangeRateUsdCny] = useState<number | null>(null);
   const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState<string | null>(null);
   const [rateLoading, setRateLoading] = useState(false);
-  const [supplierCountries, setSupplierCountries] = useState<Array<{label: string; value: string}>>([]);
+  const [supplierCountries, setSupplierCountries] = useState<
+    Array<{ label: string; value: string }>
+  >([]);
 
   // Load customers, templates, and admin settings on mount
   useEffect(() => {
@@ -778,7 +780,7 @@ export default function CreateQuotePage() {
             editable: true,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: {
-              values: supplierCountries.map(c => c.value),
+              values: supplierCountries.map((c) => c.value),
             },
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',

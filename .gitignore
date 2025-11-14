@@ -233,3 +233,4 @@ worktrees/
 *.backup
 *_backup
 *_old
+.env.deployment

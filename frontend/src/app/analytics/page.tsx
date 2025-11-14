@@ -66,9 +66,7 @@ const AVAILABLE_FIELDS = {
     { key: 'offer_sale_type', label: 'Тип продажи' },
     { key: 'seller_company', label: 'Компания-продавец' },
   ],
-  'Финансовые показатели': [
-    { key: 'total_amount', label: 'Общая сумма' },
-  ],
+  'Финансовые показатели': [{ key: 'total_amount', label: 'Общая сумма' }],
   'Расчетные показатели (детально)': [
     // Phase 1-2: Purchase prices
     { key: 'calc_s16_total_purchase_price', label: 'Цена закупки (итого)' },
