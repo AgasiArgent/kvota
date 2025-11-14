@@ -1639,7 +1639,6 @@ export default function EditQuotePage() {
                     </style>
                     <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
                       <AgGridReact
-                        // @ts-expect-error - ref is supported but type definition issue with dynamic import
                         ref={gridRef}
                         rowData={uploadedProducts}
                         columnDefs={columnDefs}
