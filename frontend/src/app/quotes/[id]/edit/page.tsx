@@ -1652,7 +1652,7 @@ export default function EditQuotePage() {
                         }}
                         enableCellTextSelection={true}
                         suppressHorizontalScroll={false}
-                        onCellValueChanged={(event) => {
+                        onCellValueChanged={(event: any) => {
                           setUploadedProducts((prevProducts) => {
                             const updatedProducts = [...prevProducts];
                             const index = event.rowIndex;
