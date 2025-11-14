@@ -32,7 +32,6 @@ import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
-import PlanFactTab from '@/components/quotes/PlanFactTab';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -590,13 +589,6 @@ export default function QuoteDetailPage() {
                     )}
                   </Card>
                 </Space>
-              ),
-            },
-            {
-              key: 'plan-fact',
-              label: 'План-Факт',
-              children: (
-                <PlanFactTab quoteId={quoteId} organizationId={profile?.organization_id || ''} />
               ),
             },
           ]}
