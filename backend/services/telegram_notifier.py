@@ -62,12 +62,12 @@ def send_alert(
         emoji = EMOJI_MAP.get(severity, "📢")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        text = f"{emoji} *KVOTA {severity}*\n\n"
-        text += f"*{title}*\n\n"
+        text = f"{emoji} KVOTA {severity}\n\n"
+        text += f"{title}\n\n"
         text += f"{message}\n\n"
 
         if endpoint:
-            text += f"📍 Endpoint: `{endpoint}`\n"
+            text += f"📍 Endpoint: {endpoint}\n"
 
         if user_email:
             text += f"👤 User: {user_email}\n"
@@ -82,7 +82,7 @@ def send_alert(
             json={
                 "chat_id": TELEGRAM_CHAT_ID,
                 "text": text,
-                "parse_mode": "Markdown"
+                # No parse_mode - send as plain text to avoid Markdown parsing errors
             },
             timeout=5  # 5 second timeout
         )
