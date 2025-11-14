@@ -97,7 +97,10 @@ export default function ExecutionHistoryPage() {
             const execDate = dayjs(exec.executed_at);
             const startOfDay = appliedFilters.dateRange![0]!.startOf('day');
             const endOfDay = appliedFilters.dateRange![1]!.endOf('day');
-            return execDate.isSameOrAfter(startOfDay) && execDate.isSameOrBefore(endOfDay);
+            return (
+              (execDate.isAfter(startOfDay) || execDate.isSame(startOfDay)) &&
+              (execDate.isBefore(endOfDay) || execDate.isSame(endOfDay))
+            );
           });
         }
 

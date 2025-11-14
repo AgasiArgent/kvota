@@ -150,7 +150,8 @@ export class CalculationSettingsService {
     return {
       rate_forex_risk: 3.0, // 3% currency exchange risk reserve
       rate_fin_comm: 2.0, // 2% financial agent commission
-      rate_loan_interest_daily: 0.00069, // ~25% annual interest rate
+      rate_loan_interest_annual: 25.0, // 25% annual interest rate
+      customs_logistics_pmt_due: 10, // 10 days payment due
     };
   }
 
@@ -168,8 +169,8 @@ export class CalculationSettingsService {
       errors.push('Комиссия ФинАгента должна быть от 0% до 100%');
     }
 
-    if (settings.rate_loan_interest_daily <= 0) {
-      errors.push('Дневная стоимость денег должна быть больше 0');
+    if (settings.rate_loan_interest_annual <= 0) {
+      errors.push('Годовая ставка займа должна быть больше 0');
     }
 
     return {

@@ -27,6 +27,7 @@ import {
   ExcelValidationService,
   ValidationResponse,
   ValidationResult,
+  FieldComparison,
 } from '@/lib/api/excel-validation-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { useRouter } from 'next/navigation';
@@ -77,8 +78,8 @@ export default function ExcelValidationPage() {
     }
 
     // First comparison is quote-level (row 13), rest are products (rows 16+)
-    const quoteLevelComparison = fileResult.comparisons[0];
-    const keyFields = quoteLevelComparison.fields || [];
+    const quoteLevelComparison = fileResult.comparisons?.[0];
+    const keyFields = quoteLevelComparison?.fields || [];
 
     // Failed fields from quote-level only
     const failedFields = keyFields.filter((f) => !f.passed);
@@ -140,13 +141,13 @@ export default function ExcelValidationPage() {
 
         // Helper: find our value for a field
         const getOurValue = (fieldCode: string, comparisonIdx: number) => {
-          const comp = fileResult.comparisons[comparisonIdx];
+          const comp = fileResult.comparisons?.[comparisonIdx];
           const field = comp?.fields?.find((f) => f.field === fieldCode);
           return field ? field.our_value : null;
         };
 
         // Add row 13 (quote-level)
-        const row13Data = [13];
+        const row13Data: Array<string | number> = [13];
         for (let col = 0; col < 52; col++) {
           const colName = XLSX.utils.encode_col(col);
           const excelVal = getCellValue(13, colName);
@@ -156,7 +157,7 @@ export default function ExcelValidationPage() {
           row13Data.push(ourVal !== null ? ourVal : '');
 
           // Calculate deviation %
-          if (excelVal && ourVal !== null) {
+          if (typeof excelVal === 'number' && typeof ourVal === 'number' && excelVal !== 0) {
             const devPct = ((ourVal - excelVal) / Math.abs(excelVal)) * 100;
             row13Data.push(`${devPct.toFixed(3)}%`);
           } else {
@@ -166,9 +167,9 @@ export default function ExcelValidationPage() {
         newData.push(row13Data);
 
         // Add products (rows 16+)
-        for (let prodIdx = 0; prodIdx < fileResult.comparisons.length - 1; prodIdx++) {
+        for (let prodIdx = 0; prodIdx < (fileResult.comparisons?.length ?? 0) - 1; prodIdx++) {
           const rowNum = 16 + prodIdx;
-          const rowData = [rowNum];
+          const rowData: Array<string | number> = [rowNum];
 
           for (let col = 0; col < 52; col++) {
             const colName = XLSX.utils.encode_col(col);
@@ -179,7 +180,7 @@ export default function ExcelValidationPage() {
             rowData.push(ourVal !== null ? ourVal : '');
 
             // Calculate deviation %
-            if (excelVal && ourVal !== null && typeof excelVal === 'number') {
+            if (typeof excelVal === 'number' && typeof ourVal === 'number' && excelVal !== 0) {
               const devPct = ((ourVal - excelVal) / Math.abs(excelVal)) * 100;
               rowData.push(`${devPct.toFixed(3)}%`);
             } else {
