@@ -26,6 +26,14 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  closestCenter,
+} from '@dnd-kit/core';
 import MainLayout from '@/components/layout/MainLayout';
 import { listLeads, changeLeadStage, type LeadWithDetails } from '@/lib/api/lead-service';
 import { listLeadStages, type LeadStage } from '@/lib/api/lead-stage-service';
@@ -33,128 +41,121 @@ import { listLeadStages, type LeadStage } from '@/lib/api/lead-stage-service';
 const { Title, Text } = Typography;
 
 /**
- * Lead Card Component
+ * Draggable Lead Card Component
  */
 interface LeadCardProps {
   lead: LeadWithDetails;
   onLeadClick: (leadId: string) => void;
-  onStageChange: (leadId: string, newStageId: string) => void;
-  stages: LeadStage[];
 }
 
-function LeadCard({ lead, onLeadClick, onStageChange, stages }: LeadCardProps) {
+function DraggableLeadCard({ lead, onLeadClick }: LeadCardProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: lead.id,
+    data: { lead },
+  });
+
   const primaryContact = lead.contacts?.find((c) => c.is_primary) || lead.contacts?.[0];
 
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 1000 : 'auto',
+      }
+    : undefined;
+
   return (
-    <Card
-      hoverable
-      size="small"
-      style={{
-        marginBottom: 12,
-        borderRadius: 8,
-        cursor: 'pointer',
-      }}
-      onClick={() => onLeadClick(lead.id)}
-      bodyStyle={{ padding: '12px' }}
-    >
-      {/* Company Name */}
-      <div style={{ marginBottom: 8 }}>
-        <Text strong style={{ fontSize: '14px' }}>
-          {lead.company_name}
-        </Text>
-      </div>
-
-      {/* Segment */}
-      {lead.segment && <Tag style={{ marginBottom: 8, fontSize: '11px' }}>{lead.segment}</Tag>}
-
-      {/* Primary Contact */}
-      {primaryContact && (
-        <div style={{ marginBottom: 8, fontSize: '12px', color: '#666' }}>
-          <UserOutlined style={{ marginRight: 4 }} />
-          {primaryContact.full_name}
-          {primaryContact.position && ` • ${primaryContact.position}`}
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      <Card
+        hoverable
+        size="small"
+        style={{
+          marginBottom: 12,
+          borderRadius: 8,
+          cursor: isDragging ? 'grabbing' : 'grab',
+        }}
+        onClick={() => !isDragging && onLeadClick(lead.id)}
+        bodyStyle={{ padding: '12px' }}
+      >
+        {/* Company Name */}
+        <div style={{ marginBottom: 8 }}>
+          <Text strong style={{ fontSize: '14px' }}>
+            {lead.company_name}
+          </Text>
         </div>
-      )}
 
-      {/* Contact Info */}
-      <Space direction="vertical" size={2} style={{ width: '100%', fontSize: '11px' }}>
-        {lead.email && (
-          <Space size={4}>
-            <MailOutlined style={{ color: '#888' }} />
-            <Text style={{ fontSize: '11px' }} ellipsis>
-              {lead.email}
-            </Text>
-          </Space>
+        {/* Segment */}
+        {lead.segment && <Tag style={{ marginBottom: 8, fontSize: '11px' }}>{lead.segment}</Tag>}
+
+        {/* Primary Contact */}
+        {primaryContact && (
+          <div style={{ marginBottom: 8, fontSize: '12px', color: '#666' }}>
+            <UserOutlined style={{ marginRight: 4 }} />
+            {primaryContact.full_name}
+            {primaryContact.position && ` • ${primaryContact.position}`}
+          </div>
         )}
-        {lead.primary_phone && (
-          <Space size={4}>
-            <PhoneOutlined style={{ color: '#888' }} />
-            <Text style={{ fontSize: '11px' }}>{lead.primary_phone}</Text>
-          </Space>
+
+        {/* Contact Info */}
+        <Space direction="vertical" size={2} style={{ width: '100%', fontSize: '11px' }}>
+          {lead.email && (
+            <Space size={4}>
+              <MailOutlined style={{ color: '#888' }} />
+              <Text style={{ fontSize: '11px' }} ellipsis>
+                {lead.email}
+              </Text>
+            </Space>
+          )}
+          {lead.primary_phone && (
+            <Space size={4}>
+              <PhoneOutlined style={{ color: '#888' }} />
+              <Text style={{ fontSize: '11px' }}>{lead.primary_phone}</Text>
+            </Space>
+          )}
+        </Space>
+
+        {/* Assigned To */}
+        {lead.assigned_to_name && (
+          <div style={{ marginTop: 8, fontSize: '11px', color: '#888' }}>
+            <Avatar size={16} icon={<UserOutlined />} style={{ marginRight: 4 }} />
+            {lead.assigned_to_name.split('@')[0]}
+          </div>
         )}
-      </Space>
-
-      {/* Assigned To */}
-      {lead.assigned_to_name && (
-        <div style={{ marginTop: 8, fontSize: '11px', color: '#888' }}>
-          <Avatar size={16} icon={<UserOutlined />} style={{ marginRight: 4 }} />
-          {lead.assigned_to_name.split('@')[0]}
-        </div>
-      )}
-
-      {/* Quick Actions (on click stop propagation) */}
-      <div style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
-        <Select
-          size="small"
-          placeholder="Переместить в..."
-          style={{ width: '100%', fontSize: '11px' }}
-          onChange={(stageId) => onStageChange(lead.id, stageId)}
-          value={undefined}
-        >
-          {stages
-            .filter((s) => s.id !== lead.stage_id)
-            .map((stage) => (
-              <Select.Option key={stage.id} value={stage.id}>
-                {stage.name}
-              </Select.Option>
-            ))}
-        </Select>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
 /**
- * Pipeline Column Component
+ * Droppable Pipeline Column Component
  */
 interface PipelineColumnProps {
   stage: LeadStage;
   leads: LeadWithDetails[];
   onLeadClick: (leadId: string) => void;
-  onStageChange: (leadId: string, newStageId: string) => void;
-  allStages: LeadStage[];
 }
 
-function PipelineColumn({
-  stage,
-  leads,
-  onLeadClick,
-  onStageChange,
-  allStages,
-}: PipelineColumnProps) {
+function DroppableColumn({ stage, leads, onLeadClick }: PipelineColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: stage.id,
+    data: { stage },
+  });
+
   const count = leads.length;
 
   return (
     <div
+      ref={setNodeRef}
       style={{
         minWidth: 300,
         maxWidth: 320,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: isOver ? '#e6f7ff' : '#f5f5f5',
         borderRadius: 8,
         padding: 16,
         maxHeight: 'calc(100vh - 280px)',
         display: 'flex',
         flexDirection: 'column',
+        border: isOver ? '2px dashed #1890ff' : 'none',
       }}
     >
       {/* Column Header */}
@@ -179,13 +180,7 @@ function PipelineColumn({
           />
         ) : (
           leads.map((lead) => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              onLeadClick={onLeadClick}
-              onStageChange={onStageChange}
-              stages={allStages}
-            />
+            <DraggableLeadCard key={lead.id} lead={lead} onLeadClick={onLeadClick} />
           ))
         )}
       </div>
@@ -226,7 +221,7 @@ export default function LeadsPipelinePage() {
     try {
       const response = await listLeads({
         page: 1,
-        limit: 1000, // Load all for Kanban
+        limit: 100, // Backend max limit
         search: searchTerm || undefined,
         assigned_to: assignedFilter || undefined,
       });
@@ -239,13 +234,25 @@ export default function LeadsPipelinePage() {
     }
   };
 
-  const handleStageChange = async (leadId: string, newStageId: string) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const leadId = active.id as string;
+    const newStageId = over.id as string;
+
+    // Optimistic update
+    setLeads((prevLeads) =>
+      prevLeads.map((lead) => (lead.id === leadId ? { ...lead, stage_id: newStageId } : lead))
+    );
+
     try {
       await changeLeadStage(leadId, newStageId);
       message.success('Лид перемещен');
-      fetchLeads(); // Refresh
     } catch (error: any) {
       message.error(`Ошибка перемещения: ${error.message}`);
+      fetchLeads(); // Revert on error
     }
   };
 
@@ -316,25 +323,25 @@ export default function LeadsPipelinePage() {
             <Spin size="large" tip="Загрузка воронки..." />
           </div>
         ) : (
-          <div
-            style={{
-              display: 'flex',
-              gap: 16,
-              overflowX: 'auto',
-              paddingBottom: 16,
-            }}
-          >
-            {stages.map((stage) => (
-              <PipelineColumn
-                key={stage.id}
-                stage={stage}
-                leads={leadsByStage[stage.id] || []}
-                onLeadClick={handleLeadClick}
-                onStageChange={handleStageChange}
-                allStages={stages}
-              />
-            ))}
-          </div>
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 16,
+                overflowX: 'auto',
+                paddingBottom: 16,
+              }}
+            >
+              {stages.map((stage) => (
+                <DroppableColumn
+                  key={stage.id}
+                  stage={stage}
+                  leads={leadsByStage[stage.id] || []}
+                  onLeadClick={handleLeadClick}
+                />
+              ))}
+            </div>
+          </DndContext>
         )}
       </div>
     </MainLayout>
