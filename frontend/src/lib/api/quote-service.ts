@@ -4,7 +4,7 @@
  */
 
 import { BaseApiService } from './base-api';
-import { getApiEndpoint } from '@/lib/config';
+import { config, getApiEndpoint } from '@/lib/config';
 import { workflowEngine, WorkflowContext } from '@/lib/workflow/workflow-engine';
 import {
   roleInputService,
