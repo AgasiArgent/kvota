@@ -25,6 +25,8 @@ import {
   UserOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  EyeOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
@@ -187,14 +189,10 @@ export default function LeadsPage() {
             </Space>
           )}
           {record.contacts && record.contacts.length > 0 && (
-            <Tooltip
-              title={record.contacts.map((c) => c.full_name).join(', ')}
-            >
+            <Tooltip title={record.contacts.map((c) => c.full_name).join(', ')}>
               <Space size={4}>
                 <UserOutlined style={{ color: '#888' }} />
-                <span style={{ fontSize: '12px' }}>
-                  ЛПР: {record.contacts.length}
-                </span>
+                <span style={{ fontSize: '12px' }}>ЛПР: {record.contacts.length}</span>
               </Space>
             </Tooltip>
           )}
@@ -258,11 +256,7 @@ export default function LeadsPage() {
                   okText="Да"
                   cancelText="Нет"
                 >
-                  <Button
-                    type="text"
-                    icon={<CheckCircleOutlined />}
-                    style={{ color: '#52c41a' }}
-                  />
+                  <Button type="text" icon={<CheckCircleOutlined />} style={{ color: '#52c41a' }} />
                 </Popconfirm>
               </Tooltip>
             )}
@@ -294,10 +288,7 @@ export default function LeadsPage() {
           </Col>
           <Col>
             <Space>
-              <Button
-                type="default"
-                onClick={() => router.push('/leads/pipeline')}
-              >
+              <Button type="default" onClick={() => router.push('/leads/pipeline')}>
                 Воронка
               </Button>
               <Button

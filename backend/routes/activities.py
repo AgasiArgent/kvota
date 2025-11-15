@@ -166,9 +166,7 @@ async def list_activities(
         query = supabase.table("activities").select(
             "*,"
             "leads(company_name),"
-            "customers(name),"
-            "assigned_user:assigned_to(email),"
-            "creator:created_by(email)",
+            "customers(name)",
             count="exact"
         )
         query = query.eq("organization_id", str(user.current_organization_id))
@@ -245,9 +243,7 @@ async def get_activity(
         result = supabase.table("activities").select(
             "*,"
             "leads(company_name),"
-            "customers(name),"
-            "assigned_user:assigned_to(email),"
-            "creator:created_by(email)"
+            "customers(name)"
         )\
             .eq("id", activity_id)\
             .eq("organization_id", str(user.current_organization_id))\
@@ -658,9 +654,7 @@ async def get_my_upcoming_activities(
         result = supabase.table("activities").select(
             "*,"
             "leads(company_name),"
-            "customers(name),"
-            "assigned_user:assigned_to(email),"
-            "creator:created_by(email)"
+            "customers(name)"
         )\
             .eq("organization_id", str(user.current_organization_id))\
             .eq("assigned_to", str(user.id))\
@@ -708,9 +702,7 @@ async def get_my_overdue_activities(
         result = supabase.table("activities").select(
             "*,"
             "leads(company_name),"
-            "customers(name),"
-            "assigned_user:assigned_to(email),"
-            "creator:created_by(email)"
+            "customers(name)"
         )\
             .eq("organization_id", str(user.current_organization_id))\
             .eq("assigned_to", str(user.id))\

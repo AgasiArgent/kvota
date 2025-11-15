@@ -13,6 +13,7 @@ import {
   Divider,
   Row,
   Col,
+  Tag,
 } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
@@ -53,7 +54,10 @@ export default function CreateLeadPage() {
     try {
       // Parse phones array from comma-separated string
       const phones = values.phones_input
-        ? values.phones_input.split(',').map((p: string) => p.trim()).filter(Boolean)
+        ? values.phones_input
+            .split(',')
+            .map((p: string) => p.trim())
+            .filter(Boolean)
         : [];
 
       const leadData: LeadCreate = {
@@ -65,13 +69,15 @@ export default function CreateLeadPage() {
         segment: values.segment,
         notes: values.notes,
         stage_id: values.stage_id,
-        contacts: values.contacts?.map((c: any) => ({
-          full_name: c.full_name,
-          position: c.position,
-          phone: c.phone,
-          email: c.email,
-          is_primary: c.is_primary || false,
-        })),
+        contacts: values.contacts
+          ?.filter((c: any) => c?.full_name?.trim()) // Only include contacts with names
+          ?.map((c: any) => ({
+            full_name: c.full_name,
+            position: c.position,
+            phone: c.phone,
+            email: c.email,
+            is_primary: c.is_primary || false,
+          })),
       };
 
       const lead = await createLead(leadData);
@@ -211,13 +217,8 @@ export default function CreateLeadPage() {
                         >
                           <Row gutter={16}>
                             <Col span={12}>
-                              <Form.Item
-                                {...restField}
-                                label="Ф.И.О."
-                                name={[name, 'full_name']}
-                                rules={[{ required: true, message: 'Введите ФИО' }]}
-                              >
-                                <Input placeholder="Иван Иванов" />
+                              <Form.Item {...restField} label="Ф.И.О." name={[name, 'full_name']}>
+                                <Input placeholder="Иван Иванов (необязательно)" />
                               </Form.Item>
                             </Col>
                             <Col span={12}>

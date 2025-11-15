@@ -19,6 +19,9 @@ import {
   Modal,
   Form,
   Input,
+  Row,
+  Col,
+  Empty,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -41,7 +44,12 @@ import {
   type ActivityWithDetails,
   type ActivityCreate,
 } from '@/lib/api/activity-service';
-import { listLeadContacts, createLeadContact, type LeadContact, type LeadContactCreate } from '@/lib/api/lead-contact-service';
+import {
+  listLeadContacts,
+  createLeadContact,
+  type LeadContact,
+  type LeadContactCreate,
+} from '@/lib/api/lead-contact-service';
 
 const { Title, Text } = Typography;
 
@@ -298,7 +306,9 @@ export default function LeadDetailPage() {
                           {activity.duration_minutes && (
                             <>
                               <ClockCircleOutlined style={{ fontSize: '12px', color: '#888' }} />
-                              <Text style={{ fontSize: '12px' }}>{activity.duration_minutes} мин</Text>
+                              <Text style={{ fontSize: '12px' }}>
+                                {activity.duration_minutes} мин
+                              </Text>
                             </>
                           )}
                         </Space>
@@ -353,7 +363,10 @@ export default function LeadDetailPage() {
             </Col>
             <Col>
               <Space>
-                <Button icon={<EditOutlined />} onClick={() => router.push(`/leads/${leadId}/edit`)}>
+                <Button
+                  icon={<EditOutlined />}
+                  onClick={() => router.push(`/leads/${leadId}/edit`)}
+                >
                   Редактировать
                 </Button>
                 {!isQualified && !isFailed && (

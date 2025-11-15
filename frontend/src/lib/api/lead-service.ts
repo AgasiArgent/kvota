@@ -129,7 +129,7 @@ export async function listLeads(params: LeadListParams = {}): Promise<LeadListRe
   if (params.assigned_to) queryParams.set('assigned_to', params.assigned_to);
   if (params.segment) queryParams.set('segment', params.segment);
 
-  const url = `${API_URL}/api/leads?${queryParams.toString()}`;
+  const url = `${API_URL}/api/leads/?${queryParams.toString()}`;
 
   const response = await fetch(url, {
     headers: {
@@ -173,7 +173,7 @@ export async function getLead(leadId: string): Promise<LeadWithDetails> {
 export async function createLead(leadData: LeadCreate): Promise<Lead> {
   const token = await getAuthToken();
 
-  const response = await fetch(`${API_URL}/api/leads`, {
+  const response = await fetch(`${API_URL}/api/leads/`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
