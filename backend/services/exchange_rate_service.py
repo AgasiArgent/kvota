@@ -6,11 +6,11 @@ import os
 import httpx
 import logging
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import asyncpg
+from supabase import create_client, Client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -55,17 +55,42 @@ class ExchangeRateService:
                     response.raise_for_status()
                     data = response.json()
 
+                # Validate API response structure
+                if not isinstance(data, dict):
+                    raise ValueError(f"Invalid API response type: expected dict, got {type(data).__name__}")
+
+                if "Valute" not in data:
+                    raise ValueError("Missing 'Valute' field in API response")
+
                 # Parse rates from API response
                 rates = {}
-                if "Valute" in data:
-                    for currency_code, currency_data in data["Valute"].items():
-                        if "Value" in currency_data:
+                valute_data = data.get("Valute", {})
+
+                if not isinstance(valute_data, dict):
+                    raise ValueError(f"Invalid Valute data type: expected dict, got {type(valute_data).__name__}")
+
+                for currency_code, currency_data in valute_data.items():
+                    if not isinstance(currency_data, dict):
+                        logger.warning(f"Skipping invalid currency data for {currency_code}")
+                        continue
+
+                    if "Value" in currency_data:
+                        try:
                             # Convert to Decimal for precision
                             rate = Decimal(str(currency_data["Value"]))
+                            if rate <= 0:
+                                logger.warning(f"Skipping invalid rate for {currency_code}: {rate}")
+                                continue
                             rates[currency_code] = rate
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Failed to parse rate for {currency_code}: {e}")
+                            continue
 
                 # Add RUB to RUB rate (always 1.0)
                 rates["RUB"] = Decimal("1.0")
+
+                if len(rates) < 2:  # At least RUB and one other currency
+                    raise ValueError(f"Too few valid rates parsed: {len(rates)}")
 
                 logger.info(f"Successfully fetched {len(rates)} exchange rates from CBR")
 
@@ -85,12 +110,22 @@ class ExchangeRateService:
                     import asyncio
                     await asyncio.sleep(wait_time)
                 else:
-                    logger.error("CBR API request failed after all retries")
-                    raise
+                    logger.error(f"CBR API request failed after all retries: {e}")
+                    # Return empty dict instead of raising to prevent service disruption
+                    return {}
+
+            except ValueError as e:
+                logger.error(f"Invalid CBR API response format: {e}")
+                if attempt < MAX_RETRIES - 1:
+                    import asyncio
+                    wait_time = RETRY_BACKOFF_BASE ** attempt
+                    await asyncio.sleep(wait_time)
+                else:
+                    return {}
 
             except Exception as e:
-                logger.error(f"Unexpected error fetching CBR rates: {e}")
-                raise
+                logger.error(f"Unexpected error fetching CBR rates: {e}", exc_info=True)
+                return {}
 
     async def _store_rates(self, rates: Dict[str, Decimal]) -> None:
         """
@@ -99,30 +134,40 @@ class ExchangeRateService:
         Args:
             rates: Dict of currency codes to RUB rates
         """
-        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
         try:
-            fetched_at = datetime.utcnow()
+            fetched_at = datetime.now(timezone.utc)
 
-            # Batch insert all rates in single transaction
-            async with conn.transaction():
-                for from_currency, rate in rates.items():
-                    await conn.execute(
-                        """
-                        INSERT INTO exchange_rates
-                            (from_currency, to_currency, rate, source, fetched_at)
-                        VALUES ($1, $2, $3, $4, $5)
-                        """,
-                        from_currency,
-                        "RUB",
-                        rate,
-                        "cbr",
-                        fetched_at
-                    )
+            # Prepare batch of records
+            records = []
+            for from_currency, rate in rates.items():
+                records.append({
+                    "from_currency": from_currency,
+                    "to_currency": "RUB",
+                    "rate": float(rate),  # Convert Decimal to float for JSON
+                    "source": "cbr",
+                    "fetched_at": fetched_at.isoformat()
+                })
 
-            logger.info(f"Stored {len(rates)} exchange rates in database")
+            # Upsert rates - update if exists, insert if not
+            # Using upsert to handle potential duplicates gracefully
+            result = supabase.table("exchange_rates")\
+                .upsert(
+                    records,
+                    on_conflict="from_currency,to_currency,fetched_at",
+                    ignore_duplicates=False
+                ).execute()
 
-        finally:
-            await conn.close()
+            logger.info(f"Stored/updated {len(rates)} exchange rates in database")
+
+        except Exception as e:
+            logger.error(f"Failed to store exchange rates: {e}")
+            # Don't raise - we want the service to continue even if storage fails
+            # Rates can still be fetched from API on demand
 
     async def get_rate(
         self,
@@ -143,27 +188,27 @@ class ExchangeRateService:
         if from_currency == to_currency:
             return Decimal("1.0")
 
-        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
         try:
             # Check for cached rate (< 24 hours old)
-            cache_cutoff = datetime.utcnow() - timedelta(hours=CACHE_TTL_HOURS)
+            cache_cutoff = datetime.now(timezone.utc) - timedelta(hours=CACHE_TTL_HOURS)
 
-            rate_record = await conn.fetchrow(
-                """
-                SELECT rate, fetched_at
-                FROM exchange_rates
-                WHERE from_currency = $1
-                  AND to_currency = $2
-                  AND fetched_at > $3
-                ORDER BY fetched_at DESC
-                LIMIT 1
-                """,
-                from_currency,
-                to_currency,
-                cache_cutoff
-            )
+            # Query for recent rates
+            result = supabase.table("exchange_rates") \
+                .select("rate, fetched_at") \
+                .eq("from_currency", from_currency) \
+                .eq("to_currency", to_currency) \
+                .gte("fetched_at", cache_cutoff.isoformat()) \
+                .order("fetched_at", desc=True) \
+                .limit(1) \
+                .execute()
 
-            if rate_record:
+            if result.data and len(result.data) > 0:
+                rate_record = result.data[0]
                 logger.info(
                     f"Using cached rate for {from_currency}/{to_currency}: "
                     f"{rate_record['rate']} (fetched at {rate_record['fetched_at']})"
@@ -198,19 +243,16 @@ class ExchangeRateService:
                 logger.error(f"Failed to fetch fresh rates: {e}")
 
                 # Fallback: use last cached rate (even if expired)
-                fallback_record = await conn.fetchrow(
-                    """
-                    SELECT rate, fetched_at
-                    FROM exchange_rates
-                    WHERE from_currency = $1 AND to_currency = $2
-                    ORDER BY fetched_at DESC
-                    LIMIT 1
-                    """,
-                    from_currency,
-                    to_currency
-                )
+                fallback_result = supabase.table("exchange_rates") \
+                    .select("rate, fetched_at") \
+                    .eq("from_currency", from_currency) \
+                    .eq("to_currency", to_currency) \
+                    .order("fetched_at", desc=True) \
+                    .limit(1) \
+                    .execute()
 
-                if fallback_record:
+                if fallback_result.data and len(fallback_result.data) > 0:
+                    fallback_record = fallback_result.data[0]
                     logger.warning(
                         f"Using stale fallback rate for {from_currency}/{to_currency}: "
                         f"{fallback_record['rate']} "
@@ -223,8 +265,9 @@ class ExchangeRateService:
                 )
                 return None
 
-        finally:
-            await conn.close()
+        except Exception as e:
+            logger.error(f"Error accessing exchange rates: {e}")
+            return None
 
     async def cleanup_old_rates(self, days_to_keep: int = 30) -> int:
         """
@@ -236,27 +279,41 @@ class ExchangeRateService:
         Returns:
             Number of rows deleted
         """
-        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
 
-            result = await conn.execute(
-                "DELETE FROM exchange_rates WHERE fetched_at < $1",
-                cutoff_date
-            )
+            # First count how many will be deleted
+            count_result = supabase.table("exchange_rates") \
+                .select("id", count="exact") \
+                .lt("fetched_at", cutoff_date.isoformat()) \
+                .execute()
 
-            # Parse "DELETE N" response
-            deleted_count = int(result.split()[-1]) if result else 0
+            deleted_count = count_result.count if count_result.count else 0
 
-            logger.info(
-                f"Cleaned up {deleted_count} exchange rate records "
-                f"older than {days_to_keep} days"
-            )
+            if deleted_count > 0:
+                # Delete old records
+                delete_result = supabase.table("exchange_rates") \
+                    .delete() \
+                    .lt("fetched_at", cutoff_date.isoformat()) \
+                    .execute()
+
+                logger.info(
+                    f"Cleaned up {deleted_count} exchange rate records "
+                    f"older than {days_to_keep} days"
+                )
+            else:
+                logger.info(f"No exchange rate records older than {days_to_keep} days to clean up")
 
             return deleted_count
 
-        finally:
-            await conn.close()
+        except Exception as e:
+            logger.error(f"Failed to cleanup old rates: {e}")
+            return 0
 
     def setup_cron_job(self) -> None:
         """

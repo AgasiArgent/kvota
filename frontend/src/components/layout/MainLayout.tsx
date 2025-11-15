@@ -31,6 +31,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import OrganizationSwitcher from '@/components/organizations/OrganizationSwitcher';
 import FeedbackButton from '@/components/FeedbackButton';
+import ExchangeRates from './ExchangeRates';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -258,6 +259,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
             {collapsed ? 'КП' : 'Коммерческие предложения'}
           </Title>
         </div>
+
+        {!collapsed && <ExchangeRates />}
 
         <Menu
           theme="dark"
