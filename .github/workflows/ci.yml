@@ -2,9 +2,9 @@ name: CI - Test & Lint
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, dev]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, dev]
 
 jobs:
   # Frontend Lint & Type Check

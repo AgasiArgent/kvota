@@ -4,7 +4,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-import { getApiEndpoint } from '@/lib/config';
+import { config, getApiEndpoint } from '@/lib/config';
 
 export interface Feedback {
   id: string;

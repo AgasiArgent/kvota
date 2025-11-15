@@ -4,7 +4,7 @@
  */
 
 import { ApiResponse } from '@/lib/types/platform';
-import { getApiEndpoint } from '@/lib/config';
+import { config, getApiEndpoint } from '@/lib/config';
 import {
   Organization,
   OrganizationCreate,
