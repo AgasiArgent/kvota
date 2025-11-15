@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
 import {
   Card,
@@ -212,10 +213,9 @@ export default function QuoteDetailPage() {
 
       try {
         const token = await getAuthToken();
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
         const response = await fetch(
-          `${API_URL}/api/quotes/${quoteId}/export/${type}?format=${format}`,
+          `${config.apiUrl}/api/quotes/${quoteId}/export/${type}?format=${format}`,
           {
             method: 'GET',
             headers: {
