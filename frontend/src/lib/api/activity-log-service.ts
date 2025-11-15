@@ -4,9 +4,8 @@
  */
 
 import { ApiResponse } from '@/lib/types/platform';
+import { getApiEndpoint } from '@/lib/config';
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
  * Activity Log Entry
@@ -84,7 +83,7 @@ export class ActivityLogService {
     try {
       const headers = await this.getAuthHeaders();
 
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const response = await fetch(`${config.apiUrl}${endpoint}`, {
         ...options,
         headers: {
           ...headers,

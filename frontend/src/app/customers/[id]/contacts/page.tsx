@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { config } from '@/lib/config';
 import { Table, Button, Modal, Form, Input, Checkbox, message, Space, Card } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useParams, useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Contact {
   id: string;
@@ -43,7 +42,7 @@ export default function CustomerContactsPage() {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/customers/${customerId}/contacts`, {
+      const response = await fetch(`${config.apiUrl}/api/customers/${customerId}/contacts`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -81,8 +80,8 @@ export default function CustomerContactsPage() {
       }
 
       const url = editingContact
-        ? `${API_URL}/api/customers/${customerId}/contacts/${editingContact.id}`
-        : `${API_URL}/api/customers/${customerId}/contacts`;
+        ? `${config.apiUrl}/api/customers/${customerId}/contacts/${editingContact.id}`
+        : `${config.apiUrl}/api/customers/${customerId}/contacts`;
 
       const method = editingContact ? 'PUT' : 'POST';
 
@@ -130,7 +129,7 @@ export default function CustomerContactsPage() {
           }
 
           const response = await fetch(
-            `${API_URL}/api/customers/${customerId}/contacts/${contactId}`,
+            `${config.apiUrl}/api/customers/${customerId}/contacts/${contactId}`,
             {
               method: 'DELETE',
               headers: {

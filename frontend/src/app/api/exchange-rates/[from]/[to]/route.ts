@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getApiEndpoint } from '@/lib/config';
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +20,7 @@ export async function GET(
     }
 
     // Fetch exchange rate from backend
-    const response = await fetch(`http://localhost:8000/api/exchange-rates/${from}/${to}`, {
+    const response = await fetch(getApiEndpoint(`/api/exchange-rates/${from}/${to}`), {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',

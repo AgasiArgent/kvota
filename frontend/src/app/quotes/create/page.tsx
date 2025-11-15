@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
 import {
   Form,
@@ -79,7 +80,6 @@ import {
   type SupplierCountry,
 } from '@/lib/api/supplier-countries-service';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
@@ -238,7 +238,7 @@ export default function CreateQuotePage() {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/customers/${customerId}/contacts`, {
+      const response = await fetch(`${config.apiUrl}/api/customers/${customerId}/contacts`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

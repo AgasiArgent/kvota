@@ -8,8 +8,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiEndpoint } from '@/lib/config';
 
 export interface SupplierCountry {
   code: string;
@@ -35,7 +34,7 @@ export async function getSupplierCountries(): Promise<SupplierCountry[]> {
 
   if (!session) throw new Error('Not authenticated');
 
-  const response = await fetch(`${API_URL}/api/supplier-countries`, {
+  const response = await fetch(`${config.apiUrl}/api/supplier-countries`, {
     headers: {
       Authorization: `Bearer ${session.access_token}`,
       'Content-Type': 'application/json',
@@ -63,7 +62,7 @@ export async function getSupplierCountry(code: string): Promise<SupplierCountry>
 
   if (!session) throw new Error('Not authenticated');
 
-  const response = await fetch(`${API_URL}/api/supplier-countries/${code}`, {
+  const response = await fetch(`${config.apiUrl}/api/supplier-countries/${code}`, {
     headers: {
       Authorization: `Bearer ${session.access_token}`,
       'Content-Type': 'application/json',

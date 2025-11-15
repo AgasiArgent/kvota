@@ -4,9 +4,8 @@
  */
 
 import { ApiResponse } from '@/lib/types/platform';
+import { getApiEndpoint } from '@/lib/config';
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
  * Product from uploaded file
@@ -216,7 +215,7 @@ export class QuotesCalcService {
     try {
       const headers = await this.getAuthHeaders();
 
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const response = await fetch(`${config.apiUrl}${endpoint}`, {
         ...options,
         headers: {
           ...headers,
@@ -269,7 +268,7 @@ export class QuotesCalcService {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${API_URL}/api/quotes-calc/upload-products`, {
+      const response = await fetch(`${config.apiUrl}/api/quotes-calc/upload-products`, {
         method: 'POST',
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),

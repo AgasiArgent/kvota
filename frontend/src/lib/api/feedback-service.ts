@@ -4,8 +4,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiEndpoint } from '@/lib/config';
 
 export interface Feedback {
   id: string;
@@ -54,7 +53,7 @@ export const FeedbackService = {
       throw new Error('Not authenticated');
     }
 
-    const response = await fetch(`${API_URL}/api/feedback/`, {
+    const response = await fetch(`${config.apiUrl}/api/feedback/`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -97,7 +96,7 @@ export const FeedbackService = {
       params.append('status_filter', status);
     }
 
-    const response = await fetch(`${API_URL}/api/feedback/?${params.toString()}`, {
+    const response = await fetch(`${config.apiUrl}/api/feedback/?${params.toString()}`, {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',
@@ -125,7 +124,7 @@ export const FeedbackService = {
       throw new Error('Not authenticated');
     }
 
-    const response = await fetch(`${API_URL}/api/feedback/${feedbackId}/resolve`, {
+    const response = await fetch(`${config.apiUrl}/api/feedback/${feedbackId}/resolve`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -154,7 +153,7 @@ export const FeedbackService = {
       throw new Error('Not authenticated');
     }
 
-    const response = await fetch(`${API_URL}/api/feedback/stats`, {
+    const response = await fetch(`${config.apiUrl}/api/feedback/stats`, {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',

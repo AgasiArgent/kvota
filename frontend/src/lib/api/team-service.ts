@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { getApiEndpoint, config } from '@/lib/config';
 
 /**
  * Team Management API Service
@@ -77,7 +78,7 @@ async function getAuthHeaders() {
 }
 
 function getApiUrl() {
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  return config.apiUrl;
 }
 
 // ============================================================================
