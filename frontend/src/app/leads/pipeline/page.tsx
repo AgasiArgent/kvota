@@ -133,9 +133,17 @@ interface PipelineColumnProps {
   stage: LeadStage;
   leads: LeadWithDetails[];
   onLeadClick: (leadId: string) => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-function DroppableColumn({ stage, leads, onLeadClick }: PipelineColumnProps) {
+function DroppableColumn({
+  stage,
+  leads,
+  onLeadClick,
+  collapsed,
+  onToggleCollapse,
+}: PipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
     data: { stage },
@@ -147,43 +155,58 @@ function DroppableColumn({ stage, leads, onLeadClick }: PipelineColumnProps) {
     <div
       ref={setNodeRef}
       style={{
-        minWidth: 300,
-        maxWidth: 320,
+        flex: collapsed ? '0 0 60px' : 1,
+        minWidth: collapsed ? 60 : 0,
         backgroundColor: isOver ? '#e6f7ff' : '#f5f5f5',
         borderRadius: 8,
-        padding: 16,
+        padding: collapsed ? 8 : 16,
         maxHeight: 'calc(100vh - 280px)',
         display: 'flex',
         flexDirection: 'column',
         border: isOver ? '2px dashed #1890ff' : 'none',
+        transition: 'all 0.3s ease',
       }}
     >
       {/* Column Header */}
-      <div style={{ marginBottom: 16 }}>
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
-          <Space>
+      <div
+        style={{ marginBottom: collapsed ? 0 : 16, cursor: 'pointer' }}
+        onClick={onToggleCollapse}
+      >
+        {collapsed ? (
+          <div style={{ writingMode: 'vertical-rl', textAlign: 'center' }}>
             <Tag color={stage.color} style={{ margin: 0, borderRadius: 4, fontWeight: 500 }}>
-              {stage.name}
+              {stage.name.slice(0, 3)}
             </Tag>
-            <Tag>{count}</Tag>
+            <div style={{ marginTop: 8, fontSize: '12px' }}>{count}</div>
+          </div>
+        ) : (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Space>
+              <Tag color={stage.color} style={{ margin: 0, borderRadius: 4, fontWeight: 500 }}>
+                {stage.name}
+              </Tag>
+              <Tag>{count}</Tag>
+            </Space>
           </Space>
-        </Space>
+        )}
       </div>
 
       {/* Leads List */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-        {leads.length === 0 ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Нет лидов"
-            style={{ marginTop: 40 }}
-          />
-        ) : (
-          leads.map((lead) => (
-            <DraggableLeadCard key={lead.id} lead={lead} onLeadClick={onLeadClick} />
-          ))
-        )}
-      </div>
+      {!collapsed && (
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {leads.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Нет лидов"
+              style={{ marginTop: 40 }}
+            />
+          ) : (
+            leads.map((lead) => (
+              <DraggableLeadCard key={lead.id} lead={lead} onLeadClick={onLeadClick} />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -198,6 +221,7 @@ export default function LeadsPipelinePage() {
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [assignedFilter, setAssignedFilter] = useState<string>('');
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchStages();
@@ -258,6 +282,18 @@ export default function LeadsPipelinePage() {
 
   const handleLeadClick = (leadId: string) => {
     router.push(`/leads/${leadId}`);
+  };
+
+  const toggleColumnCollapse = (stageId: string) => {
+    setCollapsedColumns((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(stageId)) {
+        newSet.delete(stageId);
+      } else {
+        newSet.add(stageId);
+      }
+      return newSet;
+    });
   };
 
   // Group leads by stage
@@ -338,6 +374,8 @@ export default function LeadsPipelinePage() {
                   stage={stage}
                   leads={leadsByStage[stage.id] || []}
                   onLeadClick={handleLeadClick}
+                  collapsed={collapsedColumns.has(stage.id)}
+                  onToggleCollapse={() => toggleColumnCollapse(stage.id)}
                 />
               ))}
             </div>
