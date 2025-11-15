@@ -14,6 +14,8 @@ import {
   Select,
   Input,
   Spin,
+  Row,
+  Col,
 } from 'antd';
 import {
   PlusOutlined,
@@ -25,11 +27,7 @@ import {
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
-import {
-  listLeads,
-  changeLeadStage,
-  type LeadWithDetails,
-} from '@/lib/api/lead-service';
+import { listLeads, changeLeadStage, type LeadWithDetails } from '@/lib/api/lead-service';
 import { listLeadStages, type LeadStage } from '@/lib/api/lead-stage-service';
 
 const { Title, Text } = Typography;
@@ -67,9 +65,7 @@ function LeadCard({ lead, onLeadClick, onStageChange, stages }: LeadCardProps) {
       </div>
 
       {/* Segment */}
-      {lead.segment && (
-        <Tag style={{ marginBottom: 8, fontSize: '11px' }}>{lead.segment}</Tag>
-      )}
+      {lead.segment && <Tag style={{ marginBottom: 8, fontSize: '11px' }}>{lead.segment}</Tag>}
 
       {/* Primary Contact */}
       {primaryContact && (

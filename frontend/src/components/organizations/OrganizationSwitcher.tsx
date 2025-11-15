@@ -30,6 +30,8 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
     try {
       const result = await organizationService.listOrganizations();
 
+      console.log('Organization fetch result:', result);
+
       if (result.success && result.data) {
         setOrganizations(result.data);
 
@@ -39,6 +41,8 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
         if (result.data.length > 0) {
           setCurrentOrg(result.data[0]);
         }
+      } else {
+        console.error('Failed to fetch organizations:', result.error);
       }
     } catch (error: any) {
       console.error('Error fetching organizations:', error);

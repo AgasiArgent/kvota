@@ -199,7 +199,7 @@ async def list_leads(
 
         # Build query
         query = supabase.table("leads").select(
-            "*,lead_stages(name,color),users:assigned_to(email)",
+            "*,lead_stages(name,color)",
             count="exact"
         )
         query = query.eq("organization_id", str(user.current_organization_id))
@@ -211,9 +211,9 @@ async def list_leads(
         # Apply filters
         if search:
             query = query.or_(
-                f"company_name.ilike.%{search}%,"
-                f"email.ilike.%{search}%,"
-                f"inn.ilike.%{search}%"
+                f"company_name.ilike.*{search}*,"
+                f"email.ilike.*{search}*,"
+                f"inn.ilike.*{search}*"
             )
 
         if stage_id:
@@ -221,6 +221,7 @@ async def list_leads(
 
         if assigned_to:
             if assigned_to == "unassigned":
+                # Filter for NULL assigned_to
                 query = query.is_("assigned_to", "null")
             else:
                 query = query.eq("assigned_to", assigned_to)
@@ -257,7 +258,7 @@ async def list_leads(
             lead_dict = dict(lead)
             lead_dict["stage_name"] = lead.get("lead_stages", {}).get("name") if lead.get("lead_stages") else None
             lead_dict["stage_color"] = lead.get("lead_stages", {}).get("color") if lead.get("lead_stages") else None
-            lead_dict["assigned_to_name"] = lead.get("users", {}).get("email") if lead.get("users") else None
+            lead_dict["assigned_to_name"] = None  # TODO: Fetch user names separately if needed
             lead_dict["contacts"] = contacts_map.get(lead["id"], [])
             leads_with_details.append(lead_dict)
 
@@ -291,7 +292,7 @@ async def get_lead(
         supabase = get_supabase_client()
 
         result = supabase.table("leads").select(
-            "*,lead_stages(name,color),users:assigned_to(email)"
+            "*,lead_stages(name,color)"
         )\
             .eq("id", lead_id)\
             .eq("organization_id", str(user.current_organization_id))\
@@ -314,7 +315,7 @@ async def get_lead(
         lead_dict = dict(lead)
         lead_dict["stage_name"] = lead.get("lead_stages", {}).get("name") if lead.get("lead_stages") else None
         lead_dict["stage_color"] = lead.get("lead_stages", {}).get("color") if lead.get("lead_stages") else None
-        lead_dict["assigned_to_name"] = lead.get("users", {}).get("email") if lead.get("users") else None
+        lead_dict["assigned_to_name"] = None  # TODO: Fetch user name
         lead_dict["contacts"] = contacts_result.data or []
 
         return lead_dict
@@ -370,7 +371,7 @@ async def create_lead(
             "segment": lead_data.segment,
             "notes": lead_data.notes,
             "stage_id": stage_id,
-            "assigned_to": lead_data.assigned_to or str(user.id)  # Assign to creator by default
+            "assigned_to": lead_data.assigned_to  # None = unassigned
         }
 
         result = supabase.table("leads").insert(lead_insert).execute()
@@ -402,9 +403,9 @@ async def create_lead(
             user_id=str(user.id),
             organization_id=str(user.current_organization_id),
             action="create",
-            resource_type="lead",
-            resource_id=lead["id"],
-            details={"company_name": lead_data.company_name}
+            entity_type="lead",
+            entity_id=lead["id"],
+            metadata={"company_name": lead_data.company_name}
         )
 
         return lead
