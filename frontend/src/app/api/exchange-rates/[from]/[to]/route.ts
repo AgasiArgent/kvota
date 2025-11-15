@@ -3,9 +3,12 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { from: string; to: string } }
+  { params }: { params: Promise<{ from: string; to: string }> }
 ) {
   try {
+    // In Next.js 15, params is now a Promise
+    const { from, to } = await params;
+
     const supabase = await createClient();
     const {
       data: { session },
@@ -16,15 +19,12 @@ export async function GET(
     }
 
     // Fetch exchange rate from backend
-    const response = await fetch(
-      `http://localhost:8000/api/exchange-rates/${params.from}/${params.to}`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const response = await fetch(`http://localhost:8000/api/exchange-rates/${from}/${to}`, {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
     if (!response.ok) {
       const error = await response.text();
