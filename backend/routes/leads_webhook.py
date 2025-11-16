@@ -49,6 +49,9 @@ class LeadWebhookPayload(BaseModel):
     phones: Optional[str] = None  # Comma-separated: "88313421843, 88313442001"
     primary_phone: Optional[str] = None
     segment: Optional[str] = None  # Industry/segment
+    region: Optional[str] = None  # Регион
+    city: Optional[str] = None  # Населенный пункт
+    revenue: Optional[int] = None  # Выручка
 
     # Notes
     notes: Optional[str] = None
@@ -259,6 +262,9 @@ async def receive_lead_from_webhook(
         "phones": phones_array,
         "primary_phone": primary_phone,
         "segment": payload.segment,
+        "region": payload.region,
+        "city": payload.city,
+        "revenue": payload.revenue,
         "notes": payload.notes,
         "stage_id": stage["id"],
         "assigned_to": None  # Unassigned initially - managers can grab
