@@ -287,6 +287,7 @@ async def receive_lead_from_webhook(
         "revenue": payload.revenue,
         "notes": payload.notes,
         "stage_id": stage["id"],
+        "meeting_scheduled_at": payload.meeting_scheduled_at.isoformat() if payload.meeting_scheduled_at else None,
         "assigned_to": None  # Unassigned initially - managers can grab
     }
 

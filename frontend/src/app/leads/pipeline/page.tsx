@@ -24,6 +24,7 @@ import {
   MailOutlined,
   TeamOutlined,
   SearchOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import {
@@ -119,6 +120,19 @@ function DraggableLeadCard({ lead, onLeadClick }: LeadCardProps) {
           <div style={{ marginTop: 8, fontSize: '11px', color: '#888' }}>
             <Avatar size={16} icon={<UserOutlined />} style={{ marginRight: 4 }} />
             {lead.assigned_to_name.split('@')[0]}
+          </div>
+        )}
+
+        {/* Meeting Date */}
+        {(lead as any).meeting_scheduled_at && (
+          <div style={{ marginTop: 8, fontSize: '11px', color: '#ff7a00', fontWeight: 500 }}>
+            <ClockCircleOutlined style={{ marginRight: 4 }} />
+            {new Date((lead as any).meeting_scheduled_at).toLocaleString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </div>
         )}
       </Card>
