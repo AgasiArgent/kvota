@@ -120,6 +120,17 @@ async def get_organization_id(payload: LeadWebhookPayload) -> str:
     return result.data[0]["id"]
 
 
+def map_result_to_stage(result: str) -> str:
+    """Map email result to stage name"""
+    mapping = {
+        "Онлайн-встреча": "Звонок назначен",
+        "Звонок специалиста (не срочно)": "Звонок специалиста (не срочно)",
+        "Звонок специалиста + отправка КП (не срочно)": "Отправить письмо",
+        "Отправка КП": "Отправить письмо",
+    }
+    return mapping.get(result, "Отправить письмо")
+
+
 async def get_or_create_stage(organization_id: str, stage_name: str) -> dict:
     """
     Find or create lead stage by name
@@ -237,7 +248,9 @@ async def receive_lead_from_webhook(
     # STEP 3: Get or create stage
     # ========================================================================
 
-    stage_name = payload.result if payload.result else "Новый"
+    # Map result to stage name
+    result_text = payload.result if payload.result else "Отправка КП"
+    stage_name = map_result_to_stage(result_text)
 
     try:
         stage = await get_or_create_stage(organization_id, stage_name)
