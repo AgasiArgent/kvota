@@ -126,7 +126,7 @@ export default function ExcelValidationPage() {
                 {
                   title: 'Отклонение',
                   width: 100,
-                  render: (_: unknown, record: FieldComparison) =>
+                  render: (_: unknown, record: any) =>
                     formatPercent(record.our_value, record.excel_value),
                 },
                 {
