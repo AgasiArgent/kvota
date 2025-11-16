@@ -85,9 +85,11 @@ export async function getSupplierCountry(code: string): Promise<SupplierCountry>
  * @param countries - Array of supplier countries from API
  * @returns Array of {label, value} objects
  */
-export function formatSupplierCountryOptions(countries: SupplierCountry[]): Array<{label: string; value: string}> {
-  return countries.map(country => ({
+export function formatSupplierCountryOptions(
+  countries: SupplierCountry[]
+): Array<{ label: string; value: string }> {
+  return countries.map((country) => ({
     label: country.name_ru,
-    value: country.name_ru  // Use Russian name as value to match existing data
+    value: country.name_ru, // Use Russian name as value to match existing data
   }));
 }
