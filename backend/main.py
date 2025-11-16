@@ -186,7 +186,7 @@ app.add_middleware(
 # Allow Railway and Vercel domains
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "*.railway.app", "*.vercel.app", "*.render.com"]  # Railway, Vercel, and Render
+    allowed_hosts=["localhost", "127.0.0.1", "*.railway.app", "*.vercel.app", "*.render.com", "api.kvotaflow.ru", "kvotaflow.ru"]  # Railway, Vercel, Render, and custom domains
 )
 
 # ============================================================================
