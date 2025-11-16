@@ -56,8 +56,11 @@ class LeadWebhookPayload(BaseModel):
     # Notes
     notes: Optional[str] = None
 
-    # Contact person (ЛПР)
-    contact: Optional[ContactData] = None
+    # Contact person (ЛПР) - flat fields from n8n
+    contact_full_name: Optional[str] = None
+    contact_position: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
 
     # Activity/Meeting
     meeting_scheduled_at: Optional[datetime] = None
@@ -297,14 +300,14 @@ async def receive_lead_from_webhook(
     # STEP 6: Create contact (if provided)
     # ========================================================================
 
-    if payload.contact:
+    if payload.contact_full_name:
         contact_data = {
             "lead_id": lead["id"],
             "organization_id": organization_id,
-            "full_name": payload.contact.full_name,
-            "position": payload.contact.position,
-            "phone": payload.contact.phone,
-            "email": payload.contact.email,
+            "full_name": payload.contact_full_name,
+            "position": payload.contact_position,
+            "phone": payload.contact_phone,
+            "email": payload.contact_email,
             "is_primary": True
         }
 
@@ -365,7 +368,7 @@ async def receive_lead_from_webhook(
     return {
         "success": True,
         "lead_id": lead["id"],
-        "contact_created": payload.contact is not None,
+        "contact_created": payload.contact_full_name is not None,
         "activity_created": activity_id is not None,
         "activity_id": activity_id,
         "stage": stage["name"],
