@@ -103,8 +103,12 @@ async def get_organization_id(payload: LeadWebhookPayload) -> str:
         if result.data and len(result.data) > 0:
             return payload.organization_id
 
-    # Otherwise, get first organization (for MVP)
-    # TODO: Implement proper organization mapping
+    # Otherwise, use test organization (for MVP)
+    # TODO: Implement proper organization mapping by email domain
+    # Hardcode to "ООО Ромашка"11 for testing
+    return "77144c58-b396-4ec7-b51a-2a822ec6d889"
+
+    # Fallback to first organization
     result = supabase.table("organizations").select("id").limit(1).execute()
 
     if not result.data or len(result.data) == 0:
