@@ -279,9 +279,7 @@ export async function reopenActivity(
 /**
  * Get upcoming activities for current user
  */
-export async function getUpcomingActivities(
-  days: number = 7
-): Promise<ActivityWithDetails[]> {
+export async function getUpcomingActivities(days: number = 7): Promise<ActivityWithDetails[]> {
   const token = await getAuthToken();
 
   const response = await fetch(`${API_URL}/api/activities/upcoming/my?days=${days}`, {

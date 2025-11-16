@@ -47,7 +47,8 @@ export default function CalculationSettingsPage() {
         // Use annual rate directly if available, otherwise calculate from daily
         const annualRatePercent = response.data.rate_loan_interest_annual
           ? response.data.rate_loan_interest_annual * 100
-          : calculationSettingsService.dailyToAnnualRate(response.data.rate_loan_interest_daily) * 100;
+          : calculationSettingsService.dailyToAnnualRate(response.data.rate_loan_interest_daily) *
+            100;
 
         setAnnualRate(annualRatePercent);
 
@@ -73,7 +74,7 @@ export default function CalculationSettingsPage() {
     const settingsData: CalculationSettingsUpdate = {
       rate_forex_risk: values.rate_forex_risk,
       rate_fin_comm: values.rate_fin_comm,
-      rate_loan_interest_annual: values.annual_interest_rate / 100,  // Convert % to decimal
+      rate_loan_interest_annual: values.annual_interest_rate / 100, // Convert % to decimal
       customs_logistics_pmt_due: values.customs_logistics_pmt_due,
     };
 
@@ -126,7 +127,7 @@ export default function CalculationSettingsPage() {
       const defaultSettings: CalculationSettingsUpdate = {
         rate_forex_risk: 3.0,
         rate_fin_comm: 2.0,
-        rate_loan_interest_annual: 0.25,  // 25% as decimal
+        rate_loan_interest_annual: 0.25, // 25% as decimal
         customs_logistics_pmt_due: 10,
       };
 
