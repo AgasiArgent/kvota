@@ -83,6 +83,10 @@ class Lead(LeadBase):
     id: str
     organization_id: str
     external_id: Optional[str] = None
+    region: Optional[str] = None
+    city: Optional[str] = None
+    revenue: Optional[int] = None
+    meeting_scheduled_at: Optional[str] = None
     created_at: str
     updated_at: str
 
