@@ -60,7 +60,7 @@ async function getAuthToken(): Promise<string> {
 export async function listLeadStages(): Promise<LeadStage[]> {
   const token = await getAuthToken();
 
-  const response = await fetch(`${API_URL}/api/lead-stages`, {
+  const response = await fetch(`${API_URL}/api/lead-stages/`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -102,7 +102,7 @@ export async function getLeadStage(stageId: string): Promise<LeadStage> {
 export async function createLeadStage(stageData: LeadStageCreate): Promise<LeadStage> {
   const token = await getAuthToken();
 
-  const response = await fetch(`${API_URL}/api/lead-stages`, {
+  const response = await fetch(`${API_URL}/api/lead-stages/`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
