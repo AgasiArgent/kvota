@@ -7,6 +7,7 @@ import type { MenuProps } from 'antd';
 import { useRouter } from 'next/navigation';
 import { organizationService } from '@/lib/api/organization-service';
 import { UserOrganization } from '@/lib/types/organization';
+import { UserService } from '@/lib/api/user-service';
 
 const { Text } = Typography;
 
@@ -28,21 +29,33 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
   const fetchOrganizations = async () => {
     setLoading(true);
     try {
-      const result = await organizationService.listOrganizations();
+      const [orgsResult, profileResult] = await Promise.all([
+        organizationService.listOrganizations(),
+        UserService.getProfile(),
+      ]);
 
-      console.log('Organization fetch result:', result);
+      console.log('Organization fetch result:', orgsResult);
 
-      if (result.success && result.data) {
-        setOrganizations(result.data);
+      if (orgsResult.success && orgsResult.data) {
+        setOrganizations(orgsResult.data);
 
-        // Try to get current organization from user profile
-        // For now, we'll use the first organization as current
-        // TODO: Get from user profile's last_active_organization_id
-        if (result.data.length > 0) {
-          setCurrentOrg(result.data[0]);
+        // Get current organization from user profile's last_active_organization_id
+        if (profileResult.success && profileResult.data?.last_active_organization_id) {
+          const activeOrg = orgsResult.data.find(
+            (org) => org.organization_id === profileResult.data.last_active_organization_id
+          );
+          if (activeOrg) {
+            setCurrentOrg(activeOrg);
+          } else if (orgsResult.data.length > 0) {
+            // Fallback to first org if last_active not found
+            setCurrentOrg(orgsResult.data[0]);
+          }
+        } else if (orgsResult.data.length > 0) {
+          // Fallback to first org if no profile data
+          setCurrentOrg(orgsResult.data[0]);
         }
       } else {
-        console.error('Failed to fetch organizations:', result.error);
+        console.error('Failed to fetch organizations:', orgsResult.error);
       }
     } catch (error: any) {
       console.error('Error fetching organizations:', error);
