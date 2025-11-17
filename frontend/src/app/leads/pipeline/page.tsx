@@ -80,13 +80,26 @@ function DraggableLeadCard({ lead, onLeadClick }: LeadCardProps) {
       >
         {/* Company Name */}
         <div style={{ marginBottom: 8 }}>
-          <Text strong style={{ fontSize: '14px' }}>
+          <Text strong style={{ fontSize: '14px', wordBreak: 'break-word', lineHeight: '1.3' }}>
             {lead.company_name}
           </Text>
         </div>
 
         {/* Segment */}
-        {lead.segment && <Tag style={{ marginBottom: 8, fontSize: '11px' }}>{lead.segment}</Tag>}
+        {lead.segment && (
+          <Tag
+            style={{
+              marginBottom: 8,
+              fontSize: '11px',
+              whiteSpace: 'normal',
+              height: 'auto',
+              lineHeight: '1.4',
+              padding: '2px 8px',
+            }}
+          >
+            {lead.segment}
+          </Tag>
+        )}
 
         {/* Primary Contact */}
         {primaryContact && (
