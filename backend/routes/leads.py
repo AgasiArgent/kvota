@@ -953,8 +953,7 @@ async def create_calendar_meeting(
 async def update_calendar_event_id(
     lead_id: str,
     event_data: CalendarEventUpdate,
-    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
-    user: User = Depends(get_current_user)
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret")
 ):
     """
     Callback from n8n to store Google Calendar event ID
