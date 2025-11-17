@@ -54,6 +54,78 @@ if (user.role.toLowerCase() === 'admin') {
 
 ---
 
+## 🔧 Configuration & Environment
+
+### Hardcoded Localhost URLs in API Services
+
+**Quick Fix:** Always use `process.env.NEXT_PUBLIC_API_URL`, never hardcode localhost
+
+#### ❌ Bug Pattern
+```typescript
+// Hardcoded localhost - breaks in production!
+const response = await fetch('http://localhost:8000/api/feedback/', {
+  headers: { Authorization: `Bearer ${token}` }
+});
+```
+
+#### ✅ Correct Pattern
+```typescript
+// Use environment variable
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+const response = await fetch(`${API_URL}/api/feedback/`, {
+  headers: { Authorization: `Bearer ${token}` }
+});
+```
+
+**Why It Matters:** Hardcoded localhost URLs work in development but completely break in production. When deploying to Vercel with Railway/Render backend, the API URL changes, but hardcoded URLs keep pointing to localhost. On HTTPS pages, this triggers browser mixed content blocking - the browser completely blocks HTTP requests, resulting in empty pages with no error messages visible to users.
+
+**Real Bug:** BUG-042 (Session 27, 2025-11-17, FIXED) - Pipeline page failed to load on production Vercel deployment. Despite `NEXT_PUBLIC_API_URL` environment variable being correctly set to `https://kvota-production.up.railway.app`, hardcoded `http://localhost:8000` URLs in 5 service files bypassed the env var completely.
+
+**Impact:**
+- **Symptoms:** Empty pipeline page, no data loading, mixed content errors in console
+- **Files affected:** 5 service files with hardcoded URLs
+  - `feedback-service.ts` (4 URLs)
+  - `excel-validation-service.ts` (1 URL)
+  - `customers/[id]/contacts/page.tsx` (3 URLs)
+  - `quotes/create/page.tsx` (1 URL)
+- **User experience:** Page appears broken with no clear error message
+- **Browser behavior:** Silently blocks HTTP requests from HTTPS page
+
+**Prevention:**
+1. **Always define API_URL at top of service files:**
+   ```typescript
+   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+   ```
+
+2. **Never hardcode domain names in fetch calls:**
+   ```typescript
+   // ❌ BAD
+   fetch('http://localhost:8000/api/...')
+   fetch('https://api.myapp.com/...')
+
+   // ✅ GOOD
+   fetch(`${API_URL}/api/...`)
+   ```
+
+3. **Pre-deployment checklist:**
+   - [ ] Search codebase: `grep -r "localhost:" frontend/src/`
+   - [ ] Search for hardcoded domains: `grep -r "http://" frontend/src/ | grep -v API_URL`
+   - [ ] Verify all service files have `const API_URL = process.env.NEXT_PUBLIC_API_URL`
+   - [ ] Test with production env var: `NEXT_PUBLIC_API_URL=https://staging.api.com npm run dev`
+
+4. **Environment variable setup:**
+   - **Local:** `.env.local` → `NEXT_PUBLIC_API_URL=http://localhost:8000`
+   - **Vercel:** Environment Variables → `NEXT_PUBLIC_API_URL=https://api.railway.app` (HTTPS!)
+   - **Important:** Use HTTPS for production backends, not HTTP
+
+**Related Gotchas:**
+- Missing trailing slashes causing 307 redirects (`/api/lead-stages` vs `/api/lead-stages/`)
+- CORS issues when API URL doesn't match allowed origins
+- Environment variables not set for preview deployments
+
+---
+
 ## 🟡 Forms & Validation
 
 ### No Form Validation Feedback
@@ -322,6 +394,6 @@ see https://u.ant.design/v5-for-19 for compatible.
 
 ---
 
-**Last Updated:** 2025-10-29 21:00 UTC
-**Total Frontend Gotchas:** 7 (1 Critical, 1 High, 1 Ant Design, 3 ag-Grid, 2 TypeScript)
+**Last Updated:** 2025-11-17 11:40 UTC
+**Total Frontend Gotchas:** 8 (1 Critical, 1 Configuration, 1 Forms, 1 Ant Design, 3 ag-Grid, 2 TypeScript)
 **Maintenance:** Update when discovering new frontend patterns or React/ag-Grid version updates
