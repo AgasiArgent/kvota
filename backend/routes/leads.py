@@ -6,7 +6,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, HTTPException, Depends, Query, Header, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from supabase import create_client, Client
@@ -803,4 +803,208 @@ async def qualify_lead_to_customer(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to qualify lead: {str(e)}"
+        )
+
+
+# ============================================================================
+# GOOGLE CALENDAR INTEGRATION
+# ============================================================================
+
+class CreateMeetingRequest(BaseModel):
+    """Request to create Google Calendar meeting"""
+    meeting_title: Optional[str] = None
+    meeting_time: datetime
+    duration_minutes: int = 30
+    attendee_email: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CalendarEventUpdate(BaseModel):
+    """Callback from n8n with Google Calendar event details"""
+    google_event_id: str
+    google_calendar_link: str
+
+
+@router.post("/{lead_id}/create-meeting", status_code=status.HTTP_200_OK)
+async def create_calendar_meeting(
+    lead_id: str,
+    request: CreateMeetingRequest,
+    user: User = Depends(get_current_user)
+):
+    """
+    Trigger n8n workflow to create Google Calendar meeting for lead
+
+    Flow:
+    1. Validate lead exists and user has access
+    2. Send webhook to n8n with lead + meeting data
+    3. n8n creates Google Calendar event
+    4. n8n calls back to /calendar-event endpoint with event_id
+    5. Return success
+    """
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    if not user.current_organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User not associated with organization"
+        )
+
+    try:
+        # Fetch lead with contact info
+        lead_result = supabase.table("leads")\
+            .select("*, lead_contacts(*)")\
+            .eq("id", lead_id)\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+        if not lead_result.data or len(lead_result.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found"
+            )
+
+        lead = lead_result.data[0]
+
+        # Prepare payload for n8n
+        primary_contact = None
+        if lead.get("lead_contacts"):
+            primary_contact = next(
+                (c for c in lead["lead_contacts"] if c.get("is_primary")),
+                lead["lead_contacts"][0] if lead["lead_contacts"] else None
+            )
+
+        n8n_payload = {
+            "lead_id": lead_id,
+            "company_name": lead["company_name"],
+            "meeting_title": request.meeting_title or f"Встреча с {lead['company_name']}",
+            "meeting_time": request.meeting_time.isoformat(),
+            "duration_minutes": request.duration_minutes,
+            "attendee_email": request.attendee_email or (primary_contact.get("email") if primary_contact else None),
+            "user_email": user.email,  # Calendar owner
+            "notes": request.notes or lead.get("notes", ""),
+            "contact_name": primary_contact.get("full_name") if primary_contact else None,
+            "contact_phone": primary_contact.get("phone") if primary_contact else None
+        }
+
+        # Get n8n webhook URL from environment
+        N8N_CALENDAR_WEBHOOK = os.getenv("N8N_CALENDAR_WEBHOOK_URL")
+
+        if not N8N_CALENDAR_WEBHOOK:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="N8N webhook URL not configured. Set N8N_CALENDAR_WEBHOOK_URL environment variable."
+            )
+
+        # Send webhook to n8n (async fire-and-forget)
+        # n8n will call back to /calendar-event endpoint when done
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                response = await client.post(
+                    N8N_CALENDAR_WEBHOOK,
+                    json=n8n_payload
+                )
+
+                if response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"n8n webhook failed: {response.status_code}"
+                    )
+
+            except httpx.TimeoutException:
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail="n8n webhook timeout - calendar event may still be created"
+                )
+
+        # Log activity
+        await log_activity(
+            user_id=str(user.id),
+            organization_id=str(user.current_organization_id),
+            action="create_meeting",
+            resource_type="lead",
+            resource_id=lead_id,
+            details={
+                "meeting_time": request.meeting_time.isoformat(),
+                "duration": request.duration_minutes
+            }
+        )
+
+        return {
+            "success": True,
+            "message": "Calendar meeting creation initiated",
+            "lead_id": lead_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create meeting: {str(e)}"
+        )
+
+
+@router.put("/{lead_id}/calendar-event", status_code=status.HTTP_200_OK)
+async def update_calendar_event_id(
+    lead_id: str,
+    event_data: CalendarEventUpdate,
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
+    user: User = Depends(get_current_user)
+):
+    """
+    Callback from n8n to store Google Calendar event ID
+
+    Called by n8n after successfully creating calendar event.
+    Stores the event_id and meet link for future reference.
+
+    Security: Validates webhook secret from X-Webhook-Secret header
+    """
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    # Verify webhook secret
+    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "your-secret-key-change-in-production")
+
+    if x_webhook_secret != WEBHOOK_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid webhook secret"
+        )
+
+    try:
+        # Update lead with Google Calendar event details
+        result = supabase.table("leads")\
+            .update({
+                "google_event_id": event_data.google_event_id,
+                "google_calendar_link": event_data.google_calendar_link
+            })\
+            .eq("id", lead_id)\
+            .execute()
+
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found"
+            )
+
+        return {
+            "success": True,
+            "lead_id": lead_id,
+            "google_event_id": event_data.google_event_id,
+            "message": "Calendar event linked successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update calendar event: {str(e)}"
         )

@@ -44,6 +44,9 @@ export interface LeadWithDetails extends Lead {
   stage_color?: string;
   assigned_to_name?: string;
   contacts: LeadContact[];
+  google_event_id?: string;
+  google_calendar_link?: string;
+  meeting_scheduled_at?: string;
 }
 
 export interface LeadCreateContact {
