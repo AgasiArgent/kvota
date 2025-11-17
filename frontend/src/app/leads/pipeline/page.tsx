@@ -253,21 +253,36 @@ export default function LeadsPipelinePage() {
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchStages();
+    // Fetch stages and initial leads in parallel on mount
+    const init = async () => {
+      setLoading(true);
+      try {
+        const [stagesData, leadsResponse] = await Promise.all([
+          listLeadStages(),
+          listLeads({
+            page: 1,
+            limit: 100,
+          }),
+        ]);
+
+        setStages(stagesData);
+        setLeads(leadsResponse.data || []);
+      } catch (error: any) {
+        message.error(`Ошибка загрузки: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    init();
   }, []);
 
   useEffect(() => {
-    fetchLeads();
-  }, [searchTerm, assignedFilter]);
-
-  const fetchStages = async () => {
-    try {
-      const stagesData = await listLeadStages();
-      setStages(stagesData);
-    } catch (error: any) {
-      message.error(`Ошибка загрузки этапов: ${error.message}`);
+    // Re-fetch leads when filters change (stages already loaded)
+    if (stages.length > 0) {
+      fetchLeads();
     }
-  };
+  }, [searchTerm, assignedFilter]);
 
   const fetchLeads = async () => {
     setLoading(true);

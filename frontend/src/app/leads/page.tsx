@@ -59,23 +59,38 @@ export default function LeadsPage() {
   const [assignedFilter, setAssignedFilter] = useState<string>('');
   const [segmentFilter, setSegmentFilter] = useState<string>('');
 
-  // Load data on mount and when filters change
+  // Load data on mount - fetch stages and leads in parallel
   useEffect(() => {
-    fetchStages();
+    const init = async () => {
+      setLoading(true);
+      try {
+        const [stagesData, leadsResponse] = await Promise.all([
+          listLeadStages(),
+          listLeads({
+            page: currentPage,
+            limit: pageSize,
+          }),
+        ]);
+
+        setStages(stagesData);
+        setLeads(leadsResponse.data || []);
+        setTotalCount(leadsResponse.total || 0);
+      } catch (error: any) {
+        message.error(`Ошибка загрузки: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    init();
   }, []);
 
+  // Re-fetch leads when filters change (stages already loaded)
   useEffect(() => {
-    fetchLeads();
-  }, [currentPage, pageSize, searchTerm, stageFilter, assignedFilter, segmentFilter]);
-
-  const fetchStages = async () => {
-    try {
-      const stagesData = await listLeadStages();
-      setStages(stagesData);
-    } catch (error: any) {
-      message.error(`Ошибка загрузки этапов: ${error.message}`);
+    if (stages.length > 0) {
+      fetchLeads();
     }
-  };
+  }, [currentPage, pageSize, searchTerm, stageFilter, assignedFilter, segmentFilter]);
 
   const fetchLeads = async () => {
     setLoading(true);
