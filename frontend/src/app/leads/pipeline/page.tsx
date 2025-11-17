@@ -100,18 +100,20 @@ function DraggableLeadCard({ lead, onLeadClick }: LeadCardProps) {
         {/* Contact Info */}
         <Space direction="vertical" size={2} style={{ width: '100%', fontSize: '11px' }}>
           {lead.email && (
-            <Space size={4}>
-              <MailOutlined style={{ color: '#888' }} />
-              <Text style={{ fontSize: '11px' }} ellipsis>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+              <MailOutlined style={{ color: '#888', marginTop: '2px', flexShrink: 0 }} />
+              <Text style={{ fontSize: '11px', wordBreak: 'break-word', lineHeight: '1.4' }}>
                 {lead.email}
               </Text>
-            </Space>
+            </div>
           )}
           {lead.primary_phone && (
-            <Space size={4}>
-              <PhoneOutlined style={{ color: '#888' }} />
-              <Text style={{ fontSize: '11px' }}>{lead.primary_phone}</Text>
-            </Space>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+              <PhoneOutlined style={{ color: '#888', marginTop: '2px', flexShrink: 0 }} />
+              <Text style={{ fontSize: '11px', wordBreak: 'break-word', lineHeight: '1.4' }}>
+                {lead.primary_phone}
+              </Text>
+            </div>
           )}
         </Space>
 
