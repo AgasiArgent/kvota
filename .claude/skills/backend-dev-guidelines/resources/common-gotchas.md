@@ -77,6 +77,50 @@ if user.role.lower() == 'admin':
 
 ---
 
+## 🔧 Configuration & Environment
+
+### 10. Hardcoded Localhost URLs in API Clients
+
+**Quick Fix:** Always use environment variables for API URLs, never hardcode localhost
+
+#### ❌ Bug Pattern
+```python
+# Hardcoded localhost - breaks in production!
+response = requests.get('http://localhost:8000/api/quotes')
+```
+
+#### ✅ Correct Pattern
+```python
+# Use environment variable
+import os
+
+API_URL = os.getenv('API_URL', 'http://localhost:8000')
+response = requests.get(f'{API_URL}/api/quotes')
+```
+
+**Why It Matters:** Hardcoded localhost URLs work in development but fail in production. When deploying to Railway/Render/Vercel, the API URL changes, but hardcoded URLs continue pointing to localhost, causing "connection refused" errors or mixed content errors (HTTP from HTTPS pages).
+
+**Real Bug:** BUG-042 (Session 27, 2025-11-17, FIXED) - Pipeline page failed to load on production because code had hardcoded `http://localhost:8000` instead of using `NEXT_PUBLIC_API_URL` environment variable. Despite environment variable being set correctly to HTTPS, hardcoded URLs bypassed it, triggering browser mixed content blocking.
+
+**Impact:**
+- Frontend: 5 files with hardcoded URLs (feedback-service, excel-validation-service, customer contacts, quote creation)
+- Result: Pipeline page empty, no data loading, mixed content errors
+- Fix: Replaced all hardcoded URLs with `process.env.NEXT_PUBLIC_API_URL`
+
+**Prevention:**
+- Backend: Always use `os.getenv('API_URL')` or similar
+- Frontend: Always use `process.env.NEXT_PUBLIC_API_URL` or similar
+- Never hardcode `localhost`, `127.0.0.1`, or specific domain names
+- Use environment variables for ALL external service URLs (API, database, Redis, etc.)
+
+**Checklist:**
+- [ ] Search codebase for `localhost:` before deploying
+- [ ] Search for `http://` or `https://` followed by domain names
+- [ ] Verify all API clients use environment variables
+- [ ] Test with different `API_URL` values (localhost, staging, production)
+
+---
+
 ### 7. Missing RLS Policies on New Tables
 
 **Quick Fix:** Always enable RLS and create 4 policies (SELECT, INSERT, UPDATE, DELETE) for every new table
@@ -436,7 +480,7 @@ rate_forex = get_value(product, quote, "rate_forex")  # ✅ Correct precedence
 
 ---
 
-**Last Updated:** 2025-10-29 21:15 UTC
-**Total Backend Gotchas:** 9 (from original 18)
-**Categories:** Multi-Tenant Security (3), Data Access (2), Performance (1), Export (1), Calculation (2)
+**Last Updated:** 2025-11-17 11:40 UTC
+**Total Backend Gotchas:** 10 (from original 18)
+**Categories:** Multi-Tenant Security (3), Data Access (2), Performance (1), Export (1), Calculation (2), Configuration (1)
 **Maintenance:** Update when discovering new backend-specific patterns
