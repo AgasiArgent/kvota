@@ -7,7 +7,7 @@ import type { MenuProps } from 'antd';
 import { useRouter } from 'next/navigation';
 import { organizationService } from '@/lib/api/organization-service';
 import { UserOrganization } from '@/lib/types/organization';
-import { UserService } from '@/lib/api/user-service';
+import { userService } from '@/lib/api/user-service';
 
 const { Text } = Typography;
 
@@ -31,7 +31,7 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
     try {
       const [orgsResult, profileResult] = await Promise.all([
         organizationService.listOrganizations(),
-        UserService.getProfile(),
+        userService.getProfile(),
       ]);
 
       console.log('Organization fetch result:', orgsResult);
@@ -42,7 +42,7 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
         // Get current organization from user profile's last_active_organization_id
         if (profileResult.success && profileResult.data?.last_active_organization_id) {
           const activeOrg = orgsResult.data.find(
-            (org) => org.organization_id === profileResult.data.last_active_organization_id
+            (org) => org.organization_id === profileResult.data!.last_active_organization_id
           );
           if (activeOrg) {
             setCurrentOrg(activeOrg);
