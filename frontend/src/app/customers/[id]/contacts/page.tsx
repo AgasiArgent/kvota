@@ -7,6 +7,8 @@ import { useParams, useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
 import { createClient } from '@/lib/supabase/client';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 interface Contact {
   id: string;
   name: string;
@@ -41,7 +43,7 @@ export default function CustomerContactsPage() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/api/customers/${customerId}/contacts`, {
+      const response = await fetch(`${API_URL}/api/customers/${customerId}/contacts`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -79,8 +81,8 @@ export default function CustomerContactsPage() {
       }
 
       const url = editingContact
-        ? `http://localhost:8000/api/customers/${customerId}/contacts/${editingContact.id}`
-        : `http://localhost:8000/api/customers/${customerId}/contacts`;
+        ? `${API_URL}/api/customers/${customerId}/contacts/${editingContact.id}`
+        : `${API_URL}/api/customers/${customerId}/contacts`;
 
       const method = editingContact ? 'PUT' : 'POST';
 
@@ -128,7 +130,7 @@ export default function CustomerContactsPage() {
           }
 
           const response = await fetch(
-            `http://localhost:8000/api/customers/${customerId}/contacts/${contactId}`,
+            `${API_URL}/api/customers/${customerId}/contacts/${contactId}`,
             {
               method: 'DELETE',
               headers: {

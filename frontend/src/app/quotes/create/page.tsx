@@ -82,6 +82,8 @@ import {
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 // CSS for full row highlighting when selected via checkbox
 const agGridRowSelectionStyles = `
   .ag-theme-alpine .ag-row-selected {
@@ -237,7 +239,7 @@ export default function CreateQuotePage() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/api/customers/${customerId}/contacts`, {
+      const response = await fetch(`${API_URL}/api/customers/${customerId}/contacts`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
