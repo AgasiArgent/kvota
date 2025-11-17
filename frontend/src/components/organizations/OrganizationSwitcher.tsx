@@ -8,6 +8,11 @@ import { useRouter } from 'next/navigation';
 import { organizationService } from '@/lib/api/organization-service';
 import { UserOrganization } from '@/lib/types/organization';
 import { userService } from '@/lib/api/user-service';
+import {
+  getOrganizationCache,
+  setOrganizationCache,
+  updateCurrentOrgId,
+} from '@/lib/cache/organization-cache';
 
 const { Text } = Typography;
 
@@ -27,6 +32,27 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
   }, []);
 
   const fetchOrganizations = async () => {
+    // Try cache first
+    const cached = getOrganizationCache();
+    if (cached) {
+      console.log('📦 Using cached organizations (TTL: 5 min)');
+      setOrganizations(cached.organizations);
+
+      // Set current org from cache
+      const activeOrg = cached.organizations.find(
+        (org) => org.organization_id === cached.currentOrgId
+      );
+      if (activeOrg) {
+        setCurrentOrg(activeOrg);
+      } else if (cached.organizations.length > 0) {
+        setCurrentOrg(cached.organizations[0]);
+      }
+
+      return; // Skip API call
+    }
+
+    // Cache miss or expired - fetch from API
+    console.log('🌐 Fetching organizations from API...');
     setLoading(true);
     try {
       const [orgsResult, profileResult] = await Promise.all([
@@ -40,20 +66,25 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
         setOrganizations(orgsResult.data);
 
         // Get current organization from user profile's last_active_organization_id
+        let currentOrgId: string | null = null;
         if (profileResult.success && profileResult.data?.last_active_organization_id) {
-          const activeOrg = orgsResult.data.find(
-            (org) => org.organization_id === profileResult.data!.last_active_organization_id
-          );
+          currentOrgId = profileResult.data.last_active_organization_id;
+          const activeOrg = orgsResult.data.find((org) => org.organization_id === currentOrgId);
           if (activeOrg) {
             setCurrentOrg(activeOrg);
           } else if (orgsResult.data.length > 0) {
             // Fallback to first org if last_active not found
             setCurrentOrg(orgsResult.data[0]);
+            currentOrgId = orgsResult.data[0].organization_id;
           }
         } else if (orgsResult.data.length > 0) {
           // Fallback to first org if no profile data
           setCurrentOrg(orgsResult.data[0]);
+          currentOrgId = orgsResult.data[0].organization_id;
         }
+
+        // Cache the result
+        setOrganizationCache(orgsResult.data, currentOrgId);
       } else {
         console.error('Failed to fetch organizations:', orgsResult.error);
       }
@@ -79,6 +110,10 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
 
         if (newOrg) {
           setCurrentOrg(newOrg);
+
+          // Update cache with new current org
+          updateCurrentOrgId(organizationId);
+
           message.success(`Переключено на ${newOrg.organization_name}`);
 
           // Callback to parent (e.g., to refresh data)
