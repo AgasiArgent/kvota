@@ -12,6 +12,7 @@ export interface UserProfile {
   manager_name?: string;
   manager_phone?: string;
   manager_email?: string;
+  last_active_organization_id?: string;
 }
 
 export interface ApiResponse<T> {
