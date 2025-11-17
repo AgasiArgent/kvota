@@ -25,6 +25,8 @@ import {
   TeamOutlined,
   SearchOutlined,
   ClockCircleOutlined,
+  CalendarOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import {
@@ -38,6 +40,7 @@ import {
 import MainLayout from '@/components/layout/MainLayout';
 import { listLeads, changeLeadStage, type LeadWithDetails } from '@/lib/api/lead-service';
 import { listLeadStages, type LeadStage } from '@/lib/api/lead-stage-service';
+import { createCalendarMeeting } from '@/lib/api/calendar-service';
 
 const { Title, Text } = Typography;
 
@@ -149,6 +152,50 @@ function DraggableLeadCard({ lead, onLeadClick }: LeadCardProps) {
               minute: '2-digit',
             })}
           </div>
+        )}
+
+        {/* Google Calendar Link */}
+        {lead.google_calendar_link && (
+          <div style={{ marginTop: 8 }}>
+            <a
+              href={lead.google_calendar_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ fontSize: '11px', color: '#1890ff' }}
+            >
+              <LinkOutlined style={{ marginRight: 4 }} />
+              Google Meet
+            </a>
+          </div>
+        )}
+
+        {/* Create Meeting Button */}
+        {(lead as any).meeting_scheduled_at && !lead.google_event_id && (
+          <Button
+            type="link"
+            size="small"
+            icon={<CalendarOutlined />}
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                const result = await createCalendarMeeting(lead.id, {
+                  meeting_time: (lead as any).meeting_scheduled_at,
+                  duration_minutes: 30,
+                });
+                if (result.success) {
+                  message.success('Встреча создается в Google Calendar...');
+                } else {
+                  message.error(result.error || 'Ошибка создания встречи');
+                }
+              } catch (error: any) {
+                message.error(error.message);
+              }
+            }}
+            style={{ padding: 0, marginTop: 8, fontSize: '11px', height: 'auto' }}
+          >
+            Создать встречу
+          </Button>
         )}
       </Card>
     </div>

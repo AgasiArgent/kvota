@@ -367,6 +367,43 @@ async def receive_lead_from_webhook(
             print(f"Warning: Failed to create activity: {str(e)}")
 
     # ========================================================================
+    # STEP 7.5: Trigger n8n to create Google Calendar event (if meeting scheduled)
+    # ========================================================================
+
+    if payload.meeting_scheduled_at:
+        try:
+            import httpx
+
+            N8N_CALENDAR_WEBHOOK = os.getenv("N8N_CALENDAR_WEBHOOK_URL")
+
+            if N8N_CALENDAR_WEBHOOK:
+                # Prepare payload for n8n Google Calendar workflow
+                n8n_payload = {
+                    "lead_id": lead["id"],
+                    "company_name": payload.company_name,
+                    "meeting_title": f"Встреча с {payload.company_name}",
+                    "meeting_time": payload.meeting_scheduled_at.isoformat(),
+                    "duration_minutes": 30,
+                    "attendee_email": payload.contact_email,
+                    "user_email": "andrey@masterbearingsales.ru",  # Calendar owner
+                    "notes": payload.notes or "",
+                    "contact_name": payload.contact_full_name,
+                    "contact_phone": payload.contact_phone
+                }
+
+                # Send to n8n asynchronously (don't wait for response)
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.post(N8N_CALENDAR_WEBHOOK, json=n8n_payload)
+
+                print(f"✅ Triggered n8n calendar workflow for lead {lead['id']}")
+            else:
+                print("⚠️  N8N_CALENDAR_WEBHOOK_URL not configured - skipping calendar creation")
+
+        except Exception as e:
+            # Log error but don't fail the whole webhook
+            print(f"Warning: Failed to trigger n8n calendar workflow: {str(e)}")
+
+    # ========================================================================
     # STEP 8: Log activity (audit trail)
     # ========================================================================
 
