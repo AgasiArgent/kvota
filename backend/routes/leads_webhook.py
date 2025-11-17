@@ -103,10 +103,10 @@ async def get_organization_id(payload: LeadWebhookPayload) -> str:
         if result.data and len(result.data) > 0:
             return payload.organization_id
 
-    # Otherwise, use test organization (for MVP)
+    # Otherwise, use Master Bearing organization
     # TODO: Implement proper organization mapping by email domain
-    # Hardcode to "ООО Ромашка"11 for testing
-    return "77144c58-b396-4ec7-b51a-2a822ec6d889"
+    # Hardcode to "ООО Мастер Бэринг" for production
+    return "69ff6eda-3fd6-4d24-88b7-a9977c7a08b0"
 
     # Fallback to first organization
     result = supabase.table("organizations").select("id").limit(1).execute()
@@ -288,7 +288,7 @@ async def receive_lead_from_webhook(
         "notes": payload.notes,
         "stage_id": stage["id"],
         "meeting_scheduled_at": payload.meeting_scheduled_at.isoformat() if payload.meeting_scheduled_at else None,
-        "assigned_to": None  # Unassigned initially - managers can grab
+        "assigned_to": "97ccad9e-ae96-4be5-ba07-321e07e8ee1e"  # Auto-assign to andrey@masterbearingsales.ru
     }
 
     try:
@@ -354,7 +354,7 @@ async def receive_lead_from_webhook(
             "duration_minutes": 15,
             "completed": False,
             "google_event_id": None,
-            "assigned_to": None,
+            "assigned_to": "97ccad9e-ae96-4be5-ba07-321e07e8ee1e",  # Auto-assign to andrey@masterbearingsales.ru
             "created_by": None  # Webhook has no user context
         }
 
