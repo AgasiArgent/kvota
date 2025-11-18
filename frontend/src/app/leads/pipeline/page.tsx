@@ -350,14 +350,7 @@ export default function LeadsPipelinePage() {
     init();
   }, []);
 
-  useEffect(() => {
-    // Re-fetch leads when filters change (stages already loaded)
-    if (stages.length > 0) {
-      fetchLeads();
-    }
-  }, [debouncedSearchTerm, assignedFilter]); // Use debounced search term
-
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
       const response = await listLeads({
@@ -373,7 +366,14 @@ export default function LeadsPipelinePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearchTerm, assignedFilter]);
+
+  useEffect(() => {
+    // Re-fetch leads when filters change (stages already loaded)
+    if (stages.length > 0) {
+      fetchLeads();
+    }
+  }, [stages.length, fetchLeads]); // Include fetchLeads and stages.length
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
