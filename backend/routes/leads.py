@@ -51,7 +51,7 @@ class LeadBase(BaseModel):
     """Lead base fields"""
     company_name: str
     inn: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None  # Changed from EmailStr to str to handle invalid data
     phones: Optional[List[str]] = None
     primary_phone: Optional[str] = None
     segment: Optional[str] = None
@@ -69,7 +69,7 @@ class LeadUpdate(BaseModel):
     """Update lead (all fields optional)"""
     company_name: Optional[str] = None
     inn: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None  # Changed from EmailStr to str to handle invalid data
     phones: Optional[List[str]] = None
     primary_phone: Optional[str] = None
     segment: Optional[str] = None
