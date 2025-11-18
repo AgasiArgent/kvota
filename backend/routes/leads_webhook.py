@@ -444,3 +444,71 @@ async def webhook_health_check():
         "method": "POST",
         "authentication": "X-Webhook-Secret header required"
     }
+
+
+# ============================================================================
+# GOOGLE CALENDAR CALLBACK ENDPOINT
+# ============================================================================
+
+class CalendarEventUpdate(BaseModel):
+    """Callback from n8n with Google Calendar event details"""
+    google_event_id: str
+    google_calendar_link: str
+
+
+@router.put("/{lead_id}/calendar-event", status_code=status.HTTP_200_OK)
+async def update_calendar_event_id(
+    lead_id: str,
+    event_data: CalendarEventUpdate,
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret")
+):
+    """
+    Callback from n8n to store Google Calendar event ID
+
+    Called by n8n after successfully creating calendar event.
+    Stores the event_id and meet link for future reference.
+
+    Security: Validates webhook secret from X-Webhook-Secret header
+    No user authentication required (webhook callback)
+    """
+    supabase = get_supabase_client()
+
+    # Verify webhook secret
+    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "your-secret-key-change-in-production")
+
+    if x_webhook_secret != WEBHOOK_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid webhook secret"
+        )
+
+    try:
+        # Update lead with Google Calendar event details
+        result = supabase.table("leads")\
+            .update({
+                "google_event_id": event_data.google_event_id,
+                "google_calendar_link": event_data.google_calendar_link
+            })\
+            .eq("id", lead_id)\
+            .execute()
+
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead not found"
+            )
+
+        return {
+            "success": True,
+            "lead_id": lead_id,
+            "google_event_id": event_data.google_event_id,
+            "message": "Calendar event linked successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update calendar event: {str(e)}"
+        )
