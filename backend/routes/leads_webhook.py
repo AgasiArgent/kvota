@@ -293,26 +293,67 @@ async def receive_lead_from_webhook(
     }
 
     try:
-        lead_result = supabase.table("leads").insert(lead_data).execute()
+        # First, check if lead with this email already exists
+        existing_lead = None
+        if payload.email:
+            existing_result = supabase.table("leads").select("id,company_name")\
+                .eq("organization_id", organization_id)\
+                .eq("email", payload.email)\
+                .execute()
 
-        if not lead_result.data or len(lead_result.data) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create lead"
-            )
+            if existing_result.data and len(existing_result.data) > 0:
+                existing_lead = existing_result.data[0]
 
-        lead = lead_result.data[0]
+        if existing_lead:
+            # UPDATE existing lead (upsert behavior)
+            update_data = {
+                "company_name": payload.company_name,
+                "inn": payload.inn,
+                "phones": phones_array,
+                "primary_phone": primary_phone,
+                "segment": payload.segment,
+                "region": payload.region,
+                "city": payload.city,
+                "revenue": payload.revenue,
+                "notes": payload.notes,
+                "stage_id": stage["id"],
+                "meeting_scheduled_at": payload.meeting_scheduled_at.isoformat() if payload.meeting_scheduled_at else None,
+            }
+            # Only update external_id if provided
+            if payload.external_id:
+                update_data["external_id"] = payload.external_id
 
+            lead_result = supabase.table("leads").update(update_data)\
+                .eq("id", existing_lead["id"])\
+                .execute()
+
+            if not lead_result.data or len(lead_result.data) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to update lead"
+                )
+
+            lead = lead_result.data[0]
+            print(f"✅ Updated existing lead {lead['id']} with email {payload.email}")
+        else:
+            # CREATE new lead
+            lead_result = supabase.table("leads").insert(lead_data).execute()
+
+            if not lead_result.data or len(lead_result.data) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create lead"
+                )
+
+            lead = lead_result.data[0]
+            print(f"✅ Created new lead {lead['id']} with email {payload.email}")
+
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        # Check if it's duplicate email error
-        if "duplicate key" in str(e).lower() and "email" in str(e).lower():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Lead with email {payload.email} already exists in organization"
-            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create lead: {str(e)}"
+            detail=f"Failed to create/update lead: {str(e)}"
         )
 
     # ========================================================================
