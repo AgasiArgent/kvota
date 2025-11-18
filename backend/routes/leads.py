@@ -201,9 +201,9 @@ async def list_leads(
                 detail="User not associated with organization"
             )
 
-        # Build query
+        # Build query with nested SELECT for contacts (single query optimization)
         query = supabase.table("leads").select(
-            "*,lead_stages(name,color)",
+            "*,lead_stages(name,color),lead_contacts(*)",
             count="exact"
         )
         query = query.eq("organization_id", str(user.current_organization_id))
@@ -240,30 +240,14 @@ async def list_leads(
 
         result = query.execute()
 
-        # Fetch contacts for each lead
-        lead_ids = [lead["id"] for lead in result.data] if result.data else []
-        contacts_map = {}
-
-        if lead_ids:
-            contacts_result = supabase.table("lead_contacts")\
-                .select("*")\
-                .in_("lead_id", lead_ids)\
-                .execute()
-
-            for contact in contacts_result.data or []:
-                lead_id = contact["lead_id"]
-                if lead_id not in contacts_map:
-                    contacts_map[lead_id] = []
-                contacts_map[lead_id].append(contact)
-
-        # Format response
+        # Format response (contacts already fetched in main query)
         leads_with_details = []
         for lead in result.data or []:
             lead_dict = dict(lead)
             lead_dict["stage_name"] = lead.get("lead_stages", {}).get("name") if lead.get("lead_stages") else None
             lead_dict["stage_color"] = lead.get("lead_stages", {}).get("color") if lead.get("lead_stages") else None
             lead_dict["assigned_to_name"] = None  # TODO: Fetch user names separately if needed
-            lead_dict["contacts"] = contacts_map.get(lead["id"], [])
+            lead_dict["contacts"] = lead.get("lead_contacts", [])
             leads_with_details.append(lead_dict)
 
         return LeadListResponse(
