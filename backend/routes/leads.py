@@ -36,7 +36,7 @@ class LeadContactBase(BaseModel):
     full_name: str
     position: Optional[str] = None
     phone: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None  # Changed from EmailStr to str to handle invalid data
     is_primary: bool = False
 
 
