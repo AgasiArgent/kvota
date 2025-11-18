@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Card,
   Button,
@@ -296,8 +296,34 @@ export default function LeadsPipelinePage() {
   const [leads, setLeads] = useState<LeadWithDetails[]>([]);
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [assignedFilter, setAssignedFilter] = useState<string>('');
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Debounce search input handler
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchTerm(value); // Update input immediately for UX
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout to trigger API call after 500ms
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(value);
+    }, 500);
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Fetch stages and initial leads in parallel on mount
@@ -329,7 +355,7 @@ export default function LeadsPipelinePage() {
     if (stages.length > 0) {
       fetchLeads();
     }
-  }, [searchTerm, assignedFilter]);
+  }, [debouncedSearchTerm, assignedFilter]); // Use debounced search term
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -337,7 +363,7 @@ export default function LeadsPipelinePage() {
       const response = await listLeads({
         page: 1,
         limit: 100, // Backend max limit
-        search: searchTerm || undefined,
+        search: debouncedSearchTerm || undefined, // Use debounced value
         assigned_to: assignedFilter || undefined,
       });
       setLeads(response.data || []);
@@ -429,7 +455,7 @@ export default function LeadsPipelinePage() {
               allowClear
               style={{ width: 250 }}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
             />
             <Select
               placeholder="Ответственный"
