@@ -299,7 +299,7 @@ export default function LeadsPipelinePage() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [assignedFilter, setAssignedFilter] = useState<string>('');
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Debounce search input handler
   const handleSearchChange = useCallback((value: string) => {
