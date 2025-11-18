@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Header, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from supabase import create_client, Client
 import os
 
@@ -45,7 +45,7 @@ class LeadWebhookPayload(BaseModel):
     # Company information
     company_name: str
     inn: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None  # Changed from EmailStr to str for legacy data
     phones: Optional[str] = None  # Comma-separated: "88313421843, 88313442001"
     primary_phone: Optional[str] = None
     segment: Optional[str] = None  # Industry/segment
