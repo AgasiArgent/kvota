@@ -240,13 +240,44 @@ async def list_leads(
 
         result = query.execute()
 
+        # Fetch user emails for assigned_to UUIDs
+        user_emails_map = {}
+        if result.data:
+            # Get unique assigned_to UUIDs
+            assigned_uuids = set()
+            for lead in result.data:
+                if lead.get("assigned_to"):
+                    assigned_uuids.add(lead["assigned_to"])
+
+            # Fetch user emails from Supabase Admin API
+            if assigned_uuids:
+                import httpx
+                auth_url = f"{os.getenv('SUPABASE_URL')}/auth/v1/admin/users"
+                headers = {
+                    "apikey": os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
+                    "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_ROLE_KEY')}"
+                }
+
+                async with httpx.AsyncClient() as client:
+                    auth_response = await client.get(auth_url, headers=headers)
+                    if auth_response.status_code == 200:
+                        all_users = auth_response.json().get("users", [])
+                        # Map UUID -> email for assigned users
+                        for auth_user in all_users:
+                            if auth_user["id"] in assigned_uuids:
+                                user_emails_map[auth_user["id"]] = auth_user.get("email")
+
         # Format response (contacts already fetched in main query)
         leads_with_details = []
         for lead in result.data or []:
             lead_dict = dict(lead)
             lead_dict["stage_name"] = lead.get("lead_stages", {}).get("name") if lead.get("lead_stages") else None
             lead_dict["stage_color"] = lead.get("lead_stages", {}).get("color") if lead.get("lead_stages") else None
-            lead_dict["assigned_to_name"] = None  # TODO: Fetch user names separately if needed
+
+            # Set assigned_to_name from user_emails_map
+            assigned_to_id = lead.get("assigned_to")
+            lead_dict["assigned_to_name"] = user_emails_map.get(assigned_to_id) if assigned_to_id else None
+
             lead_dict["contacts"] = lead.get("lead_contacts", [])
             leads_with_details.append(lead_dict)
 
@@ -303,7 +334,29 @@ async def get_lead(
         lead_dict = dict(lead)
         lead_dict["stage_name"] = lead.get("lead_stages", {}).get("name") if lead.get("lead_stages") else None
         lead_dict["stage_color"] = lead.get("lead_stages", {}).get("color") if lead.get("lead_stages") else None
-        lead_dict["assigned_to_name"] = None  # TODO: Fetch user name
+
+        # Fetch assigned user's email if assigned_to is set
+        assigned_to_id = lead.get("assigned_to")
+        if assigned_to_id:
+            import httpx
+            auth_url = f"{os.getenv('SUPABASE_URL')}/auth/v1/admin/users"
+            headers = {
+                "apikey": os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
+                "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_ROLE_KEY')}"
+            }
+
+            async with httpx.AsyncClient() as client:
+                # Get specific user by ID
+                user_url = f"{auth_url}/{assigned_to_id}"
+                auth_response = await client.get(user_url, headers=headers)
+                if auth_response.status_code == 200:
+                    user_data = auth_response.json()
+                    lead_dict["assigned_to_name"] = user_data.get("email")
+                else:
+                    lead_dict["assigned_to_name"] = None
+        else:
+            lead_dict["assigned_to_name"] = None
+
         lead_dict["contacts"] = contacts_result.data or []
 
         return lead_dict
