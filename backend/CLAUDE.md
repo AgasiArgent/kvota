@@ -497,6 +497,67 @@ DATABASE_URL=postgresql://postgres:xxx@db.xxx.supabase.co:5432/postgres
 
 ---
 
+## Exchange Rate Service
+
+### Overview
+Exchange rates are fetched daily from Central Bank of Russia (CBR) API and cached in the database.
+
+### Service Pattern
+```python
+from services.exchange_rate_service import get_exchange_rate_service
+
+# Get service singleton
+service = get_exchange_rate_service()
+
+# Get exchange rate (auto-fetches if stale)
+rate = await service.get_rate("USD", "RUB")
+
+# Manual refresh (admin only)
+rates = await service.fetch_cbr_rates()
+```
+
+### Automatic Updates
+- **Daily Update:** 10:00 AM Moscow Time
+- **Weekly Cleanup:** Sundays (keeps 30 days of history)
+- **Cache Duration:** 24 hours
+
+### Database Schema
+```sql
+CREATE TABLE exchange_rates (
+    id UUID PRIMARY KEY,
+    from_currency TEXT NOT NULL,  -- e.g., "USD"
+    to_currency TEXT NOT NULL,    -- e.g., "RUB"
+    rate DECIMAL NOT NULL,        -- e.g., 81.13
+    fetched_at TIMESTAMPTZ,       -- When fetched from CBR
+    source TEXT DEFAULT 'cbr',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Unique constraint on currency pair and fetch time
+CREATE UNIQUE INDEX idx_exchange_rates_unique
+ON exchange_rates(from_currency, to_currency, fetched_at);
+```
+
+### API Endpoints
+```python
+# Get exchange rate
+GET /api/exchange-rates/{from_currency}/{to_currency}
+# Example: GET /api/exchange-rates/USD/RUB
+# Returns: {"rate": 81.13, "fetched_at": "2025-11-15T10:00:00Z", ...}
+
+# Manual refresh (admin only)
+POST /api/exchange-rates/refresh
+# Returns: {"success": true, "rates_updated": 56, ...}
+```
+
+### Important Notes
+- **Always use Supabase client** - More reliable than asyncpg for network operations
+- **Use upsert() not insert()** - Handles duplicate entries gracefully
+- **56 currencies supported** - All CBR API currencies
+- **Automatic fallback** - If cache miss, fetches fresh data
+
+---
+
 ## Development Commands
 
 ```bash

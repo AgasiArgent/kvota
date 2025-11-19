@@ -7,6 +7,7 @@
 ## Next.js 15 App Router Patterns
 
 ### File Structure
+
 ```
 src/app/
 ├── page.tsx              # Homepage (/)
@@ -22,15 +23,18 @@ src/app/
 ### Server vs Client Components
 
 **Default: Server Components** (no 'use client')
+
 - Use for static content, data fetching
 - Better performance, smaller bundles
 
 **Client Components** (add 'use client' at top)
+
 - Required for: useState, useEffect, event handlers, browser APIs
 - Required for: Ant Design components (they use React context)
 - Required for: ag-Grid (interactive table)
 
 ### Example Pattern
+
 ```typescript
 'use client';
 
@@ -50,6 +54,7 @@ export default function MyPage() {
 ## Ant Design Patterns
 
 ### Form Handling
+
 ```typescript
 import { Form, Input, InputNumber, Select } from 'antd';
 
@@ -69,6 +74,7 @@ await form.validateFields();
 ```
 
 ### Common Components
+
 - `Card` - Containers with title and actions
 - `Form.Item` - Form fields with validation
 - `Select` - Dropdowns
@@ -79,7 +85,9 @@ await form.validateFields();
 - `message` - Toast notifications
 
 ### Russian Text
+
 All user-facing text in Russian:
+
 ```typescript
 <Form.Item label="Валюта КП" name="currency_of_quote">
   <Select>
@@ -94,6 +102,7 @@ All user-facing text in Russian:
 ## ag-Grid Patterns
 
 ### Basic Setup
+
 ```typescript
 import { AgGridReact } from 'ag-grid-react';
 import 'ag-grid-community/styles/ag-grid.css';
@@ -115,6 +124,7 @@ const [columnDefs] = useState<ColDef[]>([
 ```
 
 ### Excel-like Features
+
 ```typescript
 defaultColDef={{
   sortable: true,
@@ -127,6 +137,7 @@ rowSelection="multiple"
 ```
 
 ### Column Groups
+
 ```typescript
 {
   headerName: 'Product Info',
@@ -138,13 +149,14 @@ rowSelection="multiple"
 ```
 
 ### Cell Styling (Gray/Blue for Defaults/Overrides)
+
 ```typescript
 cellStyle: (params) => {
   if (!params.value) {
     return { backgroundColor: '#f5f5f5' }; // Gray - empty (using default)
   }
   return { backgroundColor: '#e6f7ff' }; // Blue - filled (override)
-}
+};
 ```
 
 ---
@@ -152,23 +164,27 @@ cellStyle: (params) => {
 ## API Client Patterns
 
 ### Service Files
+
 Location: `src/lib/api/*-service.ts`
 
 Pattern:
+
 ```typescript
 import { createClient } from '@/lib/supabase/client';
 
 export async function fetchQuotes() {
   const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
   if (!session) throw new Error('Not authenticated');
 
   const response = await fetch('http://localhost:8000/api/quotes', {
     headers: {
-      'Authorization': `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json'
-    }
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
   });
 
   if (!response.ok) throw new Error('Failed to fetch');
@@ -177,7 +193,9 @@ export async function fetchQuotes() {
 ```
 
 ### TypeScript Interfaces
+
 Define types matching backend Pydantic models:
+
 ```typescript
 export interface Product {
   sku?: string;
@@ -202,18 +220,21 @@ export interface QuoteRequest {
 ## State Management
 
 ### Simple State - useState
+
 ```typescript
 const [products, setProducts] = useState<Product[]>([]);
 const [loading, setLoading] = useState(false);
 ```
 
 ### Form State - Ant Design Form
+
 ```typescript
 const [form] = Form.useForm();
 // Form manages its own state
 ```
 
 ### Grid State - ag-Grid
+
 ```typescript
 const gridRef = useRef<AgGridReact>(null);
 
@@ -229,6 +250,7 @@ gridRef.current?.api.applyTransaction({ update: [updatedRow] });
 ## Common Patterns
 
 ### File Upload
+
 ```typescript
 import { Upload } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
@@ -249,6 +271,7 @@ import { InboxOutlined } from '@ant-design/icons';
 ```
 
 ### Loading States
+
 ```typescript
 const [loading, setLoading] = useState(false);
 
@@ -270,6 +293,7 @@ const handleSubmit = async () => {
 ```
 
 ### Error Handling
+
 ```typescript
 try {
   const result = await apiCall();
@@ -287,6 +311,7 @@ try {
 ## Styling
 
 ### Tailwind CSS
+
 ```typescript
 <div className="max-w-7xl mx-auto p-6">
   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -296,9 +321,11 @@ try {
 ```
 
 ### Ant Design Theming
+
 Configured in `src/app/layout.tsx` via AntdRegistry
 
 ### ag-Grid Themes
+
 ```typescript
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -320,6 +347,40 @@ npm run build      # Production build
 npm install <pkg>  # Add dependency
 npm run lint       # ESLint
 ```
+
+---
+
+## Exchange Rates Display
+
+The sidebar shows live exchange rates for key currencies (USD, EUR, TRY, CNY).
+
+**Component:** `src/components/layout/ExchangeRates.tsx`
+
+**Features:**
+
+- Auto-refresh every 30 minutes
+- Manual refresh button
+- Dark theme styling
+- Collapsible with sidebar
+
+**API Route:** `src/app/api/exchange-rates/[from]/[to]/route.ts`
+
+- Proxies requests to backend
+- Handles authentication
+- Returns rate data
+
+**Usage in MainLayout:**
+
+```typescript
+// Shows when sidebar is expanded
+{!collapsed && <ExchangeRates />}
+```
+
+**Styling:**
+
+- Background: `rgba(255, 255, 255, 0.04)` (subtle highlight)
+- Text: Russian labels ("Курсы валют ЦБ РФ")
+- Updates: Shows last update time in tooltip
 
 ---
 

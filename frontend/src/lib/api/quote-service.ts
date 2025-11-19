@@ -4,6 +4,7 @@
  */
 
 import { BaseApiService } from './base-api';
+import { config, getApiEndpoint } from '@/lib/config';
 import { workflowEngine, WorkflowContext } from '@/lib/workflow/workflow-engine';
 import {
   roleInputService,
@@ -24,8 +25,6 @@ import {
   PaginationInfo,
   RoleInput,
 } from '@/lib/types/platform';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 type Customer = Database['public']['Tables']['customers']['Row'];
 
@@ -85,7 +84,7 @@ export class QuoteService extends BaseApiService {
   ): Promise<ApiResponse<T>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const response = await fetch(`${config.apiUrl}${endpoint}`, {
         ...options,
         headers: {
           ...headers,

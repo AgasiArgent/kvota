@@ -5,7 +5,7 @@ Manual refresh and rate lookup endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from auth import get_current_user, User
@@ -69,7 +69,7 @@ async def get_exchange_rate(
 
         return ExchangeRateResponse(
             rate=rate,
-            fetched_at=datetime.utcnow(),
+            fetched_at=datetime.now(timezone.utc),
             source="cbr",
             from_currency=from_currency,
             to_currency=to_currency

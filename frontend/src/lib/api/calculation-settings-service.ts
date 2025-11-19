@@ -4,9 +4,8 @@
  */
 
 import { ApiResponse } from '@/lib/types/platform';
+import { config, getApiEndpoint } from '@/lib/config';
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
  * Calculation Settings (Admin-Only Variables)
@@ -75,7 +74,7 @@ export class CalculationSettingsService {
     try {
       const headers = await this.getAuthHeaders();
 
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const response = await fetch(`${config.apiUrl}${endpoint}`, {
         ...options,
         headers: {
           ...headers,
@@ -152,7 +151,7 @@ export class CalculationSettingsService {
       rate_forex_risk: 3.0, // 3% currency exchange risk reserve
       rate_fin_comm: 2.0, // 2% financial agent commission
       rate_loan_interest_annual: 25.0, // 25% annual interest rate
-      customs_logistics_pmt_due: 0,
+      customs_logistics_pmt_due: 10, // 10 days payment due
     };
   }
 

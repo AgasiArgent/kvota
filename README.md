@@ -2,6 +2,14 @@
 
 Russian B2B quotation platform for cross-border trade (import/export).
 
+## 🚀 Live Deployments
+
+| Environment | URL | Status |
+|------------|-----|--------|
+| **Production Frontend** | https://kvota-frontend.vercel.app | ✅ Live |
+| **Backend API** | https://kvota-production.up.railway.app | ✅ Live |
+| **CI/CD Pipeline** | [GitHub Actions](https://github.com/AgasiArgent/kvota/actions) | ✅ Passing |
+
 ## Tech Stack
 
 **Frontend:**
@@ -137,10 +145,18 @@ kvota/
 
 ## Environment Variables
 
-**Frontend (.env.local):**
+**Frontend (.env.local for development):**
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
-- `NEXT_PUBLIC_API_URL` - Backend API URL (http://localhost:8000)
+- `NEXT_PUBLIC_API_URL` - Backend API URL (default: http://localhost:8000)
+
+**Frontend (.env.production for deployment):**
+```env
+NEXT_PUBLIC_API_URL=https://kvota-production.up.railway.app
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+NEXT_PUBLIC_ENVIRONMENT=production
+```
 
 **Backend (.env):**
 - `SUPABASE_URL` - Supabase project URL
@@ -149,6 +165,27 @@ kvota/
 - `DATABASE_URL` - PostgreSQL connection string (pooler)
 - `POSTGRES_DIRECT_URL` - Direct PostgreSQL connection (migrations)
 - `SECRET_KEY` - Secret key for security
+
+## Deployment
+
+### Frontend (Vercel)
+
+The frontend automatically deploys to Vercel on push:
+- **main branch** → Production (https://kvota-frontend.vercel.app)
+- **dev branch** → Preview (https://kvota-frontend-git-dev-andrey-novikovs-projects.vercel.app)
+
+### Backend (Railway)
+
+The backend automatically deploys to Railway on push to main branch.
+
+### CI/CD
+
+GitHub Actions runs on every push:
+1. **Backend Tests** - pytest suite
+2. **Frontend Lint & Type Check** - ESLint and TypeScript
+3. **Frontend Build** - Next.js production build
+
+All checks must pass before merging to main.
 
 ## Contributing
 
