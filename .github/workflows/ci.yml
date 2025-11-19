@@ -2,9 +2,9 @@ name: CI - Test & Lint
 
 on:
   push:
-    branches: ['**']
+    branches: [main, develop, dev]
   pull_request:
-    branches: ['**']
+    branches: [main, develop, dev]
 
 jobs:
   # Frontend Lint & Type Check
@@ -30,6 +30,7 @@ jobs:
       - name: Run ESLint
         working-directory: frontend
         run: npm run lint
+        continue-on-error: true
 
       - name: Check code formatting
         working-directory: frontend

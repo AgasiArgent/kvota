@@ -4,8 +4,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { config, getApiEndpoint } from '@/lib/config';
 
 export interface UserProfile {
   user_id: string;
@@ -44,7 +43,7 @@ export class UserService {
   async getProfile(): Promise<ApiResponse<UserProfile>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/users/profile`, {
+      const response = await fetch(`${config.apiUrl}/api/users/profile`, {
         method: 'GET',
         headers,
       });
@@ -77,7 +76,7 @@ export class UserService {
   async updateProfile(profileData: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> {
     try {
       const headers = await this.getAuthHeaders();
-      const response = await fetch(`${API_URL}/api/users/profile`, {
+      const response = await fetch(`${config.apiUrl}/api/users/profile`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(profileData),

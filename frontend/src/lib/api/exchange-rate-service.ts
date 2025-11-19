@@ -4,8 +4,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { config, getApiEndpoint } from '@/lib/config';
 
 export interface ExchangeRate {
   rate: number;
@@ -51,7 +50,7 @@ export class ExchangeRateService {
   async getRate(from: string, to: string): Promise<ExchangeRate> {
     const headers = await this.getAuthHeaders();
     const response = await fetch(
-      `${API_URL}/api/exchange-rates/${from.toUpperCase()}/${to.toUpperCase()}`,
+      `${config.apiUrl}/api/exchange-rates/${from.toUpperCase()}/${to.toUpperCase()}`,
       { headers }
     );
 
@@ -71,7 +70,7 @@ export class ExchangeRateService {
    */
   async refreshRates(): Promise<RefreshResponse> {
     const headers = await this.getAuthHeaders();
-    const response = await fetch(`${API_URL}/api/exchange-rates/refresh`, {
+    const response = await fetch(`${config.apiUrl}/api/exchange-rates/refresh`, {
       method: 'POST',
       headers,
     });

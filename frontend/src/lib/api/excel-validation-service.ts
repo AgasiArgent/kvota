@@ -1,9 +1,11 @@
 /**
  * Excel Validation API Service
  * Handles validation of Excel files against calculation engine
+ * Uses NEXT_PUBLIC_API_URL environment variable for backend connection
  */
 
 import { createClient } from '@/lib/supabase/client';
+import { config, getApiEndpoint } from '@/lib/config';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -74,7 +76,7 @@ export const ExcelValidationService = {
     formData.append('mode', mode);
     formData.append('tolerance', tolerance.toString());
 
-    const response = await fetch(`${API_URL}/api/admin/excel-validation/validate`, {
+    const response = await fetch(`${config.apiUrl}/api/admin/excel-validation/validate`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,

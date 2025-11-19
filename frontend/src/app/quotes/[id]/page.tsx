@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
 import {
   Card,
@@ -32,7 +33,6 @@ import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
-// import PlanFactTab from '@/components/quotes/PlanFactTab'; // TODO: Component not created yet
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -213,10 +213,9 @@ export default function QuoteDetailPage() {
 
       try {
         const token = await getAuthToken();
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
         const response = await fetch(
-          `${API_URL}/api/quotes/${quoteId}/export/${type}?format=${format}`,
+          `${config.apiUrl}/api/quotes/${quoteId}/export/${type}?format=${format}`,
           {
             method: 'GET',
             headers: {
@@ -592,13 +591,6 @@ export default function QuoteDetailPage() {
                 </Space>
               ),
             },
-            // {
-            //   key: 'plan-fact',
-            //   label: 'План-Факт',
-            //   children: (
-            //     <div>TODO: PlanFactTab component</div>
-            //   ),
-            // },
           ]}
         />
       </Space>

@@ -14,7 +14,15 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks
+
+# Sentry for error tracking
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.asyncpg import AsyncPGIntegration
+
+# Telegram notifications
+from services.telegram_notifier import send_alert, ENABLED as TELEGRAM_ENABLED
 
 
 # Import our authentication system
@@ -33,6 +41,29 @@ from auth import (
 
 # Load environment variables
 load_dotenv()
+
+# ============================================================================
+# SENTRY INITIALIZATION
+# ============================================================================
+
+# Initialize Sentry for error tracking
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        environment=os.getenv("ENVIRONMENT", "development"),
+        traces_sample_rate=0.1,  # 10% of requests for performance monitoring
+        profiles_sample_rate=0.1,  # 10% for profiling
+        integrations=[
+            FastApiIntegration(),
+            AsyncPGIntegration()
+        ],
+        # Send user context with errors
+        send_default_pii=False,  # Don't send PII automatically
+    )
+    print("✅ Sentry error tracking initialized")
+else:
+    print("⚠️  Sentry DSN not configured - error tracking disabled")
 
 # ============================================================================
 # APPLICATION LIFECYCLE
@@ -91,6 +122,12 @@ async def lifespan(app: FastAPI):
     await setup_log_worker()
 
     print("🎯 API is ready to serve requests")
+
+    # Send startup notification to Telegram
+    if TELEGRAM_ENABLED:
+        from services.telegram_notifier import send_startup_notification
+        send_startup_notification()
+        print("✅ Telegram startup notification sent")
 
     yield
 
@@ -238,6 +275,18 @@ async def http_exception_handler(request, exc):
 @app.exception_handler(500)
 async def internal_server_error_handler(request, exc):
     """Handle internal server errors"""
+    # Send Telegram notification for 500 errors
+    if TELEGRAM_ENABLED:
+        try:
+            send_alert(
+                title="500 Internal Server Error",
+                message=f"Error: {str(exc)}\nTraceback: Check Sentry for details",
+                severity="ERROR",
+                endpoint=str(request.url.path)
+            )
+        except:
+            pass  # Don't crash if Telegram fails
+
     return JSONResponse(
         status_code=500,
         content={
@@ -572,6 +621,8 @@ app.include_router(leads.router)
 app.include_router(lead_contacts.router)
 app.include_router(lead_stages.router)
 app.include_router(activities.router)
+app.include_router(monitoring_test.router)  # Test endpoints for Sentry + Telegram
+app.include_router(webhooks.router)  # Sentry webhooks for frontend error → Telegram
 
 @app.post("/api/admin/fix-database-function")
 async def fix_database_function():

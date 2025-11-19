@@ -141,7 +141,9 @@ export async function middleware(request: NextRequest) {
 
     // Allow if user is owner OR has admin role in organization
     const isOwner = orgMember?.is_owner || false;
-    const roleSlug = ((orgMember as any)?.roles?.slug as string) || '';
+    const roleSlug =
+      (((orgMember as Record<string, unknown> | null)?.roles as Record<string, unknown> | undefined)
+        ?.slug as string | undefined) || '';
 
     if (!isOwner && !['admin', 'owner'].includes(roleSlug.toLowerCase())) {
       const url = request.nextUrl.clone();

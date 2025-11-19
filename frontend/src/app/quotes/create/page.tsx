@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
 import {
   Form,
@@ -239,7 +240,7 @@ export default function CreateQuotePage() {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/customers/${customerId}/contacts`, {
+      const response = await fetch(`${config.apiUrl}/api/customers/${customerId}/contacts`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -1828,7 +1829,6 @@ export default function CreateQuotePage() {
                     </style>
                     <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
                       <AgGridReact
-                        // @ts-expect-error - ref is supported but type definition issue with dynamic import
                         ref={gridRef}
                         rowData={uploadedProducts}
                         columnDefs={columnDefs}
@@ -1842,7 +1842,7 @@ export default function CreateQuotePage() {
                         }}
                         enableCellTextSelection={true}
                         suppressHorizontalScroll={false}
-                        onCellValueChanged={(event) => {
+                        onCellValueChanged={(event: any) => {
                           setUploadedProducts((prevProducts) => {
                             const updatedProducts = [...prevProducts];
                             const index = event.rowIndex;
