@@ -36,6 +36,7 @@ export interface CalculationSettingsUpdate {
   rate_forex_risk: number;
   rate_fin_comm: number;
   rate_loan_interest_annual: number; // Годовая ставка займа (%)
+  rate_loan_interest_daily?: number; // Дневная ставка займа
   customs_logistics_pmt_due: number; // Срок оплаты таможни/логистики (дни)
 }
 

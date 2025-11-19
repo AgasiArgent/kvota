@@ -26,6 +26,11 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
 
 import {
   getExecutionHistory,

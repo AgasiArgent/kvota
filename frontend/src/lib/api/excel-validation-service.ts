@@ -7,6 +7,8 @@
 import { createClient } from '@/lib/supabase/client';
 import { config, getApiEndpoint } from '@/lib/config';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export interface FieldComparison {
   field: string;
   field_name: string;

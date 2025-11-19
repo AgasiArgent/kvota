@@ -6,6 +6,8 @@
 import { createClient } from '@/lib/supabase/client';
 import { config, getApiEndpoint } from '@/lib/config';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export interface Feedback {
   id: string;
   organization_id: string;

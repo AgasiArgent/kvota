@@ -87,6 +87,21 @@ export default function MainLayout({ children }: MainLayoutProps) {
         label: 'Клиенты',
       },
       {
+        key: 'crm-menu',
+        icon: <UserOutlined />,
+        label: 'CRM',
+        children: [
+          {
+            key: '/leads',
+            label: 'Лиды',
+          },
+          {
+            key: '/leads/pipeline',
+            label: 'Воронка',
+          },
+        ],
+      },
+      {
         key: '/organizations',
         icon: <ApartmentOutlined />,
         label: 'Организации',
