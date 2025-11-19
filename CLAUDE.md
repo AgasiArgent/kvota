@@ -656,7 +656,10 @@ This sample task demonstrates:
 **MCP Servers:**
 - ✅ **chrome-devtools** - Browser automation (ALWAYS USE THIS for browser/console work)
   - **RULE:** Always use chrome-devtools MCP for browser interaction and console logs
+  - **CRITICAL:** Chrome MUST run in WSL2 (not Windows) to connect to debugging port 9222
+  - Launch command: `google-chrome --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-wsl-profile &`
   - If chrome-devtools unavailable → Ask user to restart: `/mcp` command
+  - Check if Chrome running: `lsof -i :9222` or `ps aux | grep chrome`
   - Never use puppeteer (removed from project)
 - ✅ **postgres** - Database queries and schema inspection
 - ❌ **github** - Not functional (use curl with GitHub API)

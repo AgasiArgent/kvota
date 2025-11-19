@@ -83,6 +83,8 @@ import {
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 // CSS for full row highlighting when selected via checkbox
 const agGridRowSelectionStyles = `
   .ag-theme-alpine .ag-row-selected {
@@ -1304,7 +1306,7 @@ export default function CreateQuotePage() {
                         </Col>
                         <Col span={12}>
                           <Form.Item name="rate_usd_cny" label="Курс USD/CNY">
-                            <Input.Group compact>
+                            <Space.Compact style={{ width: '100%' }}>
                               <InputNumber
                                 min={0}
                                 step={0.0001}
@@ -1322,7 +1324,7 @@ export default function CreateQuotePage() {
                                 disabled={rateLoading}
                                 title="Обновить курс"
                               />
-                            </Input.Group>
+                            </Space.Compact>
                           </Form.Item>
                           {exchangeRateFetchedAt && (
                             <Text
