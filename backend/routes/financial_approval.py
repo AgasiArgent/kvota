@@ -256,19 +256,20 @@ async def get_financial_review_excel(
         )
 
 
-@router.post('/{quote_id}/approve')
+@router.post('/{quote_id}/financial-approve')
 async def approve_quote(
     quote_id: uuid.UUID,
     request: ApprovalRequest,
     user: User = Depends(get_current_user)
 ):
     """
-    Approve quote by financial manager
+    Approve quote by financial manager (Financial Approval Workflow)
 
     Workflow transition: awaiting_financial_approval → approved
 
     **Auth:** Finance Manager, Admin, Owner
     **Stores:** Comment in workflow_transitions + quotes table
+    **Path:** POST /api/quotes/{id}/financial-approve (not /approve - that's for old approval system)
     """
     try:
         # Get quote
@@ -333,19 +334,20 @@ async def approve_quote(
         )
 
 
-@router.post('/{quote_id}/send-back')
+@router.post('/{quote_id}/financial-send-back')
 async def send_back_quote(
     quote_id: uuid.UUID,
     request: ApprovalRequest,
     user: User = Depends(get_current_user)
 ):
     """
-    Send quote back to sales manager for corrections
+    Send quote back to sales manager for corrections (Financial Approval Workflow)
 
     Workflow transition: awaiting_financial_approval → draft
 
     **Auth:** Finance Manager, Admin, Owner
     **Requires:** Comments explaining what needs to be fixed
+    **Path:** POST /api/quotes/{id}/financial-send-back (not /send-back - avoids conflicts)
     """
     try:
         # Require comments for send back
