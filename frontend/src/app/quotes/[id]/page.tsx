@@ -17,6 +17,7 @@ import {
   Col,
   Dropdown,
   Tabs,
+  App,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -33,6 +34,7 @@ import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
+import FinancialApprovalActions from '@/components/quotes/FinancialApprovalActions';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -465,135 +467,155 @@ export default function QuoteDetailPage() {
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%', padding: '24px' }}>
-        {/* Section 1: Header with Actions */}
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
-                Назад
-              </Button>
-              <Title level={2} style={{ margin: 0 }}>
-                {quote.quote_number}
-              </Title>
-              {getStatusTag(quote.status)}
-            </Space>
-          </Col>
-          <Col>
-            <Space>
-              <Dropdown
-                menu={{ items: exportMenuItems }}
-                trigger={['click']}
-                disabled={exportLoading}
-              >
-                <Button icon={<DownloadOutlined />} loading={exportLoading}>
-                  Экспорт
+      <App>
+        <Space direction="vertical" size="large" style={{ width: '100%', padding: '24px' }}>
+          {/* Section 1: Header with Actions */}
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Space>
+                <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
+                  Назад
                 </Button>
-              </Dropdown>
-              {(quote.status === 'draft' || quote.status === 'revision_needed') && (
-                <Button
-                  type="primary"
-                  icon={<EditOutlined />}
-                  onClick={() => router.push('/quotes/' + quote.id + '/edit')}
+                <Title level={2} style={{ margin: 0 }}>
+                  {quote.quote_number}
+                </Title>
+                {getStatusTag(quote.status)}
+              </Space>
+            </Col>
+            <Col>
+              <Space>
+                <Dropdown
+                  menu={{ items: exportMenuItems }}
+                  trigger={['click']}
+                  disabled={exportLoading}
                 >
-                  Редактировать
-                </Button>
-              )}
-              {quote.status === 'draft' && (
-                <Popconfirm
-                  title="Удалить КП?"
-                  description="КП будет перемещено в корзину"
-                  onConfirm={handleDelete}
-                  okText="Удалить"
-                  cancelText="Отмена"
-                  okButtonProps={{ danger: true }}
-                >
-                  <Button danger icon={<DeleteOutlined />}>
-                    Удалить
+                  <Button icon={<DownloadOutlined />} loading={exportLoading}>
+                    Экспорт
                   </Button>
-                </Popconfirm>
-              )}
-            </Space>
-          </Col>
-        </Row>
-
-        {/* Tabs for Details and Plan-Fact */}
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'details',
-              label: 'Детали',
-              children: (
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                  {/* Workflow Section */}
-                  {!workflowLoading && workflow && (
-                    <Row gutter={[16, 16]}>
-                      <Col span={24}>
-                        <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
-                      </Col>
-                    </Row>
-                  )}
-
-                  {/* Quote Info Card */}
-                  <Card title="Информация о КП" variant="borderless">
-                    <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
-                      <Descriptions.Item label="Клиент">
-                        {quote.customer?.name || 'Не указан'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Название КП">
-                        {quote.title || '—'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Статус">
-                        {getStatusTag(quote.status)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Дата КП">
-                        {formatDate(quote.quote_date)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Действительно до">
-                        {formatDate(quote.valid_until)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Создано">
-                        {formatDate(quote.created_at)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Валюта">
-                        {quote.currency || 'RUB'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Общая сумма">
-                        <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                          {formatCurrency(quote.total_amount, quote.currency)}
-                        </Text>
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </Card>
-
-                  {/* Products Table (ag-Grid, read-only) */}
-                  <Card
-                    title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
-                    variant="borderless"
-                    styles={{ body: { padding: '16px' } }}
+                </Dropdown>
+                {(quote.status === 'draft' || quote.status === 'revision_needed') && (
+                  <Button
+                    type="primary"
+                    icon={<EditOutlined />}
+                    onClick={() => router.push('/quotes/' + quote.id + '/edit')}
                   >
-                    {quote.items && quote.items.length > 0 ? (
-                      <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
-                        <AgGridReact
-                          rowData={quote.items}
-                          columnDefs={columnDefs}
-                          defaultColDef={defaultColDef}
-                          animateRows={true}
-                          suppressHorizontalScroll={false}
-                        />
-                      </div>
-                    ) : (
-                      <Text type="secondary">Нет товаров в этом КП</Text>
+                    Редактировать
+                  </Button>
+                )}
+                {quote.status === 'draft' && (
+                  <Popconfirm
+                    title="Удалить КП?"
+                    description="КП будет перемещено в корзину"
+                    onConfirm={handleDelete}
+                    okText="Удалить"
+                    cancelText="Отмена"
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Button danger icon={<DeleteOutlined />}>
+                      Удалить
+                    </Button>
+                  </Popconfirm>
+                )}
+              </Space>
+            </Col>
+          </Row>
+
+          {/* Tabs for Details and Plan-Fact */}
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={[
+              {
+                key: 'details',
+                label: 'Детали',
+                children: (
+                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                    {/* Workflow Section */}
+                    {!workflowLoading && workflow && (
+                      <Row gutter={[16, 16]}>
+                        <Col span={24}>
+                          <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
+                        </Col>
+                      </Row>
                     )}
-                  </Card>
-                </Space>
-              ),
-            },
-          ]}
-        />
-      </Space>
+
+                    {/* Financial Approval Actions */}
+                    {workflow?.current_state === 'awaiting_financial_approval' && (
+                      <Card>
+                        <FinancialApprovalActions
+                          quoteId={quote.id}
+                          quoteNumber={quote.quote_number}
+                          onApprove={() => {
+                            fetchQuoteDetails();
+                            loadWorkflowStatus();
+                          }}
+                          onSendBack={() => {
+                            fetchQuoteDetails();
+                            loadWorkflowStatus();
+                          }}
+                        />
+                      </Card>
+                    )}
+
+                    {/* Quote Info Card */}
+                    <Card title="Информация о КП" variant="borderless">
+                      <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
+                        <Descriptions.Item label="Клиент">
+                          {quote.customer?.name || 'Не указан'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Название КП">
+                          {quote.title || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Статус">
+                          {getStatusTag(quote.status)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Дата КП">
+                          {formatDate(quote.quote_date)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Действительно до">
+                          {formatDate(quote.valid_until)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Создано">
+                          {formatDate(quote.created_at)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Валюта">
+                          {quote.currency || 'RUB'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Общая сумма">
+                          <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                            {formatCurrency(quote.total_amount, quote.currency)}
+                          </Text>
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+
+                    {/* Products Table (ag-Grid, read-only) */}
+                    <Card
+                      title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
+                      variant="borderless"
+                      styles={{ body: { padding: '16px' } }}
+                    >
+                      {quote.items && quote.items.length > 0 ? (
+                        <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+                          <AgGridReact
+                            rowData={quote.items}
+                            columnDefs={columnDefs}
+                            defaultColDef={defaultColDef}
+                            animateRows={true}
+                            suppressHorizontalScroll={false}
+                          />
+                        </div>
+                      ) : (
+                        <Text type="secondary">Нет товаров в этом КП</Text>
+                      )}
+                    </Card>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+        </Space>
+      </App>
     </MainLayout>
   );
 }
