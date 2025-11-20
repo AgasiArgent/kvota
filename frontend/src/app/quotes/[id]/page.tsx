@@ -158,6 +158,7 @@ export default function QuoteDetailPage() {
           customer: quoteData.customer, // Store customer object (contains name)
           title: quoteData.title,
           status: quoteData.status,
+          workflow_state: quoteData.workflow_state, // CRITICAL: Required for financial approval component
           quote_date: quoteData.quote_date,
           valid_until: quoteData.valid_until,
           currency: quoteData.currency || 'RUB',
