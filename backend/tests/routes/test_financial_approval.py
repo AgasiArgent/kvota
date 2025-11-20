@@ -67,46 +67,41 @@ def test_financial_review_excel_generation():
 
     ws = workbook['Review']
 
-    # Verify header
-    assert ws['A1'].value == 'Financial Review'
+    # Verify header (Russian)
+    assert ws['A1'].value == 'ФИНАНСОВЫЙ АНАЛИЗ КП'
 
     # Verify quote info
     assert ws['B3'].value == 'KP-TEST-001'
-    assert ws['B4'].value == 'Test Customer LLC'
+    assert ws['E3'].value == 'Test Customer LLC'  # Customer name is in E3, not B4
 
-    # Find and verify markup cell is red
-    markup_cell_found = False
-    for row in ws.iter_rows():
+    # Find the totals row by searching for 'ИТОГО ПО КП' header
+    totals_row = None
+    for row_idx, row in enumerate(ws.iter_rows(), start=1):
         for cell in row:
-            if cell.value and 'Markup %' in str(cell.value) and 'AC13' in str(cell.value):
-                # Next cell should have markup value
-                markup_value_cell = ws.cell(row=cell.row, column=2)
-                assert markup_value_cell.value == 3.0
-                # Should be highlighted red
-                assert markup_value_cell.fill.start_color.rgb == '00FFCCCC'
-                # Should have comment
-                assert markup_value_cell.comment is not None
-                assert 'below required threshold' in markup_value_cell.comment.text
-                markup_cell_found = True
+            if cell.value and 'ИТОГО ПО КП' in str(cell.value):
+                totals_row = row_idx + 2  # Values are 2 rows below the header
                 break
+        if totals_row:
+            break
 
-    assert markup_cell_found, "Markup cell not found in Excel"
+    assert totals_row is not None, "Totals row not found in Excel"
 
-    # Verify DM fee cell is red
-    dm_fee_cell_found = False
-    for row in ws.iter_rows():
-        for cell in row:
-            if cell.value and 'DM Fee Value' in str(cell.value):
-                dm_value_cell = ws.cell(row=cell.row, column=2)
-                assert dm_value_cell.value == 600.0
-                # Should be red (DM fee > margin)
-                assert dm_value_cell.fill.start_color.rgb == '00FFCCCC'
-                assert dm_value_cell.comment is not None
-                assert 'exceeds deal margin' in dm_value_cell.comment.text
-                dm_fee_cell_found = True
-                break
+    # Verify markup cell (column E) is red and has validation comment
+    markup_cell = ws[f'E{totals_row}']
+    assert markup_cell.value == 3.0, f"Expected markup 3.0, got {markup_cell.value}"
+    # Should be highlighted red
+    assert markup_cell.fill.start_color.rgb == '00FFCCCC', f"Markup cell not highlighted red: {markup_cell.fill.start_color.rgb}"
+    # Should have comment explaining issue
+    assert markup_cell.comment is not None, "Markup cell has no comment"
+    assert 'требуемого порога' in markup_cell.comment.text or 'below' in markup_cell.comment.text.lower()
 
-    assert dm_fee_cell_found, "DM Fee cell not found"
+    # Verify DM fee cell (column M) is red
+    dm_fee_cell = ws[f'M{totals_row}']
+    assert dm_fee_cell.value == 600.0, f"Expected DM fee 600.0, got {dm_fee_cell.value}"
+    # Should be red (DM fee > margin)
+    assert dm_fee_cell.fill.start_color.rgb == '00FFCCCC', f"DM fee cell not highlighted red: {dm_fee_cell.fill.start_color.rgb}"
+    assert dm_fee_cell.comment is not None, "DM fee cell has no comment"
+    assert 'превышает' in dm_fee_cell.comment.text or 'exceeds' in dm_fee_cell.comment.text.lower()
 
     print("✅ All validations working in Excel")
 
