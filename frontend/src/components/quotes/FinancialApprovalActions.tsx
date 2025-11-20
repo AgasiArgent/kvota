@@ -45,12 +45,16 @@ export default function FinancialApprovalActions({
         body: JSON.stringify({ comments: comments.trim() || undefined }),
       });
 
+      console.log('[FinancialApproval] Response status:', response.status, response.ok);
+
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Действие не выполнено');
+        console.error('[FinancialApproval] Error response:', error);
+        throw new Error(error.message || error.detail || 'Действие не выполнено');
       }
 
       const result = await response.json();
+      console.log('[FinancialApproval] Success response:', result);
 
       message.success(action === 'approve' ? 'КП утверждено!' : 'КП возвращено на доработку');
       setShowModal(false);
@@ -59,6 +63,7 @@ export default function FinancialApprovalActions({
       if (action === 'approve') onApprove();
       else onSendBack();
     } catch (error) {
+      console.error('[FinancialApproval] Caught error:', error);
       message.error(error instanceof Error ? error.message : 'Ошибка выполнения действия');
     } finally {
       setLoading(false);
