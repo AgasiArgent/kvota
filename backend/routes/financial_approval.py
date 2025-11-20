@@ -400,7 +400,7 @@ async def send_back_quote(
             "action": "send_back",
             "performed_by": str(user.id),
             "role_at_transition": user.current_role or 'finance_manager',
-            "reason": request.comments,
+            "comments": request.comments,
             "performed_at": datetime.utcnow().isoformat()
         }).execute()
 
