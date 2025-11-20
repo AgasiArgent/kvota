@@ -35,7 +35,7 @@ export default function FinancialApprovalActions({
     setLoading(true);
     try {
       const token = await getAuthToken();
-      const endpoint = action === 'approve' ? 'approve' : 'send-back';
+      const endpoint = action === 'approve' ? 'financial-approve' : 'financial-send-back';
       const response = await fetch(`${config.apiUrl}/api/quotes/${quoteId}/${endpoint}`, {
         method: 'POST',
         headers: {
