@@ -71,7 +71,10 @@
 
 ---
 
-### Scenario 2: Send Back - Quote Has Issues ❌
+### Scenario 2: Send Back - Quote Has Issues ✅
+
+**Status:** PASSED (2025-11-20)
+**Bug Found & Fixed:** Comments field mapping error (commit: dca8eef)
 
 **Objective:** Financial manager finds issues and sends quote back for corrections
 
@@ -109,6 +112,19 @@
 - Validation highlighting works
 - Comment validation enforced
 - Workflow transition correct
+
+**Test Results (2025-11-20):**
+- ✅ Quote setup: КП25-0071 set to awaiting_financial_approval with validation issues
+- ✅ Excel download: Successful
+- ✅ Comment validation: Form correctly prevented submission without comment
+- ✅ Send back action: Successfully sent back with comment
+- ✅ Workflow transition: awaiting_financial_approval → draft
+- ✅ Comment saved: "Наценка слишком низкая (3%, требуется 15%). DM гонорар превышает маржу. Исправьте перед повторной отправкой."
+- ✅ UI update: Financial Approval Actions card correctly disappeared
+
+**Bug Fixed:**
+- Field name `"reason"` → `"comments"` in send_back function (routes/financial_approval.py:403)
+- Commit: dca8eef
 
 ---
 
