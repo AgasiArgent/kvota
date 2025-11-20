@@ -202,9 +202,10 @@ allowed_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:5173",
+    "https://kvotaflow.ru",  # Production domain
 ]
 
-# Add production frontend URL if set
+# Add production frontend URL if set (for Vercel preview deployments)
 if frontend_url:
     allowed_origins.append(frontend_url)
     print(f"✅ CORS configured for production: {frontend_url}")
