@@ -4,6 +4,7 @@ import { Button, Input, Modal, message } from 'antd';
 import { CheckOutlined, CloseOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useState } from 'react';
 import { config } from '@/lib/config';
+import { getAuthToken } from '@/lib/auth/auth-helper';
 
 interface Props {
   quoteId: string;
@@ -33,12 +34,13 @@ export default function FinancialApprovalActions({
 
     setLoading(true);
     try {
+      const token = await getAuthToken();
       const endpoint = action === 'approve' ? 'approve' : 'send-back';
       const response = await fetch(`${config.apiUrl}/api/quotes/${quoteId}/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ comments: comments.trim() || undefined }),
       });
@@ -66,9 +68,10 @@ export default function FinancialApprovalActions({
   const handleDownloadExcel = async () => {
     setDownloading(true);
     try {
+      const token = await getAuthToken();
       const response = await fetch(`${config.apiUrl}/api/quotes/${quoteId}/financial-review`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
