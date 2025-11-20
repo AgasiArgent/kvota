@@ -50,173 +50,179 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     ws.title = "Review"
 
     # ========== HEADER ==========
-    ws['A1'] = 'Financial Review'
+    ws['A1'] = 'ФИНАНСОВЫЙ АНАЛИЗ КП'
     ws['A1'].font = Font(bold=True, size=14)
-    ws.merge_cells('A1:D1')
+    ws.merge_cells('A1:M1')
+    ws['A1'].alignment = Alignment(horizontal='center')
 
-    # ========== QUOTE INFO SECTION ==========
-    row = 3
-    ws[f'A{row}'] = 'Quote Number:'
-    ws[f'B{row}'] = quote_data.get('quote_number', '')
-    ws[f'B{row}'].font = Font(bold=True)
+    # ========== QUOTE INFO (Row 3) ==========
+    ws['A3'] = 'КП №:'
+    ws['A3'].font = Font(bold=True)
+    ws['B3'] = quote_data.get('quote_number', '')
+    ws['B3'].font = Font(bold=True, size=12)
 
-    row += 1
-    ws[f'A{row}'] = 'Customer:'
-    ws[f'B{row}'] = quote_data.get('customer_name', '')
+    ws['D3'] = 'Клиент:'
+    ws['D3'].font = Font(bold=True)
+    ws['E3'] = quote_data.get('customer_name', '')
+    ws.merge_cells('E3:H3')
 
-    row += 1
-    ws[f'A{row}'] = 'Total Amount (with VAT):'
-    ws[f'B{row}'] = float(quote_data.get('total_amount', 0))
-    ws[f'B{row}'].number_format = '#,##0.00 ₽'
+    ws['J3'] = 'Сумма с НДС:'
+    ws['J3'].font = Font(bold=True)
+    ws['K3'] = float(quote_data.get('total_amount', 0))
+    ws['K3'].number_format = '#,##0.00 ₽'
+    ws['K3'].font = Font(bold=True)
 
-    # ========== BASIC INFO (D5:D11) ==========
-    row += 2
-    ws[f'A{row}'] = 'Basic Information'
-    ws[f'A{row}'].font = Font(bold=True, size=12)
+    # ========== SECTION HEADERS (Row 5) ==========
+    ws['A5'] = 'ОСНОВНЫЕ ДАННЫЕ'
+    ws['A5'].font = Font(bold=True, size=11)
 
-    row += 1
-    info_fields = [
-        ('Seller Company', 'seller_company'),
-        ('Sale Type', 'offer_sale_type'),
-        ('Incoterms', 'offer_incoterms'),
-        ('Currency', 'currency_of_quote'),
-        ('Delivery Time (days)', 'delivery_time'),
-        ('Advance to Supplier (%)', 'advance_to_supplier'),
+    ws['F5'] = 'УСЛОВИЯ ОПЛАТЫ'
+    ws['F5'].font = Font(bold=True, size=11)
+
+    ws['I5'] = 'ЛОГИСТИКА'
+    ws['I5'].font = Font(bold=True, size=11)
+
+    # ========== BASIC INFO (A6:D11) + PAYMENT TERMS (F6:G8) + LOGISTICS (I6:J14) - HORIZONTAL ==========
+    # Basic Info (left side)
+    basic_info = [
+        ('Продавец', 'seller_company'),
+        ('Тип продажи', 'offer_sale_type'),
+        ('Инкотермс', 'offer_incoterms'),
+        ('Валюта', 'currency_of_quote'),
+        ('Срок поставки (дни)', 'delivery_time'),
+        ('Аванс поставщику (%)', 'advance_to_supplier'),
     ]
 
-    for label, key in info_fields:
+    row = 6
+    for label, key in basic_info:
         ws[f'A{row}'] = label
         value = quote_data.get(key, '')
         ws[f'B{row}'] = float(value) if isinstance(value, Decimal) else value
+        if 'аванс' in label.lower():
+            ws[f'B{row}'].number_format = '0.0"%"'
         row += 1
 
-    # ========== PAYMENT TERMS (J5:K9) ==========
-    row += 1
-    ws[f'A{row}'] = 'Payment Terms'
-    ws[f'A{row}'].font = Font(bold=True, size=12)
+    # Payment Terms (middle)
+    payment_terms = [
+        ('Аванс клиента (%)', 'advance_from_client'),
+        ('Дни до аванса', 'time_to_advance'),
+    ]
 
-    row += 1
-    ws[f'A{row}'] = 'Advance from Client (%)'
-    ws[f'B{row}'] = float(quote_data.get('advance_from_client', 0))
+    row = 6
+    for label, key in payment_terms:
+        ws[f'F{row}'] = label
+        value = quote_data.get(key, 0)
+        ws[f'G{row}'] = float(value)
+        if '%' in label:
+            ws[f'G{row}'].number_format = '0.0"%"'
+        row += 1
 
-    row += 1
-    ws[f'A{row}'] = 'Time to Advance (days)'
-    ws[f'B{row}'] = quote_data.get('time_to_advance', 0)
-
-    # ========== LOGISTICS (W2:W10) ==========
-    row += 2
-    ws[f'A{row}'] = 'Logistics Breakdown'
-    ws[f'A{row}'].font = Font(bold=True, size=12)
-
-    row += 1
+    # Logistics (right side)
     logistics_fields = [
-        ('Supplier → Hub', 'logistics_supplier_hub'),
-        ('Hub → Customs', 'logistics_hub_customs'),
-        ('Customs → Client', 'logistics_customs_client'),
-        ('Brokerage Hub', 'brokerage_hub'),
-        ('Brokerage Customs', 'brokerage_customs'),
-        ('Warehousing at Customs', 'warehousing_at_customs'),
-        ('Customs Documentation', 'customs_documentation'),
-        ('Extra Brokerage', 'brokerage_extra'),
-        ('Insurance', 'insurance'),
+        ('Поставщик → Хаб', 'logistics_supplier_hub'),
+        ('Хаб → Таможня', 'logistics_hub_customs'),
+        ('Таможня → Клиент', 'logistics_customs_client'),
+        ('Брокераж хаб', 'brokerage_hub'),
+        ('Брокераж таможня', 'brokerage_customs'),
+        ('Хранение', 'warehousing_at_customs'),
+        ('Оформление', 'customs_documentation'),
+        ('Доп. брокераж', 'brokerage_extra'),
+        ('Страховка', 'insurance'),
     ]
 
+    row = 6
     for label, key in logistics_fields:
-        ws[f'A{row}'] = label
+        ws[f'I{row}'] = label
         value = quote_data.get(key, 0)
-        ws[f'B{row}'] = float(value) if value else 0
-        ws[f'B{row}'].number_format = '#,##0.00 ₽'
+        ws[f'J{row}'] = float(value) if value else 0
+        ws[f'J{row}'].number_format = '#,##0.00 ₽'
         row += 1
 
-    # ========== QUOTE TOTALS (Row 13 equivalents) ==========
-    row += 1
-    ws[f'A{row}'] = 'Quote Totals'
+    # ========== QUOTE TOTALS (Row 17 - Horizontal like test_raschet Row 13) ==========
+    row += 2
+    ws[f'A{row}'] = 'ИТОГО ПО КП'
     ws[f'A{row}'].font = Font(bold=True, size=12)
+    ws.merge_cells(f'A{row}:M{row}')
+    ws[f'A{row}'].fill = PatternFill(start_color="E0E0E0", end_color="E0E0E0", fill_type="solid")
+    ws[f'A{row}'].alignment = Alignment(horizontal='center')
 
     row += 1
-    totals_fields = [
-        ('Total Logistics (V13)', 'total_logistics'),
-        ('Total COGS (AB13)', 'total_cogs'),
-        ('Markup % (AC13)', 'markup'),
-        ('Price without VAT (AK13)', 'total_revenue_no_vat'),
-        ('Price with VAT (AL13)', 'total_revenue_with_vat'),
-        ('Margin (AM13)', 'total_margin'),
-    ]
+    # Headers
+    totals_headers = ['Логистика', 'Себест-ть', 'Наценка %', 'Цена без НДС', 'Цена с НДС', 'Маржа', 'DM Гонорар']
+    col_letters = ['A', 'C', 'E', 'G', 'I', 'K', 'M']
 
-    markup_row = None
-    for label, key in totals_fields:
-        ws[f'A{row}'] = label
-        value = quote_data.get(key, 0)
-        ws[f'B{row}'] = float(value) if value else 0
-
-        # Format based on field type
-        if 'markup' in key.lower() or key == 'markup':
-            ws[f'B{row}'].number_format = '0.00"%"'
-            markup_row = row  # Save for validation below
-        else:
-            ws[f'B{row}'].number_format = '#,##0.00 ₽'
-
-        row += 1
-
-    # Validate quote-level markup
-    if markup_row:
-        advance = Decimal(str(quote_data.get('advance_from_client', 0)))
-        delivery = quote_data.get('delivery_time', 0)
-        markup = Decimal(str(quote_data.get('markup', 0)))
-
-        is_valid, error_msg = validate_markup(markup, advance, delivery, level='quote')
-        apply_validation_to_cell(ws[f'B{markup_row}'], is_valid, error_msg)
-
-    # ========== DM FEE ==========
-    row += 1
-    ws[f'A{row}'] = 'DM Fee'
-    ws[f'A{row}'].font = Font(bold=True, size=12)
+    for idx, header in enumerate(totals_headers):
+        cell = ws[f'{col_letters[idx]}{row}']
+        cell.value = header
+        cell.font = Font(bold=True, size=10)
+        cell.alignment = Alignment(horizontal='center')
 
     row += 1
-    ws[f'A{row}'] = 'DM Fee Type'
-    ws[f'B{row}'] = quote_data.get('dm_fee_type', '')
-
-    row += 1
-    ws[f'A{row}'] = 'DM Fee Value'
+    # Values
+    advance = Decimal(str(quote_data.get('advance_from_client', 0)))
+    delivery = quote_data.get('delivery_time', 0)
+    markup = Decimal(str(quote_data.get('markup', 0)))
     dm_fee = Decimal(str(quote_data.get('dm_fee_value', 0)))
     margin = Decimal(str(quote_data.get('total_margin', 0)))
-    ws[f'B{row}'] = float(dm_fee)
-    ws[f'B{row}'].number_format = '#,##0.00 ₽'
 
-    # Validate DM fee vs margin
-    is_valid, error_msg = validate_dm_fee(dm_fee, margin)
-    apply_validation_to_cell(ws[f'B{row}'], is_valid, error_msg)
+    totals_values = [
+        ('A', quote_data.get('total_logistics', 0), '#,##0.00 ₽', None),
+        ('C', quote_data.get('total_cogs', 0), '#,##0.00 ₽', None),
+        ('E', markup, '0.00"%"', validate_markup(markup, advance, delivery, level='quote')),
+        ('G', quote_data.get('total_revenue_no_vat', 0), '#,##0.00 ₽', None),
+        ('I', quote_data.get('total_revenue_with_vat', 0), '#,##0.00 ₽', None),
+        ('K', margin, '#,##0.00 ₽', None),
+        ('M', dm_fee, '#,##0.00 ₽', validate_dm_fee(dm_fee, margin)),
+    ]
 
-    # ========== VAT REMOVAL CHECK ==========
+    for col, value, fmt, validation in totals_values:
+        cell = ws[f'{col}{row}']
+        cell.value = float(value) if value else 0
+        cell.number_format = fmt
+        cell.font = Font(bold=True, size=11)
+        cell.alignment = Alignment(horizontal='right')
+
+        # Apply validation if exists
+        if validation:
+            is_valid, error_msg = validation
+            apply_validation_to_cell(cell, is_valid, error_msg)
+
+    # ========== VAT & DM FEE INFO (Row after totals) ==========
     row += 2
-    ws[f'A{row}'] = 'VAT Removal Status'
-    ws[f'A{row}'].font = Font(bold=True, size=12)
-
-    row += 1
-    ws[f'A{row}'] = 'Was VAT removed from purchase price?'
+    ws[f'A{row}'] = 'НДС очищен:'
     vat_removed = quote_data.get('vat_removed', False)
-    ws[f'B{row}'] = 'YES' if vat_removed else 'NO'
+    ws[f'B{row}'] = 'ДА' if vat_removed else 'НЕТ'
+    ws[f'B{row}'].font = Font(bold=True)
 
     # Highlight if VAT not removed
     if not vat_removed:
         ws[f'B{row}'].fill = YELLOW_FILL
         ws[f'B{row}'].comment = Comment(
-            "⚠️ VAT was not removed from purchase price. Verify if this is intentional.",
+            "⚠️ VAT не был очищен от закупочной цены. Проверьте.",
             "System"
         )
 
+    ws[f'D{row}'] = 'DM Гонорар тип:'
+    ws[f'E{row}'] = quote_data.get('dm_fee_type', '')
+
     # ========== PRODUCTS TABLE ==========
     row += 2
-    ws[f'A{row}'] = 'Products'
+    ws[f'A{row}'] = 'ТОВАРЫ'
     ws[f'A{row}'].font = Font(bold=True, size=12)
+    ws.merge_cells(f'A{row}:M{row}')
+    ws[f'A{row}'].fill = PatternFill(start_color="E0E0E0", end_color="E0E0E0", fill_type="solid")
+    ws[f'A{row}'].alignment = Alignment(horizontal='center')
 
     row += 1
-    # Headers
-    headers = ['#', 'Product Name', 'Qty', 'Markup %', 'COGS', 'Price (no VAT)', 'Price (with VAT)']
-    for col_idx, header in enumerate(headers, start=1):
-        cell = ws.cell(row=row, column=col_idx)
+    # Headers (more compact)
+    headers = ['№', 'Наименование', 'Кол-во', 'Наценка %', 'Себест-ть', 'Цена без НДС', 'Цена с НДС']
+    col_letters_products = ['A', 'B', 'D', 'F', 'H', 'J', 'L']
+
+    for idx, header in enumerate(headers):
+        cell = ws[f'{col_letters_products[idx]}{row}']
         cell.value = header
-        cell.font = Font(bold=True)
+        cell.font = Font(bold=True, size=10)
+        cell.alignment = Alignment(horizontal='center')
 
     row += 1
     # Products data
@@ -225,43 +231,59 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     delivery = quote_data.get('delivery_time', 0)
 
     for idx, product in enumerate(products, start=1):
-        ws.cell(row=row, column=1, value=idx)
-        ws.cell(row=row, column=2, value=product.get('name', f'Product {idx}'))
-        ws.cell(row=row, column=3, value=product.get('quantity', 0))
+        # Use same column layout as headers
+        ws[f'A{row}'] = idx  # №
+        ws[f'B{row}'] = product.get('name', f'Товар {idx}')  # Name (with merge)
+        ws.merge_cells(f'B{row}:C{row}')
+
+        ws[f'D{row}'] = product.get('quantity', 0)  # Qty
+        ws[f'D{row}'].alignment = Alignment(horizontal='center')
 
         # Markup with validation
         product_markup = Decimal(str(product.get('markup', 0)))
-        markup_cell = ws.cell(row=row, column=4, value=float(product_markup))
+        markup_cell = ws[f'F{row}']
+        markup_cell.value = float(product_markup)
         markup_cell.number_format = '0.00"%"'
+        markup_cell.alignment = Alignment(horizontal='right')
 
         # Validate product-level markup
         is_valid, error_msg = validate_markup(product_markup, advance, delivery, level='product')
         apply_validation_to_cell(markup_cell, is_valid, error_msg)
 
         # Other fields
-        ws.cell(row=row, column=5, value=float(product.get('cogs', 0)))
-        ws.cell(row=row, column=6, value=float(product.get('price_no_vat', 0)))
-        ws.cell(row=row, column=7, value=float(product.get('price_with_vat', 0)))
+        ws[f'H{row}'] = float(product.get('cogs', 0))
+        ws[f'H{row}'].number_format = '#,##0.00 ₽'
+        ws[f'H{row}'].alignment = Alignment(horizontal='right')
 
-        # Format
-        ws.cell(row=row, column=5).number_format = '#,##0.00 ₽'
-        ws.cell(row=row, column=6).number_format = '#,##0.00 ₽'
-        ws.cell(row=row, column=7).number_format = '#,##0.00 ₽'
+        ws[f'J{row}'] = float(product.get('price_no_vat', 0))
+        ws[f'J{row}'].number_format = '#,##0.00 ₽'
+        ws[f'J{row}'].alignment = Alignment(horizontal='right')
+
+        ws[f'L{row}'] = float(product.get('price_with_vat', 0))
+        ws[f'L{row}'].number_format = '#,##0.00 ₽'
+        ws[f'L{row}'].alignment = Alignment(horizontal='right')
 
         row += 1
 
-    # Auto-size columns (skip merged cells)
-    for col_letter in ['A', 'B', 'C', 'D', 'E', 'F', 'G']:
-        max_length = 0
-        for row in ws.iter_rows(min_col=ws[col_letter + '1'].column, max_col=ws[col_letter + '1'].column):
-            for cell in row:
-                try:
-                    if cell.value and len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[col_letter].width = max(adjusted_width, 15)
+    # Set column widths for better readability
+    column_widths = {
+        'A': 8,   # №
+        'B': 30,  # Наименование / Labels
+        'C': 12,  # Values
+        'D': 10,  # Labels / Qty
+        'E': 12,  # Values / Markup
+        'F': 12,  # Labels
+        'G': 14,  # Values
+        'H': 12,  # Values
+        'I': 14,  # Labels
+        'J': 14,  # Values
+        'K': 12,  # Values
+        'L': 14,  # Values
+        'M': 14,  # Values
+    }
+
+    for col, width in column_widths.items():
+        ws.column_dimensions[col].width = width
 
     return wb
 
