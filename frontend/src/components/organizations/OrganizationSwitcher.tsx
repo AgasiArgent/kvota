@@ -7,6 +7,7 @@ import type { MenuProps } from 'antd';
 import { useRouter } from 'next/navigation';
 import { organizationService } from '@/lib/api/organization-service';
 import { UserOrganization } from '@/lib/types/organization';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
 const { Text } = Typography;
 
@@ -16,14 +17,17 @@ interface OrganizationSwitcherProps {
 
 export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherProps) {
   const router = useRouter();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [organizations, setOrganizations] = useState<UserOrganization[]>([]);
   const [currentOrg, setCurrentOrg] = useState<UserOrganization | null>(null);
 
   useEffect(() => {
-    fetchOrganizations();
-  }, []);
+    if (profile) {
+      fetchOrganizations();
+    }
+  }, [profile?.organization_id]); // Re-fetch when profile org changes
 
   const fetchOrganizations = async () => {
     setLoading(true);
@@ -33,10 +37,19 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
       if (result.success && result.data) {
         setOrganizations(result.data);
 
-        // Try to get current organization from user profile
-        // For now, we'll use the first organization as current
-        // TODO: Get from user profile's last_active_organization_id
-        if (result.data.length > 0) {
+        // Get current organization from user profile's last_active_organization_id
+        if (profile?.organization_id) {
+          const activeOrg = result.data.find(
+            (org) => org.organization_id === profile.organization_id
+          );
+          if (activeOrg) {
+            setCurrentOrg(activeOrg);
+          } else {
+            // Fallback to first org if profile org not found
+            setCurrentOrg(result.data[0]);
+          }
+        } else if (result.data.length > 0) {
+          // No profile org set, use first one
           setCurrentOrg(result.data[0]);
         }
       }

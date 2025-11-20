@@ -87,6 +87,7 @@ interface QuoteDetail {
   customer?: Customer; // Backend returns customer object, not customer_name string
   title?: string;
   status: string;
+  workflow_state?: string; // For financial approval workflow
   quote_date?: string;
   valid_until?: string;
   currency?: string;
@@ -540,7 +541,7 @@ export default function QuoteDetailPage() {
                     )}
 
                     {/* Financial Approval Actions */}
-                    {workflow?.current_state === 'awaiting_financial_approval' && (
+                    {quote.workflow_state === 'awaiting_financial_approval' && (
                       <Card>
                         <FinancialApprovalActions
                           quoteId={quote.id}
