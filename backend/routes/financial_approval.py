@@ -304,10 +304,11 @@ async def approve_quote(
             "financial_reviewed_by": str(user.id)
         }).eq("id", str(quote_id)).execute()
 
-        # Record transition in workflow_transitions table
-        transition_result = supabase.table("workflow_transitions").insert({
+        # Record transition in quote_workflow_transitions table
+        transition_result = supabase.table("quote_workflow_transitions").insert({
             "id": str(uuid.uuid4()),
             "quote_id": str(quote_id),
+            "organization_id": str(user.current_organization_id),
             "from_state": old_state,
             "to_state": new_state,
             "action": "approve",
@@ -389,10 +390,11 @@ async def send_back_quote(
             "financial_reviewed_by": str(user.id)
         }).eq("id", str(quote_id)).execute()
 
-        # Record transition in workflow_transitions table
-        transition_result = supabase.table("workflow_transitions").insert({
+        # Record transition in quote_workflow_transitions table
+        transition_result = supabase.table("quote_workflow_transitions").insert({
             "id": str(uuid.uuid4()),
             "quote_id": str(quote_id),
+            "organization_id": str(user.current_organization_id),
             "from_state": old_state,
             "to_state": new_state,
             "action": "send_back",
