@@ -68,9 +68,9 @@ async def get_financial_review_excel(
     **Auth:** Any authenticated user (filtered by organization_id)
     """
     try:
-        # Get quote with all related data
+        # Get quote with all related data including calculation summaries
         result = supabase.table("quotes") \
-            .select("*, customer:customers(name)") \
+            .select("*, customer:customers(name), calculation_summary:quote_calculation_summaries(*)") \
             .eq("id", str(quote_id)) \
             .eq("organization_id", str(user.current_organization_id)) \
             .execute()
@@ -82,15 +82,94 @@ async def get_financial_review_excel(
             )
 
         quote = result.data[0]
+        calc_summary = quote.get('calculation_summary')
+
+        # If calculation summary is an array (Supabase returns single-row joins as arrays), get first element
+        if isinstance(calc_summary, list):
+            calc_summary = calc_summary[0] if calc_summary else None
+
+        # Load quote items with calculation results
+        items_result = supabase.table("quote_items") \
+            .select("id, product_name, description, quantity") \
+            .eq("quote_id", str(quote_id)) \
+            .order("position") \
+            .execute()
+
+        # Load calculation results for products
+        calc_results = supabase.table("quote_calculation_results") \
+            .select("quote_item_id, phase_results") \
+            .eq("quote_id", str(quote_id)) \
+            .execute()
+
+        # Create a map of item_id -> calculation results
+        calc_map = {r['quote_item_id']: r['phase_results'] for r in calc_results.data}
+
+        # Map quote items to product format expected by Excel generator
+        products = []
+        for item in items_result.data:
+            item_id = str(item['id'])
+            phase_results = calc_map.get(item_id, {})
+
+            # Extract calculation results from phase_results JSON
+            quantity = Decimal(str(item.get('quantity', 1)))
+            cogs_total = Decimal(str(phase_results.get('cogs_per_product', 0)))
+            sales_price_no_vat = Decimal(str(phase_results.get('sales_price_total_no_vat', 0)))
+            sales_price_with_vat = Decimal(str(phase_results.get('sales_price_total_with_vat', 0)))
+
+            # Calculate markup percentage: markup = (sales - cogs) / cogs * 100
+            if cogs_total > 0:
+                markup = ((sales_price_no_vat - cogs_total) / cogs_total * Decimal('100'))
+            else:
+                markup = Decimal('0')
+
+            # Use product_name if available, fallback to description
+            product_name = item.get('product_name') or item.get('description') or 'Unnamed Product'
+
+            products.append({
+                'name': product_name,
+                'quantity': int(quantity),
+                'markup': markup,
+                'cogs': cogs_total,
+                'price_no_vat': sales_price_no_vat,
+                'price_with_vat': sales_price_with_vat
+            })
+
+        # Get calculation results from quote_calculation_summaries table
+        # If no calculation summary exists, use zeros (quote hasn't been calculated yet)
+        if calc_summary:
+            total_logistics = Decimal(str(calc_summary.get('calc_v16_total_logistics', 0)))
+            total_cogs = Decimal(str(calc_summary.get('calc_ab16_cogs_total', 0)))
+            total_revenue_no_vat = Decimal(str(calc_summary.get('calc_ae16_sale_price_total', 0)))
+            total_revenue_with_vat = Decimal(str(calc_summary.get('calc_al16_total_with_vat', 0)))
+            dm_fee_value = Decimal(str(calc_summary.get('calc_ag16_dm_fee', 0)))
+            profit_margin_decimal = Decimal(str(calc_summary.get('calc_af16_profit_margin', 0)))
+
+            # Calculate markup % from profit margin
+            # Profit margin = (revenue - cogs) / revenue
+            # Markup = (revenue - cogs) / cogs = profit_margin / (1 - profit_margin)
+            if profit_margin_decimal > 0 and profit_margin_decimal < 1:
+                markup = (profit_margin_decimal / (Decimal('1') - profit_margin_decimal)) * Decimal('100')
+            else:
+                markup = Decimal('0')
+
+            # Calculate total margin = revenue - cogs
+            total_margin = total_revenue_no_vat - total_cogs
+        else:
+            # No calculation results yet - use zeros
+            total_logistics = Decimal('0')
+            total_cogs = Decimal('0')
+            total_revenue_no_vat = Decimal('0')
+            total_revenue_with_vat = Decimal('0')
+            dm_fee_value = Decimal('0')
+            markup = Decimal('0')
+            total_margin = Decimal('0')
 
         # Prepare quote data for Excel export
-        # TODO: Get calculation results from calculation engine
-        # For now, use quote fields directly
         quote_data = {
             'quote_number': quote.get('quote_number', ''),
             'customer_name': quote.get('customer', {}).get('name', 'Unknown') if quote.get('customer') else 'Unknown',
 
-            # Basic info (D5-D11)
+            # Basic info (D5-D11) - These should be stored in quotes table as input variables
             'seller_company': quote.get('seller_company', ''),
             'offer_sale_type': quote.get('offer_sale_type', ''),
             'offer_incoterms': quote.get('offer_incoterms', ''),
@@ -102,7 +181,7 @@ async def get_financial_review_excel(
             'advance_from_client': Decimal(str(quote.get('advance_from_client', 0))),
             'time_to_advance': quote.get('time_to_advance', 0),
 
-            # Logistics (W2-W10)
+            # Logistics (W2-W10) - These should be stored in quotes table as input variables
             'logistics_supplier_hub': Decimal(str(quote.get('logistics_supplier_hub', 0))),
             'logistics_hub_customs': Decimal(str(quote.get('logistics_hub_customs', 0))),
             'logistics_customs_client': Decimal(str(quote.get('logistics_customs_client', 0))),
@@ -113,24 +192,24 @@ async def get_financial_review_excel(
             'brokerage_extra': Decimal(str(quote.get('brokerage_extra', 0))),
             'insurance': Decimal(str(quote.get('insurance', 0))),
 
-            # Totals (Row 13)
-            'total_logistics': Decimal(str(quote.get('total_logistics', 0))),
-            'total_cogs': Decimal(str(quote.get('total_cogs', 0))),
-            'markup': Decimal(str(quote.get('markup', 0))),
-            'total_revenue_no_vat': Decimal(str(quote.get('total_revenue_no_vat', 0))),
-            'total_revenue_with_vat': Decimal(str(quote.get('total_revenue_with_vat', 0))),
-            'total_amount': Decimal(str(quote.get('total_revenue_with_vat', 0))),  # Same as total_revenue_with_vat
-            'total_margin': Decimal(str(quote.get('total_margin', 0))),
+            # Totals (Row 13) - From calculation_summary
+            'total_logistics': total_logistics,
+            'total_cogs': total_cogs,
+            'markup': markup,
+            'total_revenue_no_vat': total_revenue_no_vat,
+            'total_revenue_with_vat': total_revenue_with_vat,
+            'total_amount': total_revenue_with_vat,  # Same as total_revenue_with_vat
+            'total_margin': total_margin,
 
-            # DM Fee
+            # DM Fee - From calculation_summary
             'dm_fee_type': quote.get('dm_fee_type', ''),
-            'dm_fee_value': Decimal(str(quote.get('dm_fee_value', 0))),
+            'dm_fee_value': dm_fee_value,
 
             # VAT status
             'vat_removed': quote.get('vat_removed', False),
 
-            # Products (if any)
-            'products': []  # TODO: Load from quote_items table
+            # Products loaded from quote_items
+            'products': products
         }
 
         # Debug: Log quote data being sent to Excel generator
