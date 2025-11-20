@@ -133,8 +133,18 @@ async def get_financial_review_excel(
             'products': []  # TODO: Load from quote_items table
         }
 
+        # Debug: Log quote data being sent to Excel generator
+        print(f"[DEBUG] Generating Excel for quote {quote_data.get('quote_number')}")
+        print(f"[DEBUG] Quote data keys: {list(quote_data.keys())}")
+        print(f"[DEBUG] Has products: {len(quote_data.get('products', []))}")
+
         # Generate Excel
-        workbook = create_financial_review_excel(quote_data)
+        try:
+            workbook = create_financial_review_excel(quote_data)
+            print(f"[DEBUG] Excel generation successful")
+        except Exception as excel_error:
+            print(f"[DEBUG] Excel generation FAILED: {type(excel_error).__name__}: {excel_error}")
+            raise
 
         # Save to BytesIO
         output = BytesIO()
@@ -142,17 +152,25 @@ async def get_financial_review_excel(
         output.seek(0)
 
         # Return as download
+        # URL-encode filename to handle Russian characters (КП)
+        from urllib.parse import quote
         filename = f"Financial_Review_{quote_data['quote_number']}.xlsx"
+        filename_encoded = quote(filename)
 
         return StreamingResponse(
             output,
             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+            headers={
+                'Content-Disposition': f"attachment; filename*=UTF-8''{filename_encoded}"
+            }
         )
 
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[ERROR] Excel generation failed: {error_detail}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate Excel: {str(e)}"
