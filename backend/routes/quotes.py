@@ -103,6 +103,7 @@ async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = 
     query = """
         SELECT q.id, q.organization_id, q.customer_id, q.created_by,
                q.quote_number, q.title, q.description, q.status,
+               q.workflow_state,
                q.quote_date, q.valid_until,
                q.subtotal, q.discount_percentage, q.discount_amount,
                q.tax_rate, q.tax_amount, q.total_amount,
