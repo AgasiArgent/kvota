@@ -1,3 +1,66 @@
+## Session 43 (2025-11-21) - Fix Comment Visibility Bug ✅
+
+### Goal
+Fix bug where financial manager comments were not displaying on quote detail page.
+
+### Status: COMPLETE ✅
+
+**Time:** ~30 minutes
+**Commit:** e7cb442
+**Files:** 2 files changed (1 backend, 1 frontend)
+
+---
+
+### Issue Found
+
+**Bug:** Comment Alerts not displaying on quote detail page even though:
+- ✅ Backend returns `last_sendback_reason` and `last_financial_comment` in API
+- ✅ Frontend Alert components exist in code
+- ✅ Workflow state is correct (`sent_back_for_revision`)
+
+**Root Cause:** Two-part issue:
+1. Backend Quote Pydantic model missing the comment fields (data filtered out during serialization)
+2. Frontend `fetchQuoteDetails()` function not mapping comment fields to React state
+
+---
+
+### Fix Applied
+
+**Backend (models.py):**
+- Added `last_sendback_reason: Optional[str] = None` to Quote model
+- Added `last_financial_comment: Optional[str] = None` to Quote model
+
+**Frontend (quotes/[id]/page.tsx):**
+- Added `last_sendback_reason: quoteData.last_sendback_reason` to setQuote()
+- Added `last_financial_comment: quoteData.last_financial_comment` to setQuote()
+
+---
+
+### Testing Results
+
+✅ **Comment visibility working:**
+- Warning Alert displays when workflow_state = 'sent_back_for_revision'
+- Shows financial manager comment: "Наценка слишком низкая (3%, требуется 15%)..."
+- Alert appears above Financial Approval Actions card
+- Proper styling (yellow warning with icon)
+
+---
+
+### Debugging Process
+
+1. Checked backend API response → Fields present ✅
+2. Checked frontend Alert components → Code exists ✅
+3. Checked React state via console.log → Fields missing ❌
+4. Found fetchQuoteDetails() was not mapping the fields → Fixed!
+
+---
+
+### Next Steps
+
+- [ ] Continue with Scenario 3 testing from test plan
+
+---
+
 ## Session 42 (2025-11-21) - Fix Send Back Workflow & Add Comment Visibility ✅
 
 ### Goal
