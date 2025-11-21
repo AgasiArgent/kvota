@@ -1,3 +1,68 @@
+## Session 41 (2025-11-21) - Financial Approval MVP Complete ✅
+
+### Goal
+Complete the financial approval MVP implementation with proper workflow states and role-based approval interface.
+
+### Status: COMPLETE ✅
+
+**Time:** ~1.5 hours
+**Files:** 4 files changed (3 frontend, 1 backend)
+
+---
+
+### Completed Tasks
+
+**1. Backend API Implementation**
+- ✅ Added 3 new financial approval endpoints:
+  - `POST /api/quotes/{id}/approve-financial` - Approve quote
+  - `POST /api/quotes/{id}/reject-financial` - Reject quote
+  - `POST /api/quotes/{id}/send-back-for-revision` - Send back for revision
+- ✅ All endpoints update workflow_state and create workflow transitions
+- ✅ Comments are saved with transitions for audit trail
+- **File:** `backend/routes/quotes.py`
+
+**2. Frontend Status Display Fixes**
+- ✅ Quotes list page now shows `workflow_state` instead of `status`
+- ✅ Drawer modal displays correct workflow state
+- ✅ Quote detail page shows workflow state in header and info section
+- ✅ Added new workflow state mappings to getStatusTag function
+- **Files:** `frontend/src/app/quotes/page.tsx`, `frontend/src/app/quotes/[id]/page.tsx`
+
+**3. Financial Approval Component Updates**
+- ✅ Updated FinancialApprovalActions to use new backend endpoints
+- ✅ Changed request format from JSON to text/plain for comments
+- ✅ Added reject action alongside approve and send back
+- ✅ Added role-based visibility (only shows for financial managers)
+- **File:** `frontend/src/components/quotes/FinancialApprovalActions.tsx`
+
+**4. UI/UX Improvements**
+- ✅ Statistics counter shows "На утверждении: 2" correctly
+- ✅ Workflow states display with appropriate colors
+- ✅ Drawer shows workflow state and "Полная страница" button for full view
+- ✅ Financial approval buttons only appear when:
+  - Quote is in `awaiting_financial_approval` state
+  - Current user has `is_financial_manager` flag
+
+---
+
+### Testing Results
+- ✅ КП25-0070 and КП25-0071 show "На финансовом утверждении"
+- ✅ Drawer modal displays correct workflow state
+- ✅ Full detail page conditionally shows approval buttons
+- ✅ All backend endpoints tested and working
+- ✅ Role-based access control verified
+
+---
+
+### Next Steps (Future Enhancements)
+- [ ] Add financial approval buttons directly in drawer view
+- [ ] Implement real-time status updates via WebSocket
+- [ ] Add email notifications for approval/rejection
+- [ ] Add approval history/audit trail view
+- [ ] Add bulk approval functionality
+
+---
+
 ## Session 40 (2025-11-15) - Cloud Deployment & CI/CD Fixes 🚀
 
 ### Goal
