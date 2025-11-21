@@ -39,6 +39,10 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 018 | `018_fix_quote_number_uniqueness.sql` | **Fix quote number unique constraint** | ✅ **Done** | 2025-10-27 | **Session 31** |
 | 021 | `021_performance_indexes.sql` | Performance optimization indexes | ✅ Done | 2025-10-26 | Session 26 - Agent 9 |
 | 016 (new) | `016_analytics_reporting_system.sql` | Analytics reporting tables with RLS | ✅ Done | 2025-11-02 | Session 36 - Analytics Feature |
+| 023 | `023_quote_workflow_system.sql` | Multi-role workflow system | ✅ Done | 2025-11-08 | Initial |
+| 027 | `027_organization_financial_manager.sql` | Add financial_manager_id to organizations | ✅ Done | 2025-11-21 | Session 41 - Financial Approval |
+| 028 | `028_user_financial_manager_flag.sql` | Add is_financial_manager flag to user_profiles | ✅ Done | 2025-11-21 | Session 41 - Financial Approval |
+| 029 | `029_add_financial_workflow_states.sql` | Add missing workflow states for financial approval | ✅ Done | 2025-11-21 | Session 41 - Financial Approval |
 
 ---
 
