@@ -1,3 +1,132 @@
+## Session 42 (2025-11-21) - Fix Send Back Workflow & Add Comment Visibility ✅
+
+### Goal
+Debug and fix the financial approval send back workflow, and add visibility for financial manager comments.
+
+### Status: COMPLETE ✅
+
+**Time:** ~1 hour
+**Commit:** c22cda0
+**Files:** 7 files changed (3 frontend, 2 backend, 2 types)
+
+---
+
+### Issues Fixed
+
+**1. Send Back Workflow Failures**
+- ❌ **Bug:** Send back button returned 422 Unprocessable Entity error
+- ❌ **Bug:** Page crashed with "Cannot read properties of undefined (reading 'color')" after send back
+- **Root Causes:**
+  - Frontend was sending wrong content-type (all actions used text/plain)
+  - WorkflowStateBadge missing new workflow states (sent_back_for_revision, financially_approved, rejected_by_finance)
+  - Workflow transition field names inconsistent (comment vs comments, user_id vs performed_by)
+
+**2. Comment Visibility Missing**
+- ❌ **Bug:** Users couldn't see why their quote was sent back or rejected
+- **Root Cause:** No UI component to display last_sendback_reason or last_financial_comment fields
+
+---
+
+### Completed Tasks
+
+**1. Backend Fixes**
+- ✅ Standardized workflow transition fields:
+  - Changed `user_id` → `performed_by`
+  - Changed `comment` → `comments`
+  - Added `action` and `role_at_transition` fields
+- ✅ Store send-back reason in `last_sendback_reason` field
+- ✅ Store rejection reason in `last_financial_comment` field
+- ✅ Added missing workflow states to WorkflowState type
+- **Files:** `backend/routes/quotes.py`, `backend/workflow_models.py`
+
+**2. Frontend API Request Fix**
+- ✅ Fixed content-type handling:
+  - Send back: `text/plain` with plain string body
+  - Approve/Reject: `application/json` with `{comments: "..."}` body
+- ✅ Refactored FinancialApprovalActions:
+  - Replaced Modal with Popconfirm for better UX
+  - Separated state for reject and send-back comments
+  - Fixed validation to require comments before submission
+- **File:** `frontend/src/components/quotes/FinancialApprovalActions.tsx`
+
+**3. Frontend Workflow State Display**
+- ✅ Added missing states to WorkflowStateBadge:
+  - `financially_approved` - Green, "Финансово утверждено"
+  - `sent_back_for_revision` - Purple, "На доработке"
+  - `rejected_by_finance` - Red, "Отклонено финансами"
+- **File:** `frontend/src/components/workflow/WorkflowStateBadge.tsx`
+
+**4. Comment Visibility Implementation**
+- ✅ Added Alert components to quote detail page:
+  - **Warning Alert** for sent_back_for_revision - Shows last_sendback_reason
+  - **Error Alert** for rejected_by_finance - Shows last_financial_comment
+- ✅ Alerts appear above Financial Approval Actions card
+- ✅ Clear labeling: "Комментарий от финансового менеджера"
+- **File:** `frontend/src/app/quotes/[id]/page.tsx`
+
+**5. Type System Updates**
+- ✅ Added `is_financial_manager` flag to UserProfile type
+- ✅ Added `workflow_state` field to Quote interface
+- ✅ Added `last_sendback_reason` and `last_financial_comment` fields
+- **Files:** `frontend/src/lib/auth/AuthProvider.tsx`, `frontend/src/lib/types/platform.ts`
+
+---
+
+### Testing Results
+
+**Scenario 2: Send Back - Quote Has Issues** ✅ PASSING
+- ✅ Reset КП25-0069 to `awaiting_financial_approval`
+- ✅ Clicked "На доработку" button
+- ✅ Entered comment: "Наценка слишком низкая (3%, требуется 15%). DM гонорар превышает маржу."
+- ✅ Workflow transition: `awaiting_financial_approval` → `sent_back_for_revision`
+- ✅ Comment saved in database: `last_sendback_reason`
+- ✅ UI displays warning Alert with financial manager comment
+- ✅ No page crashes or errors
+- ✅ Financial Approval Actions card correctly disappeared
+
+**Database Verification:**
+```
+Quote: КП25-0069
+State: sent_back_for_revision
+Reason: Наценка слишком низкая (3%, требуется 15%). DM гонорар превышает маржу. Исправьте перед повторной отправкой.
+```
+
+---
+
+### Files Changed
+
+**Backend (2 files, 87 lines):**
+- `backend/routes/quotes.py` - Fixed workflow transition fields, added comment storage
+- `backend/workflow_models.py` - Added 3 missing workflow states
+
+**Frontend (5 files, 160 lines):**
+- `frontend/src/components/quotes/FinancialApprovalActions.tsx` - Fixed API request format, refactored to Popconfirm
+- `frontend/src/components/workflow/WorkflowStateBadge.tsx` - Added 3 missing workflow state configs
+- `frontend/src/app/quotes/[id]/page.tsx` - Added Alert components for comment visibility
+- `frontend/src/lib/auth/AuthProvider.tsx` - Added is_financial_manager flag
+- `frontend/src/lib/types/platform.ts` - Added workflow_state and comment fields to types
+
+---
+
+### Next Steps
+
+**Remaining from Test Plan:**
+- [ ] Scenario 1: Happy Path - Approve Quote (needs testing)
+- [ ] Scenario 3-6: Excel validation scenarios
+- [ ] Scenario 7: Authorization & Permissions testing
+- [ ] Scenario 8: Workflow state transitions (partially tested)
+- [ ] Scenario 9: Excel layout & formatting validation
+- [ ] Scenario 10: Error handling edge cases
+
+**Future Enhancements:**
+- [ ] Add timestamp to comment display ("sent back on 2025-11-21 17:05")
+- [ ] Add "who sent back" information (financial manager name)
+- [ ] Show comment history (multiple send-backs)
+- [ ] Add comment editing capability
+- [ ] Email notifications when quote is sent back
+
+---
+
 ## Session 41 (2025-11-21) - Financial Approval MVP Complete ✅
 
 ### Goal

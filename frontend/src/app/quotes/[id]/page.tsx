@@ -165,6 +165,8 @@ export default function QuoteDetailPage() {
           title: quoteData.title,
           status: quoteData.status,
           workflow_state: quoteData.workflow_state, // CRITICAL: Required for financial approval component
+          last_sendback_reason: quoteData.last_sendback_reason, // Comment when sent back for revision
+          last_financial_comment: quoteData.last_financial_comment, // Comment when rejected by finance
           quote_date: quoteData.quote_date,
           valid_until: quoteData.valid_until,
           currency: quoteData.currency || 'RUB',
