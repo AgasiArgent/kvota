@@ -26,7 +26,7 @@ from fastapi import File, UploadFile
 import os
 from services.activity_log_service import log_activity, log_activity_decorator
 from async_supabase import async_supabase_call
-from supabase import create_client
+from supabase import create_client, Client
 
 
 # ============================================================================
@@ -1240,7 +1240,7 @@ async def approve_quote_financially(
             "comment": comment
         }
 
-        supabase.table("workflow_transitions").insert(transition_data).execute()
+        supabase.table("quote_workflow_transitions").insert(transition_data).execute()
 
         return SuccessResponse(
             success=True,
@@ -1314,7 +1314,7 @@ async def reject_quote_financially(
             "comment": comment  # Required for rejection
         }
 
-        supabase.table("workflow_transitions").insert(transition_data).execute()
+        supabase.table("quote_workflow_transitions").insert(transition_data).execute()
 
         return SuccessResponse(
             success=True,
@@ -1383,12 +1383,22 @@ async def send_quote_back_for_revision(
             "quote_id": str(quote_id),
             "from_state": "awaiting_financial_approval",
             "to_state": "sent_back_for_revision",
-            "user_id": str(user.id),
+            "performed_by": str(user.id),  # Changed from user_id to performed_by
             "organization_id": str(user.current_organization_id),
+            "action": "send_back",  # Added required action field
+            "role_at_transition": "financial_manager",  # Added required role field
             "comment": comment  # Required for revision request
         }
 
-        supabase.table("workflow_transitions").insert(transition_data).execute()
+        # Log the data for debugging
+        print(f"DEBUG: Inserting workflow transition: {transition_data}")
+
+        try:
+            transition_result = supabase.table("quote_workflow_transitions").insert(transition_data).execute()
+            print(f"DEBUG: Transition insert result: {transition_result}")
+        except Exception as e:
+            print(f"ERROR: Failed to insert workflow transition: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to record workflow transition: {str(e)}")
 
         return SuccessResponse(
             success=True,
