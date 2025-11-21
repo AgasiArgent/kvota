@@ -174,6 +174,7 @@ export interface Quote {
   customer_id: string;
   created_by: string;
   status: QuoteStatus;
+  workflow_state?: string; // Financial approval workflow state
   industry: Industry;
   currency: Currency;
 

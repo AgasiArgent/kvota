@@ -13,6 +13,9 @@ WorkflowState = Literal[
     'awaiting_logistics_customs',
     'awaiting_sales_review',
     'awaiting_financial_approval',
+    'financially_approved',
+    'sent_back_for_revision',
+    'rejected_by_finance',
     'awaiting_senior_approval',
     'approved',
     'rejected'

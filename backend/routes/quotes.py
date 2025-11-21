@@ -1235,9 +1235,11 @@ async def approve_quote_financially(
             "quote_id": str(quote_id),
             "from_state": "awaiting_financial_approval",
             "to_state": "financially_approved",
-            "user_id": str(user.id),
+            "performed_by": str(user.id),
             "organization_id": str(user.current_organization_id),
-            "comment": comment
+            "action": "approve",
+            "role_at_transition": "financial_manager",
+            "comments": comment
         }
 
         supabase.table("quote_workflow_transitions").insert(transition_data).execute()
@@ -1293,9 +1295,10 @@ async def reject_quote_financially(
                 detail=f"КП не находится на финансовом утверждении (статус: {quote['workflow_state']})"
             )
 
-        # Update to rejected_by_finance
+        # Update to rejected_by_finance and store the reason
         update_data = {
-            "workflow_state": "rejected_by_finance"
+            "workflow_state": "rejected_by_finance",
+            "last_financial_comment": comment  # Store rejection reason for display in UI
         }
 
         update_result = supabase.table("quotes").update(update_data)\
@@ -1309,9 +1312,11 @@ async def reject_quote_financially(
             "quote_id": str(quote_id),
             "from_state": "awaiting_financial_approval",
             "to_state": "rejected_by_finance",
-            "user_id": str(user.id),
+            "performed_by": str(user.id),
             "organization_id": str(user.current_organization_id),
-            "comment": comment  # Required for rejection
+            "action": "reject",
+            "role_at_transition": "financial_manager",
+            "comments": comment  # Required for rejection
         }
 
         supabase.table("quote_workflow_transitions").insert(transition_data).execute()
@@ -1367,9 +1372,10 @@ async def send_quote_back_for_revision(
                 detail=f"КП не находится на финансовом утверждении (статус: {quote['workflow_state']})"
             )
 
-        # Update to sent_back_for_revision
+        # Update to sent_back_for_revision and store the reason
         update_data = {
-            "workflow_state": "sent_back_for_revision"
+            "workflow_state": "sent_back_for_revision",
+            "last_sendback_reason": comment  # Store the comment for display in UI
         }
 
         update_result = supabase.table("quotes").update(update_data)\
@@ -1383,11 +1389,11 @@ async def send_quote_back_for_revision(
             "quote_id": str(quote_id),
             "from_state": "awaiting_financial_approval",
             "to_state": "sent_back_for_revision",
-            "performed_by": str(user.id),  # Changed from user_id to performed_by
+            "performed_by": str(user.id),
             "organization_id": str(user.current_organization_id),
-            "action": "send_back",  # Added required action field
-            "role_at_transition": "financial_manager",  # Added required role field
-            "comment": comment  # Required for revision request
+            "action": "send_back",
+            "role_at_transition": "financial_manager",
+            "comments": comment  # Required for revision request (fixed: was "comment", should be "comments")
         }
 
         # Log the data for debugging

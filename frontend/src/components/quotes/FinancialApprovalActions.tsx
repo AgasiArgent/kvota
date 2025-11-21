@@ -1,10 +1,12 @@
 'use client';
 
-import { Button, Input, Modal, message } from 'antd';
+import { Button, message, Popconfirm, Input, Space } from 'antd';
 import { CheckOutlined, CloseOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useState } from 'react';
 import { config } from '@/lib/config';
 import { getAuthToken } from '@/lib/auth/auth-helper';
+
+const { TextArea } = Input;
 
 interface Props {
   quoteId: string;
@@ -21,15 +23,14 @@ export default function FinancialApprovalActions({
   onSendBack,
   onReject,
 }: Props) {
-  const [showModal, setShowModal] = useState(false);
-  const [action, setAction] = useState<'approve' | 'sendback' | 'reject'>('approve');
-  const [comments, setComments] = useState('');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [rejectComment, setRejectComment] = useState('');
+  const [sendBackComment, setSendBackComment] = useState('');
 
-  const handleAction = async () => {
-    // Validate comments required for send back and reject
-    if ((action === 'sendback' || action === 'reject') && !comments.trim()) {
+  const handleAction = async (action: 'approve' | 'sendback' | 'reject', comments?: string) => {
+    // Validate comments for reject and send back
+    if ((action === 'sendback' || action === 'reject') && !comments?.trim()) {
       message.error(
         action === 'reject' ? 'Укажите причину отклонения' : 'Укажите причину возврата'
       );
@@ -53,22 +54,21 @@ export default function FinancialApprovalActions({
       const response = await fetch(`${config.apiUrl}/api/quotes/${quoteId}/${endpoint}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'text/plain',
+          'Content-Type': action === 'sendback' ? 'text/plain' : 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: comments.trim() || '',
+        body:
+          action === 'sendback'
+            ? comments?.trim() || ''
+            : JSON.stringify({ comments: comments?.trim() || '' }),
       });
-
-      console.log('[FinancialApproval] Response status:', response.status, response.ok);
 
       if (!response.ok) {
         const error = await response.json();
-        console.error('[FinancialApproval] Error response:', error);
         throw new Error(error.message || error.detail || 'Действие не выполнено');
       }
 
       const result = await response.json();
-      console.log('[FinancialApproval] Success response:', result);
 
       let successMessage = '';
       if (action === 'approve') {
@@ -80,14 +80,16 @@ export default function FinancialApprovalActions({
       }
 
       message.success(successMessage);
-      setShowModal(false);
-      setComments('');
 
+      // Clear comments
+      setRejectComment('');
+      setSendBackComment('');
+
+      // Call appropriate callback
       if (action === 'approve') onApprove();
       else if (action === 'reject' && onReject) onReject();
-      else onSendBack();
+      else if (action === 'sendback') onSendBack();
     } catch (error) {
-      console.error('[FinancialApproval] Caught error:', error);
       message.error(error instanceof Error ? error.message : 'Ошибка выполнения действия');
     } finally {
       setLoading(false);
@@ -127,84 +129,77 @@ export default function FinancialApprovalActions({
   };
 
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
       {/* Download Financial Review Button */}
       <Button icon={<DownloadOutlined />} onClick={handleDownloadExcel} loading={downloading}>
         Скачать финансовый анализ
       </Button>
 
-      {/* Approve Button */}
-      <Button
-        type="primary"
-        icon={<CheckOutlined />}
-        onClick={() => {
-          setAction('approve');
-          setShowModal(true);
-        }}
-      >
-        Утвердить
-      </Button>
-
-      {/* Reject Button */}
-      <Button
-        danger
-        icon={<CloseOutlined />}
-        onClick={() => {
-          setAction('reject');
-          setShowModal(true);
-        }}
-      >
-        Отклонить
-      </Button>
-
-      {/* Send Back Button */}
-      <Button
-        icon={<CloseOutlined />}
-        onClick={() => {
-          setAction('sendback');
-          setShowModal(true);
-        }}
-      >
-        На доработку
-      </Button>
-
-      {/* Action Modal */}
-      <Modal
-        title={
-          action === 'approve'
-            ? 'Утверждение КП'
-            : action === 'reject'
-              ? 'Отклонение КП'
-              : 'Возврат на доработку'
-        }
-        open={showModal}
-        onOk={handleAction}
-        onCancel={() => {
-          setShowModal(false);
-          setComments('');
-        }}
-        confirmLoading={loading}
-        okText={action === 'approve' ? 'Утвердить' : action === 'reject' ? 'Отклонить' : 'Вернуть'}
+      {/* Approve Button - Simple confirmation */}
+      <Popconfirm
+        title="Утверждение КП"
+        description={`Утвердить КП ${quoteNumber}?`}
+        onConfirm={() => handleAction('approve')}
+        okText="Утвердить"
         cancelText="Отмена"
+        okButtonProps={{ loading }}
       >
-        <div style={{ marginTop: '16px' }}>
-          <Input.TextArea
-            placeholder={
-              action === 'approve'
-                ? 'Комментарий (необязательно)'
-                : action === 'reject'
-                  ? 'Укажите причину отклонения *'
-                  : 'Укажите, что нужно исправить *'
-            }
-            value={comments}
-            onChange={(e) => setComments(e.target.value)}
-            rows={4}
-            required={action === 'sendback' || action === 'reject'}
-            maxLength={500}
-            showCount
-          />
-        </div>
-      </Modal>
+        <Button type="primary" icon={<CheckOutlined />}>
+          Утвердить
+        </Button>
+      </Popconfirm>
+
+      {/* Reject Button - With comment input */}
+      <Popconfirm
+        title="Отклонение КП"
+        description={
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <span>Укажите причину отклонения КП {quoteNumber}:</span>
+            <TextArea
+              placeholder="Причина отклонения (обязательно)"
+              value={rejectComment}
+              onChange={(e) => setRejectComment(e.target.value)}
+              rows={3}
+              maxLength={500}
+            />
+          </Space>
+        }
+        onConfirm={() => handleAction('reject', rejectComment)}
+        onCancel={() => setRejectComment('')}
+        okText="Отклонить"
+        cancelText="Отмена"
+        okButtonProps={{ loading, danger: true }}
+        icon={<CloseOutlined style={{ color: 'red' }} />}
+      >
+        <Button danger icon={<CloseOutlined />}>
+          Отклонить
+        </Button>
+      </Popconfirm>
+
+      {/* Send Back Button - With comment input */}
+      <Popconfirm
+        title="Возврат на доработку"
+        description={
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <span>Укажите, что нужно исправить в КП {quoteNumber}:</span>
+            <TextArea
+              placeholder="Что нужно исправить (обязательно)"
+              value={sendBackComment}
+              onChange={(e) => setSendBackComment(e.target.value)}
+              rows={3}
+              maxLength={500}
+            />
+          </Space>
+        }
+        onConfirm={() => handleAction('sendback', sendBackComment)}
+        onCancel={() => setSendBackComment('')}
+        okText="Вернуть"
+        cancelText="Отмена"
+        okButtonProps={{ loading }}
+        icon={<CloseOutlined style={{ color: 'orange' }} />}
+      >
+        <Button icon={<CloseOutlined />}>На доработку</Button>
+      </Popconfirm>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
 import {
+  Alert,
   Card,
   Descriptions,
   Button,
@@ -90,6 +91,8 @@ interface QuoteDetail {
   title?: string;
   status: string;
   workflow_state?: string; // For financial approval workflow
+  last_sendback_reason?: string; // Comment from financial manager when sent back
+  last_financial_comment?: string; // Comment from financial manager when rejected
   quote_date?: string;
   valid_until?: string;
   currency?: string;
@@ -230,7 +233,7 @@ export default function QuoteDetailPage() {
       setSubmitModalOpen(false);
       // Refresh quote data to show new status
       await fetchQuoteDetails();
-      await fetchWorkflowStatus();
+      await loadWorkflowStatus();
       message.success('КП отправлено на финансовое утверждение');
     } catch (error: any) {
       message.error(error.message || 'Ошибка отправки на утверждение');
@@ -594,6 +597,40 @@ export default function QuoteDetailPage() {
                         </Col>
                       </Row>
                     )}
+
+                    {/* Send-back Reason Alert */}
+                    {quote.workflow_state === 'sent_back_for_revision' &&
+                      quote.last_sendback_reason && (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="КП требует доработки"
+                          description={
+                            <div>
+                              <strong>Комментарий от финансового менеджера:</strong>
+                              <br />
+                              {quote.last_sendback_reason}
+                            </div>
+                          }
+                        />
+                      )}
+
+                    {/* Rejection Reason Alert */}
+                    {quote.workflow_state === 'rejected_by_finance' &&
+                      quote.last_financial_comment && (
+                        <Alert
+                          type="error"
+                          showIcon
+                          message="КП отклонено финансовым менеджером"
+                          description={
+                            <div>
+                              <strong>Причина отклонения:</strong>
+                              <br />
+                              {quote.last_financial_comment}
+                            </div>
+                          }
+                        />
+                      )}
 
                     {/* Financial Approval Actions */}
                     {quote.workflow_state === 'awaiting_financial_approval' &&
