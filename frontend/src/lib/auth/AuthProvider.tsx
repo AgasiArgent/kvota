@@ -14,6 +14,7 @@ interface UserProfile {
   organization_id?: string | null;
   role: 'sales_manager' | 'finance_manager' | 'department_manager' | 'director' | 'admin';
   organizationRole?: string; // Role in current organization (from organization_members table)
+  is_financial_manager?: boolean; // Flag for financial approval permissions
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phone: data.phone,
         organization_id: organizationId,
         role: data.role || 'sales_manager',
+        is_financial_manager: data.is_financial_manager || false,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
