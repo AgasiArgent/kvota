@@ -4,10 +4,10 @@ Multi-manager approval workflow with status transitions
 """
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException, Depends, Query, status
+from fastapi import APIRouter, HTTPException, Depends, Query, status, Body
 from fastapi.responses import JSONResponse
 
 from auth import get_current_user, User, require_permission, require_manager_or_above
@@ -26,6 +26,7 @@ from fastapi import File, UploadFile
 import os
 from services.activity_log_service import log_activity, log_activity_decorator
 from async_supabase import async_supabase_call
+from supabase import create_client
 
 
 # ============================================================================
@@ -142,7 +143,8 @@ async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = 
 async def list_quotes(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    quote_status: Optional[str] = Query(None, description="Filter by quote status"),
+    quote_status: Optional[str] = Query(None, description="Filter by quote status (deprecated, use workflow_state)"),
+    workflow_state: Optional[str] = Query(None, description="Filter by workflow state"),
     customer_id: Optional[UUID] = Query(None, description="Filter by customer"),
     date_from: Optional[date] = Query(None, description="Filter quotes from date"),
     date_to: Optional[date] = Query(None, description="Filter quotes to date"),
@@ -163,7 +165,7 @@ async def list_quotes(
         # Build query with joins, exclude soft-deleted quotes
         # Explicitly list fields to ensure new columns are included
         query = supabase.table("quotes").select(
-            "id, quote_number, customer_id, title, description, status, "
+            "id, quote_number, customer_id, title, description, status, workflow_state, "
             "quote_date, valid_until, "
             "subtotal, discount_percentage, discount_amount, tax_rate, tax_amount, total_amount, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
@@ -172,7 +174,11 @@ async def list_quotes(
         ).eq("organization_id", user.current_organization_id).is_("deleted_at", "null")
 
         # Apply filters
-        if quote_status:
+        # Prefer workflow_state over deprecated quote_status
+        if workflow_state:
+            query = query.eq("workflow_state", workflow_state)
+        elif quote_status:
+            # Fallback for backward compatibility
             query = query.eq("status", quote_status)
         if customer_id:
             query = query.eq("customer_id", str(customer_id))
@@ -236,6 +242,7 @@ async def list_quotes(
                 "customer_name": customer_name,
                 "title": quote.get("title", ""),
                 "status": quote["status"],
+                "workflow_state": quote.get("workflow_state", "draft"),
                 "total_amount": quote.get("total_amount", 0),
                 "quote_date": quote.get("quote_date"),
                 "valid_until": quote.get("valid_until"),
@@ -1110,6 +1117,289 @@ async def delete_quote_item(
 # ============================================================================
 # MULTI-MANAGER APPROVAL WORKFLOW
 # ============================================================================
+
+@router.post("/{quote_id}/submit-for-financial-approval", response_model=SuccessResponse)
+async def submit_quote_for_financial_approval(
+    quote_id: UUID,
+    comment: str = Body(None, description="Optional comment when submitting"),
+    user: User = Depends(get_current_user)
+):
+    """
+    Submit quote for financial approval (simplified single-manager workflow)
+    """
+    supabase = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    try:
+        # Get quote and verify it's in draft status
+        result = supabase.table("quotes").select("*").eq("id", str(quote_id)).eq("organization_id", str(user.current_organization_id)).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Quote not found")
+
+        quote = result.data[0]
+
+        if quote['workflow_state'] != 'draft':
+            raise HTTPException(
+                status_code=400,
+                detail="Can only submit draft quotes for approval"
+            )
+
+        # For MVP: Use the current user as the financial manager
+        # In production: Get from organizations.financial_manager_id
+        financial_manager_id = str(user.id)
+
+        # Update quote to awaiting_financial_approval with optional comment
+        update_data = {
+            "workflow_state": "awaiting_financial_approval"
+        }
+        if comment:
+            update_data["submission_comment"] = comment
+
+        result = supabase.table("quotes").update(update_data).eq("id", str(quote_id)).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to update quote status")
+
+        # Create approval record (optional, for tracking)
+        # This would be in the quote_approvals table if you have it
+
+        return SuccessResponse(
+            message=f"Quote {quote['quote_number']} submitted for financial approval"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to submit for approval: {str(e)}"
+        )
+
+
+@router.post("/{quote_id}/approve-financial", response_model=SuccessResponse)
+async def approve_quote_financially(
+    quote_id: UUID,
+    comment: str = Body(None, description="Optional comment when approving"),
+    user: User = Depends(get_current_user)
+):
+    """
+    Approve a quote financially - only financial manager can do this
+    """
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Check if user is financial manager for the organization
+        org_result = supabase.table("organizations").select("financial_manager_id")\
+            .eq("id", str(user.current_organization_id)).execute()
+
+        if not org_result.data or org_result.data[0]["financial_manager_id"] != str(user.id):
+            raise HTTPException(
+                status_code=403,
+                detail="Только финансовый менеджер может утверждать КП"
+            )
+
+        # Check current quote state
+        quote_result = supabase.table("quotes").select("workflow_state, quote_number")\
+            .eq("id", str(quote_id))\
+            .eq("organization_id", str(user.current_organization_id)).execute()
+
+        if not quote_result.data:
+            raise HTTPException(status_code=404, detail="КП не найдено")
+
+        quote = quote_result.data[0]
+        if quote["workflow_state"] != "awaiting_financial_approval":
+            raise HTTPException(
+                status_code=400,
+                detail=f"КП не находится на финансовом утверждении (статус: {quote['workflow_state']})"
+            )
+
+        # Update to financially_approved
+        update_data = {
+            "workflow_state": "financially_approved",
+            "financially_approved_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        update_result = supabase.table("quotes").update(update_data)\
+            .eq("id", str(quote_id)).execute()
+
+        if not update_result.data:
+            raise HTTPException(status_code=500, detail="Ошибка обновления КП")
+
+        # Record workflow transition with comment
+        transition_data = {
+            "quote_id": str(quote_id),
+            "from_state": "awaiting_financial_approval",
+            "to_state": "financially_approved",
+            "user_id": str(user.id),
+            "organization_id": str(user.current_organization_id),
+            "comment": comment
+        }
+
+        supabase.table("workflow_transitions").insert(transition_data).execute()
+
+        return SuccessResponse(
+            success=True,
+            message=f"КП {quote['quote_number']} финансово утверждено"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{quote_id}/reject-financial", response_model=SuccessResponse)
+async def reject_quote_financially(
+    quote_id: UUID,
+    comment: str = Body(..., description="Required comment when rejecting"),
+    user: User = Depends(get_current_user)
+):
+    """
+    Reject a quote financially - only financial manager can do this
+    """
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Check if user is financial manager for the organization
+        org_result = supabase.table("organizations").select("financial_manager_id")\
+            .eq("id", str(user.current_organization_id)).execute()
+
+        if not org_result.data or org_result.data[0]["financial_manager_id"] != str(user.id):
+            raise HTTPException(
+                status_code=403,
+                detail="Только финансовый менеджер может отклонять КП"
+            )
+
+        # Check current quote state
+        quote_result = supabase.table("quotes").select("workflow_state, quote_number")\
+            .eq("id", str(quote_id))\
+            .eq("organization_id", str(user.current_organization_id)).execute()
+
+        if not quote_result.data:
+            raise HTTPException(status_code=404, detail="КП не найдено")
+
+        quote = quote_result.data[0]
+        if quote["workflow_state"] != "awaiting_financial_approval":
+            raise HTTPException(
+                status_code=400,
+                detail=f"КП не находится на финансовом утверждении (статус: {quote['workflow_state']})"
+            )
+
+        # Update to rejected_by_finance
+        update_data = {
+            "workflow_state": "rejected_by_finance"
+        }
+
+        update_result = supabase.table("quotes").update(update_data)\
+            .eq("id", str(quote_id)).execute()
+
+        if not update_result.data:
+            raise HTTPException(status_code=500, detail="Ошибка обновления КП")
+
+        # Record workflow transition with comment
+        transition_data = {
+            "quote_id": str(quote_id),
+            "from_state": "awaiting_financial_approval",
+            "to_state": "rejected_by_finance",
+            "user_id": str(user.id),
+            "organization_id": str(user.current_organization_id),
+            "comment": comment  # Required for rejection
+        }
+
+        supabase.table("workflow_transitions").insert(transition_data).execute()
+
+        return SuccessResponse(
+            success=True,
+            message=f"КП {quote['quote_number']} отклонено финансовым менеджером"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{quote_id}/send-back-for-revision", response_model=SuccessResponse)
+async def send_quote_back_for_revision(
+    quote_id: UUID,
+    comment: str = Body(..., description="Required comment explaining what needs revision"),
+    user: User = Depends(get_current_user)
+):
+    """
+    Send a quote back for revision - only financial manager can do this
+    """
+    try:
+        supabase: Client = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        # Check if user is financial manager for the organization
+        org_result = supabase.table("organizations").select("financial_manager_id")\
+            .eq("id", str(user.current_organization_id)).execute()
+
+        if not org_result.data or org_result.data[0]["financial_manager_id"] != str(user.id):
+            raise HTTPException(
+                status_code=403,
+                detail="Только финансовый менеджер может отправлять КП на доработку"
+            )
+
+        # Check current quote state
+        quote_result = supabase.table("quotes").select("workflow_state, quote_number")\
+            .eq("id", str(quote_id))\
+            .eq("organization_id", str(user.current_organization_id)).execute()
+
+        if not quote_result.data:
+            raise HTTPException(status_code=404, detail="КП не найдено")
+
+        quote = quote_result.data[0]
+        if quote["workflow_state"] != "awaiting_financial_approval":
+            raise HTTPException(
+                status_code=400,
+                detail=f"КП не находится на финансовом утверждении (статус: {quote['workflow_state']})"
+            )
+
+        # Update to sent_back_for_revision
+        update_data = {
+            "workflow_state": "sent_back_for_revision"
+        }
+
+        update_result = supabase.table("quotes").update(update_data)\
+            .eq("id", str(quote_id)).execute()
+
+        if not update_result.data:
+            raise HTTPException(status_code=500, detail="Ошибка обновления КП")
+
+        # Record workflow transition with comment
+        transition_data = {
+            "quote_id": str(quote_id),
+            "from_state": "awaiting_financial_approval",
+            "to_state": "sent_back_for_revision",
+            "user_id": str(user.id),
+            "organization_id": str(user.current_organization_id),
+            "comment": comment  # Required for revision request
+        }
+
+        supabase.table("workflow_transitions").insert(transition_data).execute()
+
+        return SuccessResponse(
+            success=True,
+            message=f"КП {quote['quote_number']} отправлено на доработку"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/{quote_id}/submit-for-approval", response_model=SuccessResponse)
 async def submit_quote_for_approval(

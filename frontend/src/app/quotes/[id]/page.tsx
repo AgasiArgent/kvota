@@ -24,6 +24,7 @@ import {
   EditOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useRouter, useParams } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
@@ -35,6 +36,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
 import FinancialApprovalActions from '@/components/quotes/FinancialApprovalActions';
+import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -106,6 +108,7 @@ export default function QuoteDetailPage() {
   const [workflow, setWorkflow] = useState<WorkflowStatus | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('details');
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
 
   const quoteService = new QuoteService();
   const quoteId = params?.id as string;
@@ -196,6 +199,42 @@ export default function QuoteDetailPage() {
       }
     } catch (error: any) {
       message.error('Ошибка удаления: ' + error.message);
+    }
+  };
+
+  const handleSubmitForApproval = async (comment?: string) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        message.error('Не авторизован');
+        return;
+      }
+
+      const response = await fetch(
+        `${config.apiUrl}/api/quotes/${quoteId}/submit-for-financial-approval`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'text/plain',
+          },
+          body: comment || '',
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка отправки на утверждение');
+      }
+
+      setSubmitModalOpen(false);
+      // Refresh quote data to show new status
+      await fetchQuoteDetails();
+      await fetchWorkflowStatus();
+      message.success('КП отправлено на финансовое утверждение');
+    } catch (error: any) {
+      message.error(error.message || 'Ошибка отправки на утверждение');
+      throw error;
     }
   };
 
@@ -340,6 +379,7 @@ export default function QuoteDetailPage() {
 
   const getStatusTag = (status: string) => {
     const statusMap = {
+      // Old status values (for backward compatibility)
       draft: { color: 'default', text: 'Черновик' },
       pending_approval: { color: 'orange', text: 'На утверждении' },
       partially_approved: { color: 'gold', text: 'Частично утверждено' },
@@ -353,6 +393,11 @@ export default function QuoteDetailPage() {
       rejected: { color: 'red', text: 'Отклонено' },
       expired: { color: 'default', text: 'Истекло' },
       cancelled: { color: 'default', text: 'Отменено' },
+      // New workflow state values
+      awaiting_financial_approval: { color: 'orange', text: 'На финансовом утверждении' },
+      financially_approved: { color: 'green', text: 'Финансово утверждено' },
+      rejected_by_finance: { color: 'red', text: 'Отклонено финансовым менеджером' },
+      sent_back_for_revision: { color: 'purple', text: 'На доработке' },
     };
     const config = statusMap[status as keyof typeof statusMap] || {
       color: 'default',
@@ -481,7 +526,7 @@ export default function QuoteDetailPage() {
                 <Title level={2} style={{ margin: 0 }}>
                   {quote.quote_number}
                 </Title>
-                {getStatusTag(quote.status)}
+                {getStatusTag(quote.workflow_state || quote.status)}
               </Space>
             </Col>
             <Col>
@@ -495,9 +540,18 @@ export default function QuoteDetailPage() {
                     Экспорт
                   </Button>
                 </Dropdown>
-                {(quote.status === 'draft' || quote.status === 'revision_needed') && (
+                {quote.workflow_state === 'draft' && (
                   <Button
                     type="primary"
+                    icon={<CheckCircleOutlined />}
+                    onClick={() => setSubmitModalOpen(true)}
+                    style={{ background: '#52c41a', borderColor: '#52c41a' }}
+                  >
+                    Отправить на утверждение
+                  </Button>
+                )}
+                {(quote.status === 'draft' || quote.status === 'revision_needed') && (
+                  <Button
                     icon={<EditOutlined />}
                     onClick={() => router.push('/quotes/' + quote.id + '/edit')}
                   >
@@ -542,22 +596,27 @@ export default function QuoteDetailPage() {
                     )}
 
                     {/* Financial Approval Actions */}
-                    {quote.workflow_state === 'awaiting_financial_approval' && (
-                      <Card>
-                        <FinancialApprovalActions
-                          quoteId={quote.id}
-                          quoteNumber={quote.quote_number}
-                          onApprove={() => {
-                            fetchQuoteDetails();
-                            loadWorkflowStatus();
-                          }}
-                          onSendBack={() => {
-                            fetchQuoteDetails();
-                            loadWorkflowStatus();
-                          }}
-                        />
-                      </Card>
-                    )}
+                    {quote.workflow_state === 'awaiting_financial_approval' &&
+                      profile?.is_financial_manager && (
+                        <Card>
+                          <FinancialApprovalActions
+                            quoteId={quote.id}
+                            quoteNumber={quote.quote_number}
+                            onApprove={() => {
+                              fetchQuoteDetails();
+                              loadWorkflowStatus();
+                            }}
+                            onSendBack={() => {
+                              fetchQuoteDetails();
+                              loadWorkflowStatus();
+                            }}
+                            onReject={() => {
+                              fetchQuoteDetails();
+                              loadWorkflowStatus();
+                            }}
+                          />
+                        </Card>
+                      )}
 
                     {/* Quote Info Card */}
                     <Card title="Информация о КП" variant="borderless">
@@ -569,7 +628,7 @@ export default function QuoteDetailPage() {
                           {quote.title || '—'}
                         </Descriptions.Item>
                         <Descriptions.Item label="Статус">
-                          {getStatusTag(quote.status)}
+                          {getStatusTag(quote.workflow_state || quote.status)}
                         </Descriptions.Item>
                         <Descriptions.Item label="Дата КП">
                           {formatDate(quote.quote_date)}
@@ -617,6 +676,14 @@ export default function QuoteDetailPage() {
             ]}
           />
         </Space>
+
+        {/* Submit for Approval Modal */}
+        <SubmitForApprovalModal
+          open={submitModalOpen}
+          onCancel={() => setSubmitModalOpen(false)}
+          onSubmit={handleSubmitForApproval}
+          quoteNumber={quote.quote_number}
+        />
       </App>
     </MainLayout>
   );

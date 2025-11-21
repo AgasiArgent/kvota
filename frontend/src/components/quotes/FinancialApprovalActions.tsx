@@ -11,6 +11,7 @@ interface Props {
   quoteNumber: string;
   onApprove: () => void;
   onSendBack: () => void;
+  onReject?: () => void;
 }
 
 export default function FinancialApprovalActions({
@@ -18,31 +19,44 @@ export default function FinancialApprovalActions({
   quoteNumber,
   onApprove,
   onSendBack,
+  onReject,
 }: Props) {
   const [showModal, setShowModal] = useState(false);
-  const [action, setAction] = useState<'approve' | 'sendback'>('approve');
+  const [action, setAction] = useState<'approve' | 'sendback' | 'reject'>('approve');
   const [comments, setComments] = useState('');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   const handleAction = async () => {
-    // Validate comments required for send back
-    if (action === 'sendback' && !comments.trim()) {
-      message.error('Укажите причину возврата');
+    // Validate comments required for send back and reject
+    if ((action === 'sendback' || action === 'reject') && !comments.trim()) {
+      message.error(
+        action === 'reject' ? 'Укажите причину отклонения' : 'Укажите причину возврата'
+      );
       return;
     }
 
     setLoading(true);
     try {
       const token = await getAuthToken();
-      const endpoint = action === 'approve' ? 'financial-approve' : 'financial-send-back';
+
+      // Map action to endpoint
+      let endpoint = '';
+      if (action === 'approve') {
+        endpoint = 'approve-financial';
+      } else if (action === 'reject') {
+        endpoint = 'reject-financial';
+      } else {
+        endpoint = 'send-back-for-revision';
+      }
+
       const response = await fetch(`${config.apiUrl}/api/quotes/${quoteId}/${endpoint}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'text/plain',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ comments: comments.trim() || undefined }),
+        body: comments.trim() || '',
       });
 
       console.log('[FinancialApproval] Response status:', response.status, response.ok);
@@ -56,11 +70,21 @@ export default function FinancialApprovalActions({
       const result = await response.json();
       console.log('[FinancialApproval] Success response:', result);
 
-      message.success(action === 'approve' ? 'КП утверждено!' : 'КП возвращено на доработку');
+      let successMessage = '';
+      if (action === 'approve') {
+        successMessage = 'КП финансово утверждено!';
+      } else if (action === 'reject') {
+        successMessage = 'КП отклонено';
+      } else {
+        successMessage = 'КП отправлено на доработку';
+      }
+
+      message.success(successMessage);
       setShowModal(false);
       setComments('');
 
       if (action === 'approve') onApprove();
+      else if (action === 'reject' && onReject) onReject();
       else onSendBack();
     } catch (error) {
       console.error('[FinancialApproval] Caught error:', error);
@@ -121,21 +145,38 @@ export default function FinancialApprovalActions({
         Утвердить
       </Button>
 
-      {/* Send Back Button */}
+      {/* Reject Button */}
       <Button
         danger
+        icon={<CloseOutlined />}
+        onClick={() => {
+          setAction('reject');
+          setShowModal(true);
+        }}
+      >
+        Отклонить
+      </Button>
+
+      {/* Send Back Button */}
+      <Button
         icon={<CloseOutlined />}
         onClick={() => {
           setAction('sendback');
           setShowModal(true);
         }}
       >
-        Вернуть на доработку
+        На доработку
       </Button>
 
       {/* Action Modal */}
       <Modal
-        title={action === 'approve' ? 'Утверждение КП' : 'Возврат на доработку'}
+        title={
+          action === 'approve'
+            ? 'Утверждение КП'
+            : action === 'reject'
+              ? 'Отклонение КП'
+              : 'Возврат на доработку'
+        }
         open={showModal}
         onOk={handleAction}
         onCancel={() => {
@@ -143,7 +184,7 @@ export default function FinancialApprovalActions({
           setComments('');
         }}
         confirmLoading={loading}
-        okText={action === 'approve' ? 'Утвердить' : 'Вернуть'}
+        okText={action === 'approve' ? 'Утвердить' : action === 'reject' ? 'Отклонить' : 'Вернуть'}
         cancelText="Отмена"
       >
         <div style={{ marginTop: '16px' }}>
@@ -151,12 +192,14 @@ export default function FinancialApprovalActions({
             placeholder={
               action === 'approve'
                 ? 'Комментарий (необязательно)'
-                : 'Укажите, что нужно исправить *'
+                : action === 'reject'
+                  ? 'Укажите причину отклонения *'
+                  : 'Укажите, что нужно исправить *'
             }
             value={comments}
             onChange={(e) => setComments(e.target.value)}
             rows={4}
-            required={action === 'sendback'}
+            required={action === 'sendback' || action === 'reject'}
             maxLength={500}
             showCount
           />
