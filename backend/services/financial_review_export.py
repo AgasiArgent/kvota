@@ -161,18 +161,25 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     # Values
     advance = Decimal(str(quote_data.get('advance_from_client', 0)))
     delivery = quote_data.get('delivery_time', 0)
-    markup = Decimal(str(quote_data.get('markup', 0)))
+    total_cogs = Decimal(str(quote_data.get('total_cogs', 0)))
+    total_margin = Decimal(str(quote_data.get('total_margin', 0)))
     dm_fee = Decimal(str(quote_data.get('dm_fee_value', 0)))
-    margin = Decimal(str(quote_data.get('total_margin', 0)))
+
+    # Calculate ACHIEVED markup (actual profit margin considering product-level overrides)
+    # Formula: achieved_markup % = (total_margin / total_cogs) × 100
+    if total_cogs > 0:
+        achieved_markup = (total_margin / total_cogs) * 100
+    else:
+        achieved_markup = Decimal("0")
 
     totals_values = [
         ('A', quote_data.get('total_logistics', 0), '#,##0.00 ₽', None),
-        ('C', quote_data.get('total_cogs', 0), '#,##0.00 ₽', None),
-        ('E', markup, '0.00"%"', validate_markup(markup, advance, delivery, level='quote')),
+        ('C', total_cogs, '#,##0.00 ₽', None),
+        ('E', achieved_markup, '0.00"%"', validate_markup(achieved_markup, advance, delivery, level='quote')),
         ('G', quote_data.get('total_revenue_no_vat', 0), '#,##0.00 ₽', None),
         ('I', quote_data.get('total_revenue_with_vat', 0), '#,##0.00 ₽', None),
-        ('K', margin, '#,##0.00 ₽', None),
-        ('M', dm_fee, '#,##0.00 ₽', validate_dm_fee(dm_fee, margin)),
+        ('K', total_margin, '#,##0.00 ₽', None),
+        ('M', dm_fee, '#,##0.00 ₽', validate_dm_fee(dm_fee, total_margin)),
     ]
 
     for col, value, fmt, validation in totals_values:
