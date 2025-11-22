@@ -128,9 +128,17 @@
 
 ---
 
-### Scenario 3: Excel Validation - Low Markup
+### Scenario 3: Excel Validation - Low Markup ✅
+
+**Status:** PASSED (2025-11-22 Session 44)
+**Related:** Product-level variable overrides implementation
 
 **Objective:** Verify markup validation logic with different advance/delivery combinations
+
+**Note:** While implementing this scenario, discovered and fixed critical issues:
+- Product-level markups not being saved (ProductFromFile model missing fields)
+- Calculation engine ignoring product overrides (hardcoded to quote defaults)
+- Both issues resolved in Session 44 (commits 2b9288c, 5ca143b)
 
 **Test Cases:**
 
@@ -489,7 +497,7 @@ Product 3: markup=4%  → ❌ RED (very low)
 ## Notes
 
 **Known limitations (not bugs):**
-- Products data may not be populated (TODO in backend)
+- ~~Products data may not be populated (TODO in backend)~~ ✅ FIXED (Session 44)
 - Some calculation fields may be missing (depends on quote creation)
 - No notification system yet (future feature)
 
@@ -498,3 +506,15 @@ Product 3: markup=4%  → ❌ RED (very low)
 - Excel generation and validation logic
 - UI/UX (buttons appear, modals work, errors clear)
 - Security (RLS, auth, permissions)
+
+---
+
+## Next Session Tasks
+
+**Scenario 4:** DM Fee vs Margin validation testing
+
+**Bug to fix:** Manager comment visibility issue
+- ✅ **Working:** Financial manager sends back → comment visible
+- ❌ **Not working:** Manager sends for approval → comment NOT visible
+- **Impact:** Managers can't see why quote was approved (context lost)
+- **Location:** Likely quote detail page, need to add approval comment display
