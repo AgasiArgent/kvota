@@ -638,16 +638,8 @@ export default function CreateQuotePage() {
 
       // IMPORTANT: Build products with custom_fields BEFORE applying defaults
       // Otherwise applyQuoteDefaultsToProducts will overwrite user edits!
-      console.log('[DEBUG] productOverrides Map:', productOverrides);
-      console.log('[DEBUG] productOverrides size:', productOverrides.size);
-
       const productsWithCustomFields = uploadedProducts.map((product, index) => {
         const overrides = productOverrides.get(index);
-        console.log(`[DEBUG] Product ${index} (${product.product_name}):`, {
-          hasOverrides: !!overrides,
-          overrides: overrides,
-          productMarkup: product.markup,
-        });
 
         // Apply defaults but preserve overrides
         const productWithDefaults = {

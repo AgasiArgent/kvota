@@ -168,10 +168,8 @@ async def get_financial_review_excel(
             # Use product override if exists, otherwise use quote-level default
             if product_markup is not None:
                 markup = Decimal(str(product_markup))
-                print(f"[DEBUG] Using product-level markup: {markup}% (item: {item.get('product_name')})")
             else:
                 markup = quote_level_markup
-                print(f"[DEBUG] Using quote-level markup: {markup}% (item: {item.get('product_name')})")
 
             # Use product_name if available, fallback to description
             product_name = item.get('product_name') or item.get('description') or 'Unnamed Product'
