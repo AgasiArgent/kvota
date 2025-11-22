@@ -129,11 +129,36 @@ async def get_financial_review_excel(
             item_id = str(item['id'])
             phase_results = calc_map.get(item_id, {})
 
-            # Extract calculation results from phase_results JSON
+            # Extract ALL calculation results from phase_results JSON
+            # This gives financial manager full transparency into cost buildup
             quantity = Decimal(str(item.get('quantity', 1)))
+
+            # Phase 1: Purchase pricing
+            purchase_price_no_vat = Decimal(str(phase_results.get('purchase_price_no_vat', 0)))
+            purchase_price_after_discount = Decimal(str(phase_results.get('purchase_price_after_discount', 0)))
+            purchase_price_per_unit = Decimal(str(phase_results.get('purchase_price_per_unit_quote_currency', 0)))
+            purchase_price_total = Decimal(str(phase_results.get('purchase_price_total_quote_currency', 0)))
+
+            # Phase 3: Logistics (distributed to this product)
+            logistics_total = Decimal(str(phase_results.get('logistics_total', 0)))
+
+            # Phase 4: Customs & taxes
+            customs_fee = Decimal(str(phase_results.get('customs_fee', 0)))
+            excise_tax = Decimal(str(phase_results.get('excise_tax_amount', 0)))
+
+            # Phase 9: Financing costs
+            financing_cost_initial = Decimal(str(phase_results.get('financing_cost_initial', 0)))
+            financing_cost_credit = Decimal(str(phase_results.get('financing_cost_credit', 0)))
+            financing_cost_total = financing_cost_initial + financing_cost_credit
+
+            # Phase 10: COGS
+            cogs_per_unit = Decimal(str(phase_results.get('cogs_per_unit', 0)))
             cogs_total = Decimal(str(phase_results.get('cogs_per_product', 0)))
+
+            # Phase 12-13: Sales pricing
             sales_price_no_vat = Decimal(str(phase_results.get('sales_price_total_no_vat', 0)))
             sales_price_with_vat = Decimal(str(phase_results.get('sales_price_total_with_vat', 0)))
+            profit = Decimal(str(phase_results.get('profit', 0)))
 
             # BUGFIX: Use INPUT markup value, not calculated
             # TODO: Check if item has product-level override in custom_fields
@@ -147,9 +172,23 @@ async def get_financial_review_excel(
                 'name': product_name,
                 'quantity': int(quantity),
                 'markup': markup,
+                # Purchase pricing (supplier → quote currency)
+                'purchase_price_supplier': purchase_price_no_vat,  # Original supplier price
+                'purchase_price_after_discount': purchase_price_after_discount,
+                'purchase_price_per_unit': purchase_price_per_unit,
+                'purchase_price_total': purchase_price_total,
+                # Cost components
+                'logistics': logistics_total,
+                'customs_fee': customs_fee,
+                'excise_tax': excise_tax,
+                'financing': financing_cost_total,
+                # Total costs
+                'cogs_per_unit': cogs_per_unit,
                 'cogs': cogs_total,
+                # Sales pricing
                 'price_no_vat': sales_price_no_vat,
-                'price_with_vat': sales_price_with_vat
+                'price_with_vat': sales_price_with_vat,
+                'profit': profit,
             })
 
         # Get calculation results from quote_calculation_summaries table
