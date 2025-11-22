@@ -1,3 +1,103 @@
+## Session 44 (2025-11-22) - Enable Product-Level Variable Overrides ✅
+
+### Goal
+Implement product-level variable overrides (custom_fields) to enable two-tier system where users can customize markup and other variables per product.
+
+### Status: COMPLETE ✅
+
+**Time:** ~3 hours (brainstorming + implementation + debugging)
+**Commits:** 2b9288c, abcf440
+**Files:** 5 files changed, 1,013 insertions(+), 12 deletions(-)
+
+---
+
+### What We Accomplished
+
+**1. Brainstorming & Planning**
+- Reviewed existing refactor plan (quote-schema-refactor-plan.md)
+- Analyzed risks of Phase 2 (merge quote_calculation_variables into quotes)
+- **Decision:** Skip Phase 2 table merge (premature optimization, migration risk)
+- **Alternative:** Keep tables separate, optimize with single nested query instead
+- Created revised plan: `quote-refactor-plan-revised.md`
+
+**2. Phase 1 Implementation**
+- ✅ Migration 030: Add `custom_fields` JSONB to `quote_items`
+- ✅ Backend: Extract and save product overrides to custom_fields
+- ✅ Backend: Read custom_fields and use in financial review export
+- ✅ Frontend: Track cell edits and send custom_fields to API
+- ✅ **Critical fix:** Add override fields to ProductFromFile Pydantic model
+
+**3. Testing & Verification**
+- Created Quote КП25-0083 with 5 different markup values (1%, 2%, 3%, 4%, 50%)
+- ✅ Database: All custom_fields saved correctly
+- ✅ Export: Financial review shows per-product markups (not quote defaults)
+- ✅ Backend logs confirm: "Using product-level markup" for all products
+
+---
+
+### Critical Bug Found & Fixed
+
+**Issue:** Product markup overrides not being saved even though:
+- ✅ Frontend tracked edits correctly (productOverrides Map populated)
+- ✅ Frontend sent custom_fields to API
+- ✅ Backend custom_fields column exists
+
+**Root Cause:** `ProductFromFile` Pydantic model was missing override fields (markup, supplier_discount, import_tariff, etc.). When frontend sent these fields, Pydantic **silently ignored** them during request parsing.
+
+**Fix:** Added all 8 override fields + custom_fields to ProductFromFile model (line 142-150 in quotes_calc.py)
+
+---
+
+### Files Changed
+
+**Database:**
+- `backend/migrations/030_add_custom_fields_to_quote_items.sql` (new, 83 lines)
+
+**Backend:**
+- `backend/routes/quotes_calc.py` (+39 lines)
+  - Add override fields to ProductFromFile model
+  - Extract custom_fields from products
+  - Save to quote_items table
+- `backend/routes/financial_approval.py` (+14 lines)
+  - Include custom_fields in items query
+  - Use product-level markup if override exists
+
+**Frontend:**
+- `frontend/src/app/quotes/create/page.tsx` (+91 lines)
+  - Add editedCells and productOverrides state tracking
+  - Enhanced onCellValueChanged handler
+  - Build custom_fields while preserving overrides
+
+**Documentation:**
+- `backend/docs/implementation/quote-refactor-plan-revised.md` (new, 798 lines)
+
+---
+
+### Key Learnings
+
+1. **Pydantic silently ignores unknown fields** - Always check model definitions when fields aren't being saved
+2. **Next.js Turbopack hot reload can be slow** - Sometimes requires full server restart to pick up changes
+3. **Browser caching is aggressive** - Hard refresh (Ctrl+Shift+R) needed after code changes
+4. **Premature optimization is real** - Rejecting Phase 2 table merge saved 3 hours + migration risk
+
+---
+
+### What's Next
+
+**Phase 2 (Optional):** Query optimization - combine 3 HTTP requests into 1
+- Estimated effort: 1 hour
+- Expected improvement: 50-67% faster exports (100-150ms saved)
+- Zero migration risk (pure code change)
+- Can be done anytime (not blocking)
+
+**Current State:**
+- ✅ Product overrides working perfectly
+- ✅ Financial review exports show correct data
+- ✅ No data loss
+- ✅ All tests passing
+
+---
+
 ## Session 43 (2025-11-21) - Fix Comment Visibility Bug ✅
 
 ### Goal
