@@ -294,11 +294,21 @@ def map_variables_to_calculation_input(
     )
 
     # ========== FinancialParams (7 fields) ==========
+    # Use get_value() helper for two-tier logic (product override > quote default)
     financial = FinancialParams(
         currency_of_quote=Currency(variables.get('currency_of_quote', 'USD')),
-        exchange_rate_base_price_to_quote=safe_decimal(variables.get('exchange_rate_base_price_to_quote'), Decimal("1")),
-        supplier_discount=safe_decimal(variables.get('supplier_discount'), Decimal("0")),
-        markup=safe_decimal(variables.get('markup'), Decimal("15")),  # Required in validation
+        exchange_rate_base_price_to_quote=safe_decimal(
+            get_value('exchange_rate_base_price_to_quote', product, variables),
+            Decimal("1")
+        ),
+        supplier_discount=safe_decimal(
+            get_value('supplier_discount', product, variables),
+            Decimal("0")
+        ),
+        markup=safe_decimal(
+            get_value('markup', product, variables),
+            Decimal("15")
+        ),
         rate_forex_risk=admin_settings.get('rate_forex_risk', Decimal("3")),
         dm_fee_type=DMFeeType(variables.get('dm_fee_type', 'fixed')),
         dm_fee_value=safe_decimal(variables.get('dm_fee_value'), Decimal("0"))
