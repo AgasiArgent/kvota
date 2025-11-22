@@ -33,6 +33,13 @@ Implement product-level variable overrides (custom_fields) to enable two-tier sy
 - ✅ Export: Financial review shows per-product markups (not quote defaults)
 - ✅ Backend logs confirm: "Using product-level markup" for all products
 
+**4. Critical Second Bug - Calculation Engine Not Using Overrides**
+- **Discovered:** Financial review showed 8% achieved markup even with product markups of 1-50%
+- **Root cause:** Calculation engine (map_variables_to_calculation_input) was hardcoded to use quote-level defaults
+- **Impact:** Product overrides were saved but NEVER used in actual calculations
+- **Fix:** Updated FinancialParams builder to use get_value() helper for markup, supplier_discount, exchange_rate
+- **Commit:** 5ca143b - fix: calculation engine now uses product-level variable overrides
+
 ---
 
 ### Critical Bug Found & Fixed
