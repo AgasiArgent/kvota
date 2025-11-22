@@ -139,6 +139,16 @@ class ProductFromFile(BaseModel):
     customs_code: Optional[str] = None
     supplier_country: Optional[str] = None
 
+    # Product-level override fields (can override quote-level defaults)
+    currency_of_base_price: Optional[str] = None
+    exchange_rate_base_price_to_quote: Optional[float] = None
+    supplier_discount: Optional[float] = None
+    markup: Optional[float] = None
+    import_tariff: Optional[float] = None
+    excise_tax: Optional[float] = None
+    util_fee: Optional[float] = None
+    custom_fields: Optional[Dict[str, Any]] = None  # Frontend sends this
+
 
 class FileUploadResponse(BaseModel):
     """Response after file upload"""
@@ -1148,6 +1158,32 @@ async def calculate_quote(
     try:
         items_data = []
         for idx, product in enumerate(request.products):
+            # Extract custom_fields (product-level variable overrides)
+            custom_fields = {}
+
+            # Fields that can be overridden per product
+            override_fields = [
+                'currency_of_base_price',
+                'exchange_rate_base_price_to_quote',
+                'supplier_discount',
+                'markup',
+                'customs_code',
+                'import_tariff',
+                'excise_tax',
+                'util_fee'
+            ]
+
+            # Check if product has overrides
+            for field in override_fields:
+                product_value = getattr(product, field, None)
+                if product_value is not None:
+                    # Store override in custom_fields
+                    # Convert Decimal to float for JSON serialization
+                    if isinstance(product_value, Decimal):
+                        custom_fields[field] = float(product_value)
+                    else:
+                        custom_fields[field] = product_value
+
             item_data = {
                 "quote_id": quote_id,
                 "position": idx,
@@ -1157,7 +1193,8 @@ async def calculate_quote(
                 "quantity": product.quantity,
                 "weight_in_kg": float(product.weight_in_kg) if product.weight_in_kg else 0,
                 "customs_code": product.customs_code,
-                "supplier_country": product.supplier_country or request.variables.get('supplier_country', 'Турция')
+                "supplier_country": product.supplier_country or request.variables.get('supplier_country', 'Турция'),
+                "custom_fields": custom_fields  # Add custom_fields to item data
             }
             items_data.append(item_data)
 
