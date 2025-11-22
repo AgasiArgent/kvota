@@ -214,15 +214,30 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     ws[f'A{row}'].alignment = Alignment(horizontal='center')
 
     row += 1
-    # Headers (more compact)
-    headers = ['№', 'Наименование', 'Кол-во', 'Наценка %', 'Себест-ть', 'Цена без НДС', 'Цена с НДС']
-    col_letters_products = ['A', 'B', 'D', 'F', 'H', 'J', 'L']
+    # Headers - Expanded to show cost buildup for financial manager transparency
+    headers = [
+        '№',             # A
+        'Наименование',  # B
+        'Кол-во',        # D
+        'Цена закупки',  # E - purchase_price_supplier (from supplier)
+        'После скидки',  # F - purchase_price_after_discount
+        'Логистика',     # G - logistics (distributed)
+        'Таможня+Акциз', # H - customs_fee + excise_tax
+        'Финансирование',# I - financing costs
+        'С/с за ед.',    # J - cogs_per_unit
+        'С/с всего',     # K - cogs total
+        'Наценка %',     # L - markup %
+        'Цена б/НДС',    # M - price_no_vat
+        'Цена с НДС',    # N - price_with_vat
+        'Маржа'          # O - profit
+    ]
+    col_letters_products = ['A', 'B', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O']
 
     for idx, header in enumerate(headers):
         cell = ws[f'{col_letters_products[idx]}{row}']
         cell.value = header
-        cell.font = Font(bold=True, size=10)
-        cell.alignment = Alignment(horizontal='center')
+        cell.font = Font(bold=True, size=9)
+        cell.alignment = Alignment(horizontal='center', wrap_text=True)
 
     row += 1
     # Products data
@@ -231,55 +246,112 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     delivery = quote_data.get('delivery_time', 0)
 
     for idx, product in enumerate(products, start=1):
-        # Use same column layout as headers
-        ws[f'A{row}'] = idx  # №
-        ws[f'B{row}'] = product.get('name', f'Товар {idx}')  # Name (with merge)
+        # Column A: №
+        ws[f'A{row}'] = idx
+        ws[f'A{row}'].alignment = Alignment(horizontal='center')
+
+        # Column B-C: Product name (merged)
+        ws[f'B{row}'] = product.get('name', f'Товар {idx}')
         ws.merge_cells(f'B{row}:C{row}')
 
-        ws[f'D{row}'] = product.get('quantity', 0)  # Qty
+        # Column D: Quantity
+        ws[f'D{row}'] = product.get('quantity', 0)
         ws[f'D{row}'].alignment = Alignment(horizontal='center')
 
-        # Markup with validation
+        # Column E: Purchase price (original from supplier)
+        ws[f'E{row}'] = float(product.get('purchase_price_supplier', 0))
+        ws[f'E{row}'].number_format = '#,##0.00 ₽'
+        ws[f'E{row}'].alignment = Alignment(horizontal='right')
+
+        # Column F: After discount
+        ws[f'F{row}'] = float(product.get('purchase_price_after_discount', 0))
+        ws[f'F{row}'].number_format = '#,##0.00 ₽'
+        ws[f'F{row}'].alignment = Alignment(horizontal='right')
+
+        # Column G: Logistics (distributed to this product)
+        ws[f'G{row}'] = float(product.get('logistics', 0))
+        ws[f'G{row}'].number_format = '#,##0.00 ₽'
+        ws[f'G{row}'].alignment = Alignment(horizontal='right')
+
+        # Column H: Customs + Excise
+        customs_excise_total = (
+            Decimal(str(product.get('customs_fee', 0))) +
+            Decimal(str(product.get('excise_tax', 0)))
+        )
+        ws[f'H{row}'] = float(customs_excise_total)
+        ws[f'H{row}'].number_format = '#,##0.00 ₽'
+        ws[f'H{row}'].alignment = Alignment(horizontal='right')
+
+        # Column I: Financing costs
+        ws[f'I{row}'] = float(product.get('financing', 0))
+        ws[f'I{row}'].number_format = '#,##0.00 ₽'
+        ws[f'I{row}'].alignment = Alignment(horizontal='right')
+
+        # Column J: COGS per unit
+        ws[f'J{row}'] = float(product.get('cogs_per_unit', 0))
+        ws[f'J{row}'].number_format = '#,##0.00 ₽'
+        ws[f'J{row}'].alignment = Alignment(horizontal='right')
+
+        # Column K: COGS total
+        ws[f'K{row}'] = float(product.get('cogs', 0))
+        ws[f'K{row}'].number_format = '#,##0.00 ₽'
+        ws[f'K{row}'].alignment = Alignment(horizontal='right')
+        ws[f'K{row}'].font = Font(bold=True)  # Highlight COGS
+
+        # Column L: Markup % with validation
         product_markup = Decimal(str(product.get('markup', 0)))
-        markup_cell = ws[f'F{row}']
+        markup_cell = ws[f'L{row}']
         markup_cell.value = float(product_markup)
         markup_cell.number_format = '0.00"%"'
         markup_cell.alignment = Alignment(horizontal='right')
+        markup_cell.font = Font(bold=True)  # Highlight markup
 
         # Validate product-level markup
         is_valid, error_msg = validate_markup(product_markup, advance, delivery, level='product')
         apply_validation_to_cell(markup_cell, is_valid, error_msg)
 
-        # Other fields
-        ws[f'H{row}'] = float(product.get('cogs', 0))
-        ws[f'H{row}'].number_format = '#,##0.00 ₽'
-        ws[f'H{row}'].alignment = Alignment(horizontal='right')
+        # Column M: Price no VAT
+        ws[f'M{row}'] = float(product.get('price_no_vat', 0))
+        ws[f'M{row}'].number_format = '#,##0.00 ₽'
+        ws[f'M{row}'].alignment = Alignment(horizontal='right')
 
-        ws[f'J{row}'] = float(product.get('price_no_vat', 0))
-        ws[f'J{row}'].number_format = '#,##0.00 ₽'
-        ws[f'J{row}'].alignment = Alignment(horizontal='right')
+        # Column N: Price with VAT
+        ws[f'N{row}'] = float(product.get('price_with_vat', 0))
+        ws[f'N{row}'].number_format = '#,##0.00 ₽'
+        ws[f'N{row}'].alignment = Alignment(horizontal='right')
+        ws[f'N{row}'].font = Font(bold=True)  # Highlight final price
 
-        ws[f'L{row}'] = float(product.get('price_with_vat', 0))
-        ws[f'L{row}'].number_format = '#,##0.00 ₽'
-        ws[f'L{row}'].alignment = Alignment(horizontal='right')
+        # Column O: Profit
+        profit_val = float(product.get('profit', 0))
+        ws[f'O{row}'] = profit_val
+        ws[f'O{row}'].number_format = '#,##0.00 ₽'
+        ws[f'O{row}'].alignment = Alignment(horizontal='right')
+        # Color code profit: green if positive, red if negative
+        if profit_val > 0:
+            ws[f'O{row}'].font = Font(bold=True, color="006600")  # Green
+        elif profit_val < 0:
+            ws[f'O{row}'].font = Font(bold=True, color="CC0000")  # Red
+            ws[f'O{row}'].fill = YELLOW_FILL
 
         row += 1
 
-    # Set column widths for better readability
+    # Set column widths for the expanded product table
     column_widths = {
-        'A': 8,   # №
-        'B': 30,  # Наименование / Labels
-        'C': 12,  # Values
-        'D': 10,  # Labels / Qty
-        'E': 12,  # Values / Markup
-        'F': 12,  # Labels
-        'G': 14,  # Values
-        'H': 12,  # Values
-        'I': 14,  # Labels
-        'J': 14,  # Values
-        'K': 12,  # Values
-        'L': 14,  # Values
-        'M': 14,  # Values
+        'A': 6,   # № (row number)
+        'B': 25,  # Наименование (product name)
+        'C': 5,   # Merged with B
+        'D': 8,   # Кол-во (quantity)
+        'E': 12,  # Цена закупки (purchase price)
+        'F': 12,  # После скидки (after discount)
+        'G': 12,  # Логистика (logistics)
+        'H': 13,  # Таможня+Акциз (customs+excise)
+        'I': 13,  # Финансирование (financing)
+        'J': 11,  # С/с за ед. (COGS per unit)
+        'K': 12,  # С/с всего (COGS total)
+        'L': 10,  # Наценка % (markup)
+        'M': 13,  # Цена б/НДС (price no VAT)
+        'N': 13,  # Цена с НДС (price with VAT)
+        'O': 12,  # Маржа (profit)
     }
 
     for col, width in column_widths.items():
