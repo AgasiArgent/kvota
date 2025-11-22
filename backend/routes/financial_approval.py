@@ -105,7 +105,7 @@ async def get_financial_review_excel(
 
         # Load quote items with calculation results
         items_result = supabase.table("quote_items") \
-            .select("id, product_name, description, quantity") \
+            .select("id, product_name, description, quantity, custom_fields") \
             .eq("quote_id", str(quote_id)) \
             .order("position") \
             .execute()
@@ -161,9 +161,17 @@ async def get_financial_review_excel(
             profit = Decimal(str(phase_results.get('profit', 0)))
 
             # BUGFIX: Use INPUT markup value, not calculated
-            # TODO: Check if item has product-level override in custom_fields
-            # For now, use quote-level markup as we don't store product-level overrides yet
-            markup = quote_level_markup
+            # Check for product-level markup override in custom_fields
+            custom_fields = item.get('custom_fields', {})
+            product_markup = custom_fields.get('markup') if custom_fields else None
+
+            # Use product override if exists, otherwise use quote-level default
+            if product_markup is not None:
+                markup = Decimal(str(product_markup))
+                print(f"[DEBUG] Using product-level markup: {markup}% (item: {item.get('product_name')})")
+            else:
+                markup = quote_level_markup
+                print(f"[DEBUG] Using quote-level markup: {markup}% (item: {item.get('product_name')})")
 
             # Use product_name if available, fallback to description
             product_name = item.get('product_name') or item.get('description') or 'Unnamed Product'
