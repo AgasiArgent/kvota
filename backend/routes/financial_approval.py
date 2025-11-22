@@ -88,6 +88,21 @@ async def get_financial_review_excel(
         if isinstance(calc_summary, list):
             calc_summary = calc_summary[0] if calc_summary else None
 
+        # BUGFIX: Load input variables from quote_calculation_variables table
+        # These contain the ORIGINAL input values (markup, seller_company, etc.)
+        # NOT the calculated/achieved values
+        calc_vars_result = supabase.table("quote_calculation_variables") \
+            .select("variables") \
+            .eq("quote_id", str(quote_id)) \
+            .execute()
+
+        input_vars = {}
+        if calc_vars_result.data and len(calc_vars_result.data) > 0:
+            input_vars = calc_vars_result.data[0].get('variables', {})
+            print(f"[DEBUG] Loaded input variables: markup={input_vars.get('markup')}, seller={input_vars.get('seller_company')}")
+        else:
+            print(f"[WARNING] No quote_calculation_variables found for quote {quote_id}")
+
         # Load quote items with calculation results
         items_result = supabase.table("quote_items") \
             .select("id, product_name, description, quantity") \
@@ -106,6 +121,10 @@ async def get_financial_review_excel(
 
         # Map quote items to product format expected by Excel generator
         products = []
+        # BUGFIX: Use INPUT markup from quote_calculation_variables, not calculated markup
+        # Product-level markup overrides are stored in custom_fields, quote-level is default
+        quote_level_markup = Decimal(str(input_vars.get('markup', 0)))
+
         for item in items_result.data:
             item_id = str(item['id'])
             phase_results = calc_map.get(item_id, {})
@@ -116,11 +135,10 @@ async def get_financial_review_excel(
             sales_price_no_vat = Decimal(str(phase_results.get('sales_price_total_no_vat', 0)))
             sales_price_with_vat = Decimal(str(phase_results.get('sales_price_total_with_vat', 0)))
 
-            # Calculate markup percentage: markup = (sales - cogs) / cogs * 100
-            if cogs_total > 0:
-                markup = ((sales_price_no_vat - cogs_total) / cogs_total * Decimal('100'))
-            else:
-                markup = Decimal('0')
+            # BUGFIX: Use INPUT markup value, not calculated
+            # TODO: Check if item has product-level override in custom_fields
+            # For now, use quote-level markup as we don't store product-level overrides yet
+            markup = quote_level_markup
 
             # Use product_name if available, fallback to description
             product_name = item.get('product_name') or item.get('description') or 'Unnamed Product'
@@ -142,15 +160,10 @@ async def get_financial_review_excel(
             total_revenue_no_vat = Decimal(str(calc_summary.get('calc_ae16_sale_price_total', 0)))
             total_revenue_with_vat = Decimal(str(calc_summary.get('calc_al16_total_with_vat', 0)))
             dm_fee_value = Decimal(str(calc_summary.get('calc_ag16_dm_fee', 0)))
-            profit_margin_decimal = Decimal(str(calc_summary.get('calc_af16_profit_margin', 0)))
 
-            # Calculate markup % from profit margin
-            # Profit margin = (revenue - cogs) / revenue
-            # Markup = (revenue - cogs) / cogs = profit_margin / (1 - profit_margin)
-            if profit_margin_decimal > 0 and profit_margin_decimal < 1:
-                markup = (profit_margin_decimal / (Decimal('1') - profit_margin_decimal)) * Decimal('100')
-            else:
-                markup = Decimal('0')
+            # BUGFIX: Use INPUT markup from quote_calculation_variables
+            # NOT the calculated profit margin converted back to markup!
+            markup = Decimal(str(input_vars.get('markup', 0)))
 
             # Calculate total margin = revenue - cogs
             total_margin = total_revenue_no_vat - total_cogs
@@ -161,7 +174,8 @@ async def get_financial_review_excel(
             total_revenue_no_vat = Decimal('0')
             total_revenue_with_vat = Decimal('0')
             dm_fee_value = Decimal('0')
-            markup = Decimal('0')
+            # BUGFIX: Even with no calc results, use INPUT markup
+            markup = Decimal(str(input_vars.get('markup', 0)))
             total_margin = Decimal('0')
 
         # Prepare quote data for Excel export
@@ -169,28 +183,29 @@ async def get_financial_review_excel(
             'quote_number': quote.get('quote_number', ''),
             'customer_name': quote.get('customer', {}).get('name', 'Unknown') if quote.get('customer') else 'Unknown',
 
-            # Basic info (D5-D11) - These should be stored in quotes table as input variables
-            'seller_company': quote.get('seller_company', ''),
-            'offer_sale_type': quote.get('offer_sale_type', ''),
-            'offer_incoterms': quote.get('offer_incoterms', ''),
-            'currency_of_quote': quote.get('currency_of_quote', 'RUB'),
-            'delivery_time': quote.get('delivery_time', 0),
-            'advance_to_supplier': Decimal(str(quote.get('advance_to_supplier', 0))),
+            # BUGFIX: Use INPUT variables from quote_calculation_variables, not from quotes table
+            # Basic info (D5-D11)
+            'seller_company': input_vars.get('seller_company', ''),
+            'offer_sale_type': input_vars.get('offer_sale_type', ''),
+            'offer_incoterms': input_vars.get('offer_incoterms', ''),
+            'currency_of_quote': input_vars.get('currency_of_quote', 'RUB'),
+            'delivery_time': input_vars.get('delivery_time', 0),
+            'advance_to_supplier': Decimal(str(input_vars.get('advance_to_supplier', 0))),
 
             # Payment terms (J5-K5)
-            'advance_from_client': Decimal(str(quote.get('advance_from_client', 0))),
-            'time_to_advance': quote.get('time_to_advance', 0),
+            'advance_from_client': Decimal(str(input_vars.get('advance_from_client', 0))),
+            'time_to_advance': input_vars.get('time_to_advance', 0),
 
-            # Logistics (W2-W10) - These should be stored in quotes table as input variables
-            'logistics_supplier_hub': Decimal(str(quote.get('logistics_supplier_hub', 0))),
-            'logistics_hub_customs': Decimal(str(quote.get('logistics_hub_customs', 0))),
-            'logistics_customs_client': Decimal(str(quote.get('logistics_customs_client', 0))),
-            'brokerage_hub': Decimal(str(quote.get('brokerage_hub', 0))),
-            'brokerage_customs': Decimal(str(quote.get('brokerage_customs', 0))),
-            'warehousing_at_customs': Decimal(str(quote.get('warehousing_at_customs', 0))),
-            'customs_documentation': Decimal(str(quote.get('customs_documentation', 0))),
-            'brokerage_extra': Decimal(str(quote.get('brokerage_extra', 0))),
-            'insurance': Decimal(str(quote.get('insurance', 0))),
+            # Logistics (W2-W10)
+            'logistics_supplier_hub': Decimal(str(input_vars.get('logistics_supplier_hub', 0))),
+            'logistics_hub_customs': Decimal(str(input_vars.get('logistics_hub_customs', 0))),
+            'logistics_customs_client': Decimal(str(input_vars.get('logistics_customs_client', 0))),
+            'brokerage_hub': Decimal(str(input_vars.get('brokerage_hub', 0))),
+            'brokerage_customs': Decimal(str(input_vars.get('brokerage_customs', 0))),
+            'warehousing_at_customs': Decimal(str(input_vars.get('warehousing_at_customs', 0))),
+            'customs_documentation': Decimal(str(input_vars.get('customs_documentation', 0))),
+            'brokerage_extra': Decimal(str(input_vars.get('brokerage_extra', 0))),
+            'insurance': Decimal(str(input_vars.get('insurance', 0))),
 
             # Totals (Row 13) - From calculation_summary
             'total_logistics': total_logistics,
@@ -201,8 +216,8 @@ async def get_financial_review_excel(
             'total_amount': total_revenue_with_vat,  # Same as total_revenue_with_vat
             'total_margin': total_margin,
 
-            # DM Fee - From calculation_summary
-            'dm_fee_type': quote.get('dm_fee_type', ''),
+            # DM Fee - Type from input_vars, value from calculation_summary
+            'dm_fee_type': input_vars.get('dm_fee_type', ''),
             'dm_fee_value': dm_fee_value,
 
             # VAT status

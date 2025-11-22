@@ -604,7 +604,7 @@ export default function QuotesPage() {
                   bordered
                   column={1}
                   size="small"
-                  labelStyle={{ fontWeight: 500, width: '40%' }}
+                  styles={{ label: { fontWeight: 500, width: '40%' } }}
                 >
                   <Descriptions.Item label="Клиент">
                     {drawerData.customer?.company_name || 'Не указан'}
