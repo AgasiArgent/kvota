@@ -172,6 +172,8 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     else:
         achieved_markup = Decimal("0")
 
+    print(f"[DEBUG] Markup calculation: COGS={total_cogs}, Margin={total_margin}, Achieved={achieved_markup}%")
+
     totals_values = [
         ('A', quote_data.get('total_logistics', 0), '#,##0.00 ₽', None),
         ('C', total_cogs, '#,##0.00 ₽', None),
