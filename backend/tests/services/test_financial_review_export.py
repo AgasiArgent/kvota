@@ -146,3 +146,40 @@ def test_vat_summary_no_removal():
             break
 
     assert vat_summary_found, "VAT summary row not found"
+
+
+def test_vat_summary_calculation_logic():
+    """Verify VAT removal detection uses correct formula: K16 != N16"""
+    quote_data = {
+        'quote_number': 'КП25-TEST',
+        'customer_name': 'Test Customer',
+        'total_amount': Decimal('10000.00'),
+        'products': [
+            {
+                'name': 'Product 1 - Tiny Difference',
+                'supplier_country': 'TR',
+                'base_price_vat': Decimal('1000.00'),      # K16
+                'calc_n16_price_without_vat': Decimal('999.99'),  # N16 (diff = 0.01 - should count)
+                'quantity': 10,
+            },
+            {
+                'name': 'Product 2 - No Difference',
+                'supplier_country': 'TR',
+                'base_price_vat': Decimal('500.00'),       # K16
+                'calc_n16_price_without_vat': Decimal('500.00'),  # N16 (diff = 0 - should NOT count)
+                'quantity': 5,
+            },
+        ]
+    }
+
+    wb = create_financial_review_excel(quote_data)
+    ws = wb.active
+
+    vat_summary_found = False
+    for row in ws.iter_rows(min_row=1, max_row=30):
+        if row[0].value == 'НДС очищен на:':
+            assert row[1].value == '1 из 2 продуктов'  # Only Product 1 counted
+            vat_summary_found = True
+            break
+
+    assert vat_summary_found, "VAT summary row not found"
