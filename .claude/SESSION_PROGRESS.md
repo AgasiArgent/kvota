@@ -132,12 +132,17 @@ All 4 comment types now working:
 
 ### Next Steps
 
+**Next Session (Session 46):**
+- [ ] **Scenario 5: VAT Removal Warning** - Test yellow warning display when vat_removed = false
+  - See: `backend/docs/testing/financial-approval-mvp-test-plan.md` lines 217-242
+
 **Test Plan Progress:**
 - ✅ Scenario 1: Happy Path - Approve Quote (NOW WORKING!)
 - ✅ Scenario 2: Send Back - Quote Has Issues (tested in Session 42)
 - ✅ Scenario 3: Product-Level Markup Validation (Session 44)
 - ✅ Scenario 4: DM Fee vs Margin (user confirmed working)
-- [ ] Scenario 5-10: Remaining validation and edge case scenarios
+- [ ] **Scenario 5: VAT Removal Warning** ← NEXT SESSION
+- [ ] Scenario 6-10: Remaining validation and edge case scenarios
 
 **Future Enhancements:**
 - [ ] Add timestamps to comments ("approved on 2025-11-23 10:30")
