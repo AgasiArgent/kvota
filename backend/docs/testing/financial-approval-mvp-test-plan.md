@@ -214,30 +214,21 @@ For each case:
 
 ---
 
-### Scenario 5: VAT Removal Warning ⚠️
+### Scenario 5: VAT Removal Indicator ✅ COMPLETE
 
-**Objective:** Verify VAT removal status indication
+**Implementation:** 2025-11-23
 
-**Test Cases:**
+**Quote-Level Display:**
+- Shows: "НДС очищен на: X из Y продуктов"
+- No highlighting (informational only)
 
-**Case 5.1: VAT removed**
-- `vat_removed = true`
-- Expected: Shows "ДА" with no highlighting
+**Product-Level Display:**
+- Column D: Страна закупки
+- Column E: Цена с НДС (K16)
+- Column F: Цена без НДС (N16)
+- Yellow highlighting when K16 ≠ N16
 
-**Case 5.2: VAT not removed**
-- `vat_removed = false`
-- Expected: Shows "НЕТ" with YELLOW highlighting + warning comment
-
-**Steps:**
-1. Set quote vat_removed flag
-2. Download Excel
-3. Check VAT status row
-4. Verify color and comment
-
-**Expected Results:**
-- Yellow warning when VAT not removed
-- Clear warning message
-- Green/normal when VAT removed
+**Test Results:** See `docs/testing/vat-removal-test-results.md`
 
 ---
 
