@@ -226,22 +226,25 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     row += 1
     # Headers - Expanded to show cost buildup for financial manager transparency
     headers = [
-        '№',             # A
-        'Наименование',  # B
-        'Кол-во',        # D
-        'Цена закупки',  # E - purchase_price_supplier (from supplier)
-        'После скидки',  # F - purchase_price_after_discount
-        'Логистика',     # G - logistics (distributed)
-        'Таможня+Акциз', # H - customs_fee + excise_tax
-        'Финансирование',# I - financing costs
-        'С/с за ед.',    # J - cogs_per_unit
-        'С/с всего',     # K - cogs total
-        'Наценка %',     # L - markup %
-        'Цена б/НДС',    # M - price_no_vat
-        'Цена с НДС',    # N - price_with_vat
-        'Маржа'          # O - profit
+        '№',                    # A
+        'Наименование',         # B (merged with C)
+        'Страна',               # D - NEW: supplier_country
+        'Цена с НДС\n(K16)',   # E - NEW: base_price_vat
+        'Цена без НДС\n(N16)', # F - NEW: calc_n16_price_without_vat
+        'Кол-во',               # G - SHIFTED from D
+        'Цена закупки',         # H - SHIFTED from E
+        'После скидки',         # I - SHIFTED from F
+        'Логистика',            # J - SHIFTED from G
+        'Таможня+Акциз',        # K - SHIFTED from H
+        'Финансирование',       # L - SHIFTED from I
+        'С/с за ед.',           # M - SHIFTED from J
+        'С/с всего',            # N - SHIFTED from K
+        'Наценка %',            # O - SHIFTED from L
+        'Цена б/НДС',           # P - SHIFTED from M
+        'Цена с НДС',           # Q - SHIFTED from N
+        'Маржа'                 # R - SHIFTED from O
     ]
-    col_letters_products = ['A', 'B', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O']
+    col_letters_products = ['A', 'B', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']
 
     for idx, header in enumerate(headers):
         cell = ws[f'{col_letters_products[idx]}{row}']
@@ -264,53 +267,76 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
         ws[f'B{row}'] = product.get('name', f'Товар {idx}')
         ws.merge_cells(f'B{row}:C{row}')
 
-        # Column D: Quantity
-        ws[f'D{row}'] = product.get('quantity', 0)
+        # === NEW COLUMNS START ===
+        # Column D: Supplier country
+        ws[f'D{row}'] = product.get('supplier_country', '')
         ws[f'D{row}'].alignment = Alignment(horizontal='center')
 
-        # Column E: Purchase price (original from supplier)
-        ws[f'E{row}'] = float(product.get('purchase_price_supplier', 0))
+        # Column E: K16 (base_price_vat)
+        k16_value = Decimal(str(product.get('base_price_vat', 0)))
+        ws[f'E{row}'] = float(k16_value)
         ws[f'E{row}'].number_format = '#,##0.00 ₽'
         ws[f'E{row}'].alignment = Alignment(horizontal='right')
 
-        # Column F: After discount
-        ws[f'F{row}'] = float(product.get('purchase_price_after_discount', 0))
+        # Column F: N16 (calc_n16_price_without_vat)
+        n16_value = Decimal(str(product.get('calc_n16_price_without_vat', 0)))
+        ws[f'F{row}'] = float(n16_value)
         ws[f'F{row}'].number_format = '#,##0.00 ₽'
         ws[f'F{row}'].alignment = Alignment(horizontal='right')
 
-        # Column G: Logistics (distributed to this product)
-        ws[f'G{row}'] = float(product.get('logistics', 0))
-        ws[f'G{row}'].number_format = '#,##0.00 ₽'
-        ws[f'G{row}'].alignment = Alignment(horizontal='right')
+        # Highlight both cells if VAT was removed (K16 ≠ N16)
+        if k16_value != n16_value:
+            ws[f'E{row}'].fill = YELLOW_FILL
+            ws[f'F{row}'].fill = YELLOW_FILL
+        # === NEW COLUMNS END ===
 
-        # Column H: Customs + Excise
+        # Column G: Quantity (SHIFTED from D)
+        ws[f'G{row}'] = product.get('quantity', 0)
+        ws[f'G{row}'].alignment = Alignment(horizontal='center')
+
+        # Column H: Purchase price (original from supplier) (SHIFTED from E)
+        ws[f'H{row}'] = float(product.get('purchase_price_supplier', 0))
+        ws[f'H{row}'].number_format = '#,##0.00 ₽'
+        ws[f'H{row}'].alignment = Alignment(horizontal='right')
+
+        # Column I: After discount (SHIFTED from F)
+        ws[f'I{row}'] = float(product.get('purchase_price_after_discount', 0))
+        ws[f'I{row}'].number_format = '#,##0.00 ₽'
+        ws[f'I{row}'].alignment = Alignment(horizontal='right')
+
+        # Column J: Logistics (distributed to this product) (SHIFTED from G)
+        ws[f'J{row}'] = float(product.get('logistics', 0))
+        ws[f'J{row}'].number_format = '#,##0.00 ₽'
+        ws[f'J{row}'].alignment = Alignment(horizontal='right')
+
+        # Column K: Customs + Excise (SHIFTED from H)
         customs_excise_total = (
             Decimal(str(product.get('customs_fee', 0))) +
             Decimal(str(product.get('excise_tax', 0)))
         )
-        ws[f'H{row}'] = float(customs_excise_total)
-        ws[f'H{row}'].number_format = '#,##0.00 ₽'
-        ws[f'H{row}'].alignment = Alignment(horizontal='right')
-
-        # Column I: Financing costs
-        ws[f'I{row}'] = float(product.get('financing', 0))
-        ws[f'I{row}'].number_format = '#,##0.00 ₽'
-        ws[f'I{row}'].alignment = Alignment(horizontal='right')
-
-        # Column J: COGS per unit
-        ws[f'J{row}'] = float(product.get('cogs_per_unit', 0))
-        ws[f'J{row}'].number_format = '#,##0.00 ₽'
-        ws[f'J{row}'].alignment = Alignment(horizontal='right')
-
-        # Column K: COGS total
-        ws[f'K{row}'] = float(product.get('cogs', 0))
+        ws[f'K{row}'] = float(customs_excise_total)
         ws[f'K{row}'].number_format = '#,##0.00 ₽'
         ws[f'K{row}'].alignment = Alignment(horizontal='right')
-        ws[f'K{row}'].font = Font(bold=True)  # Highlight COGS
 
-        # Column L: Markup % with validation
+        # Column L: Financing costs (SHIFTED from I)
+        ws[f'L{row}'] = float(product.get('financing', 0))
+        ws[f'L{row}'].number_format = '#,##0.00 ₽'
+        ws[f'L{row}'].alignment = Alignment(horizontal='right')
+
+        # Column M: COGS per unit (SHIFTED from J)
+        ws[f'M{row}'] = float(product.get('cogs_per_unit', 0))
+        ws[f'M{row}'].number_format = '#,##0.00 ₽'
+        ws[f'M{row}'].alignment = Alignment(horizontal='right')
+
+        # Column N: COGS total (SHIFTED from K)
+        ws[f'N{row}'] = float(product.get('cogs', 0))
+        ws[f'N{row}'].number_format = '#,##0.00 ₽'
+        ws[f'N{row}'].alignment = Alignment(horizontal='right')
+        ws[f'N{row}'].font = Font(bold=True)  # Highlight COGS
+
+        # Column O: Markup % with validation (SHIFTED from L)
         product_markup = Decimal(str(product.get('markup', 0)))
-        markup_cell = ws[f'L{row}']
+        markup_cell = ws[f'O{row}']
         markup_cell.value = float(product_markup)
         markup_cell.number_format = '0.00"%"'
         markup_cell.alignment = Alignment(horizontal='right')
@@ -320,28 +346,28 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
         is_valid, error_msg = validate_markup(product_markup, advance, delivery, level='product')
         apply_validation_to_cell(markup_cell, is_valid, error_msg)
 
-        # Column M: Price no VAT
-        ws[f'M{row}'] = float(product.get('price_no_vat', 0))
-        ws[f'M{row}'].number_format = '#,##0.00 ₽'
-        ws[f'M{row}'].alignment = Alignment(horizontal='right')
+        # Column P: Price no VAT (SHIFTED from M)
+        ws[f'P{row}'] = float(product.get('price_no_vat', 0))
+        ws[f'P{row}'].number_format = '#,##0.00 ₽'
+        ws[f'P{row}'].alignment = Alignment(horizontal='right')
 
-        # Column N: Price with VAT
-        ws[f'N{row}'] = float(product.get('price_with_vat', 0))
-        ws[f'N{row}'].number_format = '#,##0.00 ₽'
-        ws[f'N{row}'].alignment = Alignment(horizontal='right')
-        ws[f'N{row}'].font = Font(bold=True)  # Highlight final price
+        # Column Q: Price with VAT (SHIFTED from N)
+        ws[f'Q{row}'] = float(product.get('price_with_vat', 0))
+        ws[f'Q{row}'].number_format = '#,##0.00 ₽'
+        ws[f'Q{row}'].alignment = Alignment(horizontal='right')
+        ws[f'Q{row}'].font = Font(bold=True)  # Highlight final price
 
-        # Column O: Profit
+        # Column R: Profit (SHIFTED from O)
         profit_val = float(product.get('profit', 0))
-        ws[f'O{row}'] = profit_val
-        ws[f'O{row}'].number_format = '#,##0.00 ₽'
-        ws[f'O{row}'].alignment = Alignment(horizontal='right')
+        ws[f'R{row}'] = profit_val
+        ws[f'R{row}'].number_format = '#,##0.00 ₽'
+        ws[f'R{row}'].alignment = Alignment(horizontal='right')
         # Color code profit: green if positive, red if negative
         if profit_val > 0:
-            ws[f'O{row}'].font = Font(bold=True, color="006600")  # Green
+            ws[f'R{row}'].font = Font(bold=True, color="006600")  # Green
         elif profit_val < 0:
-            ws[f'O{row}'].font = Font(bold=True, color="CC0000")  # Red
-            ws[f'O{row}'].fill = YELLOW_FILL
+            ws[f'R{row}'].font = Font(bold=True, color="CC0000")  # Red
+            ws[f'R{row}'].fill = YELLOW_FILL
 
         row += 1
 
@@ -350,18 +376,21 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
         'A': 6,   # № (row number)
         'B': 25,  # Наименование (product name)
         'C': 5,   # Merged with B
-        'D': 8,   # Кол-во (quantity)
-        'E': 12,  # Цена закупки (purchase price)
-        'F': 12,  # После скидки (after discount)
-        'G': 12,  # Логистика (logistics)
-        'H': 13,  # Таможня+Акциз (customs+excise)
-        'I': 13,  # Финансирование (financing)
-        'J': 11,  # С/с за ед. (COGS per unit)
-        'K': 12,  # С/с всего (COGS total)
-        'L': 10,  # Наценка % (markup)
-        'M': 13,  # Цена б/НДС (price no VAT)
-        'N': 13,  # Цена с НДС (price with VAT)
-        'O': 12,  # Маржа (profit)
+        'D': 10,  # Страна (supplier country) - NEW
+        'E': 13,  # Цена с НДС K16 (base_price_vat) - NEW
+        'F': 13,  # Цена без НДС N16 (calc_n16) - NEW
+        'G': 8,   # Кол-во (quantity) - SHIFTED from D
+        'H': 12,  # Цена закупки (purchase price) - SHIFTED from E
+        'I': 12,  # После скидки (after discount) - SHIFTED from F
+        'J': 12,  # Логистика (logistics) - SHIFTED from G
+        'K': 13,  # Таможня+Акциз (customs+excise) - SHIFTED from H
+        'L': 13,  # Финансирование (financing) - SHIFTED from I
+        'M': 11,  # С/с за ед. (COGS per unit) - SHIFTED from J
+        'N': 12,  # С/с всего (COGS total) - SHIFTED from K
+        'O': 10,  # Наценка % (markup) - SHIFTED from L
+        'P': 13,  # Цена б/НДС (price no VAT) - SHIFTED from M
+        'Q': 13,  # Цена с НДС (price with VAT) - SHIFTED from N
+        'R': 12,  # Маржа (profit) - SHIFTED from O
     }
 
     for col, width in column_widths.items():
