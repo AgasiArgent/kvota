@@ -675,7 +675,10 @@ export default function QuoteDetailPage() {
 
                     {/* Financial Approval Actions */}
                     {quote.workflow_state === 'awaiting_financial_approval' &&
-                      profile?.is_financial_manager && (
+                      (['financial_manager', 'cfo', 'admin'].includes(
+                        profile?.organizationRole || ''
+                      ) ||
+                        profile?.is_owner) && (
                         <Card>
                           <FinancialApprovalActions
                             quoteId={quote.id}

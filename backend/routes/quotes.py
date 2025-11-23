@@ -1195,14 +1195,17 @@ async def approve_quote_financially(
             os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         )
 
-        # Check if user is financial manager for the organization
-        org_result = supabase.table("organizations").select("financial_manager_id")\
-            .eq("id", str(user.current_organization_id)).execute()
+        # Check if user has financial approval authority
+        # Allowed roles: financial_manager, cfo, admin, or organization owner
+        can_approve = (
+            user.current_role_slug in ['financial_manager', 'cfo', 'admin'] or
+            user.is_owner
+        )
 
-        if not org_result.data or org_result.data[0]["financial_manager_id"] != str(user.id):
+        if not can_approve:
             raise HTTPException(
                 status_code=403,
-                detail="Только финансовый менеджер может утверждать КП"
+                detail="Только финансовый менеджер, CFO, администратор или владелец может утверждать КП"
             )
 
         # Check current quote state
@@ -1277,14 +1280,17 @@ async def reject_quote_financially(
             os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         )
 
-        # Check if user is financial manager for the organization
-        org_result = supabase.table("organizations").select("financial_manager_id")\
-            .eq("id", str(user.current_organization_id)).execute()
+        # Check if user has financial approval authority
+        # Allowed roles: financial_manager, cfo, admin, or organization owner
+        can_approve = (
+            user.current_role_slug in ['financial_manager', 'cfo', 'admin'] or
+            user.is_owner
+        )
 
-        if not org_result.data or org_result.data[0]["financial_manager_id"] != str(user.id):
+        if not can_approve:
             raise HTTPException(
                 status_code=403,
-                detail="Только финансовый менеджер может отклонять КП"
+                detail="Только финансовый менеджер, CFO, администратор или владелец может отклонять КП"
             )
 
         # Check current quote state
@@ -1354,14 +1360,17 @@ async def send_quote_back_for_revision(
             os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         )
 
-        # Check if user is financial manager for the organization
-        org_result = supabase.table("organizations").select("financial_manager_id")\
-            .eq("id", str(user.current_organization_id)).execute()
+        # Check if user has financial approval authority
+        # Allowed roles: financial_manager, cfo, admin, or organization owner
+        can_approve = (
+            user.current_role_slug in ['financial_manager', 'cfo', 'admin'] or
+            user.is_owner
+        )
 
-        if not org_result.data or org_result.data[0]["financial_manager_id"] != str(user.id):
+        if not can_approve:
             raise HTTPException(
                 status_code=403,
-                detail="Только финансовый менеджер может отправлять КП на доработку"
+                detail="Только финансовый менеджер, CFO, администратор или владелец может отправлять КП на доработку"
             )
 
         # Check current quote state
