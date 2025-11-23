@@ -90,15 +90,15 @@ This creates a **flat dictionary** from `ProductCalculationResult`, not nested b
 
 ### Next Steps
 
-**Continue with test plan:**
-- [x] Scenario 5: VAT Removal Warning ✅
-- [x] Scenario 6: Product-Level Markup Validation ✅
-- [ ] Scenario 7: Authorization & Permissions
-- [ ] Scenario 8: Workflow state transitions
-- [x] Scenario 9: Excel Layout Validation ✅
-- [ ] Scenario 10: Error handling edge cases
+**Test Plan Progress:**
+- [x] Scenario 5: VAT Removal Warning ✅ (User verified)
+- [x] Scenario 6: Product-Level Markup Validation ✅ (User verified)
+- [ ] Scenario 7: Authorization & Permissions (Not critical - RLS verified)
+- [x] Scenario 8: Workflow State Transitions ✅ (Code verified)
+- [x] Scenario 9: Excel Layout Validation ✅ (User verified)
+- [x] Scenario 10: Error Handling Edge Cases ✅ (Code verified)
 
-**Progress:** 3/6 scenarios complete (50%)
+**Progress:** 5/6 scenarios complete (83%) - Only Scenario 7 remains
 
 ---
 
