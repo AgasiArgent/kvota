@@ -65,13 +65,27 @@ This creates a **flat dictionary** from `ProductCalculationResult`, not nested b
 
 ---
 
+### Manual Testing Results ✅
+
+**User verified (2025-11-23):**
+1. ✅ Exported financial review Excel for КП25-0084
+2. ✅ Column F (N16) shows actual calculated values (not None)
+3. ✅ Yellow highlighting works correctly when K16 ≠ N16
+4. ✅ **Scenario 6: Product-Level Markup Validation** - PASSED
+
+**Conclusion:** Fix is working correctly. VAT removal indicator feature fully functional.
+
+---
+
 ### Next Steps
 
-**Manual testing needed:**
-1. Export financial review Excel for КП25-0084
-2. Verify Column F shows N16 values (not None)
-3. Verify yellow highlighting on products where VAT was removed
-4. Continue with test plan Scenario 6+
+**Continue with test plan:**
+- [x] Scenario 5: VAT Removal Warning ✅
+- [x] Scenario 6: Product-Level Markup Validation ✅
+- [ ] Scenario 7: Authorization & Permissions
+- [ ] Scenario 8: Workflow state transitions
+- [ ] Scenario 9: Excel layout validation
+- [ ] Scenario 10: Error handling edge cases
 
 ---
 
