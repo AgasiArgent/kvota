@@ -1,3 +1,152 @@
+## Session 45 (2025-11-23) - Fix Financial Approval Comment Visibility ✅
+
+### Goal
+Fix all comment visibility issues in financial approval workflow and repair broken approve/reject actions.
+
+### Status: COMPLETE ✅
+
+**Time:** ~1.5 hours
+**Commit:** 5cc2957
+**Files:** 5 files changed, 88 insertions(+), 10 deletions(-)
+
+---
+
+### Issues Fixed
+
+**1. Approve Button Missing Comment Field**
+- ❌ **Bug:** Approve button had no TextArea for adding comments
+- ✅ **Fix:** Added optional comment field to Approve Popconfirm (like Reject button)
+- **Impact:** Financial managers can now explain approval decisions
+
+**2. Approve/Reject Actions Returned 500 Error**
+- ❌ **Bug:** Backend crashed with "Could not find 'financially_approved_at' column"
+- ✅ **Fix:** Changed to correct column names (financial_reviewed_at, financial_reviewed_by)
+- **Impact:** Approve and reject actions now work properly
+
+**3. Approval Comments Not Visible**
+- ❌ **Bug:** When finance approves with comment, manager couldn't see it
+- ✅ **Fix:** Added last_approval_comment field to model, SELECT query, and UI Alert
+- **Impact:** Managers now see why quotes were approved
+
+**4. Submission Comments Not Visible**
+- ❌ **Bug:** When manager submits with comment, finance couldn't see it
+- ✅ **Fix:** Added submission_comment to model, SELECT query, and UI Alert
+- **Impact:** Financial managers now see manager's context when reviewing
+
+**5. Wrong Request Format**
+- ❌ **Bug:** Frontend sent JSON `{comments: "..."}` but backend expected plain text
+- ✅ **Fix:** Changed all actions to use `text/plain` content-type consistently
+- **Impact:** Approve and reject now send data in correct format
+
+---
+
+### Changes Made
+
+**Backend (backend/):**
+- `routes/quotes.py` (3 fixes):
+  - Line 108-109: Added submission_comment and last_approval_comment to SELECT query
+  - Line 1224-1231: Fixed approve endpoint to use correct columns and store approval comment
+  - Removed non-existent financially_approved_at column
+- `models.py`:
+  - Line 557: Added submission_comment field
+  - Line 560: Added last_approval_comment field
+- `migrations/031_add_approval_comment_field.sql` (new):
+  - Added last_approval_comment TEXT column to quotes table
+
+**Frontend (frontend/):**
+- `src/components/quotes/FinancialApprovalActions.tsx`:
+  - Line 28: Added approveComment state
+  - Line 55-61: Fixed request format (text/plain for all actions)
+  - Line 83: Clear approveComment after action
+  - Lines 137-161: Added TextArea to Approve button
+- `src/app/quotes/[id]/page.tsx`:
+  - Lines 94,97: Added submission_comment and last_approval_comment to interface
+  - Lines 170,173: Mapped both fields in fetchQuoteDetails()
+  - Lines 607-622: Added blue info Alert for submission comments
+  - Lines 639-654: Added green success Alert for approval comments
+
+---
+
+### Comment Visibility Matrix
+
+All 4 comment types now working:
+
+| Comment Type | Who Writes | Who Reads | When Visible | Color | Field Name |
+|-------------|-----------|----------|--------------|-------|------------|
+| Submission | Manager | Finance | awaiting_financial_approval | Blue (info) | submission_comment |
+| Approval | Finance | Manager | financially_approved / approved | Green (success) | last_approval_comment |
+| Sendback | Finance | Manager | sent_back_for_revision | Yellow (warning) | last_sendback_reason |
+| Rejection | Finance | Manager | rejected_by_finance | Red (error) | last_financial_comment |
+
+---
+
+### Testing Results
+
+**Test Scenario:** Complete approval workflow with comments
+
+1. ✅ Manager submits КП25-0081 with comment "asdfasdfasdf"
+2. ✅ Financial manager sees blue info Alert with submission comment
+3. ✅ Financial manager approves КП25-0082 with comment
+4. ✅ Manager sees green success Alert with approval comment
+5. ✅ All workflow transitions working (approve, reject, sendback)
+6. ✅ No 500 errors
+7. ✅ All comments saved to database
+8. ✅ All comments displayed with correct styling
+
+---
+
+### Root Causes
+
+**Why these bugs existed:**
+
+1. **Missing Pydantic fields** - New comment columns added to DB but not to Quote model → fields filtered out in API response
+2. **Wrong column name** - Used `financially_approved_at` (doesn't exist) instead of `financial_reviewed_at` (exists)
+3. **Incomplete SELECT query** - validate_quote_access() didn't include new comment fields
+4. **Wrong request format** - Frontend sent JSON but backend expected text/plain Body()
+
+**Pattern:** Same bug repeated 4 times (submission, sendback, rejection, approval) because comment fields were added incrementally without updating all layers consistently.
+
+---
+
+### Key Learnings
+
+1. **Always update all layers** - When adding database column: migration → Pydantic model → SELECT queries → frontend interface → frontend mapping → UI display
+2. **Check existing column names** - Don't assume column naming (financially_approved_at vs financial_reviewed_at)
+3. **Verify API responses** - Use Network tab to check if fields are actually being returned
+4. **FastAPI Body() expects matching content-type** - text/plain body requires text/plain content-type
+
+---
+
+### Files Changed Summary
+
+**Backend (3 files, 21 lines):**
+- backend/routes/quotes.py: Fixed approve endpoint and SELECT query
+- backend/models.py: Added 2 comment fields
+- backend/migrations/031_add_approval_comment_field.sql: New migration
+
+**Frontend (2 files, 67 lines):**
+- frontend/src/components/quotes/FinancialApprovalActions.tsx: Added comment field, fixed request format
+- frontend/src/app/quotes/[id]/page.tsx: Added 4 Alert components and field mappings
+
+---
+
+### Next Steps
+
+**Test Plan Progress:**
+- ✅ Scenario 1: Happy Path - Approve Quote (NOW WORKING!)
+- ✅ Scenario 2: Send Back - Quote Has Issues (tested in Session 42)
+- ✅ Scenario 3: Product-Level Markup Validation (Session 44)
+- ✅ Scenario 4: DM Fee vs Margin (user confirmed working)
+- [ ] Scenario 5-10: Remaining validation and edge case scenarios
+
+**Future Enhancements:**
+- [ ] Add timestamps to comments ("approved on 2025-11-23 10:30")
+- [ ] Show reviewer name with comments
+- [ ] Comment edit/update capability
+- [ ] Comment history (track multiple send-backs)
+
+---
+
 ## Session 44 (2025-11-22) - Enable Product-Level Variable Overrides ✅
 
 ### Goal
