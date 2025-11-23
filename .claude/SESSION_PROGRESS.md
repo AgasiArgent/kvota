@@ -77,6 +77,124 @@ Add VAT removal analysis to financial review Excel export
 
 ---
 
+## Session 46 (2025-11-23) - VAT Removal Indicator Implementation 🔄 IN PROGRESS
+
+### Goal
+Add VAT removal analysis to financial review Excel export with quote-level summary and product-level comparison.
+
+### Status: PARTIALLY COMPLETE ⚠️
+
+**Time:** ~3 hours (brainstorming + implementation + debugging)
+**Commits:** 7 commits (design + tests + implementation + data source fix)
+**Files:** 3 files changed (export service, export endpoint, tests)
+
+---
+
+### What's Working ✅
+
+**1. Quote-Level VAT Summary**
+- Shows: "НДС очищен на: X из 5 продуктов"
+- Counts products where K16 ≠ N16
+- No highlighting (informational only)
+- **Status:** ✅ Working correctly
+
+**2. Product Table Columns**
+- Column D: Страна закупки ✅ Working (shows: Турция, Китай)
+- Column E: Цена с НДС (K16) ✅ Working (shows: 1200, 350, 850, 450, 2500)
+- Column F: Цена без НДС (N16) ❌ Shows None (should show calculated values)
+- Column G: Кол-во ✅ Shifted correctly from D
+
+**3. Data Sources**
+- `supplier_country` ✅ From quote_items table
+- `base_price_vat` (K16) ✅ From quote_items table
+- `calc_n16` (N16) ❌ Trying to get from phase_results.phase1.N16 but returns None
+
+**4. Tests**
+- 7 new unit tests added ✅
+- 7/7 passing for Excel structure ✅
+- Need integration test with real calculation data
+
+---
+
+### Issue Found ⚠️
+
+**N16 Values Not Appearing:**
+
+**Symptom:** All products show N16 = None in Excel export
+
+**Code attempting:**
+```python
+'calc_n16_price_without_vat': Decimal(str(phase_results.get('phase1', {}).get('N16', 0)))
+```
+
+**Possible causes:**
+1. phase_results doesn't have 'phase1' key
+2. phase_results.phase1 doesn't have 'N16' key
+3. Key names are different (e.g., 'n16' lowercase, or 'calc_n16')
+4. Data is in different structure than expected
+
+**Next session tasks:**
+- [ ] Debug: Print phase_results structure to see actual keys
+- [ ] Find correct path to N16 value in phase_results JSONB
+- [ ] Update code to extract N16 correctly
+- [ ] Verify yellow highlighting works when K16 ≠ N16
+
+---
+
+### Files Changed
+
+**Backend (3 files):**
+- `services/financial_review_export.py` (+45 lines)
+  - Updated quote-level summary calculation
+  - Added 3 product table columns (D, E, F)
+  - Shifted all existing columns right by +3
+  - Added yellow highlighting logic
+
+- `routes/financial_approval.py` (+5 lines)
+  - Added base_price_vat and supplier_country to quote_items query
+  - Added calc_n16 extraction from phase_results.phase1.N16 (not working yet)
+
+- `tests/services/test_financial_review_export.py` (+256 lines)
+  - 7 new unit tests (all passing for structure, need data validation)
+
+**Documentation:**
+- `docs/plans/2025-11-23-vat-removal-indicator-design.md` (467 lines)
+- `docs/plans/2025-11-23-vat-removal-indicator-implementation.md` (720 lines)
+
+---
+
+### Commits
+
+1. `6e5f2c1` - docs: add VAT removal indicator design document
+2. `e476923` - test: add VAT summary calculation tests (RED)
+3. `614e708` - test: add VAT calculation logic test (RED)
+4. `ad1cba3` - feat: update VAT summary to show count of products
+5. `2fd0db6` - test: add product table VAT column tests (RED)
+6. `ec3338c` - feat: add VAT comparison columns to product table (Tasks 4-6)
+7. `58877fe` - feat: add VAT removal indicator to financial review export (partial)
+
+---
+
+### Next Session Tasks
+
+**Priority 1: Fix N16 Data Extraction**
+- [ ] Add debug logging to print phase_results structure
+- [ ] Identify correct JSON path to N16 value
+- [ ] Update extraction code
+- [ ] Test with real quote
+
+**Priority 2: Verify Highlighting**
+- [ ] Create test quote with mixed VAT removal (Turkey + China products)
+- [ ] Verify yellow highlighting appears when K16 ≠ N16
+- [ ] Verify no highlighting when K16 = N16
+
+**Priority 3: Complete Documentation**
+- [ ] Mark Scenario 5 as complete (or in-progress if N16 fix needed)
+- [ ] Update test results documentation
+- [ ] Document phase_results structure for future reference
+
+---
+
 ## Session 45 (2025-11-23) - Fix Financial Approval Comment Visibility ✅
 
 ### Goal
