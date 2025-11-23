@@ -91,8 +91,10 @@ interface QuoteDetail {
   title?: string;
   status: string;
   workflow_state?: string; // For financial approval workflow
+  submission_comment?: string; // Comment from manager when submitting for approval
   last_sendback_reason?: string; // Comment from financial manager when sent back
   last_financial_comment?: string; // Comment from financial manager when rejected
+  last_approval_comment?: string; // Comment from financial manager when approved
   quote_date?: string;
   valid_until?: string;
   currency?: string;
@@ -165,8 +167,10 @@ export default function QuoteDetailPage() {
           title: quoteData.title,
           status: quoteData.status,
           workflow_state: quoteData.workflow_state, // CRITICAL: Required for financial approval component
+          submission_comment: quoteData.submission_comment, // Comment from manager when submitting
           last_sendback_reason: quoteData.last_sendback_reason, // Comment when sent back for revision
           last_financial_comment: quoteData.last_financial_comment, // Comment when rejected by finance
+          last_approval_comment: quoteData.last_approval_comment, // Comment when approved by finance
           quote_date: quoteData.quote_date,
           valid_until: quoteData.valid_until,
           currency: quoteData.currency || 'RUB',
@@ -600,6 +604,23 @@ export default function QuoteDetailPage() {
                       </Row>
                     )}
 
+                    {/* Submission Comment Alert (for financial managers) */}
+                    {quote.workflow_state === 'awaiting_financial_approval' &&
+                      quote.submission_comment && (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="Комментарий менеджера при отправке"
+                          description={
+                            <div>
+                              <strong>Менеджер написал:</strong>
+                              <br />
+                              {quote.submission_comment}
+                            </div>
+                          }
+                        />
+                      )}
+
                     {/* Send-back Reason Alert */}
                     {quote.workflow_state === 'sent_back_for_revision' &&
                       quote.last_sendback_reason && (
@@ -629,6 +650,24 @@ export default function QuoteDetailPage() {
                               <strong>Причина отклонения:</strong>
                               <br />
                               {quote.last_financial_comment}
+                            </div>
+                          }
+                        />
+                      )}
+
+                    {/* Approval Comment Alert */}
+                    {(quote.workflow_state === 'financially_approved' ||
+                      quote.workflow_state === 'approved') &&
+                      quote.last_approval_comment && (
+                        <Alert
+                          type="success"
+                          showIcon
+                          message="КП утверждено финансовым менеджером"
+                          description={
+                            <div>
+                              <strong>Комментарий финансового менеджера:</strong>
+                              <br />
+                              {quote.last_approval_comment}
                             </div>
                           }
                         />

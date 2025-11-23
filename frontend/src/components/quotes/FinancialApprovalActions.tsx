@@ -25,6 +25,7 @@ export default function FinancialApprovalActions({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [approveComment, setApproveComment] = useState('');
   const [rejectComment, setRejectComment] = useState('');
   const [sendBackComment, setSendBackComment] = useState('');
 
@@ -54,13 +55,10 @@ export default function FinancialApprovalActions({
       const response = await fetch(`${config.apiUrl}/api/quotes/${quoteId}/${endpoint}`, {
         method: 'POST',
         headers: {
-          'Content-Type': action === 'sendback' ? 'text/plain' : 'application/json',
+          'Content-Type': 'text/plain',
           Authorization: `Bearer ${token}`,
         },
-        body:
-          action === 'sendback'
-            ? comments?.trim() || ''
-            : JSON.stringify({ comments: comments?.trim() || '' }),
+        body: comments?.trim() || '',
       });
 
       if (!response.ok) {
@@ -82,6 +80,7 @@ export default function FinancialApprovalActions({
       message.success(successMessage);
 
       // Clear comments
+      setApproveComment('');
       setRejectComment('');
       setSendBackComment('');
 
@@ -135,11 +134,23 @@ export default function FinancialApprovalActions({
         Скачать финансовый анализ
       </Button>
 
-      {/* Approve Button - Simple confirmation */}
+      {/* Approve Button - With optional comment input */}
       <Popconfirm
         title="Утверждение КП"
-        description={`Утвердить КП ${quoteNumber}?`}
-        onConfirm={() => handleAction('approve')}
+        description={
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <span>Утвердить КП {quoteNumber}?</span>
+            <TextArea
+              placeholder="Комментарий (необязательно)"
+              value={approveComment}
+              onChange={(e) => setApproveComment(e.target.value)}
+              rows={3}
+              maxLength={500}
+            />
+          </Space>
+        }
+        onConfirm={() => handleAction('approve', approveComment)}
+        onCancel={() => setApproveComment('')}
         okText="Утвердить"
         cancelText="Отмена"
         okButtonProps={{ loading }}

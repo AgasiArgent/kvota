@@ -105,7 +105,8 @@ async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = 
         SELECT q.id, q.organization_id, q.customer_id, q.created_by,
                q.quote_number, q.title, q.description, q.status,
                q.workflow_state,
-               q.last_sendback_reason, q.last_financial_comment,
+               q.submission_comment, q.last_sendback_reason,
+               q.last_financial_comment, q.last_approval_comment,
                q.quote_date, q.valid_until,
                q.subtotal, q.discount_percentage, q.discount_amount,
                q.tax_rate, q.tax_amount, q.total_amount,
@@ -1222,8 +1223,13 @@ async def approve_quote_financially(
         # Update to financially_approved
         update_data = {
             "workflow_state": "financially_approved",
-            "financially_approved_at": datetime.now(timezone.utc).isoformat()
+            "financial_reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "financial_reviewed_by": str(user.id)
         }
+
+        # Store approval comment if provided (similar to rejection/sendback)
+        if comment:
+            update_data["last_approval_comment"] = comment
 
         update_result = supabase.table("quotes").update(update_data)\
             .eq("id", str(quote_id)).execute()
