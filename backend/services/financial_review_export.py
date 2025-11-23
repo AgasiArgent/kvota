@@ -198,18 +198,19 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
 
     # ========== VAT & DM FEE INFO (Row after totals) ==========
     row += 2
-    ws[f'A{row}'] = 'НДС очищен:'
-    vat_removed = quote_data.get('vat_removed', False)
-    ws[f'B{row}'] = 'ДА' if vat_removed else 'НЕТ'
-    ws[f'B{row}'].font = Font(bold=True)
+    ws[f'A{row}'] = 'НДС очищен на:'
 
-    # Highlight if VAT not removed
-    if not vat_removed:
-        ws[f'B{row}'].fill = YELLOW_FILL
-        ws[f'B{row}'].comment = Comment(
-            "⚠️ VAT не был очищен от закупочной цены. Проверьте.",
-            "System"
-        )
+    # Calculate count of products with VAT removed (K16 ≠ N16)
+    products = quote_data.get('products', [])
+    removed_count = sum(
+        1 for p in products
+        if Decimal(str(p.get('base_price_vat', 0))) != Decimal(str(p.get('calc_n16_price_without_vat', 0)))
+    )
+    total_count = len(products)
+
+    ws[f'B{row}'] = f"{removed_count} из {total_count} продуктов"
+    ws[f'B{row}'].font = Font(bold=True)
+    # No highlighting - just informational
 
     ws[f'D{row}'] = 'DM Гонорар тип:'
     ws[f'E{row}'] = quote_data.get('dm_fee_type', '')
