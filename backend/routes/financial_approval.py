@@ -178,10 +178,10 @@ async def get_financial_review_excel(
                 'name': product_name,
                 'quantity': int(quantity),
                 'markup': markup,
-                # VAT Removal Indicator fields (NEW - from quote_items + phase1 results)
+                # VAT Removal Indicator fields (NEW - from quote_items + calculation results)
                 'supplier_country': item.get('supplier_country', 'N/A'),
                 'base_price_vat': Decimal(str(item.get('base_price_vat', 0))),
-                'calc_n16_price_without_vat': Decimal(str(phase_results.get('phase1', {}).get('N16', 0))),
+                'calc_n16_price_without_vat': Decimal(str(phase_results.get('purchase_price_no_vat', 0))),
                 # Purchase pricing (supplier → quote currency)
                 'purchase_price_supplier': purchase_price_no_vat,  # Original supplier price
                 'purchase_price_after_discount': purchase_price_after_discount,
