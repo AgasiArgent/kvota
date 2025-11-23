@@ -103,9 +103,9 @@ async def get_financial_review_excel(
         else:
             print(f"[WARNING] No quote_calculation_variables found for quote {quote_id}")
 
-        # Load quote items with calculation results
+        # Load quote items with calculation results (include base_price_vat and supplier_country)
         items_result = supabase.table("quote_items") \
-            .select("id, product_name, description, quantity, custom_fields") \
+            .select("id, product_name, description, quantity, custom_fields, base_price_vat, supplier_country") \
             .eq("quote_id", str(quote_id)) \
             .order("position") \
             .execute()
@@ -178,6 +178,10 @@ async def get_financial_review_excel(
                 'name': product_name,
                 'quantity': int(quantity),
                 'markup': markup,
+                # VAT Removal Indicator fields (NEW - from quote_items + phase1 results)
+                'supplier_country': item.get('supplier_country', 'N/A'),
+                'base_price_vat': Decimal(str(item.get('base_price_vat', 0))),
+                'calc_n16_price_without_vat': Decimal(str(phase_results.get('phase1', {}).get('N16', 0))),
                 # Purchase pricing (supplier → quote currency)
                 'purchase_price_supplier': purchase_price_no_vat,  # Original supplier price
                 'purchase_price_after_discount': purchase_price_after_discount,
