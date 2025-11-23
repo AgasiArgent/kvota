@@ -1,9 +1,86 @@
-## Session 46 (2025-11-23) - VAT Removal Indicator ✅
+## Session 47 (2025-11-23) - Fix N16 Data Extraction Bug ✅
+
+### Goal
+Fix VAT removal indicator N16 values showing as None in Excel export
+
+### Status: COMPLETE ✅
+
+**Time:** ~45 minutes
+**Commits:** 1 commit
+**Files:** 1 file changed (financial_approval.py)
+
+---
+
+### Issue Fixed
+
+**Bug:** N16 values (price without VAT) were showing as None in financial review Excel export, preventing VAT removal indicator from working correctly.
+
+**Root Cause:** Code was looking for N16 in wrong location:
+- Expected: `phase_results.get('phase1', {}).get('N16', 0)` (nested structure)
+- Actual: `phase_results.get('purchase_price_no_vat', 0)` (flat dictionary)
+
+**Why:** In `quotes_calc.py:1294`, phase_results is stored as:
+```python
+"phase_results": convert_decimals_to_float(result.dict())
+```
+
+This creates a **flat dictionary** from `ProductCalculationResult`, not nested by phase.
+
+---
+
+### Fix Applied
+
+**File:** `backend/routes/financial_approval.py:184`
+
+**Changed from:**
+```python
+'calc_n16_price_without_vat': Decimal(str(phase_results.get('phase1', {}).get('N16', 0)))
+```
+
+**Changed to:**
+```python
+'calc_n16_price_without_vat': Decimal(str(phase_results.get('purchase_price_no_vat', 0)))
+```
+
+---
+
+### Verification
+
+**Database check confirmed:**
+- КП25-0084 has `purchase_price_no_vat: 1000.0` in calculation results
+- Key exists in flat dictionary structure
+- Data was always present, just extracted from wrong path
+
+**Expected behavior after fix:**
+- Column F (N16) now shows actual calculated prices without VAT
+- Yellow highlighting works when K16 ≠ N16 (VAT was removed)
+- Quote-level summary shows accurate count of products with VAT removed
+
+---
+
+### Commit
+
+**Commit:** 1e4c4bd
+**Message:** "fix: correct N16 extraction path in financial review export"
+
+---
+
+### Next Steps
+
+**Manual testing needed:**
+1. Export financial review Excel for КП25-0084
+2. Verify Column F shows N16 values (not None)
+3. Verify yellow highlighting on products where VAT was removed
+4. Continue with test plan Scenario 6+
+
+---
+
+## Session 46 (2025-11-23) - VAT Removal Indicator Implementation ✅
 
 ### Goal
 Add VAT removal analysis to financial review Excel export
 
-### Status: COMPLETE ✅
+### Status: COMPLETE ✅ (with Session 47 bug fix)
 
 **Time:** ~1.5 hours
 **Commits:** 6 commits
