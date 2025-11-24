@@ -5,6 +5,7 @@ Pydantic models for quote calculation inputs with Russian business validation
 
 from decimal import Decimal
 from typing import Optional, List
+from datetime import date
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
@@ -109,7 +110,8 @@ class LogisticsParams(BaseModel):
     supplier_country: SupplierCountry = Field(..., description="Supplier country")
     offer_incoterms: Incoterms = Field(default=Incoterms.DDP, description="INCOTERMS")
     delivery_time: int = Field(..., gt=0, description="Delivery time in days")
-    
+    delivery_date: Optional[date] = Field(default=None, description="Expected delivery date (for VAT calculation)")
+
     # Logistics costs (for entire shipment, will be distributed)
     logistics_supplier_hub: Decimal = Field(..., ge=0, description="Cost from supplier to hub")
     logistics_hub_customs: Decimal = Field(default=Decimal("0"), ge=0, description="Cost from hub to customs")
