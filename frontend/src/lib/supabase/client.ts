@@ -3,7 +3,68 @@ import { createBrowserClient } from '@supabase/ssr';
 export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          // Use document.cookie for browser-side cookie access
+          const cookies = document.cookie.split(';');
+          for (const cookie of cookies) {
+            const [cookieName, cookieValue] = cookie.trim().split('=');
+            if (cookieName === name) {
+              return decodeURIComponent(cookieValue);
+            }
+          }
+          return null;
+        },
+        set(name: string, value: string, options: Record<string, unknown>) {
+          // Set cookie with domain=.kvotaflow.ru to work on both www and non-www
+          const isProd =
+            typeof window !== 'undefined' &&
+            (window.location.hostname === 'kvotaflow.ru' ||
+              window.location.hostname === 'www.kvotaflow.ru');
+
+          const cookieOptions = {
+            ...options,
+            domain: isProd ? '.kvotaflow.ru' : undefined, // Root domain for production
+            path: '/',
+            sameSite: 'lax' as const,
+          };
+
+          let cookieString = `${name}=${encodeURIComponent(value)}`;
+
+          if (cookieOptions.domain) {
+            cookieString += `; domain=${cookieOptions.domain}`;
+          }
+          if (cookieOptions.path) {
+            cookieString += `; path=${cookieOptions.path}`;
+          }
+          if (cookieOptions.maxAge) {
+            cookieString += `; max-age=${cookieOptions.maxAge}`;
+          }
+          if (cookieOptions.sameSite) {
+            cookieString += `; samesite=${cookieOptions.sameSite}`;
+          }
+          if (cookieOptions.secure) {
+            cookieString += '; secure';
+          }
+
+          document.cookie = cookieString;
+        },
+        remove(name: string, options: Record<string, unknown>) {
+          const isProd =
+            typeof window !== 'undefined' &&
+            (window.location.hostname === 'kvotaflow.ru' ||
+              window.location.hostname === 'www.kvotaflow.ru');
+
+          this.set(name, '', {
+            ...options,
+            domain: isProd ? '.kvotaflow.ru' : undefined,
+            maxAge: 0,
+          });
+        },
+      },
+    }
   );
 }
 
