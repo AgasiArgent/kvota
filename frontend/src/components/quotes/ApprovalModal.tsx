@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Modal, Radio, Input, Space, message } from 'antd';
-import { getAuthToken } from '@/lib/auth-utils';
+import { getAuthToken } from '@/lib/auth/auth-helper';
 import { config } from '@/lib/config';
 
 const { TextArea } = Input;
