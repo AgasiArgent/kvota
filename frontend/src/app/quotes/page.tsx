@@ -31,6 +31,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   DollarOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
@@ -38,6 +39,9 @@ import { QuoteService, QuoteDetailsResponse } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import dayjs, { Dayjs } from 'dayjs';
 import { QuoteItem } from '@/lib/types/platform';
+import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
+import { config } from '@/lib/config';
+import { getAuthToken } from '@/lib/auth/auth-helper';
 
 const { Title } = Typography;
 const { Search } = Input;
@@ -49,6 +53,7 @@ interface QuoteListItem {
   customer_name?: string;
   title?: string;
   status: string;
+  workflow_state?: string;
   total_amount?: number;
   total?: number; // Backend uses 'total' instead of 'total_amount'
   currency?: string;
@@ -77,6 +82,11 @@ export default function QuotesPage() {
   const [drawerData, setDrawerData] = useState<QuoteDetailsResponse | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
 
+  // Submit modal state
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
+  const [submitQuoteId, setSubmitQuoteId] = useState<string | null>(null);
+  const [submitQuoteNumber, setSubmitQuoteNumber] = useState<string>('');
+
   const quoteService = new QuoteService();
 
   useEffect(() => {
@@ -103,7 +113,7 @@ export default function QuotesPage() {
         filters.search = searchTerm;
       }
       if (statusFilter) {
-        filters.status = statusFilter;
+        filters.workflow_state = statusFilter;
       }
       if (dateRange) {
         filters.date_from = dateRange[0].format('YYYY-MM-DD');
@@ -155,6 +165,48 @@ export default function QuotesPage() {
     } catch (error: any) {
       message.error(`Ошибка удаления: ${error.message}`);
     }
+  };
+
+  const handleSubmitForApproval = async (comment?: string) => {
+    if (!submitQuoteId) return;
+
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        message.error('Не авторизован');
+        return;
+      }
+
+      const response = await fetch(
+        `${config.apiUrl}/api/quotes/${submitQuoteId}/submit-for-financial-approval`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'text/plain',
+          },
+          body: comment || '',
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка отправки на утверждение');
+      }
+
+      setSubmitModalOpen(false);
+      message.success('КП отправлено на финансовое утверждение');
+      fetchQuotes(); // Refresh the list
+    } catch (error: any) {
+      message.error(error.message || 'Ошибка отправки на утверждение');
+      throw error;
+    }
+  };
+
+  const openSubmitModal = (id: string, quoteNumber: string) => {
+    setSubmitQuoteId(id);
+    setSubmitQuoteNumber(quoteNumber);
+    setSubmitModalOpen(true);
   };
 
   const openDrawer = async (quoteId: string) => {
@@ -218,25 +270,23 @@ export default function QuotesPage() {
     closeDrawer();
   };
 
-  const getStatusTag = (status: string) => {
+  const getStatusTag = (workflowState: string) => {
     const statusMap = {
       draft: { color: 'default', text: 'Черновик' },
-      pending_approval: { color: 'orange', text: 'На утверждении' },
-      partially_approved: { color: 'gold', text: 'Частично утверждено' },
-      approved: { color: 'green', text: 'Утверждено' },
-      revision_needed: { color: 'purple', text: 'Требуется доработка' },
-      rejected_internal: { color: 'red', text: 'Отклонено (внутр.)' },
+      awaiting_financial_approval: { color: 'orange', text: 'На финансовом утверждении' },
+      financially_approved: { color: 'green', text: 'Финансово утверждено' },
+      rejected_by_finance: { color: 'red', text: 'Отклонено финансами' },
+      sent_back_for_revision: { color: 'purple', text: 'Требуется доработка' },
       ready_to_send: { color: 'cyan', text: 'Готово к отправке' },
-      sent: { color: 'blue', text: 'Отправлено' },
-      viewed: { color: 'geekblue', text: 'Просмотрено' },
-      accepted: { color: 'green', text: 'Принято' },
-      rejected: { color: 'red', text: 'Отклонено' },
+      sent_to_customer: { color: 'blue', text: 'Отправлено клиенту' },
+      accepted_by_customer: { color: 'green', text: 'Принято клиентом' },
+      rejected_by_customer: { color: 'red', text: 'Отклонено клиентом' },
       expired: { color: 'default', text: 'Истекло' },
       cancelled: { color: 'default', text: 'Отменено' },
     };
-    const config = statusMap[status as keyof typeof statusMap] || {
+    const config = statusMap[workflowState as keyof typeof statusMap] || {
       color: 'default',
-      text: status,
+      text: workflowState,
     };
     return <Tag color={config.color}>{config.text}</Tag>;
   };
@@ -297,10 +347,10 @@ export default function QuotesPage() {
     },
     {
       title: 'Статус',
-      dataIndex: 'status',
-      key: 'status',
+      dataIndex: 'workflow_state',
+      key: 'workflow_state',
       width: 180,
-      render: (status: string) => getStatusTag(status),
+      render: (workflowState: string) => getStatusTag(workflowState || 'draft'),
     },
     {
       title: 'Дата КП',
@@ -338,7 +388,16 @@ export default function QuotesPage() {
             onClick={() => openDrawer(record.id)}
             title="Просмотр"
           />
-          {(record.status === 'draft' || record.status === 'revision_needed') && (
+          {record.workflow_state === 'draft' && (
+            <Button
+              type="text"
+              icon={<SendOutlined />}
+              onClick={() => openSubmitModal(record.id, record.quote_number)}
+              title="Отправить на утверждение"
+              style={{ color: '#52c41a' }}
+            />
+          )}
+          {(record.workflow_state === 'draft' || record.workflow_state === 'revision_needed') && (
             <Button
               type="text"
               icon={<EditOutlined />}
@@ -346,7 +405,7 @@ export default function QuotesPage() {
               title="Редактировать"
             />
           )}
-          {record.status === 'draft' && (
+          {record.workflow_state === 'draft' && (
             <Popconfirm
               title="Удалить КП?"
               description="КП будет перемещено в корзину"
@@ -366,13 +425,14 @@ export default function QuotesPage() {
   // Calculate stats
   const totalQuotes = totalCount;
   const approvedQuotes = quotes.filter(
-    (q) => q.status === 'approved' || q.status === 'accepted'
+    (q) =>
+      q.workflow_state === 'financially_approved' || q.workflow_state === 'accepted_by_customer'
   ).length;
-  const pendingQuotes = quotes.filter((q) =>
-    ['pending_approval', 'partially_approved'].includes(q.status)
+  const pendingQuotes = quotes.filter(
+    (q) => q.workflow_state === 'awaiting_financial_approval'
   ).length;
   const totalRevenue = quotes
-    .filter((q) => q.status === 'accepted')
+    .filter((q) => q.workflow_state === 'accepted_by_customer')
     .reduce((sum, q) => sum + (q.total_amount || q.total || 0), 0);
 
   return (
@@ -473,16 +533,14 @@ export default function QuotesPage() {
                 }}
                 options={[
                   { label: 'Черновик', value: 'draft' },
-                  { label: 'На утверждении', value: 'pending_approval' },
-                  { label: 'Частично утверждено', value: 'partially_approved' },
-                  { label: 'Утверждено', value: 'approved' },
-                  { label: 'Требуется доработка', value: 'revision_needed' },
-                  { label: 'Отклонено (внутр.)', value: 'rejected_internal' },
+                  { label: 'На финансовом утверждении', value: 'awaiting_financial_approval' },
+                  { label: 'Финансово утверждено', value: 'financially_approved' },
+                  { label: 'Отклонено финансами', value: 'rejected_by_finance' },
+                  { label: 'Требуется доработка', value: 'sent_back_for_revision' },
                   { label: 'Готово к отправке', value: 'ready_to_send' },
-                  { label: 'Отправлено', value: 'sent' },
-                  { label: 'Просмотрено', value: 'viewed' },
-                  { label: 'Принято', value: 'accepted' },
-                  { label: 'Отклонено', value: 'rejected' },
+                  { label: 'Отправлено клиенту', value: 'sent_to_customer' },
+                  { label: 'Принято клиентом', value: 'accepted_by_customer' },
+                  { label: 'Отклонено клиентом', value: 'rejected_by_customer' },
                   { label: 'Истекло', value: 'expired' },
                   { label: 'Отменено', value: 'cancelled' },
                 ]}
@@ -546,13 +604,13 @@ export default function QuotesPage() {
                   bordered
                   column={1}
                   size="small"
-                  labelStyle={{ fontWeight: 500, width: '40%' }}
+                  styles={{ label: { fontWeight: 500, width: '40%' } }}
                 >
                   <Descriptions.Item label="Клиент">
                     {drawerData.customer?.company_name || 'Не указан'}
                   </Descriptions.Item>
                   <Descriptions.Item label="Статус">
-                    {getStatusTag(drawerData.quote.status)}
+                    {getStatusTag(drawerData.quote.workflow_state || drawerData.quote.status)}
                   </Descriptions.Item>
                   <Descriptions.Item label="Дата КП">
                     {drawerData.quote.created_at
@@ -678,8 +736,8 @@ export default function QuotesPage() {
                 >
                   Полная страница
                 </Button>
-                {(drawerData.quote.status === 'draft' ||
-                  drawerData.quote.status === 'revision_needed') && (
+                {(drawerData.quote.workflow_state === 'draft' ||
+                  drawerData.quote.workflow_state === 'sent_back_for_revision') && (
                   <Button
                     icon={<EditOutlined />}
                     onClick={() => {
@@ -690,7 +748,7 @@ export default function QuotesPage() {
                     Редактировать
                   </Button>
                 )}
-                {drawerData.quote.status === 'draft' && (
+                {drawerData.quote.workflow_state === 'draft' && (
                   <Popconfirm
                     title="Удалить КП?"
                     description="КП будет перемещено в корзину"
@@ -712,6 +770,14 @@ export default function QuotesPage() {
             </div>
           )}
         </Drawer>
+
+        {/* Submit for Approval Modal */}
+        <SubmitForApprovalModal
+          open={submitModalOpen}
+          onCancel={() => setSubmitModalOpen(false)}
+          onSubmit={handleSubmitForApproval}
+          quoteNumber={submitQuoteNumber}
+        />
       </Space>
     </MainLayout>
   );

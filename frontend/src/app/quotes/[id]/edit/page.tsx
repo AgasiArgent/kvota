@@ -116,8 +116,8 @@ export default function EditQuotePage() {
   const router = useRouter();
   const params = useParams();
   const quoteId = params?.id as string;
-  const [form] = Form.useForm<CalculationVariables>();
   const { message } = App.useApp();
+  const [form] = Form.useForm(); // ADD THIS - form instance was missing!
   const gridRef = useRef<any>(null);
 
   // State
@@ -385,7 +385,17 @@ export default function EditQuotePage() {
         // Merge template variables with current form values
         const templateVars = result.data.variables;
         console.log('Template variables:', templateVars);
-        form.setFieldsValue(templateVars as any);
+
+        // Convert date strings to dayjs objects for DatePicker
+        const processedVars = { ...templateVars };
+        if (processedVars.quote_date && typeof processedVars.quote_date === 'string') {
+          processedVars.quote_date = dayjs(processedVars.quote_date);
+        }
+        if (processedVars.valid_until && typeof processedVars.valid_until === 'string') {
+          processedVars.valid_until = dayjs(processedVars.valid_until);
+        }
+
+        form.setFieldsValue(processedVars as any);
         message.success(`Шаблон "${result.data.name}" загружен`);
       } else {
         console.error('Template load failed:', result.error);
@@ -849,7 +859,9 @@ export default function EditQuotePage() {
     return (
       <MainLayout>
         <div style={{ padding: '24px', textAlign: 'center' }}>
-          <Spin size="large" tip="Загрузка котировки..." />
+          <Spin size="large" tip="Загрузка котировки...">
+            <div style={{ minHeight: '200px' }} />
+          </Spin>
         </div>
       </MainLayout>
     );

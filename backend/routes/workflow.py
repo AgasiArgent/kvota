@@ -257,10 +257,23 @@ async def get_quote_workflow_status(
 
     # Get transition history
     history_result = supabase.table("quote_workflow_transitions")\
-        .select("*, users:performed_by(full_name)")\
+        .select("*")\
         .eq("quote_id", str(quote_id))\
         .order("performed_at", desc=False)\
         .execute()
+
+    # Fetch user names separately (auth.users is in different schema)
+    user_ids = [t["performed_by"] for t in history_result.data if t.get("performed_by")]
+    user_names = {}
+    for user_id in set(user_ids):
+        try:
+            user_data = supabase.auth.admin.get_user_by_id(user_id)
+            if user_data and user_data.user:
+                # Get full_name from user_metadata, or construct from email
+                full_name = user_data.user.user_metadata.get("full_name") or user_data.user.email.split("@")[0]
+                user_names[user_id] = full_name
+        except:
+            user_names[user_id] = "Unknown User"
 
     transitions = []
     for t in history_result.data:
@@ -271,7 +284,7 @@ async def get_quote_workflow_status(
             to_state=t["to_state"],
             action=t["action"],
             performed_by=t["performed_by"],
-            performed_by_name=t.get("users", {}).get("full_name"),
+            performed_by_name=user_names.get(t["performed_by"], "Unknown User"),
             role_at_transition=t["role_at_transition"],
             performed_at=t["performed_at"],
             comments=t.get("comments"),

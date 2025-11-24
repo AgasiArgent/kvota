@@ -7,6 +7,7 @@ import type { MenuProps } from 'antd';
 import { useRouter } from 'next/navigation';
 import { organizationService } from '@/lib/api/organization-service';
 import { UserOrganization } from '@/lib/types/organization';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { userService } from '@/lib/api/user-service';
 import {
   getOrganizationCache,
@@ -22,14 +23,17 @@ interface OrganizationSwitcherProps {
 
 export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherProps) {
   const router = useRouter();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [organizations, setOrganizations] = useState<UserOrganization[]>([]);
   const [currentOrg, setCurrentOrg] = useState<UserOrganization | null>(null);
 
   useEffect(() => {
-    fetchOrganizations();
-  }, []);
+    if (profile) {
+      fetchOrganizations();
+    }
+  }, [profile?.organization_id]); // Re-fetch when profile org changes
 
   const fetchOrganizations = async () => {
     // Try cache first

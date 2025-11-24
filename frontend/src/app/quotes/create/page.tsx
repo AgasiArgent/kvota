@@ -149,6 +149,13 @@ export default function CreateQuotePage() {
   // State
   const [loading, setLoading] = useState(false);
   const [uploadedProducts, setUploadedProducts] = useState<Product[]>([]);
+
+  // Track which cells were manually edited (for product-level overrides)
+  const [editedCells, setEditedCells] = useState<Set<string>>(new Set());
+  const [productOverrides, setProductOverrides] = useState<Map<number, Record<string, any>>>(
+    new Map()
+  );
+
   const [uploadedFile, setUploadedFile] = useState<UploadFile | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [templates, setTemplates] = useState<VariableTemplate[]>([]);
@@ -415,7 +422,17 @@ export default function CreateQuotePage() {
         // Merge template variables with current form values
         const templateVars = result.data.variables;
         console.log('Template variables:', templateVars);
-        form.setFieldsValue(templateVars as any);
+
+        // Convert date strings to dayjs objects for DatePicker
+        const processedVars = { ...templateVars };
+        if (processedVars.quote_date && typeof processedVars.quote_date === 'string') {
+          processedVars.quote_date = dayjs(processedVars.quote_date);
+        }
+        if (processedVars.valid_until && typeof processedVars.valid_until === 'string') {
+          processedVars.valid_until = dayjs(processedVars.valid_until);
+        }
+
+        form.setFieldsValue(processedVars as any);
         message.success(`Шаблон "${result.data.name}" загружен`);
       } else {
         console.error('Template load failed:', result.error);
@@ -621,13 +638,54 @@ export default function CreateQuotePage() {
         ? variables.valid_until.format('YYYY-MM-DD')
         : dayjs().add(7, 'day').format('YYYY-MM-DD');
 
-      // Apply quote-level defaults to products BEFORE sending to API
-      const productsWithDefaults = applyQuoteDefaultsToProducts(uploadedProducts, variables);
+      // IMPORTANT: Build products with custom_fields BEFORE applying defaults
+      // Otherwise applyQuoteDefaultsToProducts will overwrite user edits!
+      const productsWithCustomFields = uploadedProducts.map((product, index) => {
+        const overrides = productOverrides.get(index);
+
+        // Apply defaults but preserve overrides
+        const productWithDefaults = {
+          ...product,
+          // Financial defaults (use override if exists, otherwise use quote default)
+          currency_of_base_price:
+            overrides?.currency_of_base_price ??
+            product.currency_of_base_price ??
+            variables.currency_of_base_price ??
+            'USD',
+          exchange_rate_base_price_to_quote:
+            overrides?.exchange_rate_base_price_to_quote ??
+            product.exchange_rate_base_price_to_quote ??
+            variables.exchange_rate_base_price_to_quote ??
+            1.0,
+          supplier_discount: overrides?.supplier_discount ?? product.supplier_discount ?? 0,
+          markup: overrides?.markup ?? product.markup ?? variables.markup ?? 0,
+
+          // Logistics defaults
+          supplier_country:
+            overrides?.supplier_country ??
+            product.supplier_country ??
+            variables.supplier_country ??
+            'Турция',
+
+          // Customs defaults
+          customs_code:
+            overrides?.customs_code ?? product.customs_code ?? variables.customs_code ?? '',
+          import_tariff:
+            overrides?.import_tariff ?? product.import_tariff ?? variables.import_tariff ?? 0,
+          excise_tax: overrides?.excise_tax ?? product.excise_tax ?? variables.excise_tax ?? 0,
+          util_fee: overrides?.util_fee ?? variables.util_fee ?? 0,
+        };
+
+        return {
+          ...productWithDefaults,
+          custom_fields: overrides || {}, // Attach custom_fields for backend
+        };
+      });
 
       const result = await quotesCalcService.calculateQuote({
         customer_id: selectedCustomer,
         contact_id: selectedContact,
-        products: productsWithDefaults,
+        products: productsWithCustomFields,
         variables: variables as CalculationVariables,
         title: `Коммерческое предложение от ${new Date().toLocaleDateString()}`,
         quote_date,
@@ -1843,11 +1901,30 @@ export default function CreateQuotePage() {
                         enableCellTextSelection={true}
                         suppressHorizontalScroll={false}
                         onCellValueChanged={(event: any) => {
+                          const rowIndex = event.rowIndex;
+                          const field = event.colDef?.field;
+                          const newValue = event.newValue;
+
+                          if (rowIndex === null || rowIndex === undefined || !field) return;
+
+                          // Track this cell as manually edited
+                          const cellKey = `${rowIndex}-${field}`;
+                          setEditedCells((prev) => new Set(prev).add(cellKey));
+
+                          // Store the override value
+                          setProductOverrides((prev) => {
+                            const newMap = new Map(prev);
+                            const overrides = newMap.get(rowIndex) || {};
+                            overrides[field] = newValue;
+                            newMap.set(rowIndex, overrides);
+                            return newMap;
+                          });
+
+                          // Update product data in state
                           setUploadedProducts((prevProducts) => {
                             const updatedProducts = [...prevProducts];
-                            const index = event.rowIndex;
-                            if (index !== null && index !== undefined) {
-                              updatedProducts[index] = event.data as Product;
+                            if (rowIndex !== null && rowIndex !== undefined) {
+                              updatedProducts[rowIndex] = event.data as Product;
                             }
                             return updatedProducts;
                           });

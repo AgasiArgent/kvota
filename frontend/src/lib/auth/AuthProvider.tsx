@@ -13,7 +13,9 @@ interface UserProfile {
   phone?: string | null;
   organization_id?: string | null;
   role: 'sales_manager' | 'finance_manager' | 'department_manager' | 'director' | 'admin';
-  organizationRole?: string; // Role in current organization (from organization_members table)
+  organizationRole?: string; // Role slug in current organization (from organization_members table)
+  is_owner?: boolean; // Owner flag for current organization
+  is_financial_manager?: boolean; // Flag for financial approval permissions (deprecated - use organizationRole)
   created_at: string;
   updated_at: string;
 }
@@ -129,16 +131,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         phone: data.phone,
         organization_id: organizationId,
         role: data.role || 'sales_manager',
+        is_financial_manager: data.is_financial_manager || false,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
 
-      // Fetch organization-specific role from organization_members table
+      // Fetch organization-specific role and owner status from organization_members table
       if (profile.organization_id) {
         try {
           const { data: orgMember, error: orgError } = await supabase
             .from('organization_members')
-            .select('roles(slug)')
+            .select('roles(slug), is_owner')
             .eq('user_id', userId)
             .eq('organization_id', profile.organization_id)
             .single();
@@ -148,9 +151,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!orgError && orgMember) {
             // @ts-expect-error - roles is a relation
             profile.organizationRole = orgMember.roles?.slug;
+            profile.is_owner = orgMember.is_owner || false;
             console.log(
               `[fetchProfile] Organization role for org ${profile.organization_id}:`,
-              profile.organizationRole
+              profile.organizationRole,
+              'is_owner:',
+              profile.is_owner
             );
           } else {
             console.warn('[fetchProfile] Failed to load organization role:', orgError);
