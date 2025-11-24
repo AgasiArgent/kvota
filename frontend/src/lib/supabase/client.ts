@@ -24,11 +24,11 @@ export function createClient() {
             (window.location.hostname === 'kvotaflow.ru' ||
               window.location.hostname === 'www.kvotaflow.ru');
 
-          const cookieOptions = {
+          const cookieOptions: Record<string, unknown> = {
             ...options,
             domain: isProd ? '.kvotaflow.ru' : undefined, // Root domain for production
             path: '/',
-            sameSite: 'lax' as const,
+            sameSite: 'lax',
           };
 
           let cookieString = `${name}=${encodeURIComponent(value)}`;
