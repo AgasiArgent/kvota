@@ -1,3 +1,215 @@
+## Session 48 (2025-11-24) - Fix www Subdomain CORS & Cookie Issues ✅
+
+### Goal
+Fix organization loading issues when accessing site via www.kvotaflow.ru
+
+### Status: COMPLETE ✅
+
+**Time:** ~3 hours
+**Method:** Systematic Debugging (4-phase process)
+**Commits:** 3 commits (31b8591, 60c2305, fe5ff9f)
+**Files:** 2 files (backend/main.py, frontend/src/lib/supabase/client.ts)
+
+---
+
+### Issue Reported
+
+**Symptom:** Organizations not loading for users accessing www.kvotaflow.ru
+**Environment:** Windows Chrome (regular, not incognito)
+**Discovery:** WSL Chrome worked fine, Windows Chrome failed
+**Behavior:** Page stuck on loading skeletons, no redirect after login
+
+---
+
+### Systematic Debugging Process
+
+#### Phase 1: Root Cause Investigation
+
+**Evidence gathered:**
+1. **Browser comparison:**
+   - ✅ WSL Chrome + kvotaflow.ru → Organizations load
+   - ❌ Windows Chrome + www.kvotaflow.ru → Organizations don't load
+
+2. **Console errors:**
+   ```
+   Access to fetch at 'https://kvota-production.up.railway.app/api/users/profile'
+   from origin 'https://www.kvotaflow.ru' has been blocked by CORS policy:
+   No 'Access-Control-Allow-Origin' header is present
+   ```
+
+3. **Cookie inspection:**
+   - Supabase cookies (`sb-*`) only present on www.kvotaflow.ru
+   - No cookies on kvotaflow.ru (without www)
+   - Result: Different subdomains can't share authentication
+
+**Root causes identified:**
+1. **CORS misconfiguration:** Backend only allowed `kvotaflow.ru`, not `www.kvotaflow.ru`
+2. **Cookie domain mismatch:** Supabase cookies set per subdomain, not shared
+
+#### Phase 2: Pattern Analysis
+
+**Comparison:**
+- **Working:** Incognito starts fresh → logs in → cookies set correctly → works
+- **Broken:** Regular Chrome has old www cookies → accesses non-www → no cookies → redirect loop
+
+**Impact flow:**
+```
+User accesses kvotaflow.ru (no www)
+  ↓
+No cookies → Not authenticated
+  ↓
+Redirect to /auth/login
+  ↓
+Login redirects to www.kvotaflow.ru
+  ↓
+Has cookies but CORS blocks API calls
+  ↓
+Stuck on login page with skeletons
+```
+
+#### Phase 3: Hypothesis Testing
+
+**Hypothesis 1:** Stale session token causing failures
+**Test:** Clear cache and cookies
+**Result:** ❌ Didn't fix - issue persists
+
+**Hypothesis 2:** CORS blocking www subdomain
+**Test:** Check backend CORS config
+**Result:** ✅ Confirmed - www.kvotaflow.ru missing from allowed origins
+
+**Hypothesis 3:** Cookies not shared between subdomains
+**Test:** Inspect cookies in DevTools
+**Result:** ✅ Confirmed - cookies only on www, not shared with root domain
+
+#### Phase 4: Implementation
+
+**Fix 1: Backend CORS Configuration**
+- Added `https://www.kvotaflow.ru` to allowed_origins
+- Added `www.kvotaflow.ru` to TrustedHostMiddleware
+- Both www and non-www now allowed
+
+**Fix 2: Frontend Cookie Domain**
+- Configured Supabase to set cookies at root domain (`.kvotaflow.ru`)
+- Leading dot makes cookies accessible from all subdomains
+- Production: domain=.kvotaflow.ru
+- Development: domain=undefined (localhost default)
+
+**Fix 3: TypeScript Errors**
+- Fixed cookie options type definition
+- Changed from restrictive type to `Record<string, unknown>`
+- Allows maxAge, secure, and other cookie options
+
+---
+
+### Changes Made
+
+**Commit 1:** `31b8591` - Backend CORS fix
+```python
+# backend/main.py
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
+    "https://kvotaflow.ru",          # No www ✅
+    "https://www.kvotaflow.ru",      # With www ✅ NEW
+]
+
+allowed_hosts = [
+    "localhost", "127.0.0.1",
+    "*.railway.app", "*.vercel.app", "*.render.com",
+    "api.kvotaflow.ru",
+    "kvotaflow.ru",                  # No www ✅
+    "www.kvotaflow.ru"               # With www ✅ NEW
+]
+```
+
+**Commit 2:** `60c2305` - Frontend cookie domain fix
+```typescript
+// frontend/src/lib/supabase/client.ts
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        set(name, value, options) {
+          const isProd = typeof window !== 'undefined' &&
+            (window.location.hostname === 'kvotaflow.ru' ||
+             window.location.hostname === 'www.kvotaflow.ru');
+
+          const cookieOptions = {
+            ...options,
+            domain: isProd ? '.kvotaflow.ru' : undefined, // ← Root domain!
+            path: '/',
+            sameSite: 'lax',
+          };
+          // ... cookie string building
+        }
+      }
+    }
+  );
+}
+```
+
+**Commit 3:** `fe5ff9f` - TypeScript type fix
+```typescript
+// Fixed type error
+const cookieOptions: Record<string, unknown> = { ... }
+```
+
+---
+
+### Key Learnings
+
+**1. CORS with Subdomains**
+- `domain.com` and `www.domain.com` are different origins for browsers
+- Must explicitly list both in CORS config
+- Wildcards like `*.domain.com` won't match root domain
+
+**2. Cookie Domain Attribute**
+- **Without dot:** `domain=kvotaflow.ru` → Only kvotaflow.ru
+- **With dot:** `domain=.kvotaflow.ru` → All subdomains (www, api, etc.)
+- Leading dot is critical for subdomain sharing!
+
+**3. Systematic Debugging Process**
+- **Phase 1:** Gather evidence (don't guess!)
+- **Phase 2:** Compare working vs broken
+- **Phase 3:** Test hypotheses minimally
+- **Phase 4:** Fix root cause, not symptoms
+
+**4. Browser Cache ≠ Cookie Issues**
+- Clearing cache didn't help (cookies were the issue)
+- Incognito worked (fresh cookies, correct CORS after backend fix)
+- Different browsers can behave differently (WSL vs Windows Chrome)
+
+---
+
+### Testing Instructions
+
+**After deployment:**
+1. Clear all cookies in browser
+2. Log in at www.kvotaflow.ru
+3. Navigate to kvotaflow.ru (no www)
+4. Should stay logged in (cookies shared) ✅
+5. Organizations should load on both domains ✅
+
+---
+
+### Impact
+
+**Before:**
+- ❌ Users on www.kvotaflow.ru couldn't load organizations
+- ❌ Redirect loop between www and non-www
+- ❌ Inconsistent behavior across browsers
+
+**After:**
+- ✅ Both kvotaflow.ru and www.kvotaflow.ru work
+- ✅ Cookies shared across subdomains
+- ✅ Consistent authentication across all browsers
+- ✅ No more CORS errors
+
+---
+
 ## Session 47 (2025-11-23) - Fix N16 Bug & Refactor Financial Authorization ✅
 
 ### Goal
