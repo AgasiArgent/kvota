@@ -671,7 +671,7 @@ export default function CreateQuotePage() {
           import_tariff:
             overrides?.import_tariff ?? product.import_tariff ?? variables.import_tariff ?? 0,
           excise_tax: overrides?.excise_tax ?? product.excise_tax ?? variables.excise_tax ?? 0,
-          util_fee: overrides?.util_fee ?? product.util_fee ?? variables.util_fee ?? 0,
+          util_fee: overrides?.util_fee ?? variables.util_fee ?? 0,
         };
 
         return {
