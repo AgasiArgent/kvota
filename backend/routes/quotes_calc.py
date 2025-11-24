@@ -4,7 +4,7 @@ Uses Supabase client (NOT asyncpg) following customers.py pattern
 """
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
 import io
 import asyncio
@@ -263,7 +263,8 @@ def get_value(field_name: str, product: ProductFromFile, variables: Dict[str, An
 def map_variables_to_calculation_input(
     product: ProductFromFile,
     variables: Dict[str, Any],
-    admin_settings: Dict[str, Decimal]
+    admin_settings: Dict[str, Decimal],
+    quote_date: date
 ) -> QuoteCalculationInput:
     """
     Transform flat variables dict + product into nested QuoteCalculationInput.
@@ -276,6 +277,7 @@ def map_variables_to_calculation_input(
         product: Product from Excel/CSV with potential field overrides
         variables: Quote-level default variables (flat dict from frontend)
         admin_settings: Admin settings with rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
+        quote_date: Quote creation date (for delivery_date calculation)
 
     Returns:
         QuoteCalculationInput with all nested models populated
@@ -314,11 +316,31 @@ def map_variables_to_calculation_input(
         dm_fee_value=safe_decimal(variables.get('dm_fee_value'), Decimal("0"))
     )
 
-    # ========== LogisticsParams (6 fields) ==========
+    # ========== LogisticsParams (7 fields) ==========
+    # Calculate delivery_date from quote_date + delivery_time
+    delivery_time_days = safe_int(variables.get('delivery_time'), 60)  # Default 60 days
+    delivery_date = quote_date + timedelta(days=delivery_time_days)
+
+    # Allow override if delivery_date explicitly provided in variables
+    if 'delivery_date' in variables:
+        delivery_date_str = variables['delivery_date']
+        if isinstance(delivery_date_str, str):
+            delivery_date = datetime.strptime(delivery_date_str, "%Y-%m-%d").date()
+        elif isinstance(delivery_date_str, date):
+            delivery_date = delivery_date_str
+
+    # Validation: delivery_date must be >= quote_date
+    if delivery_date < quote_date:
+        raise ValueError(
+            f"delivery_date ({delivery_date}) cannot be before quote_date ({quote_date}). "
+            f"Check delivery_time ({delivery_time_days} days) or explicit delivery_date override."
+        )
+
     logistics = LogisticsParams(
         supplier_country=SupplierCountry(get_value('supplier_country', product, variables, 'Турция')),
         offer_incoterms=Incoterms(variables.get('offer_incoterms', 'DDP')),
-        delivery_time=safe_int(variables.get('delivery_time'), 60),  # Default 60 days
+        delivery_time=delivery_time_days,
+        delivery_date=delivery_date,
         logistics_supplier_hub=safe_decimal(variables.get('logistics_supplier_hub'), Decimal("0")),
         logistics_hub_customs=safe_decimal(variables.get('logistics_hub_customs'), Decimal("0")),
         logistics_customs_client=safe_decimal(variables.get('logistics_customs_client'), Decimal("0"))
@@ -1253,7 +1275,8 @@ async def calculate_quote(
             calc_input = map_variables_to_calculation_input(
                 product=product,
                 variables=request.variables,
-                admin_settings=admin_settings
+                admin_settings=admin_settings,
+                quote_date=request.quote_date
             )
 
             # DEBUG: Log what was mapped

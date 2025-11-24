@@ -185,6 +185,22 @@ export default function CreateQuotePage() {
     Array<{ label: string; value: string }>
   >([]);
 
+  // Watch form values for delivery date and VAT rate calculation
+  const quoteDate = Form.useWatch('quote_date', form);
+  const deliveryTime = Form.useWatch('delivery_time', form);
+
+  // Calculate delivery_date from quote_date + delivery_time
+  const deliveryDate = useMemo(() => {
+    if (!quoteDate || !deliveryTime) return null;
+    return dayjs(quoteDate).add(deliveryTime, 'day');
+  }, [quoteDate, deliveryTime]);
+
+  // Calculate VAT rate based on delivery date
+  const vatRate = useMemo(() => {
+    if (!deliveryDate) return '20%';
+    return deliveryDate.year() >= 2026 ? '22%' : '20%';
+  }, [deliveryDate]);
+
   // Load customers, templates, and admin settings on mount
   useEffect(() => {
     loadCustomers();
@@ -1334,6 +1350,14 @@ export default function CreateQuotePage() {
                               addonAfter="дн"
                             />
                           </Form.Item>
+                          {deliveryDate && (
+                            <Alert
+                              message={`Дата поставки: ${deliveryDate.format('DD.MM.YYYY')} • НДС: ${vatRate}`}
+                              type={vatRate === '22%' ? 'warning' : 'info'}
+                              showIcon
+                              style={{ marginTop: 8 }}
+                            />
+                          )}
                         </Col>
                         <Col span={12}>
                           <Form.Item name="markup" label="Наценка (%)">

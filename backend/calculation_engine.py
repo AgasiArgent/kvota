@@ -4,7 +4,8 @@ Implements 13-phase calculation logic matching Excel formulas (Option 1: Simple)
 """
 
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
+from datetime import date
 import math
 
 from calculation_models import (
@@ -113,9 +114,27 @@ def get_internal_markup(supplier_country: SupplierCountry, seller_region: str) -
     return INTERNAL_MARKUP_MAP[(supplier_country, seller_region)]
 
 
-def get_rate_vat_ru(seller_region: str) -> Decimal:
-    """Get Russian VAT rate based on seller region"""
-    return RATE_VAT_BY_SELLER_REGION[seller_region]
+def get_rate_vat_ru(seller_region: str, delivery_date: Optional[date] = None) -> Decimal:
+    """Get Russian VAT rate based on seller region and delivery date.
+
+    VAT Rate Timeline:
+    - Before 2026: 20%
+    - 2026 onwards: 22% (government mandate effective Jan 1, 2026)
+
+    Args:
+        seller_region: Seller region code (RU, TR, CN)
+        delivery_date: Expected delivery date (optional for backward compat)
+
+    Returns:
+        Decimal: VAT rate (0.20, 0.22 for RU; 0.00 for TR/CN)
+    """
+    base_rate = RATE_VAT_BY_SELLER_REGION[seller_region]
+
+    # Only adjust Russian VAT (Turkish/Chinese stay at 0%)
+    if seller_region == "RU" and delivery_date and delivery_date.year >= 2026:
+        return Decimal("0.22")  # 22% for 2026+
+
+    return base_rate  # 20% for <2026 or non-Russian
 
 
 def calculate_future_value(
@@ -820,7 +839,8 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
 
     # Extract derived variables (same for all products)
     seller_region = get_seller_region(shared.company.seller_company)
-    rate_vat_ru = get_rate_vat_ru(seller_region)
+    delivery_date = shared.logistics.delivery_date  # For VAT rate calculation
+    rate_vat_ru = get_rate_vat_ru(seller_region, delivery_date)
 
     # STEP 1: Calculate Phase 1 for all products (each product has its own VAT rate)
     phase1_results_list = []
@@ -1121,7 +1141,8 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
     seller_region = get_seller_region(inputs.company.seller_company)
     vat_seller_country = get_vat_seller_country(inputs.logistics.supplier_country)
     internal_markup = get_internal_markup(inputs.logistics.supplier_country, seller_region)
-    rate_vat_ru = get_rate_vat_ru(seller_region)
+    delivery_date = inputs.logistics.delivery_date  # For VAT rate calculation
+    rate_vat_ru = get_rate_vat_ru(seller_region, delivery_date)
     
     # PHASE 1: Purchase Price
     phase1_results = phase1_purchase_price(
