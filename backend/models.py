@@ -552,6 +552,13 @@ class Quote(BaseModel):
     description: Optional[str]
     status: QuoteStatus
 
+    # Workflow state (for financial approval workflow)
+    workflow_state: Optional[str] = None
+    submission_comment: Optional[str] = None  # Comment from manager when submitting for approval
+    last_sendback_reason: Optional[str] = None  # Comment when sent back for revision
+    last_financial_comment: Optional[str] = None  # Comment when rejected by finance
+    last_approval_comment: Optional[str] = None  # Comment when approved by finance
+
     # Dates (Session 21 fields)
     quote_date: date
     valid_until: Optional[date]

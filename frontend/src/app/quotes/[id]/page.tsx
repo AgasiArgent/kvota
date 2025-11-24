@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
 import {
+  Alert,
   Card,
   Descriptions,
   Button,
@@ -17,12 +18,14 @@ import {
   Col,
   Dropdown,
   Tabs,
+  App,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useRouter, useParams } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
@@ -33,6 +36,8 @@ import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
+import FinancialApprovalActions from '@/components/quotes/FinancialApprovalActions';
+import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -85,6 +90,11 @@ interface QuoteDetail {
   customer?: Customer; // Backend returns customer object, not customer_name string
   title?: string;
   status: string;
+  workflow_state?: string; // For financial approval workflow
+  submission_comment?: string; // Comment from manager when submitting for approval
+  last_sendback_reason?: string; // Comment from financial manager when sent back
+  last_financial_comment?: string; // Comment from financial manager when rejected
+  last_approval_comment?: string; // Comment from financial manager when approved
   quote_date?: string;
   valid_until?: string;
   currency?: string;
@@ -103,6 +113,7 @@ export default function QuoteDetailPage() {
   const [workflow, setWorkflow] = useState<WorkflowStatus | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('details');
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
 
   const quoteService = new QuoteService();
   const quoteId = params?.id as string;
@@ -155,6 +166,11 @@ export default function QuoteDetailPage() {
           customer: quoteData.customer, // Store customer object (contains name)
           title: quoteData.title,
           status: quoteData.status,
+          workflow_state: quoteData.workflow_state, // CRITICAL: Required for financial approval component
+          submission_comment: quoteData.submission_comment, // Comment from manager when submitting
+          last_sendback_reason: quoteData.last_sendback_reason, // Comment when sent back for revision
+          last_financial_comment: quoteData.last_financial_comment, // Comment when rejected by finance
+          last_approval_comment: quoteData.last_approval_comment, // Comment when approved by finance
           quote_date: quoteData.quote_date,
           valid_until: quoteData.valid_until,
           currency: quoteData.currency || 'RUB',
@@ -192,6 +208,42 @@ export default function QuoteDetailPage() {
       }
     } catch (error: any) {
       message.error('Ошибка удаления: ' + error.message);
+    }
+  };
+
+  const handleSubmitForApproval = async (comment?: string) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        message.error('Не авторизован');
+        return;
+      }
+
+      const response = await fetch(
+        `${config.apiUrl}/api/quotes/${quoteId}/submit-for-financial-approval`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'text/plain',
+          },
+          body: comment || '',
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка отправки на утверждение');
+      }
+
+      setSubmitModalOpen(false);
+      // Refresh quote data to show new status
+      await fetchQuoteDetails();
+      await loadWorkflowStatus();
+      message.success('КП отправлено на финансовое утверждение');
+    } catch (error: any) {
+      message.error(error.message || 'Ошибка отправки на утверждение');
+      throw error;
     }
   };
 
@@ -336,6 +388,7 @@ export default function QuoteDetailPage() {
 
   const getStatusTag = (status: string) => {
     const statusMap = {
+      // Old status values (for backward compatibility)
       draft: { color: 'default', text: 'Черновик' },
       pending_approval: { color: 'orange', text: 'На утверждении' },
       partially_approved: { color: 'gold', text: 'Частично утверждено' },
@@ -349,6 +402,11 @@ export default function QuoteDetailPage() {
       rejected: { color: 'red', text: 'Отклонено' },
       expired: { color: 'default', text: 'Истекло' },
       cancelled: { color: 'default', text: 'Отменено' },
+      // New workflow state values
+      awaiting_financial_approval: { color: 'orange', text: 'На финансовом утверждении' },
+      financially_approved: { color: 'green', text: 'Финансово утверждено' },
+      rejected_by_finance: { color: 'red', text: 'Отклонено финансовым менеджером' },
+      sent_back_for_revision: { color: 'purple', text: 'На доработке' },
     };
     const config = statusMap[status as keyof typeof statusMap] || {
       color: 'default',
@@ -465,135 +523,249 @@ export default function QuoteDetailPage() {
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%', padding: '24px' }}>
-        {/* Section 1: Header with Actions */}
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
-                Назад
-              </Button>
-              <Title level={2} style={{ margin: 0 }}>
-                {quote.quote_number}
-              </Title>
-              {getStatusTag(quote.status)}
-            </Space>
-          </Col>
-          <Col>
-            <Space>
-              <Dropdown
-                menu={{ items: exportMenuItems }}
-                trigger={['click']}
-                disabled={exportLoading}
-              >
-                <Button icon={<DownloadOutlined />} loading={exportLoading}>
-                  Экспорт
+      <App>
+        <Space direction="vertical" size="large" style={{ width: '100%', padding: '24px' }}>
+          {/* Section 1: Header with Actions */}
+          <Row justify="space-between" align="middle">
+            <Col>
+              <Space>
+                <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
+                  Назад
                 </Button>
-              </Dropdown>
-              {(quote.status === 'draft' || quote.status === 'revision_needed') && (
-                <Button
-                  type="primary"
-                  icon={<EditOutlined />}
-                  onClick={() => router.push('/quotes/' + quote.id + '/edit')}
+                <Title level={2} style={{ margin: 0 }}>
+                  {quote.quote_number}
+                </Title>
+                {getStatusTag(quote.workflow_state || quote.status)}
+              </Space>
+            </Col>
+            <Col>
+              <Space>
+                <Dropdown
+                  menu={{ items: exportMenuItems }}
+                  trigger={['click']}
+                  disabled={exportLoading}
                 >
-                  Редактировать
-                </Button>
-              )}
-              {quote.status === 'draft' && (
-                <Popconfirm
-                  title="Удалить КП?"
-                  description="КП будет перемещено в корзину"
-                  onConfirm={handleDelete}
-                  okText="Удалить"
-                  cancelText="Отмена"
-                  okButtonProps={{ danger: true }}
-                >
-                  <Button danger icon={<DeleteOutlined />}>
-                    Удалить
+                  <Button icon={<DownloadOutlined />} loading={exportLoading}>
+                    Экспорт
                   </Button>
-                </Popconfirm>
-              )}
-            </Space>
-          </Col>
-        </Row>
-
-        {/* Tabs for Details and Plan-Fact */}
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'details',
-              label: 'Детали',
-              children: (
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                  {/* Workflow Section */}
-                  {!workflowLoading && workflow && (
-                    <Row gutter={[16, 16]}>
-                      <Col span={24}>
-                        <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
-                      </Col>
-                    </Row>
-                  )}
-
-                  {/* Quote Info Card */}
-                  <Card title="Информация о КП" variant="borderless">
-                    <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
-                      <Descriptions.Item label="Клиент">
-                        {quote.customer?.name || 'Не указан'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Название КП">
-                        {quote.title || '—'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Статус">
-                        {getStatusTag(quote.status)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Дата КП">
-                        {formatDate(quote.quote_date)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Действительно до">
-                        {formatDate(quote.valid_until)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Создано">
-                        {formatDate(quote.created_at)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Валюта">
-                        {quote.currency || 'RUB'}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Общая сумма">
-                        <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
-                          {formatCurrency(quote.total_amount, quote.currency)}
-                        </Text>
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </Card>
-
-                  {/* Products Table (ag-Grid, read-only) */}
-                  <Card
-                    title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
-                    variant="borderless"
-                    styles={{ body: { padding: '16px' } }}
+                </Dropdown>
+                {quote.workflow_state === 'draft' && (
+                  <Button
+                    type="primary"
+                    icon={<CheckCircleOutlined />}
+                    onClick={() => setSubmitModalOpen(true)}
+                    style={{ background: '#52c41a', borderColor: '#52c41a' }}
                   >
-                    {quote.items && quote.items.length > 0 ? (
-                      <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
-                        <AgGridReact
-                          rowData={quote.items}
-                          columnDefs={columnDefs}
-                          defaultColDef={defaultColDef}
-                          animateRows={true}
-                          suppressHorizontalScroll={false}
-                        />
-                      </div>
-                    ) : (
-                      <Text type="secondary">Нет товаров в этом КП</Text>
+                    Отправить на утверждение
+                  </Button>
+                )}
+                {(quote.status === 'draft' || quote.status === 'revision_needed') && (
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => router.push('/quotes/' + quote.id + '/edit')}
+                  >
+                    Редактировать
+                  </Button>
+                )}
+                {quote.status === 'draft' && (
+                  <Popconfirm
+                    title="Удалить КП?"
+                    description="КП будет перемещено в корзину"
+                    onConfirm={handleDelete}
+                    okText="Удалить"
+                    cancelText="Отмена"
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Button danger icon={<DeleteOutlined />}>
+                      Удалить
+                    </Button>
+                  </Popconfirm>
+                )}
+              </Space>
+            </Col>
+          </Row>
+
+          {/* Tabs for Details and Plan-Fact */}
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={[
+              {
+                key: 'details',
+                label: 'Детали',
+                children: (
+                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                    {/* Workflow Section */}
+                    {!workflowLoading && workflow && (
+                      <Row gutter={[16, 16]}>
+                        <Col span={24}>
+                          <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
+                        </Col>
+                      </Row>
                     )}
-                  </Card>
-                </Space>
-              ),
-            },
-          ]}
+
+                    {/* Submission Comment Alert (for financial managers) */}
+                    {quote.workflow_state === 'awaiting_financial_approval' &&
+                      quote.submission_comment && (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="Комментарий менеджера при отправке"
+                          description={
+                            <div>
+                              <strong>Менеджер написал:</strong>
+                              <br />
+                              {quote.submission_comment}
+                            </div>
+                          }
+                        />
+                      )}
+
+                    {/* Send-back Reason Alert */}
+                    {quote.workflow_state === 'sent_back_for_revision' &&
+                      quote.last_sendback_reason && (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="КП требует доработки"
+                          description={
+                            <div>
+                              <strong>Комментарий от финансового менеджера:</strong>
+                              <br />
+                              {quote.last_sendback_reason}
+                            </div>
+                          }
+                        />
+                      )}
+
+                    {/* Rejection Reason Alert */}
+                    {quote.workflow_state === 'rejected_by_finance' &&
+                      quote.last_financial_comment && (
+                        <Alert
+                          type="error"
+                          showIcon
+                          message="КП отклонено финансовым менеджером"
+                          description={
+                            <div>
+                              <strong>Причина отклонения:</strong>
+                              <br />
+                              {quote.last_financial_comment}
+                            </div>
+                          }
+                        />
+                      )}
+
+                    {/* Approval Comment Alert */}
+                    {(quote.workflow_state === 'financially_approved' ||
+                      quote.workflow_state === 'approved') &&
+                      quote.last_approval_comment && (
+                        <Alert
+                          type="success"
+                          showIcon
+                          message="КП утверждено финансовым менеджером"
+                          description={
+                            <div>
+                              <strong>Комментарий финансового менеджера:</strong>
+                              <br />
+                              {quote.last_approval_comment}
+                            </div>
+                          }
+                        />
+                      )}
+
+                    {/* Financial Approval Actions */}
+                    {quote.workflow_state === 'awaiting_financial_approval' &&
+                      (['financial_manager', 'cfo', 'admin'].includes(
+                        profile?.organizationRole || ''
+                      ) ||
+                        profile?.is_owner) && (
+                        <Card>
+                          <FinancialApprovalActions
+                            quoteId={quote.id}
+                            quoteNumber={quote.quote_number}
+                            onApprove={() => {
+                              fetchQuoteDetails();
+                              loadWorkflowStatus();
+                            }}
+                            onSendBack={() => {
+                              fetchQuoteDetails();
+                              loadWorkflowStatus();
+                            }}
+                            onReject={() => {
+                              fetchQuoteDetails();
+                              loadWorkflowStatus();
+                            }}
+                          />
+                        </Card>
+                      )}
+
+                    {/* Quote Info Card */}
+                    <Card title="Информация о КП" variant="borderless">
+                      <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
+                        <Descriptions.Item label="Клиент">
+                          {quote.customer?.name || 'Не указан'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Название КП">
+                          {quote.title || '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Статус">
+                          {getStatusTag(quote.workflow_state || quote.status)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Дата КП">
+                          {formatDate(quote.quote_date)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Действительно до">
+                          {formatDate(quote.valid_until)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Создано">
+                          {formatDate(quote.created_at)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Валюта">
+                          {quote.currency || 'RUB'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Общая сумма">
+                          <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                            {formatCurrency(quote.total_amount, quote.currency)}
+                          </Text>
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+
+                    {/* Products Table (ag-Grid, read-only) */}
+                    <Card
+                      title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
+                      variant="borderless"
+                      styles={{ body: { padding: '16px' } }}
+                    >
+                      {quote.items && quote.items.length > 0 ? (
+                        <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+                          <AgGridReact
+                            rowData={quote.items}
+                            columnDefs={columnDefs}
+                            defaultColDef={defaultColDef}
+                            animateRows={true}
+                            suppressHorizontalScroll={false}
+                          />
+                        </div>
+                      ) : (
+                        <Text type="secondary">Нет товаров в этом КП</Text>
+                      )}
+                    </Card>
+                  </Space>
+                ),
+              },
+            ]}
+          />
+        </Space>
+
+        {/* Submit for Approval Modal */}
+        <SubmitForApprovalModal
+          open={submitModalOpen}
+          onCancel={() => setSubmitModalOpen(false)}
+          onSubmit={handleSubmitForApproval}
+          quoteNumber={quote.quote_number}
         />
-      </Space>
+      </App>
     </MainLayout>
   );
 }

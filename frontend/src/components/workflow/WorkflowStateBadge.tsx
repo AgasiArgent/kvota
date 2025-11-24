@@ -16,6 +16,9 @@ type WorkflowState =
   | 'awaiting_logistics_customs'
   | 'awaiting_sales_review'
   | 'awaiting_financial_approval'
+  | 'financially_approved'
+  | 'sent_back_for_revision'
+  | 'rejected_by_finance'
   | 'awaiting_senior_approval'
   | 'approved'
   | 'rejected';
@@ -50,6 +53,21 @@ const STATE_CONFIG = {
     label: 'Финансовое утверждение',
     color: 'orange',
     icon: <DollarOutlined />,
+  },
+  financially_approved: {
+    label: 'Финансово утверждено',
+    color: 'green',
+    icon: <CheckCircleOutlined />,
+  },
+  sent_back_for_revision: {
+    label: 'На доработке',
+    color: 'purple',
+    icon: <CloseCircleOutlined />,
+  },
+  rejected_by_finance: {
+    label: 'Отклонено финансами',
+    color: 'error',
+    icon: <CloseCircleOutlined />,
   },
   awaiting_senior_approval: {
     label: 'Подпись руководства',

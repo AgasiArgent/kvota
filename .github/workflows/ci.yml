@@ -5,6 +5,7 @@ on:
     branches: [main, develop, dev]
   pull_request:
     branches: [main, develop, dev]
+  workflow_dispatch:
 
 jobs:
   # Frontend Lint & Type Check

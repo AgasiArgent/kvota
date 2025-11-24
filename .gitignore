@@ -234,3 +234,10 @@ worktrees/
 *_backup
 *_old
 .env.deployment
+
+# Temporary utility scripts
+backend/scripts/archive/
+backend/scripts/
+
+# Session summaries
+.claude/archive/

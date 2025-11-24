@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval
 
 # Sentry for error tracking
 import sentry_sdk
@@ -622,6 +622,7 @@ app.include_router(leads.router)
 app.include_router(lead_contacts.router)
 app.include_router(lead_stages.router)
 app.include_router(activities.router)
+app.include_router(financial_approval.router)  # Financial approval workflow
 app.include_router(monitoring_test.router)  # Test endpoints for Sentry + Telegram
 app.include_router(webhooks.router)  # Sentry webhooks for frontend error → Telegram
 
