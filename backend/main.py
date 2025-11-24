@@ -202,7 +202,8 @@ allowed_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:5173",
-    "https://kvotaflow.ru",  # Production domain
+    "https://kvotaflow.ru",  # Production domain (no www)
+    "https://www.kvotaflow.ru",  # Production domain (with www)
 ]
 
 # Add production frontend URL if set (for Vercel preview deployments)
@@ -224,7 +225,7 @@ app.add_middleware(
 # Allow Railway and Vercel domains
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "*.railway.app", "*.vercel.app", "*.render.com", "api.kvotaflow.ru", "kvotaflow.ru"]  # Railway, Vercel, Render, and custom domains
+    allowed_hosts=["localhost", "127.0.0.1", "*.railway.app", "*.vercel.app", "*.render.com", "api.kvotaflow.ru", "kvotaflow.ru", "www.kvotaflow.ru"]  # Railway, Vercel, Render, and custom domains
 )
 
 # ============================================================================
