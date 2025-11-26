@@ -260,11 +260,137 @@ def get_value(field_name: str, product: ProductFromFile, variables: Dict[str, An
     return default
 
 
+def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
+    """
+    Get exchange rate from database.
+    Returns rate to multiply by (e.g., 1 USD = 100 RUB means rate is 100)
+    """
+    if from_currency == to_currency:
+        return Decimal("1.0")
+
+    supabase: Client = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+
+    # Try direct rate (from_currency -> to_currency)
+    result = supabase.table("exchange_rates")\
+        .select("rate")\
+        .eq("from_currency", from_currency)\
+        .eq("to_currency", to_currency)\
+        .order("fetched_at", desc=True)\
+        .limit(1)\
+        .execute()
+
+    if result.data:
+        return Decimal(str(result.data[0]["rate"]))
+
+    # Try reverse rate (to_currency -> from_currency)
+    result = supabase.table("exchange_rates")\
+        .select("rate")\
+        .eq("from_currency", to_currency)\
+        .eq("to_currency", from_currency)\
+        .order("fetched_at", desc=True)\
+        .limit(1)\
+        .execute()
+
+    if result.data:
+        return Decimal("1") / Decimal(str(result.data[0]["rate"]))
+
+    # Try via RUB (from_currency -> RUB -> to_currency)
+    from_to_rub = supabase.table("exchange_rates")\
+        .select("rate")\
+        .eq("from_currency", from_currency)\
+        .eq("to_currency", "RUB")\
+        .order("fetched_at", desc=True)\
+        .limit(1)\
+        .execute()
+
+    to_to_rub = supabase.table("exchange_rates")\
+        .select("rate")\
+        .eq("from_currency", to_currency)\
+        .eq("to_currency", "RUB")\
+        .order("fetched_at", desc=True)\
+        .limit(1)\
+        .execute()
+
+    if from_to_rub.data and to_to_rub.data:
+        from_rate = Decimal(str(from_to_rub.data[0]["rate"]))
+        to_rate = Decimal(str(to_to_rub.data[0]["rate"]))
+        return from_rate / to_rate
+
+    logger.warning(f"No exchange rate found for {from_currency} -> {to_currency}, using 1.0")
+    return Decimal("1.0")
+
+
+def get_converted_monetary_value(
+    field_name: str,
+    variables: Dict[str, Any],
+    quote_currency: str,
+    default: Decimal = Decimal("0")
+) -> Decimal:
+    """
+    Get monetary field value converted to quote currency.
+
+    Checks monetary_fields for value+currency pair, converts to quote currency.
+    Falls back to raw value if no monetary_fields entry exists.
+
+    Args:
+        field_name: Name of the field (e.g., 'logistics_supplier_hub')
+        variables: Quote variables dict containing monetary_fields
+        quote_currency: Target currency to convert to (e.g., 'RUB')
+        default: Default value if field not found
+
+    Returns:
+        Value converted to quote currency as Decimal
+    """
+    monetary_fields = variables.get('monetary_fields', {})
+
+    # Check if this field has currency info in monetary_fields
+    if field_name in monetary_fields:
+        monetary_value = monetary_fields[field_name]
+        if isinstance(monetary_value, dict) and 'value' in monetary_value and 'currency' in monetary_value:
+            value = Decimal(str(monetary_value['value'])) if monetary_value['value'] else Decimal("0")
+            source_currency = monetary_value['currency']
+
+            if source_currency != quote_currency:
+                rate = get_exchange_rate(source_currency, quote_currency)
+                converted = value * rate
+                logger.info(f"Currency conversion: {field_name} {value} {source_currency} -> {converted:.2f} {quote_currency} (rate: {rate})")
+                return converted
+            return value
+
+    # Fallback to raw value (no currency conversion)
+    raw_value = variables.get(field_name)
+    return safe_decimal(raw_value, default)
+
+
+def get_rates_snapshot_to_usd(quote_date: date) -> Dict[str, Any]:
+    """
+    Get snapshot of all exchange rates to USD for audit trail.
+
+    Args:
+        quote_date: Date for rate lookup (CBR rates are date-specific)
+
+    Returns:
+        Dict with currency pair rates and metadata
+    """
+    return {
+        "EUR_USD": float(get_exchange_rate("EUR", "USD")),
+        "RUB_USD": float(get_exchange_rate("RUB", "USD")),
+        "TRY_USD": float(get_exchange_rate("TRY", "USD")),
+        "CNY_USD": float(get_exchange_rate("CNY", "USD")),
+        "quote_date": quote_date.isoformat(),
+        "source": "cbr"
+    }
+
+
 def map_variables_to_calculation_input(
     product: ProductFromFile,
     variables: Dict[str, Any],
     admin_settings: Dict[str, Decimal],
-    quote_date: date
+    quote_date: date,
+    quote_currency: str = "USD"
 ) -> QuoteCalculationInput:
     """
     Transform flat variables dict + product into nested QuoteCalculationInput.
@@ -272,12 +398,14 @@ def map_variables_to_calculation_input(
     Implements two-tier variable system:
     - Product-level values override quote-level defaults
     - Quote-level defaults override hardcoded fallbacks
+    - Monetary fields are converted to quote currency using exchange rates
 
     Args:
         product: Product from Excel/CSV with potential field overrides
         variables: Quote-level default variables (flat dict from frontend)
         admin_settings: Admin settings with rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
         quote_date: Quote creation date (for delivery_date calculation)
+        quote_currency: Target currency for calculations (e.g., 'RUB')
 
     Returns:
         QuoteCalculationInput with all nested models populated
@@ -296,12 +424,16 @@ def map_variables_to_calculation_input(
     )
 
     # ========== FinancialParams (7 fields) ==========
-    # Use get_value() helper for two-tier logic (product override > quote default)
+    # USD is the canonical calculation currency (internal accounting)
+    # Quote currency (RUB, EUR, etc.) is only for client-facing output
     financial = FinancialParams(
-        currency_of_quote=Currency(variables.get('currency_of_quote', 'USD')),
-        exchange_rate_base_price_to_quote=safe_decimal(
-            get_value('exchange_rate_base_price_to_quote', product, variables),
-            Decimal("1")
+        currency_of_quote=Currency("USD"),  # Always USD for internal calculation
+        # Exchange rate: product currency → USD
+        # e.g., for TRY product: Q16 = TRY/USD rate
+        # Then: 1000 TRY × (USD/TRY rate) = ~28 USD
+        exchange_rate_base_price_to_quote=get_exchange_rate(
+            "USD",  # to_currency (always USD)
+            product_info.currency_of_base_price.value  # from_currency (e.g., TRY)
         ),
         supplier_discount=safe_decimal(
             get_value('supplier_discount', product, variables),
@@ -336,14 +468,15 @@ def map_variables_to_calculation_input(
             f"Check delivery_time ({delivery_time_days} days) or explicit delivery_date override."
         )
 
+    # Convert logistics costs to USD (canonical calculation currency)
     logistics = LogisticsParams(
         supplier_country=SupplierCountry(get_value('supplier_country', product, variables, 'Турция')),
         offer_incoterms=Incoterms(variables.get('offer_incoterms', 'DDP')),
         delivery_time=delivery_time_days,
         delivery_date=delivery_date,
-        logistics_supplier_hub=safe_decimal(variables.get('logistics_supplier_hub'), Decimal("0")),
-        logistics_hub_customs=safe_decimal(variables.get('logistics_hub_customs'), Decimal("0")),
-        logistics_customs_client=safe_decimal(variables.get('logistics_customs_client'), Decimal("0"))
+        logistics_supplier_hub=get_converted_monetary_value('logistics_supplier_hub', variables, "USD"),
+        logistics_hub_customs=get_converted_monetary_value('logistics_hub_customs', variables, "USD"),
+        logistics_customs_client=get_converted_monetary_value('logistics_customs_client', variables, "USD")
     )
 
     # ========== TaxesAndDuties (3 fields) ==========
@@ -372,12 +505,14 @@ def map_variables_to_calculation_input(
     )
 
     # ========== CustomsAndClearance (5 fields) ==========
+    # Convert brokerage costs to USD (canonical calculation currency)
+    # Field names: frontend sends brokerage_hub, brokerage_customs, etc.
     customs = CustomsAndClearance(
-        brokerage_hub=safe_decimal(variables.get('customs_brokerage_fee_turkey'), Decimal("0")),
-        brokerage_customs=safe_decimal(variables.get('customs_brokerage_fee_russia'), Decimal("0")),
-        warehousing_at_customs=safe_decimal(variables.get('temporary_storage_cost'), Decimal("0")),
-        customs_documentation=safe_decimal(variables.get('permitting_documents_cost'), Decimal("0")),
-        brokerage_extra=safe_decimal(variables.get('miscellaneous_costs'), Decimal("0"))
+        brokerage_hub=get_converted_monetary_value('brokerage_hub', variables, "USD"),
+        brokerage_customs=get_converted_monetary_value('brokerage_customs', variables, "USD"),
+        warehousing_at_customs=get_converted_monetary_value('warehousing_at_customs', variables, "USD"),
+        customs_documentation=get_converted_monetary_value('customs_documentation', variables, "USD"),
+        brokerage_extra=get_converted_monetary_value('brokerage_extra', variables, "USD")
     )
 
     # ========== CompanySettings (2 fields) ==========
@@ -1149,6 +1284,7 @@ async def calculate_quote(
                 "manager_email": user.email,
                 "quote_date": request.quote_date.isoformat(),  # Convert date to ISO string
                 "valid_until": request.valid_until.isoformat(),  # Convert date to ISO string
+                "currency": request.variables.get('currency_of_quote', 'USD'),
                 "subtotal": 0,  # Will be updated after calculations
                 "total_amount": 0  # Will be updated after calculations
             }
@@ -1258,7 +1394,13 @@ async def calculate_quote(
         # DEBUG: Log dm_fee values
         logger.info(f"🔍 DEBUG: dm_fee_type from request = {request.variables.get('dm_fee_type')}")
         logger.info(f"🔍 DEBUG: dm_fee_value from request = {request.variables.get('dm_fee_value')}")
+        logger.info(f"🔍 DEBUG: currency_of_quote from request = {request.variables.get('currency_of_quote')}")
+        logger.info(f"🔍 DEBUG: currency_of_base_price from request = {request.variables.get('currency_of_base_price')}")
         logger.info(f"🔍 DEBUG: Full variables keys = {list(request.variables.keys())}")
+        # Log first product's currency override
+        if request.products:
+            p0 = request.products[0]
+            logger.info(f"🔍 DEBUG: Product 0 - currency_of_base_price = {p0.currency_of_base_price}")
 
         for idx, product in enumerate(request.products):
             # Validate input before processing
@@ -1272,15 +1414,22 @@ async def calculate_quote(
                 )
 
             # Map variables to nested calculation input using helper function
+            # Get quote currency for multi-currency conversion
+            quote_currency = request.variables.get('currency_of_quote', 'USD')
             calc_input = map_variables_to_calculation_input(
                 product=product,
                 variables=request.variables,
                 admin_settings=admin_settings,
-                quote_date=request.quote_date
+                quote_date=request.quote_date,
+                quote_currency=quote_currency
             )
 
             # DEBUG: Log what was mapped
             logger.info(f"🔍 DEBUG: Product {idx} - dm_fee_type = {calc_input.financial.dm_fee_type}, dm_fee_value = {calc_input.financial.dm_fee_value}")
+            logger.info(f"🔍 DEBUG: Product {idx} - currency_of_base_price = {calc_input.product.currency_of_base_price}")
+            logger.info(f"🔍 DEBUG: Product {idx} - currency_of_quote = {calc_input.financial.currency_of_quote}")
+            logger.info(f"🔍 DEBUG: Product {idx} - exchange_rate_base_price_to_quote = {calc_input.financial.exchange_rate_base_price_to_quote}")
+            logger.info(f"🔍 DEBUG: Product {idx} - base_price_VAT = {calc_input.product.base_price_VAT}")
 
             calc_inputs.append(calc_input)
 
@@ -1308,13 +1457,30 @@ async def calculate_quote(
         total_subtotal = Decimal("0")
         total_amount = Decimal("0")
 
+        # Get quote currency conversion rate (USD -> quote currency)
+        client_quote_currency = request.variables.get('currency_of_quote', 'USD')
+        usd_to_quote_rate = get_exchange_rate("USD", client_quote_currency)
+        rates_snapshot = get_rates_snapshot_to_usd(request.quote_date)
+
         for idx, (result, product, item_record) in enumerate(zip(results_list, request.products, items_response.data)):
             try:
+                # Convert result to dict and add quote currency fields
+                result_dict = convert_decimals_to_float(result.dict())
+
+                # Add quote currency output (for client display/export)
+                result_dict["quote_currency"] = client_quote_currency
+                result_dict["usd_to_quote_rate"] = float(usd_to_quote_rate)
+                result_dict["sales_price_per_unit_quote"] = float(result.sales_price_per_unit_no_vat * usd_to_quote_rate)
+                result_dict["sales_price_per_unit_with_vat_quote"] = float(result.sales_price_per_unit_with_vat * usd_to_quote_rate)
+                result_dict["sales_price_total_quote"] = float(result.sales_price_total_no_vat * usd_to_quote_rate)
+                result_dict["sales_price_total_with_vat_quote"] = float(result.sales_price_total_with_vat * usd_to_quote_rate)
+                result_dict["rates_snapshot"] = rates_snapshot
+
                 # Save calculation results
                 results_data = {
                     "quote_id": quote_id,
                     "quote_item_id": item_record['id'],
-                    "phase_results": convert_decimals_to_float(result.dict())  # Convert Decimals for JSON
+                    "phase_results": result_dict
                 }
 
                 results_response = supabase.table("quote_calculation_results")\
@@ -1346,17 +1512,22 @@ async def calculate_quote(
                     # Map backend fields to frontend interface (ProductCalculationResult in quotes-calc-service.ts)
                     "base_price_vat": float(product.base_price_vat),
                     "base_price_no_vat": float(result.purchase_price_no_vat),
-                    "purchase_price_rub": float(result.purchase_price_total_quote_currency),  # S16 - Total purchase in quote currency
-                    "logistics_costs": float(result.logistics_total),  # V16 - Total logistics (transport only, not brokerage)
-                    "cogs": float(result.cogs_per_product),  # AB16 - Cost of goods sold
-                    "cogs_with_vat": float(result.cogs_per_product * Decimal("1.2")),  # COGS + 20% VAT estimate
-                    "import_duties": float(import_duties_total),  # Y16 - Import tariff (Пошлина)
-                    "customs_fees": float(excise_and_util),  # Z16 + util_fee - Excise tax + Utilization fee (Акциз + Утиль)
-                    "financing_costs": float(financing_costs_total),  # BA16 + BB16 - Supplier + operational financing
-                    "dm_fee": float(result.dm_fee),  # AG16 - Decision maker fee (NOW DISTRIBUTED!)
-                    "total_cost": float(total_cost_comprehensive),  # AB16 - COGS only (purchase + logistics + duties + excise + financing)
-                    "sale_price": float(result.sales_price_total_no_vat),  # AK16 - Final sales price (COGS + margin + dm_fee + forex + fin_comm)
-                    "margin": float(result.profit)  # AF16 - Profit margin
+                    "purchase_price_rub": float(result.purchase_price_total_quote_currency),  # S16 - Total purchase in USD
+                    "logistics_costs": float(result.logistics_total),  # V16 - Total logistics in USD
+                    "cogs": float(result.cogs_per_product),  # AB16 - Cost of goods sold in USD
+                    "cogs_with_vat": float(result.cogs_per_product * Decimal("1.2")),  # COGS + 20% VAT estimate (USD)
+                    "import_duties": float(import_duties_total),  # Y16 - Import tariff in USD
+                    "customs_fees": float(excise_and_util),  # Z16 + util_fee in USD
+                    "financing_costs": float(financing_costs_total),  # BA16 + BB16 in USD
+                    "dm_fee": float(result.dm_fee),  # AG16 in USD
+                    "total_cost": float(total_cost_comprehensive),  # AB16 in USD
+                    "sale_price": float(result.sales_price_total_no_vat),  # AK16 in USD
+                    "margin": float(result.profit),  # AF16 - Profit in USD (internal accounting)
+                    # Quote currency values for client display
+                    "sale_price_quote": float(result.sales_price_total_no_vat * usd_to_quote_rate),  # AK16 in quote currency
+                    "sale_price_with_vat_quote": float(result.sales_price_total_with_vat * usd_to_quote_rate),  # With VAT in quote currency
+                    "quote_currency": client_quote_currency,
+                    "usd_to_quote_rate": float(usd_to_quote_rate)
                 })
 
             except Exception as e:
@@ -1405,4 +1576,246 @@ async def calculate_quote(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error calculating quote: {str(e)}"
+        )
+
+
+# ============================================================================
+# DEBUG EXPORT ENDPOINT - Intermediate Calculation Results in USD
+# ============================================================================
+
+@router.get("/debug-export/{quote_id}")
+async def export_calculation_debug(
+    quote_id: str,
+    user: User = Depends(get_current_user)
+):
+    """
+    Export intermediate calculation results with USD conversion.
+    Shows key milestones for debugging/verification.
+    """
+    if not user.current_organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with any organization"
+        )
+
+    try:
+        # Get quote and verify organization ownership
+        quote_result = supabase.table("quotes").select("*").eq("id", quote_id).execute()
+        if not quote_result.data:
+            raise HTTPException(status_code=404, detail="Quote not found")
+
+        quote = quote_result.data[0]
+        if quote["organization_id"] != str(user.current_organization_id):
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        # Get quote items
+        items_result = supabase.table("quote_items").select("*").eq("quote_id", quote_id).execute()
+        if not items_result.data:
+            raise HTTPException(status_code=404, detail="No items found for quote")
+
+        # Get calculation results from quote_calculation_results table
+        calc_results_query = supabase.table("quote_calculation_results")\
+            .select("quote_item_id, phase_results")\
+            .eq("quote_id", quote_id)\
+            .execute()
+
+        # Build lookup dict: quote_item_id -> phase_results
+        calc_results_by_item = {}
+        for calc_row in calc_results_query.data:
+            item_id = calc_row.get("quote_item_id")
+            if item_id:
+                calc_results_by_item[item_id] = calc_row.get("phase_results", {})
+
+        # Get exchange rate to USD (from CBR rates)
+        quote_currency = quote.get("currency", "USD")
+        usd_rate = Decimal("1.0")
+
+        if quote_currency != "USD":
+            # Try to get rate from exchange_rates table
+            rate_result = supabase.table("exchange_rates")\
+                .select("rate")\
+                .eq("from_currency", quote_currency)\
+                .eq("to_currency", "USD")\
+                .order("fetched_at", desc=True)\
+                .limit(1)\
+                .execute()
+
+            if rate_result.data:
+                usd_rate = Decimal(str(rate_result.data[0]["rate"]))
+            else:
+                # Fallback: try reverse rate
+                reverse_result = supabase.table("exchange_rates")\
+                    .select("rate")\
+                    .eq("from_currency", "USD")\
+                    .eq("to_currency", quote_currency)\
+                    .order("fetched_at", desc=True)\
+                    .limit(1)\
+                    .execute()
+                if reverse_result.data:
+                    usd_rate = Decimal("1") / Decimal(str(reverse_result.data[0]["rate"]))
+
+        # Build CSV rows with key milestones
+        rows = []
+
+        # Key calculation variables to export (field_name matches phase_results keys)
+        # NOTE: K16 and Q16 are INPUT values from quote_items, not phase_results
+        key_vars = [
+            ("K16", "_base_price_vat", "Base Price (with VAT) - INPUT"),  # From quote_items
+            ("N16", "purchase_price_no_vat", "Price without VAT"),  # From phase_results
+            ("Q16", "_exchange_rate", "Exchange Rate - INPUT"),  # From quote_items
+            ("S16", "purchase_price_total_quote_currency", "Purchase Total"),
+            ("T16", "logistics_first_leg", "Logistics: Supplier→Hub"),
+            ("U16", "logistics_last_leg", "Logistics: Hub→Client"),
+            ("V16", "logistics_total", "Logistics Total"),
+            ("Y16", "customs_fee", "Customs Duty"),
+            ("Z16", "excise_tax_amount", "Excise Tax"),
+            ("AY16", "internal_sale_price_total", "Internal Sale Price"),
+            ("BA16", "financing_cost_initial", "Financing: Initial"),
+            ("BB16", "financing_cost_credit", "Financing: Credit"),
+            ("AB16", "cogs_per_product", "COGS Total"),
+            ("AJ16", "sales_price_per_unit_no_vat", "Final Price/Unit (no VAT)"),
+            ("AK16", "sales_price_total_with_vat", "Final Price Total (with VAT)"),
+            ("AM16", "vat_from_sales", "VAT Amount"),
+            ("AQ16", "transit_commission", "Commission"),
+            ("--", "profit", "Profit"),
+            ("--", "forex_reserve", "Forex Reserve"),
+            ("--", "dm_fee", "DM Fee"),
+            ("--", "financial_agent_fee", "Financial Agent Fee"),
+        ]
+
+        for item in items_result.data:
+            item_id = item.get("id")
+            # Get calculation results from lookup dict
+            calc_results = calc_results_by_item.get(item_id, {})
+            product_name = item.get("product_name", item.get("sku", "Unknown"))
+            quantity = item.get("quantity", 1)
+
+            for excel_ref, field_name, description in key_vars:
+                # Handle special fields from quote_items (prefixed with "_")
+                if field_name == "_base_price_vat":
+                    # K16 - Base price with VAT from quote_items
+                    value = item.get("base_price_vat", 0)
+                elif field_name == "_exchange_rate":
+                    # Q16 - Exchange rate: Calculate from R16/P16
+                    # R16 = purchase_price_per_unit_quote_currency
+                    # P16 = purchase_price_after_discount
+                    r16 = calc_results.get("purchase_price_per_unit_quote_currency", 0)
+                    p16 = calc_results.get("purchase_price_after_discount", 0)
+                    if p16 and float(p16) > 0:
+                        value = float(r16) / float(p16)
+                    else:
+                        value = 0
+                else:
+                    # Get value from phase_results
+                    value = calc_results.get(field_name, 0)
+
+                try:
+                    value_decimal = Decimal(str(value)) if value else Decimal("0")
+                except:
+                    value_decimal = Decimal("0")
+
+                value_usd = value_decimal * usd_rate
+
+                rows.append({
+                    "Product": product_name,
+                    "Qty": quantity,
+                    "Variable": excel_ref,
+                    "Description": description,
+                    f"Value ({quote_currency})": float(value_decimal.quantize(Decimal("0.01"))),
+                    "Value (USD)": float(value_usd.quantize(Decimal("0.01"))),
+                    "Rate Used": float(usd_rate.quantize(Decimal("0.0001"))),
+                })
+
+        # Get pre-calculated quote-level totals from quote_calculation_summaries table
+        summary_result = supabase.table("quote_calculation_summaries")\
+            .select("*")\
+            .eq("quote_id", quote_id)\
+            .execute()
+
+        quote_summary = summary_result.data[0] if summary_result.data else {}
+
+        # Quote-level totals from pre-calculated summary
+        quote_total_vars = [
+            ("calc_s16_total_purchase_price", "S13", "Purchase Total"),
+            ("calc_t16_first_leg_logistics", "T13", "Logistics: Supplier→Hub"),
+            ("calc_u16_last_leg_logistics", "U13", "Logistics: Hub→Client"),
+            ("calc_v16_total_logistics", "V13", "Logistics Total"),
+            ("calc_total_brokerage", "--", "Brokerage Total"),
+            ("calc_total_logistics_and_brokerage", "--", "Logistics + Brokerage"),
+            ("calc_y16_customs_duty", "Y13", "Customs Duty"),
+            ("calc_z16_excise_tax", "Z13", "Excise Tax"),
+            ("calc_ay16_internal_price_total", "AY13", "Internal Sale Price"),
+            ("calc_ab16_cogs_total", "AB13", "COGS Total"),
+            ("calc_ae16_sale_price_total", "AE13", "Sale Price (no VAT)"),
+            ("calc_ak16_final_price_total", "AK13", "Final Price Total"),
+            ("calc_al16_total_with_vat", "AL13", "Total With VAT"),
+            ("calc_an16_sales_vat", "AN13", "Sales VAT"),
+            ("calc_ap16_net_vat_payable", "AP13", "Net VAT Payable"),
+            ("calc_ag16_dm_fee", "AG13", "DM Fee"),
+            ("calc_ah16_forex_risk_reserve", "AH13", "Forex Risk Reserve"),
+            ("calc_ai16_agent_fee", "AI13", "Agent Fee"),
+            ("calc_ba16_financing_per_product", "BA13", "Financing Cost"),
+            ("calc_bh6_supplier_payment", "BH6", "Supplier Payment"),
+            ("calc_bh3_client_advance", "BH3", "Client Advance"),
+            ("calc_bh2_revenue_estimated", "BH2", "Evaluated Revenue"),
+            ("calc_bh4_before_forwarding", "BH4", "Total Before Forwarding"),
+            ("calc_bh7_supplier_financing_need", "BH7", "Supplier Financing Need"),
+            ("calc_bj7_supplier_financing_cost", "BJ7", "Supplier Financing Cost"),
+            ("calc_bh10_operational_financing", "BH10", "Operational Financing Need"),
+            ("calc_bj10_operational_cost", "BJ10", "Operational Financing Cost"),
+            ("calc_bj11_total_financing_cost", "BJ11", "Total Financing Cost"),
+            ("calc_bl3_credit_sales_amount", "BL3", "Credit Sales Amount"),
+            ("calc_bl4_credit_sales_with_interest", "BL4", "Credit Sales FV"),
+            ("calc_bl5_credit_sales_interest", "BL5", "Credit Sales Interest"),
+        ]
+
+        for field_name, excel_ref, description in quote_total_vars:
+            value = quote_summary.get(field_name, 0)
+
+            try:
+                value_decimal = Decimal(str(value)) if value else Decimal("0")
+            except:
+                value_decimal = Decimal("0")
+
+            value_usd = value_decimal * usd_rate
+
+            rows.append({
+                "Product": "QUOTE TOTAL",
+                "Qty": "",
+                "Variable": excel_ref,
+                "Description": description,
+                f"Value ({quote_currency})": float(value_decimal.quantize(Decimal("0.01"))),
+                "Value (USD)": float(value_usd.quantize(Decimal("0.01"))),
+                "Rate Used": float(usd_rate.quantize(Decimal("0.0001"))),
+            })
+
+        # Create CSV
+        df = pd.DataFrame(rows)
+
+        # Generate CSV string
+        output = io.StringIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+
+        # Return as downloadable CSV
+        # Use ASCII-safe filename to avoid encoding issues
+        quote_number = quote.get('quote_number', quote_id)
+        # Remove any non-ASCII characters for the filename
+        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
+        filename = f"debug_calc_{safe_quote_number}.csv"
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=\"{filename}\""}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error exporting debug data: {str(e)}"
         )
