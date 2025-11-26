@@ -113,17 +113,19 @@ def map_calculation_to_cells(item: Dict[str, Any]) -> Dict[str, Any]:
         'X16': item.get('import_tariff', 0),
         'Z16': item.get('excise_tax', 0),
 
-        # Calculated outputs
+        # Calculated outputs (in USD for internal tracking)
         'N16': calc.get('purchase_price_no_vat', 0),  # Final-34
-        'S16': calc.get('purchase_price_total_quote_currency', 0),  # Final-9
-        'V16': calc.get('logistics_total', 0),  # Final-10
-        'Y16': calc.get('customs_fee', 0),  # Final-11
+        'S16': calc.get('purchase_price_total_quote_currency', 0),  # Final-9 (USD)
+        'V16': calc.get('logistics_total', 0),  # Final-10 (USD)
+        'Y16': calc.get('customs_fee', 0),  # Final-11 (USD)
         'AQ16': calc.get('transit_commission', 0),  # Final-44
-        'AJ16': calc.get('sales_price_per_unit', 0),  # Final-2
-        'AK16': calc.get('sales_price_total_no_vat', 0),  # Final-1
+
+        # Client-facing prices - prefer quote currency if available, fallback to USD
+        'AJ16': calc.get('sales_price_per_unit_quote', calc.get('sales_price_per_unit', 0)),  # Final-2 (quote currency)
+        'AK16': calc.get('sales_price_total_quote', calc.get('sales_price_total_no_vat', 0)),  # Final-1 (quote currency)
         'AN16': calc.get('vat_amount', 0),  # Final-41
-        'AM16': calc.get('sales_price_per_unit_with_vat', 0),  # Final-39
-        'AL16': calc.get('sales_price_total_with_vat', 0),  # Final-40
+        'AM16': calc.get('sales_price_per_unit_with_vat_quote', calc.get('sales_price_per_unit_with_vat', 0)),  # Final-39 (quote currency)
+        'AL16': calc.get('sales_price_total_with_vat_quote', calc.get('sales_price_total_with_vat', 0)),  # Final-40 (quote currency)
     }
 
     # Calculate invoice amount (N16 × E16)
