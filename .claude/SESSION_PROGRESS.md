@@ -1,3 +1,61 @@
+## Session 49 (2025-11-26) - Excel Validation & Logistics Bug Fix ✅
+
+### Goal
+Validate Python calculation engine against Excel reference files, fix any bugs found
+
+### Status: COMPLETE ✅
+
+**Time:** ~4 hours
+**Commit:** d5ca7d4
+**Files:** 14 files (calculation_engine.py, test suite, Excel files, extracted data)
+
+---
+
+### Completed
+
+1. **Created comprehensive test suite** validating 29 calculated fields
+2. **Extracted test data** from 7 Excel files (387 products × 30 fields)
+3. **Fixed logistics bug:** Insurance was in U16 (last_leg) instead of T16 (first_leg)
+4. **Fixed interest rate:** Changed from 0.00069 to 0.25/365 to match Excel
+5. **Result:** 11,223 assertions pass (29 fields × 387 products)
+
+---
+
+### Remaining Tasks (TODO for next session)
+
+#### 1. API Tests - JSON requests to /api/quotes/calculate
+- Test the calculation endpoint with real API requests
+- Verify JSON input/output matches expected values
+- Use same 387 products from Excel extraction
+
+#### 2. Web UI Tests - Browser automation with Chrome DevTools
+- Test quote creation flow in browser
+- Verify calculated values display correctly
+- Use Chrome DevTools MCP for automation
+
+---
+
+### Handoff - Read Before Next Session
+
+**Required reading:**
+1. `docs/plans/2025-11-26-excel-cell-reference.md` - Excel cell mappings (A16-BD16)
+2. `docs/plans/2025-11-26-excel-validation-continuation.md` - Test design decisions
+
+**Key files:**
+- `backend/tests/validation/test_excel_comprehensive.py` - Main test suite
+- `backend/tests/validation/conftest.py` - Test fixtures and helpers
+- `validation_data/extracted/excel_expected_values.json` - Extracted test data (387 products)
+
+**Test command:**
+```bash
+cd backend && source venv/bin/activate
+python -m pytest tests/validation/test_excel_comprehensive.py -v
+```
+
+---
+
+---
+
 ## Session 48 (2025-11-24) - Fix www Subdomain CORS & Cookie Issues ✅
 
 ### Goal
