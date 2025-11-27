@@ -271,18 +271,24 @@ def phase3_logistics_distribution(
     insurance_per_product: Decimal
 ) -> Dict[str, Decimal]:
     """
-    Distribute logistics costs to product
+    Distribute logistics and brokerage costs to product
 
     Steps: Final-10
-    Excel formulas (updated 2025-11-27 based on validation):
-    - T16 = logistics_supplier_hub * BD16 + insurance_per_product
-    - U16 = logistics_hub_customs * BD16
+    Excel formulas (verified 2025-11-28 against test_raschet_multi_currency_correct_rate_2711.xlsm):
+    - T13 = W2 + W3 + W5 + W8 (first leg total)
+    - U13 = W4 + W6 + W7 + W9 (second leg total)
+    - T16 = T13 * BD16 + insurance_per_product
+    - U16 = U13 * BD16
 
-    Logistics legs:
-    - T16: First leg (supplier → hub) + insurance
-    - U16: Second leg (hub → customs/client)
-
-    Brokerage is tracked separately in W16, NOT included in T16/U16.
+    Where:
+    - W2 = logistics_supplier_hub (Istanbul → hub)
+    - W3 = logistics_hub_customs (hub → RU border)
+    - W4 = logistics_customs_client (border → client)
+    - W5 = brokerage_hub
+    - W6 = brokerage_customs
+    - W7 = warehousing_at_customs
+    - W8 = customs_documentation
+    - W9 = brokerage_extra
 
     Returns: T16, U16, V16
 
@@ -290,25 +296,25 @@ def phase3_logistics_distribution(
           insurance_total = ROUNDUP(AY13_total * rate_insurance, 1)
           insurance_per_product = insurance_total * BD16 (already distributed)
     """
-    # T16 = logistics_supplier_hub * BD16 + insurance_per_product
-    # First leg: supplier → hub
-    T16 = round_decimal(
-        logistics_supplier_hub * BD16 + insurance_per_product
-    )
+    # T13 = W2 + W3 + W5 + W8 (logistics first leg + brokerage hub + docs)
+    T13 = logistics_supplier_hub + logistics_hub_customs + brokerage_hub + customs_documentation
 
-    # U16 = (logistics_hub_customs + logistics_customs_client) * BD16
-    # Second leg: hub → customs → client
-    U16 = round_decimal(
-        (logistics_hub_customs + logistics_customs_client) * BD16
-    )
+    # U13 = W4 + W6 + W7 + W9 (logistics last leg + brokerage customs + warehousing + extra)
+    U13 = logistics_customs_client + brokerage_customs + warehousing_at_customs + brokerage_extra
 
-    # V16 = T16 + U16 (total logistics, excluding brokerage)
+    # T16 = T13 * BD16 + insurance_per_product
+    T16 = round_decimal(T13 * BD16 + insurance_per_product)
+
+    # U16 = U13 * BD16
+    U16 = round_decimal(U13 * BD16)
+
+    # V16 = T16 + U16 (total logistics + brokerage)
     V16 = round_decimal(T16 + U16)
 
     return {
-        "T16": T16,  # First leg logistics (includes insurance)
-        "U16": U16,  # Second/last leg logistics
-        "V16": V16   # Total logistics (excludes brokerage)
+        "T16": T16,  # First leg (logistics + brokerage + insurance)
+        "U16": U16,  # Second leg (logistics + brokerage)
+        "V16": V16   # Total logistics + brokerage
     }
 
 
