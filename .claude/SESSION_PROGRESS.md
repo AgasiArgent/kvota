@@ -4,12 +4,60 @@
 2. ~~**Fix exchange rate bug in backend** - Parameter order was swapped in `get_exchange_rate()` call~~ ✅ **FIXED (Session 53)**
 3. ~~**Excel validation discrepancy investigation** - ~0.2% difference between API and Excel~~ ✅ **INVESTIGATED (Session 54)**
 4. ~~**CBR rate validation** - Verify calculation with real CBR rates (not product-level overrides)~~ ✅ **COMPLETE (Session 55)**
-5. **Create proper UI test using Excel validation data:**
+5. ~~**Achieve 0.011% accuracy target** - Improve precision to match Excel exactly~~ ✅ **COMPLETE (Session 56)**
+6. **Create proper UI test using Excel validation data:**
    - Use same input data from `validation_data/` Excel files
    - Input via Chrome DevTools MCP
    - Compare UI output against `excel_expected_values.json`
    - Pass only if calculated values match ±0.01
    - Follow same pattern as `test_excel_comprehensive.py`
+
+---
+
+## Session 56 (2025-11-28) - Precision Improvement to 4 Decimal Places ✅
+
+### Goal
+Achieve 0.011% accuracy target for Excel validation
+
+### Status: COMPLETE ✅
+
+**Time:** ~1 hour
+**Files Changed:** `backend/calculation_engine.py`
+
+---
+
+### Problem
+Session 55 achieved ~0.5% accuracy, but target was 0.011%. Investigation revealed:
+1. Insurance rate was assumed to be 0.3% but Excel uses **0.047%**
+2. Intermediate calculations rounded to 2 decimal places, but Excel uses **4 decimal places**
+
+### Solution
+Changed `round_decimal()` default from 2 to 4 decimal places:
+
+```python
+# Before
+def round_decimal(value: Decimal, decimal_places: int = 2) -> Decimal:
+
+# After
+def round_decimal(value: Decimal, decimal_places: int = 4) -> Decimal:
+    """Default is 4 decimal places to match Excel precision (validated 2025-11-28)."""
+```
+
+### Validation Results - ALL MATCH WITHIN 0.0005%
+
+| Field | Description | Max Diff | Status |
+|-------|-------------|----------|--------|
+| S16 | Purchase price in quote currency | 0.0000% | ✓ PASS |
+| T16 | First leg (logistics + brokerage + insurance) | 0.0000% | ✓ PASS |
+| U16 | Second leg (logistics + brokerage) | 0.0000% | ✓ PASS |
+| V16 | Total logistics + brokerage | 0.0005% | ✓ PASS |
+
+**Improvement:** From ~0.5% max diff to **0.0005%** max diff (1000x better)
+
+### Key Learnings
+- Excel uses 4 decimal places for intermediate calculations (e.g., N16 = 833.3333 not 833.33)
+- Insurance rate is 0.047% (formula: `ROUNDUP(AY13 × 0.047%, 1)`)
+- Small rounding errors cascade and become significant percentage errors for small values
 
 ---
 
