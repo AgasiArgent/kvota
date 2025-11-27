@@ -88,9 +88,14 @@ RATE_VAT_BY_SELLER_REGION = {
 # HELPER FUNCTIONS
 # ============================================================================
 
-def round_decimal(value: Decimal, decimal_places: int = 2) -> Decimal:
-    """Round decimal to specified places using ROUND_HALF_UP"""
-    if decimal_places == 2:
+def round_decimal(value: Decimal, decimal_places: int = 4) -> Decimal:
+    """Round decimal to specified places using ROUND_HALF_UP.
+
+    Default is 4 decimal places to match Excel precision (validated 2025-11-28).
+    """
+    if decimal_places == 4:
+        return value.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+    elif decimal_places == 2:
         return value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     elif decimal_places == 0:
         return value.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
@@ -178,14 +183,14 @@ def phase1_purchase_price(
         N16 = base_price_VAT  # Already VAT-free
     else:
         N16 = round_decimal(base_price_VAT / (Decimal("1") + vat_seller_country))
-    
+
     # Final-35: P16 = N16 * (1 - O16) - Apply discount
     discount_multiplier = Decimal("1") - (supplier_discount / Decimal("100"))
     P16 = round_decimal(N16 * discount_multiplier)
-    
+
     # Final-36: R16 = P16 / Q16 - Convert to quote currency per unit
     R16 = round_decimal(P16 / exchange_rate)
-    
+
     # Final-9: S16 = E16 * R16 - Total purchase price
     S16 = round_decimal(Decimal(quantity) * R16)
     
