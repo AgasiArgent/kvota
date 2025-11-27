@@ -3,12 +3,120 @@
 1. ~~**Fix exchange rate bug in frontend** - Frontend sends `exchange_rate_base_price_to_quote: 1` instead of CBR rate when base currency ≠ quote currency~~ ✅ **FIXED (Session 53)**
 2. ~~**Fix exchange rate bug in backend** - Parameter order was swapped in `get_exchange_rate()` call~~ ✅ **FIXED (Session 53)**
 3. ~~**Excel validation discrepancy investigation** - ~0.2% difference between API and Excel~~ ✅ **INVESTIGATED (Session 54)**
-4. **Create proper UI test using Excel validation data:**
+4. ~~**CBR rate validation** - Verify calculation with real CBR rates (not product-level overrides)~~ ✅ **COMPLETE (Session 55)**
+5. **Create proper UI test using Excel validation data:**
    - Use same input data from `validation_data/` Excel files
    - Input via Chrome DevTools MCP
    - Compare UI output against `excel_expected_values.json`
    - Pass only if calculated values match ±0.01
    - Follow same pattern as `test_excel_comprehensive.py`
+
+---
+
+## Session 55 (2025-11-28) - CBR Rate Validation & Phase 3 Fix ✅
+
+### Goal
+Validate calculation engine against Excel using real CBR exchange rates (EUR as quote currency)
+
+### Status: COMPLETE ✅
+
+**Time:** ~2 hours
+**Commits:**
+- `29f5d56` fix: include brokerage in T16/U16 logistics distribution formula
+**Files:** 1 file fixed (calculation_engine.py)
+
+---
+
+### CBR Exchange Rates Used (2025-11-28)
+
+All rates are per 1 EUR (quote currency):
+| Currency | Rate to EUR |
+|----------|-------------|
+| EUR | 1.0000 |
+| USD | 1.1602 |
+| CNY | 8.2347 |
+| TRY | 49.1889 |
+| RUB | 90.7880 |
+
+---
+
+### Bug Fixed: Phase 3 Logistics + Brokerage Distribution
+
+**Symptom:** V16 (total logistics) was ~35% lower than Excel
+**Location:** `backend/calculation_engine.py:271-320` (phase3_logistics_distribution)
+**Root Cause:** Session 54 fix EXCLUDED brokerage from T16/U16, but Excel INCLUDES it
+
+**Excel Formulas (verified against test_raschet_multi_currency_correct_rate_2711.xlsm):**
+```
+T13 = W2 + W3 + W5 + W8  (first leg total)
+U13 = W4 + W6 + W7 + W9  (second leg total)
+T16 = T13 * BD16 + insurance_per_product
+U16 = U13 * BD16
+```
+
+**Where:**
+- W2 = logistics_supplier_hub (Istanbul → hub)
+- W3 = logistics_hub_customs (hub → RU border)
+- W4 = logistics_customs_client (border → client)
+- W5 = brokerage_hub
+- W6 = brokerage_customs
+- W7 = warehousing_at_customs
+- W8 = customs_documentation
+- W9 = brokerage_extra
+
+**Before (Session 54 - partial fix):**
+```python
+T16 = logistics_supplier_hub * BD16 + insurance_per_product
+U16 = (logistics_hub_customs + logistics_customs_client) * BD16
+# MISSING: brokerage costs not included
+```
+
+**After (Session 55 - complete fix):**
+```python
+T13 = logistics_supplier_hub + logistics_hub_customs + brokerage_hub + customs_documentation
+U13 = logistics_customs_client + brokerage_customs + warehousing_at_customs + brokerage_extra
+T16 = T13 * BD16 + insurance_per_product
+U16 = U13 * BD16
+```
+
+---
+
+### Validation Results
+
+**Test File:** `validation_data/test_raschet_multi_currency_correct_rate_2711.xlsm`
+**5 Products:** TRY, USD, EUR, CNY, RUB (different base currencies)
+**Quote Currency:** EUR
+**Financing:** 100% advance (BA16 = 0)
+
+**Final Results - ALL MATCH WITHIN 0.5%:**
+| Field | Description | Max Diff |
+|-------|-------------|----------|
+| S16 | Purchase price in quote currency | 0.012% |
+| T16 | First leg (logistics + brokerage + insurance) | 0.351% |
+| U16 | Second leg (logistics + brokerage) | 0.019% |
+| V16 | Total logistics + brokerage | 0.222% |
+| AB16 | COGS per product | 0.163% |
+| AK16 | Sales price (no VAT) | 0.467% |
+| AL16 | Sales price (with VAT) | 0.467% |
+| BA16 | Financing cost | 0.000% |
+
+---
+
+### Files Created
+
+- `validation_data/expected_cbr_rates_2711.json` - Expected values from Excel with CBR rates
+- `validation_data/test_raschet_multi_currency_correct_rate_2711.xlsm` - Excel file with CBR rates
+
+---
+
+### Key Learnings
+
+1. **T16/U16 are NOT pure logistics** - They include brokerage costs distributed by weight share
+2. **Excel cell mapping:**
+   - T13 = total first leg (logistics + brokerage + docs)
+   - U13 = total second leg (logistics + brokerage + warehousing + extra)
+3. **CBR rate format:** Q16 uses divisor format (e.g., 8.2347 CNY per 1 EUR)
+4. **Financing test isolation:** Set 100% advance to eliminate financing variables from comparison
 
 ---
 
