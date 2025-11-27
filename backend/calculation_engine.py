@@ -274,9 +274,15 @@ def phase3_logistics_distribution(
     Distribute logistics costs to product
 
     Steps: Final-10
-    Excel formulas:
-    - T16 = (W2 + W3 + W5 + W8) * BD16 + insurance_per_product
-    - U16 = (W4 + W6 + W7 + W9) * BD16
+    Excel formulas (updated 2025-11-27 based on validation):
+    - T16 = logistics_supplier_hub * BD16 + insurance_per_product
+    - U16 = logistics_hub_customs * BD16
+
+    Logistics legs:
+    - T16: First leg (supplier → hub) + insurance
+    - U16: Second leg (hub → customs/client)
+
+    Brokerage is tracked separately in W16, NOT included in T16/U16.
 
     Returns: T16, U16, V16
 
@@ -284,30 +290,25 @@ def phase3_logistics_distribution(
           insurance_total = ROUNDUP(AY13_total * rate_insurance, 1)
           insurance_per_product = insurance_total * BD16 (already distributed)
     """
-    # T16 = (W2 + W3 + W5 + W8) * BD16 + insurance_per_product
-    # Note: insurance_per_product is already distributed (insurance_total * BD16)
-    T16 = round_decimal((
-        logistics_supplier_hub +        # W2
-        logistics_hub_customs +          # W3
-        brokerage_hub +                  # W5
-        customs_documentation            # W8
-    ) * BD16 + insurance_per_product)
+    # T16 = logistics_supplier_hub * BD16 + insurance_per_product
+    # First leg: supplier → hub
+    T16 = round_decimal(
+        logistics_supplier_hub * BD16 + insurance_per_product
+    )
 
-    # U16 = (W4 + W6 + W7 + W9) * BD16
-    U16 = round_decimal((
-        logistics_customs_client +       # W4
-        brokerage_customs +              # W6
-        warehousing_at_customs +         # W7
-        brokerage_extra                  # W9
-    ) * BD16)
+    # U16 = (logistics_hub_customs + logistics_customs_client) * BD16
+    # Second leg: hub → customs → client
+    U16 = round_decimal(
+        (logistics_hub_customs + logistics_customs_client) * BD16
+    )
 
-    # V16 = T16 + U16
+    # V16 = T16 + U16 (total logistics, excluding brokerage)
     V16 = round_decimal(T16 + U16)
 
     return {
         "T16": T16,  # First leg logistics (includes insurance)
-        "U16": U16,  # Last leg logistics
-        "V16": V16   # Total logistics
+        "U16": U16,  # Second/last leg logistics
+        "V16": V16   # Total logistics (excludes brokerage)
     }
 
 

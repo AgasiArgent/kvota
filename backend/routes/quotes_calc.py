@@ -426,15 +426,34 @@ def map_variables_to_calculation_input(
     # ========== FinancialParams (7 fields) ==========
     # USD is the canonical calculation currency (internal accounting)
     # Quote currency (RUB, EUR, etc.) is only for client-facing output
+
+    # Exchange rate for Phase 1: Phase 1 formula is R16 = P16 / Q16 (DIVIDES by rate)
+    # Q16 format: "how many units of base currency per 1 USD"
+    # e.g., for RUB: Q16 = 78.25 (78.25 RUB = 1 USD), so 1000 RUB / 78.25 = 12.77 USD
+    # e.g., for EUR: Q16 = 0.86 (0.86 EUR = 1 USD), so 1000 EUR / 0.86 = 1163 USD
+
+    # Check for product-level exchange rate override first
+    # This allows using Excel rates for validation (matching Q16 exactly)
+    product_exchange_rate = get_value('exchange_rate_base_price_to_quote', product, variables, None)
+
+    if product_exchange_rate is not None:
+        # Use provided exchange rate directly (already in Q16 divisor format)
+        exchange_rate_for_phase1 = safe_decimal(product_exchange_rate)
+        logger.info(f"Using manual exchange rate override: {exchange_rate_for_phase1}")
+    else:
+        # Fall back to database rates (CBR)
+        # get_exchange_rate returns multiplier format, so we invert it for Phase 1
+        rate_multiplier = get_exchange_rate(
+            product_info.currency_of_base_price.value,  # from_currency (e.g., EUR)
+            "USD"  # to_currency (always USD)
+        )
+        # Invert to get divisor format for Phase 1
+        exchange_rate_for_phase1 = Decimal("1") / rate_multiplier if rate_multiplier > 0 else Decimal("1")
+        logger.info(f"Using CBR exchange rate: {exchange_rate_for_phase1} (1/{rate_multiplier})")
+
     financial = FinancialParams(
         currency_of_quote=Currency("USD"),  # Always USD for internal calculation
-        # Exchange rate: product currency → USD
-        # e.g., for TRY product: Q16 = TRY/USD rate
-        # Then: 1000 TRY × (USD/TRY rate) = ~28 USD
-        exchange_rate_base_price_to_quote=get_exchange_rate(
-            "USD",  # to_currency (always USD)
-            product_info.currency_of_base_price.value  # from_currency (e.g., TRY)
-        ),
+        exchange_rate_base_price_to_quote=exchange_rate_for_phase1,
         supplier_discount=safe_decimal(
             get_value('supplier_discount', product, variables),
             Decimal("0")
@@ -677,16 +696,16 @@ def validate_calculation_input(
             f"Товар '{product_id}': 'Курс к валюте КП' должен быть больше нуля (текущее значение: {exchange_rate})."
         )
 
-    # Markup validation
+    # Markup validation - 0 is valid (no markup), but must not be None or negative
     markup = get_value('markup', product, variables, None)
-    if not markup:
+    if markup is None:
         errors.append(
             f"Товар '{product_id}': отсутствует 'Наценка (%)' (markup). "
             "Укажите значение в карточке 'Финансовые параметры' или в таблице для конкретного товара."
         )
-    elif safe_decimal(markup) <= 0:
+    elif safe_decimal(markup) < 0:
         errors.append(
-            f"Товар '{product_id}': 'Наценка (%)' должна быть больше нуля (текущее значение: {markup})."
+            f"Товар '{product_id}': 'Наценка (%)' не может быть отрицательной (текущее значение: {markup})."
         )
 
     # Supplier country validation
@@ -770,14 +789,40 @@ async def upload_products_file(
         products = []
         for index, row in df.iterrows():
             try:
+                # Helper to safely get string value
+                def get_str(col: str) -> Optional[str]:
+                    val = row.get(col)
+                    return str(val) if pd.notna(val) and val != '' else None
+
+                # Helper to safely get float value
+                def get_float(col: str, default: float = 0) -> float:
+                    val = row.get(col)
+                    return float(val) if pd.notna(val) else default
+
+                # Weight can be in 'weight_in_kg' or 'weight_per_unit' columns
+                weight = get_float('weight_in_kg') or get_float('weight_per_unit')
+
+                # Duty/tariff can be in 'import_tariff' or 'duty_pct' columns
+                import_tariff = get_float('import_tariff') if pd.notna(row.get('import_tariff')) else None
+                if import_tariff is None and pd.notna(row.get('duty_pct')):
+                    import_tariff = get_float('duty_pct')
+
+                # HS code can be in 'customs_code' or 'hs_code' columns
+                customs_code = get_str('customs_code') or get_str('hs_code')
+
                 product = ProductFromFile(
+                    sku=get_str('sku'),
+                    brand=get_str('brand'),
                     product_name=str(row['product_name']),
-                    product_code=str(row.get('product_code', '')) if pd.notna(row.get('product_code')) else None,
+                    product_code=get_str('product_code'),
                     base_price_vat=float(row['base_price_vat']),
                     quantity=int(row['quantity']),
-                    weight_in_kg=float(row.get('weight_in_kg', 0)) if pd.notna(row.get('weight_in_kg')) else 0,
-                    customs_code=str(row.get('customs_code', '')) if pd.notna(row.get('customs_code')) else None,
-                    supplier_country=str(row.get('supplier_country', '')) if pd.notna(row.get('supplier_country')) else None
+                    weight_in_kg=weight,
+                    customs_code=customs_code,
+                    supplier_country=get_str('supplier_country'),
+                    currency_of_base_price=get_str('currency_of_base_price'),
+                    supplier_discount=get_float('supplier_discount') if pd.notna(row.get('supplier_discount')) else None,
+                    import_tariff=import_tariff,
                 )
                 products.append(product)
             except Exception as e:
@@ -1818,4 +1863,255 @@ async def export_calculation_debug(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error exporting debug data: {str(e)}"
+        )
+
+
+# ============================================================================
+# VALIDATION EXPORT ENDPOINT - Complete Excel Cell Reference Mapping
+# ============================================================================
+
+@router.get("/validation-export/{quote_id}")
+async def export_validation_data(
+    quote_id: str,
+    user: User = Depends(get_current_user)
+):
+    """
+    Export ALL calculation results mapped to exact Excel cell references.
+    One row per product with all intermediate values for validation.
+
+    Excel Cell Reference Mapping:
+    - N16: Price without VAT
+    - P16: After discount
+    - Q16: Exchange rate to quote currency
+    - R16: Price per unit in quote currency
+    - S16: Total purchase price
+    - T16: Logistics supplier→hub
+    - U16: Logistics hub→customs (includes insurance)
+    - V16: Total logistics
+    - W16: Brokerage total
+    - Y16: Customs duty
+    - Z16: Excise tax
+    - AA16: COGS per unit
+    - AB16: COGS total
+    - AD16: Sale price/unit (excl financial)
+    - AE16: Sale price total (excl financial)
+    - AF16: Profit
+    - AG16: DM fee (LPR commission)
+    - AH16: Forex risk reserve
+    - AI16: Financial agent fee
+    - AJ16: Sale price/unit (no VAT)
+    - AK16: Sale price total (no VAT)
+    - AL16: Sale price total (with VAT)
+    - AM16: Sale price/unit (with VAT)
+    - AN16: VAT from sales
+    - AO16: VAT on import (deductible)
+    - AP16: Net VAT payable
+    - BA16: Initial financing cost
+    - BB16: Credit interest cost
+    """
+    if not user.current_organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with any organization"
+        )
+
+    try:
+        # Get quote and verify organization ownership
+        quote_result = supabase.table("quotes").select("*").eq("id", quote_id).execute()
+        if not quote_result.data:
+            raise HTTPException(status_code=404, detail="Quote not found")
+
+        quote = quote_result.data[0]
+        if quote["organization_id"] != str(user.current_organization_id):
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        # Get quote items
+        items_result = supabase.table("quote_items").select("*").eq("quote_id", quote_id).execute()
+        if not items_result.data:
+            raise HTTPException(status_code=404, detail="No items found for quote")
+
+        # Get calculation results from quote_calculation_results table
+        calc_results_query = supabase.table("quote_calculation_results")\
+            .select("quote_item_id, phase_results")\
+            .eq("quote_id", quote_id)\
+            .execute()
+
+        # Build lookup dict: quote_item_id -> phase_results
+        calc_results_by_item = {}
+        for calc_row in calc_results_query.data:
+            item_id = calc_row.get("quote_item_id")
+            if item_id:
+                calc_results_by_item[item_id] = calc_row.get("phase_results", {})
+
+        # Get exchange rate for quote currency conversion
+        quote_currency = quote.get("currency", "USD")
+        usd_to_quote_rate = Decimal("1.0")
+
+        if quote_currency != "USD":
+            rate_result = supabase.table("exchange_rates")\
+                .select("rate")\
+                .eq("from_currency", "USD")\
+                .eq("to_currency", quote_currency)\
+                .order("fetched_at", desc=True)\
+                .limit(1)\
+                .execute()
+
+            if rate_result.data:
+                usd_to_quote_rate = Decimal(str(rate_result.data[0]["rate"]))
+
+        # Build flat CSV rows - one row per product
+        rows = []
+
+        # Excel cell reference to phase_results field mapping
+        # Based on ProductCalculationResult model in calculation_models.py
+        field_mapping = {
+            # Phase 1: Purchase price
+            "N16": "purchase_price_no_vat",
+            "O16": None,  # Supplier discount % - input field
+            "P16": "purchase_price_after_discount",
+            "Q16": None,  # Exchange rate - derived
+            "R16": "purchase_price_per_unit_quote_currency",
+            "S16": "purchase_price_total_quote_currency",
+
+            # Phase 3: Logistics
+            "T16": "logistics_first_leg",  # Supplier→Hub (+ insurance)
+            "U16": "logistics_last_leg",   # Hub→Customs
+            "V16": "logistics_total",
+
+            # Phase 4: Brokerage (breakdown)
+            "W16_hub": "brokerage_hub",
+            "W16_customs": "brokerage_customs",
+            "W16_warehousing": "brokerage_warehousing",
+            "W16_docs": "brokerage_documentation",
+            "W16_extra": "brokerage_extra",
+            "W16": "brokerage_total",
+
+            # Phase 5: Duties & Taxes
+            "Y16": "customs_fee",
+            "Z16": "excise_tax_amount",
+
+            # Phase 7: COGS
+            "AA16": "cogs_per_unit",
+            "AB16": "cogs_per_product",
+
+            # Phase 8: Sale price (excl financial)
+            "AD16": "sale_price_per_unit_excl_financial",
+            "AE16": "sale_price_total_excl_financial",
+
+            # Phase 9: Profit & fees
+            "AF16": "profit",
+            "AG16": "dm_fee",
+            "AH16": "forex_reserve",
+            "AI16": "financial_agent_fee",
+
+            # Phase 10: Final sales price
+            "AJ16": "sales_price_per_unit_no_vat",
+            "AK16": "sales_price_total_no_vat",
+            "AL16": "sales_price_total_with_vat",
+            "AM16": "sales_price_per_unit_with_vat",
+
+            # Phase 11: VAT
+            "AN16": "vat_from_sales",
+            "AO16": "vat_on_import",
+            "AP16": "vat_net_payable",
+
+            # Phase 6: Financing
+            "BA16": "financing_cost_initial",
+            "BB16": "financing_cost_credit",
+        }
+
+        for item in items_result.data:
+            item_id = item.get("id")
+            calc_results = calc_results_by_item.get(item_id, {})
+
+            # Build row with all fields
+            # Use sku if available, otherwise use product_name (handle None values)
+            row = {
+                "C16 Артикул": item.get("sku") or item.get("product_name") or "Unknown",
+                "L16 Страна закупки": item.get("supplier_country", ""),
+                "J16 Валюта закупки": item.get("currency_of_base_price", "USD"),
+                "K16 Цена закупки (с VAT)": item.get("base_price_vat", 0),
+                "E16 Количество": item.get("quantity", 1),
+            }
+
+            # Add all mapped fields
+            for excel_ref, field_name in field_mapping.items():
+                if field_name is None:
+                    row[excel_ref] = ""
+                else:
+                    value = calc_results.get(field_name, "")
+                    if value != "" and value is not None:
+                        try:
+                            row[excel_ref] = float(Decimal(str(value)).quantize(Decimal("0.01")))
+                        except:
+                            row[excel_ref] = value
+                    else:
+                        row[excel_ref] = ""
+
+            # Calculate Q16 (exchange rate) from R16/P16
+            r16 = calc_results.get("purchase_price_per_unit_quote_currency", 0)
+            p16 = calc_results.get("purchase_price_after_discount", 0)
+            if p16 and float(p16) > 0:
+                row["Q16 Курс к валюте КП"] = round(float(r16) / float(p16), 4)
+            else:
+                row["Q16 Курс к валюте КП"] = ""
+
+            # Add quote currency conversion
+            row["Курс USD/EUR"] = float(usd_to_quote_rate)
+
+            # AK16 and AL16 in quote currency (EUR)
+            ak16 = calc_results.get("sales_price_total_no_vat", 0)
+            al16 = calc_results.get("sales_price_total_with_vat", 0)
+            if ak16:
+                row["AK16 в EUR (без НДС)"] = float(Decimal(str(ak16)) * usd_to_quote_rate)
+            if al16:
+                row["AL16 в EUR (с НДС)"] = float(Decimal(str(al16)) * usd_to_quote_rate)
+
+            rows.append(row)
+
+        # Create DataFrame with ordered columns
+        column_order = [
+            "C16 Артикул", "L16 Страна закупки", "J16 Валюта закупки",
+            "K16 Цена закупки (с VAT)", "E16 Количество",
+            "N16", "O16", "P16", "Q16 Курс к валюте КП", "R16", "S16",
+            "T16", "U16", "V16",
+            "W16_hub", "W16_customs", "W16_warehousing", "W16_docs", "W16_extra", "W16",
+            "Y16", "Z16",
+            "AA16", "AB16",
+            "AD16", "AE16",
+            "AF16", "AG16", "AH16", "AI16",
+            "AJ16", "AK16", "AL16", "AM16",
+            "AN16", "AO16", "AP16",
+            "BA16", "BB16",
+            "Курс USD/EUR", "AK16 в EUR (без НДС)", "AL16 в EUR (с НДС)"
+        ]
+
+        df = pd.DataFrame(rows)
+        # Reorder columns (keep only those that exist)
+        existing_cols = [c for c in column_order if c in df.columns]
+        df = df[existing_cols]
+
+        # Generate CSV
+        output = io.StringIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+
+        quote_number = quote.get('quote_number', quote_id)
+        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
+        filename = f"validation_{safe_quote_number}.csv"
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=\"{filename}\""}
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error exporting validation data: {str(e)}"
         )
