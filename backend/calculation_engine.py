@@ -350,12 +350,14 @@ def phase4_duties(
 
     Updated 2025-11-09: Y16 formula changed to import_tariff × (AY16 + T16)
     Updated 2025-11-12: Y16 now includes insurance: import_tariff × (AY16 + T16 + insurance)
+    Updated 2025-11-28: BUGFIX - Removed double insurance. T16 already includes insurance from Phase 3.
+                        Y16 = import_tariff × (AY16 + T16) where T16 = T13×BD16 + insurance
     """
     # Final-11: Y16 = customs fee
-    # Updated 2025-11-12: Formula includes insurance (matches Excel where insurance is in T16/V11)
-    # Y16 = import_tariff × (AY16 + T16 + insurance_per_product) if DDP
+    # BUGFIX 2025-11-28: Insurance is already in T16 (added in Phase 3), don't add again!
+    # Y16 = import_tariff × (AY16 + T16) where T16 already contains insurance_per_product
     if offer_incoterms == Incoterms.DDP:
-        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16 + insurance_per_product))
+        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16))
     else:
         Y16 = Decimal("0")
 
