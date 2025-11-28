@@ -475,8 +475,9 @@ def phase7_financing_costs(
     BH4: Decimal,
     advance_from_client: Decimal,
     delivery_time: int,
-    customs_logistics_pmt_due: int,
-    rate_loan_interest_daily: Decimal
+    offer_post_pmt_due: int,
+    rate_loan_interest_daily: Decimal,
+    additional_payment_milestones: Decimal = Decimal("0")
 ) -> Dict[str, Decimal]:
     """
     Calculate financing needs and costs
@@ -485,10 +486,12 @@ def phase7_financing_costs(
            Final-15, Final-14 (BJ7), Final-25, Final-14 (BJ10), Final-13
     Returns: BH3, BH7, BH9, BH8, BH10, BI7, BJ7, BI10, BJ10, BJ11
 
-    Updated 2025-11-09:
-    - BI7 simplified to BH7 × (1 + rate_loan_interest_daily × D9) (simple interest)
-    - BI10 simplified to BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
-    - Removed time_to_advance, time_to_advance_on_receiving, time_to_advance_loading parameters
+    Updated 2025-11-27:
+    - BI7 = BH7 × (1 + rate_loan_interest_daily × D9) (simple interest, delivery time)
+    - BI10 = BH10 × (1 + rate_loan_interest_daily × K9) (simple interest, post-payment due)
+    - BH9: Excel formula depends on payment terms type (pmt_1, pmt_2, pmt_3)
+      For pmt_3 (most common): BH9 = SUM(J6:J8) * BH2 where J6:J8 are additional milestones
+      Default to 0 when no additional milestones specified
     """
     # Final-17: BH3 = BH2 * (J5 / 100)
     BH3 = round_decimal(BH2 * (advance_from_client / Decimal("100")))
@@ -502,8 +505,10 @@ def phase7_financing_costs(
     else:
         BH7 = BH6
 
-    # Final-22: BH9 = 1 - J5
-    BH9 = Decimal("1") - (advance_from_client / Decimal("100"))
+    # Final-22: BH9 = additional payment milestones * BH2
+    # Excel: =IFS(pmt_1,0,pmt_2,0,pmt_3,SUM(J6:J8))*BH2
+    # For pmt_3 with no additional milestones, this equals 0
+    BH9 = round_decimal(additional_payment_milestones * BH2)
 
     # Final-24: BH8 = BH4 - BH6
     BH8 = round_decimal(BH4 - BH6)
@@ -524,9 +529,10 @@ def phase7_financing_costs(
     # Final-14: BJ7 = BI7 - BH7
     BJ7 = round_decimal(BI7 - BH7)
 
-    # Final-25: BI10 = BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
-    # Updated 2025-11-09: Simplified to simple interest with fixed payment term
-    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(customs_logistics_pmt_due)))
+    # Final-25: BI10 = BH10 × (1 + rate_loan_interest_daily × K9)
+    # Updated 2025-11-27: Uses offer_post_pmt_due (K9) instead of customs_logistics_pmt_due
+    K9 = offer_post_pmt_due
+    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(K9)))
 
     # Final-14: BJ10 = BI10 - BH10
     BJ10 = round_decimal(BI10 - BH10)
@@ -553,24 +559,29 @@ def phase7_financing_costs(
 # ============================================================================
 
 def phase8_credit_sales_interest(
-    BH2: Decimal,
+    BH4: Decimal,
     BH3: Decimal,
     time_to_advance_on_receiving: int,
     rate_loan_interest_daily: Decimal
 ) -> Dict[str, Decimal]:
     """
     Calculate interest on delayed payment from client
-    
+
     Steps: Final-28, Final-29, Final-30
     Returns: BL3, BL4, BL5
+
+    Updated 2025-11-27: BL3 = BH4 - BH3 (not BH2 - BH3)
+    Updated 2025-11-27: BL4 uses SIMPLE interest (not compound FV)
+                        Excel formula: BL4 = BL3 + BL3 * rate * days
     """
-    # Final-28: BL3 = BH2 - BH3
-    BL3 = round_decimal(BH2 - BH3)
-    
-    # Final-29: BL4 = FV(rate, K9, , -BL3)
+    # Final-28: BL3 = BH4 - BH3 (total before forwarding minus client advance)
+    BL3 = round_decimal(BH4 - BH3)
+
+    # Final-29: BL4 = BL3 + BL3 * rate_loan_interest_daily * K9 (SIMPLE interest)
+    # Excel: =BL3+BL3*rate_loan_interest_daily*offer_post_pmt_due
     K9 = time_to_advance_on_receiving
-    BL4 = calculate_future_value(BL3, rate_loan_interest_daily, K9)
-    
+    BL4 = round_decimal(BL3 * (Decimal("1") + rate_loan_interest_daily * Decimal(K9)))
+
     # Final-30: BL5 = BL4 - BL3
     BL5 = round_decimal(BL4 - BL3)
     
@@ -999,13 +1010,13 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         phase5_results["BH4"],
         shared.payment.advance_from_client,
         shared.logistics.delivery_time,
-        shared.system.customs_logistics_pmt_due,  # New admin variable
+        shared.payment.time_to_advance_on_receiving,  # K9: offer_post_pmt_due
         shared.system.rate_loan_interest_daily
     )
 
     # STEP 9: Calculate quote-level credit sales interest ONCE
     phase8_results = phase8_credit_sales_interest(
-        phase6_results["BH2"],
+        phase5_results["BH4"],  # Total before forwarding (not BH2 revenue)
         phase7_results["BH3"],
         shared.payment.time_to_advance_on_receiving,
         shared.system.rate_loan_interest_daily
@@ -1262,13 +1273,13 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         phase5_results["BH4"],
         inputs.payment.advance_from_client,
         inputs.logistics.delivery_time,
-        inputs.system.customs_logistics_pmt_due,  # New admin variable
+        inputs.payment.time_to_advance_on_receiving,  # K9: offer_post_pmt_due
         inputs.system.rate_loan_interest_daily
     )
     
     # PHASE 8: Credit Sales Interest
     phase8_results = phase8_credit_sales_interest(
-        phase6_results["BH2"],
+        phase5_results["BH4"],  # Total before forwarding (not BH2 revenue)
         phase7_results["BH3"],
         inputs.payment.time_to_advance_on_receiving,
         inputs.system.rate_loan_interest_daily
