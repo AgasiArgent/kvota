@@ -1,17 +1,30 @@
-## TODO - Next Session
+## TODO - Next Session (Session 58)
 
-1. ~~**Fix exchange rate bug in frontend** - Frontend sends `exchange_rate_base_price_to_quote: 1` instead of CBR rate when base currency ≠ quote currency~~ ✅ **FIXED (Session 53)**
-2. ~~**Fix exchange rate bug in backend** - Parameter order was swapped in `get_exchange_rate()` call~~ ✅ **FIXED (Session 53)**
-3. ~~**Excel validation discrepancy investigation** - ~0.2% difference between API and Excel~~ ✅ **INVESTIGATED (Session 54)**
-4. ~~**CBR rate validation** - Verify calculation with real CBR rates (not product-level overrides)~~ ✅ **COMPLETE (Session 55)**
-5. ~~**Achieve 0.011% accuracy target** - Improve precision to match Excel exactly~~ ✅ **COMPLETE (Session 56)**
-6. ~~**Fix financing block formulas** - BL4 and BH9 formulas didn't match Excel~~ ✅ **COMPLETE (Session 57)**
-7. **Create proper UI test using Excel validation data:**
-   - Use same input data from `validation_data/` Excel files
-   - Input via Chrome DevTools MCP
-   - Compare UI output against `excel_expected_values.json`
-   - Pass only if calculated values match ±0.01
-   - Follow same pattern as `test_excel_comprehensive.py`
+### 1. Full Excel Validation Test
+- Run complete test with `test_raschet_multi_currency_correct_rate_2711_30pct_100k.xlsm`
+- Verify all 13 calculation phases match Excel within 0.01%
+- Use testing guide: `docs/plans/2025-11-28-excel-validation-testing-guide.md`
+
+### 2. Build Better Frontend
+- Improve quote creation UI
+- Better input validation and error handling
+- Display calculated results clearly
+
+### 3. UI E2E Testing
+- Create proper UI test using Excel validation data
+- Input via Chrome DevTools MCP
+- Compare UI output against expected values
+- Follow pattern from `test_excel_comprehensive.py`
+
+---
+
+### Completed
+- ~~Fix exchange rate bug in frontend~~ ✅ (Session 53)
+- ~~Fix exchange rate bug in backend~~ ✅ (Session 53)
+- ~~Excel validation discrepancy investigation~~ ✅ (Session 54)
+- ~~CBR rate validation~~ ✅ (Session 55)
+- ~~Achieve 0.011% accuracy target~~ ✅ (Session 56)
+- ~~Fix financing block formulas (BL4, BH9)~~ ✅ (Session 57)
 
 ---
 
