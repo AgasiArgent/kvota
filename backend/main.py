@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload
 
 # Sentry for error tracking
 import sentry_sdk
@@ -201,6 +201,7 @@ frontend_url = os.getenv("FRONTEND_URL", "")
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
+    "http://localhost:3002",
     "http://localhost:5173",
     "https://kvotaflow.ru",  # Production domain (no www)
     "https://www.kvotaflow.ru",  # Production domain (with www)
@@ -606,12 +607,15 @@ async def test_database(user: User = Depends(get_current_user)):
 app.include_router(customers.router)
 app.include_router(quotes.router)
 app.include_router(quotes_calc.router)
+app.include_router(quotes_upload.router)  # Excel template upload
+app.include_router(quote_versions.router)  # Quote versioning for multi-currency support
 app.include_router(organizations.router)
 app.include_router(calculation_settings.router)
 app.include_router(supplier_countries.router)
 app.include_router(users.router)
 app.include_router(activity_logs.router)
 app.include_router(exchange_rates.router)
+app.include_router(org_exchange_rates.router)  # Org-specific exchange rate management
 app.include_router(feedback.router)
 app.include_router(dashboard.router)
 app.include_router(team.router)
