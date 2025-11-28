@@ -1,20 +1,20 @@
-## TODO - Next Session (Session 58)
+## TODO - Next Session (Session 59)
 
-### 1. Full Excel Validation Test
+### 1. Fix Excel Validation Export Issues
+User reported "many things to fix" in the generated validation Excel:
+- Review and fix any remaining field mapping issues
+- Verify all cell references work correctly
+- Test with actual user data
+
+### 2. Full Excel Validation Test
 - Run complete test with `test_raschet_multi_currency_correct_rate_2711_30pct_100k.xlsm`
 - Verify all 13 calculation phases match Excel within 0.01%
 - Use testing guide: `docs/plans/2025-11-28-excel-validation-testing-guide.md`
 
-### 2. Build Better Frontend
+### 3. Build Better Frontend
 - Improve quote creation UI
 - Better input validation and error handling
 - Display calculated results clearly
-
-### 3. UI E2E Testing
-- Create proper UI test using Excel validation data
-- Input via Chrome DevTools MCP
-- Compare UI output against expected values
-- Follow pattern from `test_excel_comprehensive.py`
 
 ---
 
@@ -25,6 +25,67 @@
 - ~~CBR rate validation~~ ✅ (Session 55)
 - ~~Achieve 0.011% accuracy target~~ ✅ (Session 56)
 - ~~Fix financing block formulas (BL4, BH9)~~ ✅ (Session 57)
+- ~~Excel validation export service~~ ✅ (Session 58)
+
+---
+
+## Session 58 (2025-11-28) - Excel Validation Export Service ✅
+
+### Goal
+Create Excel export that compares API calculations with Excel formulas
+
+### Status: COMPLETE ✅ (with known issues to fix next session)
+
+**Time:** ~1.5 hours
+**Files Created/Modified:**
+- `backend/services/export_validation_service.py` (NEW - 721 lines)
+- `backend/routes/quotes_upload.py` (MODIFIED - added validation endpoint)
+
+---
+
+### Features Implemented
+
+1. **Endpoint:** `POST /api/quotes/upload-excel-validation`
+   - Accepts simplified Excel input template
+   - Returns validation Excel (.xlsm) with comparison
+
+2. **Generated Excel Structure:**
+   - `API_Inputs` tab: All uploaded input values
+   - `расчет` tab: Modified to reference API_Inputs (formulas auto-recalculate)
+   - `API_Results` tab: API calculation outputs
+   - `Comparison` tab: Detailed diff with >0.01% differences highlighted
+
+3. **Value Formatting Fixes:**
+   - Percentages converted to decimal (30 → 0.3)
+   - Sale type: "openbook" → "поставка"
+   - Country: "TR" → "Турция"
+   - D10 payment type based on advance_from_client:
+     - 100% → "100% предоплата"
+     - 0% → "100% постоплата"
+     - Other → "частичная оплата"
+
+---
+
+### Bugs Fixed During Session
+
+1. **`p.supplier_country.value`** - Was calling `.value` on string, fixed to use string directly
+2. **`payment_milestones[0].percent`** - Should be `.percentage`
+3. **`p.weight_in_kg`** - Should be `p.weight_kg` (ProductInput field name)
+
+---
+
+### Known Issues (for next session)
+
+User reported "many things to fix" - needs review in Session 59
+
+---
+
+### Test File Generated
+
+`/home/novi/Downloads/validation_export.xlsm` (1.5MB)
+- Contains all sheets including VBA macros
+- API_Inputs shows correctly formatted values
+- D10 shows "частичная оплата" for 30% advance
 
 ---
 
