@@ -5,12 +5,83 @@
 3. ~~**Excel validation discrepancy investigation** - ~0.2% difference between API and Excel~~ ✅ **INVESTIGATED (Session 54)**
 4. ~~**CBR rate validation** - Verify calculation with real CBR rates (not product-level overrides)~~ ✅ **COMPLETE (Session 55)**
 5. ~~**Achieve 0.011% accuracy target** - Improve precision to match Excel exactly~~ ✅ **COMPLETE (Session 56)**
-6. **Create proper UI test using Excel validation data:**
+6. ~~**Fix financing block formulas** - BL4 and BH9 formulas didn't match Excel~~ ✅ **COMPLETE (Session 57)**
+7. **Create proper UI test using Excel validation data:**
    - Use same input data from `validation_data/` Excel files
    - Input via Chrome DevTools MCP
    - Compare UI output against `excel_expected_values.json`
    - Pass only if calculated values match ±0.01
    - Follow same pattern as `test_excel_comprehensive.py`
+
+---
+
+## Session 57 (2025-11-28) - Financing Block Formula Fixes ✅
+
+### Goal
+Fix financing calculation formulas to match Excel exactly
+
+### Status: COMPLETE ✅
+
+**Time:** ~30 minutes
+**Files Changed:** `backend/calculation_engine.py`
+
+---
+
+### Problems Found
+
+1. **BL4 formula used COMPOUND interest instead of SIMPLE**
+   - Our code: `BL4 = calculate_future_value(BL3, rate, K9)` → compound: `BL3 × (1+rate)^K9`
+   - Excel: `BL4 = BL3 + BL3 × rate × K9` → simple interest
+
+2. **BH9 formula was completely wrong**
+   - Our code: `BH9 = 1 - J5` (remaining % after advance)
+   - Excel: `BH9 = IFS(pmt_1,0,pmt_2,0,pmt_3,SUM(J6:J8)) × BH2`
+   - For pmt_3 with no additional milestones, BH9 = 0
+
+---
+
+### Fixes Applied
+
+**Fix 1: BL4 - Simple interest (line 574-577)**
+```python
+# Before (compound):
+BL4 = calculate_future_value(BL3, rate_loan_interest_daily, K9)
+
+# After (simple):
+BL4 = round_decimal(BL3 * (Decimal("1") + rate_loan_interest_daily * Decimal(K9)))
+```
+
+**Fix 2: BH9 - Payment milestones formula (line 508-511)**
+```python
+# Before:
+BH9 = Decimal("1") - (advance_from_client / Decimal("100"))
+
+# After:
+BH9 = round_decimal(additional_payment_milestones * BH2)
+```
+- Added `additional_payment_milestones` parameter (defaults to 0)
+- For pmt_3 with empty J6:J8, BH9 = 0 (matches Excel)
+
+---
+
+### Validation Results - ALL MATCH WITHIN <0.01%
+
+| Value | Our Result | Excel | Diff % | Status |
+|-------|------------|-------|--------|--------|
+| BJ11 (total financing) | 2890.1483 | 2890.1483 | 0.0000% | ✅ |
+| BL5 (credit interest) | 1207.1790 | 1207.1790 | 0.0000% | ✅ |
+| BA16 (financing per product) | 26.5691 | 26.5700 | 0.0032% | ✅ |
+| BB16 (credit interest per product) | 11.0976 | 11.0979 | 0.0031% | ✅ |
+
+---
+
+### Test File Used
+`validation_data/test_raschet_multi_currency_correct_rate_2711_30pct_100k.xlsm`
+- 30% advance from client (J5 = 0.30)
+- 100k base prices per product
+- K9 = 10 days (offer_post_pmt_due)
+- D9 = 30 days (delivery_time)
+- rate_loan_interest_daily = 0.0006849315 (25%/365)
 
 ---
 
