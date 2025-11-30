@@ -56,6 +56,7 @@ interface QuoteListItem {
   workflow_state?: string;
   total_amount?: number;
   total?: number; // Backend uses 'total' instead of 'total_amount'
+  total_profit_usd?: number;
   currency?: string;
   quote_date?: string;
   valid_until?: string;
@@ -343,6 +344,23 @@ export default function QuotesPage() {
       render: (_: any, record: QuoteListItem) => {
         const amount = record.total_amount || record.total || 0;
         return formatCurrency(amount, record.currency || 'RUB');
+      },
+    },
+    {
+      title: 'Прибыль',
+      dataIndex: 'total_profit_usd',
+      key: 'total_profit_usd',
+      width: 130,
+      align: 'right' as const,
+      render: (profit: number | undefined) => {
+        if (profit === undefined || profit === null) return '—';
+        const color = profit > 0 ? '#52c41a' : profit < 0 ? '#ff4d4f' : undefined;
+        return (
+          <span style={{ color, fontWeight: profit !== 0 ? 500 : undefined }}>
+            $
+            {profit.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        );
       },
     },
     {
