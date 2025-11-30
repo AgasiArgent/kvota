@@ -470,10 +470,9 @@ class QuoteBase(BaseModel):
     currency: Currency = Field(default=Currency.RUB, description="Quote currency")
     exchange_rate: Decimal = Field(default=Decimal("1.0"), gt=0, description="Exchange rate to RUB")
     
-    # Discount Settings
+    # Discount Settings (only discount_type and rate; fixed amount removed in migration 036)
     discount_type: DiscountType = Field(default=DiscountType.PERCENTAGE)
     discount_rate: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Discount percentage")
-    discount_amount: Decimal = Field(default=Decimal("0"), ge=0, description="Fixed discount amount")
     
     # Russian VAT (НДС)
     vat_rate: Decimal = Field(default=Decimal("20"), ge=0, le=30, description="VAT rate (20% standard in Russia)")
@@ -520,7 +519,6 @@ class QuoteUpdate(BaseModel):
     exchange_rate: Optional[Decimal] = Field(None, gt=0)
     discount_type: Optional[DiscountType] = None
     discount_rate: Optional[Decimal] = Field(None, ge=0, le=100)
-    discount_amount: Optional[Decimal] = Field(None, ge=0)
     vat_rate: Optional[Decimal] = Field(None, ge=0, le=30)
     vat_included: Optional[bool] = None
     import_duty_rate: Optional[Decimal] = Field(None, ge=0, le=50)
@@ -564,9 +562,8 @@ class Quote(BaseModel):
     valid_until: Optional[date]
 
     # Financial fields (matching actual DB columns)
+    currency: Optional[str] = "USD"  # Quote currency (USD, EUR, RUB, TRY, CNY)
     subtotal: Decimal
-    discount_percentage: Optional[Decimal]
-    discount_amount: Optional[Decimal]
     tax_rate: Optional[Decimal]
     tax_amount: Optional[Decimal]
     total_amount: Decimal

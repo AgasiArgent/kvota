@@ -119,10 +119,9 @@ CREATE TABLE IF NOT EXISTS quotes (
     -- Calculations
     subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
     
-    -- Discounts
+    -- Discounts (percentage only; fixed amount removed in migration 036)
     discount_type VARCHAR(10) DEFAULT 'percentage' CHECK (discount_type IN ('percentage', 'fixed')),
     discount_rate DECIMAL(5,2) DEFAULT 0,
-    discount_amount DECIMAL(15,2) DEFAULT 0,
     
     -- Russian VAT (НДС)
     vat_rate DECIMAL(5,2) DEFAULT 20, -- Standard Russian VAT is 20%
@@ -450,19 +449,15 @@ BEGIN
     WHERE quote_id = quote_record.id;
     
     -- Get quote-level information for additional calculations
-    SELECT 
-        discount_type, discount_rate, discount_amount,
+    SELECT
+        discount_type, discount_rate,
         vat_rate, import_duty_rate, credit_rate
     INTO quote_record
-    FROM quotes 
+    FROM quotes
     WHERE id = quote_record.id;
-    
-    -- Calculate quote-level discount
-    IF quote_record.discount_type = 'percentage' THEN
-        quote_discount := items_subtotal * (quote_record.discount_rate / 100);
-    ELSE
-        quote_discount := quote_record.discount_amount;
-    END IF;
+
+    -- Calculate quote-level discount (percentage only; fixed amount removed in migration 036)
+    quote_discount := items_subtotal * COALESCE(quote_record.discount_rate, 0) / 100;
     
     -- Calculate quote-level VAT
     quote_vat := (items_subtotal - quote_discount) * (quote_record.vat_rate / 100);
@@ -477,10 +472,9 @@ BEGIN
     final_total := items_subtotal - quote_discount + quote_vat + quote_duties + quote_credit;
     
     -- Update the quote totals
-    UPDATE quotes 
-    SET 
+    UPDATE quotes
+    SET
         subtotal = items_subtotal,
-        discount_amount = quote_discount,
         vat_amount = quote_vat,
         import_duty_amount = quote_duties,
         credit_amount = quote_credit,

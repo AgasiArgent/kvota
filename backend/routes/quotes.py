@@ -108,8 +108,9 @@ async def validate_quote_access(conn, quote_id: UUID, user: User, action: str = 
                q.submission_comment, q.last_sendback_reason,
                q.last_financial_comment, q.last_approval_comment,
                q.quote_date, q.valid_until,
-               q.subtotal, q.discount_percentage, q.discount_amount,
-               q.tax_rate, q.tax_amount, q.total_amount,
+               q.currency,
+               q.subtotal, q.tax_rate, q.tax_amount, q.total_amount,
+               q.total_profit_usd, q.total_vat_on_import_usd, q.total_vat_payable_usd,
                q.notes, q.terms_conditions,
                q.created_at, q.updated_at, q.deleted_at
         FROM quotes q
@@ -169,7 +170,8 @@ async def list_quotes(
         query = supabase.table("quotes").select(
             "id, quote_number, customer_id, title, description, status, workflow_state, "
             "quote_date, valid_until, "
-            "subtotal, discount_percentage, discount_amount, tax_rate, tax_amount, total_amount, "
+            "subtotal, tax_rate, tax_amount, total_amount, "
+            "total_profit_usd, total_vat_on_import_usd, total_vat_payable_usd, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
             "customers(name)",
             count="exact"
@@ -298,16 +300,16 @@ async def create_quote(
             INSERT INTO quotes (
                 user_id, customer_id, customer_name, customer_email, customer_address,
                 title, description, currency, exchange_rate, discount_type, discount_rate,
-                discount_amount, vat_rate, vat_included, import_duty_rate, credit_rate,
+                vat_rate, vat_included, import_duty_rate, credit_rate,
                 quote_date, valid_until, delivery_date, payment_terms, delivery_terms,
                 warranty_terms, notes, internal_notes, requires_approval, required_approvers,
                 approval_type
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
             ) RETURNING *
         """
-        
+
         row = await conn.fetchrow(
             query,
             user.id,  # Current user as quote creator
@@ -321,7 +323,6 @@ async def create_quote(
             quote_data.exchange_rate,
             quote_data.discount_type,
             quote_data.discount_rate,
-            quote_data.discount_amount,
             quote_data.vat_rate,
             quote_data.vat_included,
             quote_data.import_duty_rate,
@@ -458,9 +459,15 @@ async def get_quote(
                 item.calculated_at = calc_results_map[item_id_str]['calculated_at']
 
                 # Extract final selling price from calculation results
-                # The selling price is stored as 'sales_price_per_unit_with_vat' at root level
+                # Use quote currency price if available, otherwise fall back to USD
+                # sales_price_per_unit_with_vat_quote is the price converted to quote currency
+                # sales_price_per_unit_with_vat is the USD value (internal accounting)
                 if phase_results and isinstance(phase_results, dict):
-                    selling_price = phase_results.get('sales_price_per_unit_with_vat')
+                    # Prefer quote currency price (EUR, RUB, etc.) over USD
+                    selling_price = phase_results.get('sales_price_per_unit_with_vat_quote')
+                    if selling_price is None:
+                        # Fall back to USD if quote currency price not available
+                        selling_price = phase_results.get('sales_price_per_unit_with_vat')
                     if selling_price is not None:
                         item.final_price = Decimal(str(selling_price))
             else:
@@ -883,7 +890,8 @@ async def list_bin_quotes(
         query = supabase.table("quotes").select(
             "id, quote_number, customer_id, title, description, status, "
             "quote_date, valid_until, "
-            "subtotal, discount_percentage, discount_amount, tax_rate, tax_amount, total_amount, "
+            "subtotal, tax_rate, tax_amount, total_amount, "
+            "total_profit_usd, total_vat_on_import_usd, total_vat_payable_usd, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
             "customers(name)",
             count="exact"
@@ -1817,10 +1825,12 @@ async def generate_quote_pdf(
 
             # Financial totals
             "subtotal": quote_row['subtotal'],
-            "discount_amount": quote_row['discount_amount'],
-            "vat_amount": quote_row['vat_amount'],
-            "vat_rate": quote_row['vat_rate'],
-            "import_duty_amount": quote_row['import_duty_amount'],
+            "total_profit_usd": quote_row.get('total_profit_usd', 0),
+            "total_vat_on_import_usd": quote_row.get('total_vat_on_import_usd', 0),
+            "total_vat_payable_usd": quote_row.get('total_vat_payable_usd', 0),
+            "vat_amount": quote_row.get('vat_amount'),
+            "vat_rate": quote_row.get('vat_rate'),
+            "import_duty_amount": quote_row.get('import_duty_amount'),
             "total_amount": quote_row['total_amount'],
 
             # Quote items
