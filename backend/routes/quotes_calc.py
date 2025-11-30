@@ -1498,6 +1498,9 @@ async def calculate_quote(
         calculation_results = []
         total_subtotal = Decimal("0")
         total_amount = Decimal("0")
+        total_profit_usd = Decimal("0")
+        total_vat_on_import_usd = Decimal("0")
+        total_vat_payable_usd = Decimal("0")
 
         # Get quote currency conversion rate (USD -> quote currency)
         client_quote_currency = request.variables.get('currency_of_quote', 'USD')
@@ -1532,6 +1535,9 @@ async def calculate_quote(
                 # Accumulate totals
                 total_subtotal += result.purchase_price_total_quote_currency  # S16 - Purchase price
                 total_amount += result.sales_price_total_no_vat  # AK16 - Final sales price total
+                total_profit_usd += result.profit  # AF16 - Markup amount
+                total_vat_on_import_usd += result.vat_on_import  # AO16 - VAT on import
+                total_vat_payable_usd += result.vat_net_payable  # AP16 - Net VAT payable
 
                 # Calculate individual cost components for display
                 # Note: These are already included in result.cogs_per_product (AB16)
@@ -1583,7 +1589,10 @@ async def calculate_quote(
         # 8. Update quote totals
         supabase.table("quotes").update({
             "subtotal": float(total_subtotal),
-            "total_amount": float(total_amount)
+            "total_amount": float(total_amount),
+            "total_profit_usd": float(total_profit_usd),
+            "total_vat_on_import_usd": float(total_vat_on_import_usd),
+            "total_vat_payable_usd": float(total_vat_payable_usd)
         }).eq("id", quote_id).execute()
 
         # 8b. Aggregate product results to quote-level summary
