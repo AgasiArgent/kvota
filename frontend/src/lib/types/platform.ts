@@ -462,6 +462,7 @@ export interface SearchFilters {
   search?: string;
   industry?: Industry;
   status?: QuoteStatus;
+  workflow_state?: string;
   currency?: Currency;
   date_from?: string;
   date_to?: string;
