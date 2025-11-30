@@ -506,9 +506,10 @@ def map_variables_to_calculation_input(
     )
 
     # ========== PaymentTerms (10 fields) ==========
+    # Advance values as decimal (1.0 = 100%)
     payment = PaymentTerms(
-        advance_from_client=safe_decimal(variables.get('advance_from_client'), Decimal("100")),
-        advance_to_supplier=safe_decimal(variables.get('advance_to_supplier'), Decimal("100")),
+        advance_from_client=safe_decimal(variables.get('advance_from_client'), Decimal("1")),
+        advance_to_supplier=safe_decimal(variables.get('advance_to_supplier'), Decimal("1")),
         time_to_advance=safe_int(variables.get('time_to_advance'), 0),
         advance_on_loading=safe_decimal(variables.get('advance_on_loading'), Decimal("0")),
         time_to_advance_loading=safe_int(variables.get('time_to_advance_loading'), 0),
