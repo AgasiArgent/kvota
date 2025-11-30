@@ -86,7 +86,7 @@ while [ $# -gt 0 ]; do
 done
 
 # Setup
-PROJECT_ROOT="/home/novi/workspace/tech/projects/kvota/dev"
+PROJECT_ROOT="/home/novi/workspace/tech/projects/kvota/user-feedback"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 START_TIME=$(date +%s)
 
