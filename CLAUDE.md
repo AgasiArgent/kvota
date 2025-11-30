@@ -541,7 +541,7 @@ This sample task demonstrates:
 
 ---
 
-## Current Status (Session 26 - PRE-DEPLOYMENT INFRASTRUCTURE ⚙️)
+## Current Status (Session 48 - MULTI-CURRENCY SUPPORT)
 
 **CI/CD Status:** ⚠️ **Waiting for GitHub Secrets** (Backend tests failing)
 - ❌ Backend Tests (need GitHub secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL)
@@ -594,6 +594,44 @@ This sample task demonstrates:
 **Time:** ~16 hours (parallel agent execution, 35-40% faster than sequential)
 
 **See `.claude/SESSION_PROGRESS.md` Session 26 for full details**
+
+---
+
+**Session 48 Deliverables (2025-11-25) - MULTI-CURRENCY SUPPORT:**
+
+**Architecture:** Hybrid Snapshot with Full Audit Versioning
+- Exchange rates captured at calculation time
+- Immutable quote versions for audit trail
+- Support for 5 currencies: USD, EUR, RUB, TRY, CNY
+
+**Backend Implementation:**
+- ✅ `domain_models/monetary.py` - MonetaryValue, MonetaryInput, Currency types
+- ✅ `services/multi_currency_service.py` - Currency conversion with CBR/manual rates
+- ✅ `services/quote_version_service.py` - Immutable version management
+- ✅ `routes/exchange_rates_org.py` - Organization exchange rate settings
+
+**New API Endpoints:**
+- `GET /api/organizations/{org_id}/exchange-rates` - Get org exchange rate settings
+- `PUT /api/organizations/{org_id}/exchange-rates` - Update manual rates
+- `POST /api/quote-versions/` - Create new quote version
+- `GET /api/quote-versions/{quote_id}` - List quote versions
+
+**Database Changes (Migration 034):**
+- `organization_exchange_rates` - Per-org manual rate overrides
+- `quote_versions` - Immutable quote snapshots with exchange rate audit
+
+**Frontend Implementation:**
+- ✅ `components/inputs/MonetaryInput.tsx` - Currency-aware input component
+- ✅ Updated `quotes/create/page.tsx` - Multi-currency logistics & brokerage fields
+
+**Multi-Currency Fields (Default Currencies):**
+- Logistics: EUR (supplier_hub, hub_customs), RUB (customs_client)
+- Brokerage: EUR (hub), RUB (customs, warehousing, documentation, extra)
+
+**Tests:** 48 tests passing (34 unit + 14 E2E)
+**Files:** ~2,500 lines (backend + frontend + tests)
+
+**See:** `.claude/VARIABLES.md` Section 0 for complete multi-currency reference
 
 ---
 
