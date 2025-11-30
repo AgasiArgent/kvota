@@ -103,7 +103,7 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
             "exchange_rate": "1.0",
-            "markup": "15",
+            "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция"
         }
 
@@ -122,7 +122,7 @@ class TestMapVariables:
 
         # Verify financial params
         assert result.financial.currency_of_quote.value == "USD"
-        assert result.financial.markup == Decimal("0.15")
+        assert result.financial.markup == Decimal("0.15")  # 15% as decimal
         assert result.financial.rate_forex_risk == Decimal("0.03")
 
         # Verify logistics params
@@ -150,7 +150,7 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "RUB",
             "exchange_rate_base_price_to_quote": "95.5",
-            "markup": "20",
+            "markup": "0.20",  # 20% as decimal
             "supplier_country": "Турция",  # Quote default
             "customs_code": "9999999999"   # Quote default
         }
@@ -170,7 +170,8 @@ class TestMapVariables:
 
         # Quote-level values
         assert result.financial.exchange_rate_base_price_to_quote == Decimal("95.5")
-        assert result.financial.currency_of_quote.value == "RUB"
+        # Note: currency_of_quote is always USD for internal calculations
+        assert result.financial.currency_of_quote.value == "USD"
 
     def test_mapper_with_all_logistics_fields(self):
         """Test with all logistics costs populated"""
@@ -186,7 +187,7 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
             "exchange_rate": "1.0",
-            "markup": "15",
+            "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция",
             "logistics_supplier_hub": "1500.00",
             "logistics_hub_customs": "800.00",
@@ -220,7 +221,7 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
             "exchange_rate": "1.0",
-            "markup": "15",
+            "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция"
         }
 
@@ -236,8 +237,8 @@ class TestMapVariables:
         assert result.financial.supplier_discount == Decimal("0")
         assert result.financial.dm_fee_type.value == "fixed"
         assert result.financial.dm_fee_value == Decimal("0")
-        assert result.payment.advance_from_client == Decimal("100")
-        assert result.payment.advance_to_supplier == Decimal("100")
+        assert result.payment.advance_from_client == Decimal("1")  # 100% as decimal
+        assert result.payment.advance_to_supplier == Decimal("1")  # 100% as decimal
         assert result.taxes.import_tariff == Decimal("0")
         assert result.taxes.excise_tax == Decimal("0")
         assert result.taxes.util_fee == Decimal("0")
