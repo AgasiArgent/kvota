@@ -14,7 +14,6 @@ import {
   theme,
 } from 'antd';
 import {
-  DashboardOutlined,
   FileTextOutlined,
   TeamOutlined,
   UserOutlined,
@@ -53,33 +52,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
     const userRole = profile?.organizationRole || profile?.role || '';
 
     const baseItems = [
+      // Dashboard removed - stats are now on /quotes page
+      // Quotes submenu simplified to direct link - create button is on the page
       {
-        key: '/dashboard',
-        icon: <DashboardOutlined />,
-        label: 'Панель управления',
-      },
-      {
-        key: 'quotes-menu',
+        key: '/quotes',
         icon: <FileTextOutlined />,
         label: 'Коммерческие предложения',
-        children: [
-          {
-            key: '/quotes',
-            label: 'Все КП',
-          },
-          {
-            key: '/quotes/create',
-            label: 'Создать КП',
-          },
-          {
-            key: '/quotes/drafts',
-            label: 'Черновики',
-          },
-          {
-            key: '/quotes/bin',
-            label: 'Корзина',
-          },
-        ],
       },
       {
         key: '/customers',
@@ -113,18 +91,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       },
     ];
 
-    // Add approval items for managers and above
-    if (
-      userRole &&
-      ['finance_manager', 'department_manager', 'director', 'admin', 'owner', 'manager'].includes(
-        userRole.toLowerCase()
-      )
-    ) {
-      baseItems[1].children?.push({
-        key: '/quotes/approval',
-        label: 'На утверждении',
-      });
-    }
+    // Approval menu removed - use filter on /quotes page instead
 
     // Add analytics menu for admin/owner
     if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
@@ -184,6 +151,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
       settingsChildren.push({
         key: '/settings/calculation',
         label: 'Настройки расчета',
+      });
+      settingsChildren.push({
+        key: '/settings/exchange-rates',
+        label: 'Курсы валют',
       });
     }
 
@@ -281,7 +252,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
           theme="dark"
           mode="inline"
           selectedKeys={[pathname]}
-          defaultOpenKeys={['quotes-menu']}
           items={getMenuItems()}
           onClick={({ key }) => router.push(key)}
         />
