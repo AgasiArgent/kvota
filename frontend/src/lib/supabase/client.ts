@@ -8,6 +8,10 @@ export function createClient() {
       cookies: {
         get(name: string) {
           // Use document.cookie for browser-side cookie access
+          // Guard against SSR where document is not available
+          if (typeof document === 'undefined') {
+            return null;
+          }
           const cookies = document.cookie.split(';');
           for (const cookie of cookies) {
             const [cookieName, cookieValue] = cookie.trim().split('=');
