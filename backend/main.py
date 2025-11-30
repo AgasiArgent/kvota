@@ -605,9 +605,9 @@ async def test_database(user: User = Depends(get_current_user)):
             detail=f"Database test failed: {str(e)}"
         )
 app.include_router(customers.router)
-app.include_router(quotes.router)
+app.include_router(quotes_upload.router)  # Excel template upload (BEFORE quotes.router for specific route matching)
 app.include_router(quotes_calc.router)
-app.include_router(quotes_upload.router)  # Excel template upload
+app.include_router(quotes.router)
 app.include_router(quote_versions.router)  # Quote versioning for multi-currency support
 app.include_router(organizations.router)
 app.include_router(calculation_settings.router)
@@ -665,19 +665,15 @@ async def fix_database_function():
                 WHERE quote_id = quote_id_to_update;
                 
                 -- Get quote-level information for additional calculations
-                SELECT 
-                    discount_type, discount_rate, discount_amount,
+                SELECT
+                    discount_type, discount_rate,
                     vat_rate, import_duty_rate, credit_rate
                 INTO quote_record
-                FROM quotes 
+                FROM quotes
                 WHERE id = quote_id_to_update;
-                
-                -- Calculate quote-level discount
-                IF quote_record.discount_type = 'percentage' THEN
-                    quote_discount := items_subtotal * (quote_record.discount_rate / 100);
-                ELSE
-                    quote_discount := quote_record.discount_amount;
-                END IF;
+
+                -- Calculate quote-level discount (percentage only, fixed amount removed in migration 036)
+                quote_discount := items_subtotal * COALESCE(quote_record.discount_rate, 0) / 100;
                 
                 -- Calculate quote-level VAT
                 quote_vat := (items_subtotal - quote_discount) * (quote_record.vat_rate / 100);
@@ -692,10 +688,9 @@ async def fix_database_function():
                 final_total := items_subtotal - quote_discount + quote_vat + quote_duties + quote_credit;
                 
                 -- Update the quote totals
-                UPDATE quotes 
-                SET 
+                UPDATE quotes
+                SET
                     subtotal = items_subtotal,
-                    discount_amount = quote_discount,
                     vat_amount = quote_vat,
                     import_duty_amount = quote_duties,
                     credit_amount = quote_credit,

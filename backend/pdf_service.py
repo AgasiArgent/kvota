@@ -216,10 +216,10 @@ class QuotePDFService:
                         <td>Итого без НДС:</td>
                         <td class="amount">{{ quote.subtotal|ru_currency(quote.currency) }}</td>
                     </tr>
-                    {% if quote.discount_amount > 0 %}
+                    {% if quote.discount_rate and quote.discount_rate > 0 %}
                     <tr>
-                        <td>Скидка{% if quote.discount_type == 'percentage' %} ({{ quote.discount_rate|ru_number }}%){% endif %}:</td>
-                        <td class="amount discount">-{{ quote.discount_amount|ru_currency(quote.currency) }}</td>
+                        <td>Скидка ({{ quote.discount_rate|ru_number }}%):</td>
+                        <td class="amount discount">-{{ (quote.subtotal * quote.discount_rate / 100)|ru_currency(quote.currency) }}</td>
                     </tr>
                     {% endif %}
                     <tr class="vat-row">
