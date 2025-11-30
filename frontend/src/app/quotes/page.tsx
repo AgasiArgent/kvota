@@ -330,13 +330,6 @@ export default function QuotesPage() {
       ellipsis: true,
     },
     {
-      title: 'Название',
-      dataIndex: 'title',
-      key: 'title',
-      width: 250,
-      ellipsis: true,
-    },
-    {
       title: 'Сумма (в валюте КП)',
       dataIndex: 'total_amount',
       key: 'total_amount',
