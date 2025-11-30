@@ -12,7 +12,6 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ApartmentOutlined,
-  HistoryOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
@@ -76,15 +75,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
     ];
 
     // Approval menu removed - use filter on /quotes page instead
-
-    // Add activity log for admin/owner only
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
-      baseItems.push({
-        key: '/activity',
-        icon: <HistoryOutlined />,
-        label: 'История действий',
-      });
-    }
 
     // Add analytics menu for admin/owner
     if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
@@ -172,6 +162,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
           {
             key: '/admin/settings',
             label: 'Настройки',
+          },
+          {
+            key: '/activity',
+            label: 'История действий',
           },
           {
             key: '/admin/feedback',
