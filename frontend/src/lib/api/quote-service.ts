@@ -198,6 +198,8 @@ export class QuoteService extends BaseApiService {
       if (pagination?.page) params.append('page', pagination.page.toString());
       if (pagination?.limit) params.append('limit', pagination.limit.toString());
       if (filters?.status) params.append('quote_status', filters.status as string);
+      if (filters?.workflow_state)
+        params.append('workflow_state', filters.workflow_state as string);
       if (filters?.customer_id) params.append('customer_id', filters.customer_id as string);
       if (filters?.date_from) params.append('date_from', filters.date_from as string);
       if (filters?.date_to) params.append('date_to', filters.date_to as string);
