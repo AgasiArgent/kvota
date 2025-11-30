@@ -11,33 +11,30 @@ import {
   Tag,
   Typography,
   message,
-  Popconfirm,
   Row,
   Col,
   Statistic,
   DatePicker,
-  Drawer,
-  Descriptions,
-  Spin,
-  Divider,
+  Dropdown,
+  Upload,
+  Popover,
 } from 'antd';
+import type { MenuProps, UploadProps } from 'antd';
 import {
-  PlusOutlined,
   SearchOutlined,
-  EyeOutlined,
-  EditOutlined,
-  DeleteOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   DollarOutlined,
   SendOutlined,
+  DownloadOutlined,
+  UploadOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
-import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
-import { QuoteService, QuoteDetailsResponse } from '@/lib/api/quote-service';
+import { QuoteService } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import dayjs, { Dayjs } from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import { QuoteItem } from '@/lib/types/platform';
 import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
 import { config } from '@/lib/config';
@@ -65,7 +62,6 @@ interface QuoteListItem {
 }
 
 export default function QuotesPage() {
-  const router = useRouter();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [quotes, setQuotes] = useState<QuoteListItem[]>([]);
@@ -77,12 +73,6 @@ export default function QuotesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
-
-  // Drawer state
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
-  const [drawerData, setDrawerData] = useState<QuoteDetailsResponse | null>(null);
-  const [drawerLoading, setDrawerLoading] = useState(false);
 
   // Submit modal state
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
@@ -149,26 +139,6 @@ export default function QuotesPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const organizationId = profile?.organization_id || '';
-      if (!organizationId) {
-        message.error('Не удалось определить организацию');
-        return;
-      }
-
-      const response = await quoteService.deleteQuote(id, organizationId);
-      if (response.success) {
-        message.success('КП перемещено в корзину');
-        fetchQuotes();
-      } else {
-        message.error(response.error || 'Ошибка удаления');
-      }
-    } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`);
-    }
-  };
-
   const handleSubmitForApproval = async (comment?: string) => {
     if (!submitQuoteId) return;
 
@@ -211,65 +181,272 @@ export default function QuotesPage() {
     setSubmitModalOpen(true);
   };
 
-  const openDrawer = async (quoteId: string) => {
-    setSelectedQuoteId(quoteId);
-    setDrawerOpen(true);
-    setDrawerLoading(true);
-
+  // Template download handler
+  const handleDownloadTemplate = async () => {
     try {
-      const organizationId = profile?.organization_id || '';
-      if (!organizationId) {
-        message.error('Не удалось определить организацию');
+      const token = await getAuthToken();
+      if (!token) {
+        message.error('Не авторизован');
         return;
       }
 
-      const response = await quoteService.getQuoteDetails(quoteId, organizationId);
-      console.log('[Drawer] API response:', response);
+      const response = await fetch(`${config.apiUrl}/api/quotes/upload/download-template`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (response.success && response.data) {
-        // Transform flat QuoteWithItems response to nested structure
-        // Backend returns: { id, quote_number, status, ..., items: [...], customer: {...}, approvals: [...] }
-        // Drawer expects: { quote: {...}, items: [...], customer: {...}, workflow: {...} }
-
-        // Destructure to separate items/customer from quote fields
-        const { items, customer, ...quoteFields } = response.data as any;
-
-        // Map backend field names to what the drawer expects
-        const quote = {
-          ...quoteFields,
-          total: quoteFields.total_amount, // Map total_amount -> total
-        };
-
-        const transformed = {
-          quote,
-          items: items || [],
-          customer: customer || null,
-          workflow: null, // TODO: Map from approvals array
-        };
-
-        console.log('[Drawer] Transformed data:', transformed);
-        setDrawerData(transformed as any);
-      } else {
-        console.error('[Drawer] API error:', response.error);
-        message.error(response.error || 'Ошибка загрузки данных КП');
+      if (!response.ok) {
+        throw new Error('Ошибка скачивания шаблона');
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'quote_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      message.success('Шаблон скачан');
     } catch (error: any) {
-      message.error(`Ошибка загрузки: ${error.message}`);
-    } finally {
-      setDrawerLoading(false);
+      message.error(error.message || 'Ошибка скачивания шаблона');
     }
   };
 
-  const closeDrawer = () => {
-    setDrawerOpen(false);
-    setSelectedQuoteId(null);
-    setDrawerData(null);
+  // Template upload handler
+  const [uploading, setUploading] = useState(false);
+
+  const uploadProps: UploadProps = {
+    name: 'file',
+    accept: '.xlsx,.xls,.xlsm',
+    showUploadList: false,
+    customRequest: async ({ file, onSuccess, onError }) => {
+      setUploading(true);
+      try {
+        const token = await getAuthToken();
+        if (!token) {
+          message.error('Не авторизован');
+          onError?.(new Error('Не авторизован'));
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${config.apiUrl}/api/quotes/upload-excel`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Ошибка загрузки');
+        }
+
+        const result = await response.json();
+        message.success(`КП ${result.quote_number} создано успешно`);
+        onSuccess?.(result);
+        fetchQuotes(); // Refresh the list
+      } catch (error: any) {
+        message.error(error.message || 'Ошибка загрузки файла');
+        onError?.(error);
+      } finally {
+        setUploading(false);
+      }
+    },
   };
 
-  const handleDrawerDelete = async () => {
-    if (!selectedQuoteId) return;
-    await handleDelete(selectedQuoteId);
-    closeDrawer();
+  // Export handler
+  const handleExport = async (quoteId: string, exportType: string) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        message.error('Не авторизован');
+        return;
+      }
+
+      let url: string;
+      let filename: string;
+
+      if (exportType === 'validation') {
+        url = `${config.apiUrl}/api/quotes-calc/validation-export/${quoteId}`;
+        filename = `validation_${quoteId}.xlsx`;
+      } else {
+        // PDF exports: supply, supply-letter, openbook, openbook-letter
+        url = `${config.apiUrl}/api/quotes/${quoteId}/export/pdf?format=${exportType}`;
+        filename = `quote_${exportType}_${quoteId}.pdf`;
+      }
+
+      message.loading({ content: 'Экспорт...', key: 'export' });
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка экспорта');
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+      message.success({ content: 'Файл скачан', key: 'export' });
+    } catch (error: any) {
+      message.error({ content: error.message || 'Ошибка экспорта', key: 'export' });
+    }
+  };
+
+  // Export dropdown menu items generator
+  const getExportMenuItems = (quoteId: string): MenuProps['items'] => [
+    {
+      key: 'validation',
+      label: 'Экспорт для проверки',
+      onClick: () => handleExport(quoteId, 'validation'),
+    },
+    { type: 'divider' },
+    {
+      key: 'supply',
+      label: 'КП поставка',
+      onClick: () => handleExport(quoteId, 'supply'),
+    },
+    {
+      key: 'supply-letter',
+      label: 'КП поставка — письмо',
+      onClick: () => handleExport(quoteId, 'supply-letter'),
+    },
+    {
+      key: 'openbook',
+      label: 'КП open book',
+      onClick: () => handleExport(quoteId, 'openbook'),
+    },
+    {
+      key: 'openbook-letter',
+      label: 'КП open book — письмо',
+      onClick: () => handleExport(quoteId, 'openbook-letter'),
+    },
+  ];
+
+  // Products popover state
+  const [popoverProducts, setPopoverProducts] = useState<Record<string, QuoteItem[]>>({});
+  const [popoverLoading, setPopoverLoading] = useState<Record<string, boolean>>({});
+
+  // Fetch products for popover
+  const fetchProductsForPopover = async (quoteId: string) => {
+    // If already loaded, don't refetch
+    if (popoverProducts[quoteId]) return;
+
+    setPopoverLoading((prev) => ({ ...prev, [quoteId]: true }));
+    try {
+      const organizationId = profile?.organization_id || '';
+      if (!organizationId) return;
+
+      const response = await quoteService.getQuoteDetails(quoteId, organizationId);
+      if (response.success && response.data) {
+        const { items } = response.data as any;
+        setPopoverProducts((prev) => ({ ...prev, [quoteId]: items || [] }));
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setPopoverLoading((prev) => ({ ...prev, [quoteId]: false }));
+    }
+  };
+
+  // Products popover content
+  const renderProductsPopover = (quoteId: string, currency: string) => {
+    const products = popoverProducts[quoteId] || [];
+    const isLoading = popoverLoading[quoteId];
+
+    if (isLoading) {
+      return (
+        <div style={{ padding: 20, textAlign: 'center' }}>
+          <span>Загрузка...</span>
+        </div>
+      );
+    }
+
+    if (products.length === 0) {
+      return (
+        <div style={{ padding: 20, textAlign: 'center' }}>
+          <Typography.Text type="secondary">Нет товаров</Typography.Text>
+        </div>
+      );
+    }
+
+    const totalQuantity = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
+    const totalAmount = products.reduce(
+      (sum, p) => sum + (p.final_price || 0) * (p.quantity || 0),
+      0
+    );
+
+    return (
+      <div style={{ width: 450 }}>
+        <div style={{ fontWeight: 500, marginBottom: 12 }}>Товары ({products.length} позиций)</div>
+        <Table
+          dataSource={products}
+          rowKey="id"
+          pagination={false}
+          size="small"
+          scroll={{ y: 200 }}
+          columns={[
+            {
+              title: 'Название',
+              dataIndex: 'name',
+              key: 'name',
+              width: 200,
+              ellipsis: true,
+              render: (name: string, record: QuoteItem) =>
+                record.sku ? `${record.sku} - ${name}` : name,
+            },
+            {
+              title: 'Кол-во',
+              dataIndex: 'quantity',
+              key: 'quantity',
+              width: 80,
+              align: 'right' as const,
+              render: (qty: number) => `${qty} шт`,
+            },
+            {
+              title: 'Цена',
+              dataIndex: 'final_price',
+              key: 'final_price',
+              width: 100,
+              align: 'right' as const,
+              render: (price: number) => (price ? formatCurrency(price, currency) + '/шт' : '—'),
+            },
+          ]}
+        />
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: '1px solid #f0f0f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>
+            <strong>Итого:</strong> {totalQuantity} шт
+          </span>
+          <span>
+            <strong>Сумма:</strong> {formatCurrency(totalAmount, currency)}
+          </span>
+        </div>
+      </div>
+    );
   };
 
   const getStatusTag = (workflowState: string) => {
@@ -308,18 +485,27 @@ export default function QuotesPage() {
       key: 'quote_number',
       width: 150,
       render: (text: string, record: QuoteListItem) => (
-        <a
-          onClick={() => openDrawer(record.id)}
-          style={{
-            fontWeight: 500,
-            color: '#1890ff',
-            cursor: 'pointer',
+        <Popover
+          content={renderProductsPopover(record.id, record.currency || 'USD')}
+          title={null}
+          trigger="click"
+          placement="right"
+          onOpenChange={(open) => {
+            if (open) fetchProductsForPopover(record.id);
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
         >
-          {text}
-        </a>
+          <a
+            style={{
+              fontWeight: 500,
+              color: '#1890ff',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+          >
+            {text}
+          </a>
+        </Popover>
       ),
     },
     {
@@ -409,16 +595,10 @@ export default function QuotesPage() {
     {
       title: 'Действия',
       key: 'actions',
-      width: 150,
+      width: 200,
       fixed: 'right' as const,
       render: (_: any, record: QuoteListItem) => (
         <Space size="small">
-          <Button
-            type="text"
-            icon={<EyeOutlined />}
-            onClick={() => openDrawer(record.id)}
-            title="Просмотр"
-          />
           {record.workflow_state === 'draft' && (
             <Button
               type="text"
@@ -428,26 +608,11 @@ export default function QuotesPage() {
               style={{ color: '#52c41a' }}
             />
           )}
-          {(record.workflow_state === 'draft' || record.workflow_state === 'revision_needed') && (
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => router.push(`/quotes/${record.id}/edit`)}
-              title="Редактировать"
-            />
-          )}
-          {record.workflow_state === 'draft' && (
-            <Popconfirm
-              title="Удалить КП?"
-              description="КП будет перемещено в корзину"
-              onConfirm={() => handleDelete(record.id)}
-              okText="Удалить"
-              cancelText="Отмена"
-              okButtonProps={{ danger: true }}
-            >
-              <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-            </Popconfirm>
-          )}
+          <Dropdown menu={{ items: getExportMenuItems(record.id) }}>
+            <Button icon={<DownloadOutlined />}>
+              Экспорт <DownOutlined />
+            </Button>
+          </Dropdown>
         </Space>
       ),
     },
@@ -475,14 +640,16 @@ export default function QuotesPage() {
             <Title level={2}>Коммерческие предложения</Title>
           </Col>
           <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              size="large"
-              onClick={() => router.push('/quotes/create')}
-            >
-              Создать КП
-            </Button>
+            <Space>
+              <Button icon={<DownloadOutlined />} size="large" onClick={handleDownloadTemplate}>
+                Скачать шаблон
+              </Button>
+              <Upload {...uploadProps}>
+                <Button type="primary" icon={<UploadOutlined />} size="large" loading={uploading}>
+                  Загрузить КП
+                </Button>
+              </Upload>
+            </Space>
           </Col>
         </Row>
 
@@ -628,194 +795,6 @@ export default function QuotesPage() {
             }}
           />
         </Card>
-
-        {/* Quick View Drawer */}
-        <Drawer
-          title={drawerData?.quote?.quote_number || 'Загрузка...'}
-          placement="right"
-          width={800}
-          onClose={closeDrawer}
-          open={drawerOpen}
-        >
-          {drawerLoading ? (
-            <div style={{ textAlign: 'center', padding: '50px 0' }}>
-              <Spin size="large" />
-            </div>
-          ) : drawerData ? (
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {/* Section 1: Quote Summary */}
-              <div>
-                <Descriptions
-                  title="Информация о КП"
-                  bordered
-                  column={1}
-                  size="small"
-                  styles={{ label: { fontWeight: 500, width: '40%' } }}
-                >
-                  <Descriptions.Item label="Клиент">
-                    {drawerData.customer?.company_name || 'Не указан'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Статус">
-                    {getStatusTag(drawerData.quote.workflow_state || drawerData.quote.status)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Дата КП">
-                    {drawerData.quote.created_at
-                      ? new Date(drawerData.quote.created_at).toLocaleDateString('ru-RU')
-                      : '—'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Действительно до">
-                    {drawerData.quote.valid_until
-                      ? new Date(drawerData.quote.valid_until).toLocaleDateString('ru-RU')
-                      : '—'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Дата создания">
-                    {drawerData.quote.created_at
-                      ? new Date(drawerData.quote.created_at).toLocaleDateString('ru-RU', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : '—'}
-                  </Descriptions.Item>
-                </Descriptions>
-              </div>
-
-              <Divider />
-
-              {/* Section 2: Products Summary Table */}
-              <div>
-                <Typography.Title level={5}>Продукты</Typography.Title>
-                <Table
-                  dataSource={drawerData.items || []}
-                  rowKey="id"
-                  pagination={false}
-                  scroll={{ y: 300 }}
-                  size="small"
-                  columns={[
-                    {
-                      title: 'Название',
-                      dataIndex: 'name',
-                      key: 'name',
-                      ellipsis: true,
-                      width: 200,
-                    },
-                    {
-                      title: 'Артикул',
-                      dataIndex: 'sku',
-                      key: 'sku',
-                      width: 120,
-                    },
-                    {
-                      title: 'Кол-во',
-                      dataIndex: 'quantity',
-                      key: 'quantity',
-                      width: 80,
-                      align: 'right' as const,
-                    },
-                    {
-                      title: 'Цена',
-                      dataIndex: 'final_price',
-                      key: 'final_price',
-                      width: 100,
-                      align: 'right' as const,
-                      render: (price: number) =>
-                        price ? formatCurrency(price, drawerData.quote.currency) : '—',
-                    },
-                    {
-                      title: 'Сумма',
-                      key: 'total',
-                      width: 120,
-                      align: 'right' as const,
-                      render: (_: any, record: QuoteItem) =>
-                        record.final_price && record.quantity
-                          ? formatCurrency(
-                              record.final_price * record.quantity,
-                              drawerData.quote.currency
-                            )
-                          : '—',
-                    },
-                  ]}
-                />
-              </div>
-
-              <Divider />
-
-              {/* Section 3: Totals */}
-              <div>
-                <Typography.Title level={5}>Итого</Typography.Title>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Statistic
-                      title="Подытог"
-                      value={drawerData.quote.subtotal}
-                      formatter={(value) =>
-                        formatCurrency(Number(value), drawerData.quote.currency)
-                      }
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <Statistic
-                      title="Общая сумма"
-                      value={drawerData.quote.total}
-                      formatter={(value) =>
-                        formatCurrency(Number(value), drawerData.quote.currency)
-                      }
-                      valueStyle={{ color: '#3f8600', fontWeight: 'bold' }}
-                    />
-                  </Col>
-                </Row>
-              </div>
-
-              <Divider />
-
-              {/* Section 4: Action Buttons */}
-              <Space style={{ width: '100%', justifyContent: 'center' }} size="middle">
-                <Button
-                  type="primary"
-                  icon={<EyeOutlined />}
-                  onClick={() => {
-                    closeDrawer();
-                    router.push(`/quotes/${selectedQuoteId}`);
-                  }}
-                >
-                  Полная страница
-                </Button>
-                {(drawerData.quote.workflow_state === 'draft' ||
-                  drawerData.quote.workflow_state === 'sent_back_for_revision') && (
-                  <Button
-                    icon={<EditOutlined />}
-                    onClick={() => {
-                      closeDrawer();
-                      router.push(`/quotes/${selectedQuoteId}/edit`);
-                    }}
-                  >
-                    Редактировать
-                  </Button>
-                )}
-                {drawerData.quote.workflow_state === 'draft' && (
-                  <Popconfirm
-                    title="Удалить КП?"
-                    description="КП будет перемещено в корзину"
-                    onConfirm={handleDrawerDelete}
-                    okText="Удалить"
-                    cancelText="Отмена"
-                    okButtonProps={{ danger: true }}
-                  >
-                    <Button danger icon={<DeleteOutlined />}>
-                      Удалить
-                    </Button>
-                  </Popconfirm>
-                )}
-              </Space>
-            </Space>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '50px 0' }}>
-              <Typography.Text type="secondary">Нет данных</Typography.Text>
-            </div>
-          )}
-        </Drawer>
 
         {/* Submit for Approval Modal */}
         <SubmitForApprovalModal
