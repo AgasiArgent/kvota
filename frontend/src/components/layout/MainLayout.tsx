@@ -1,18 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  Layout,
-  Menu,
-  Avatar,
-  Dropdown,
-  Typography,
-  Space,
-  Badge,
-  Divider,
-  Button,
-  theme,
-} from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Typography, Space, Badge, Button, theme } from 'antd';
 import {
   FileTextOutlined,
   TeamOutlined,
@@ -234,16 +223,18 @@ export default function MainLayout({ children }: MainLayoutProps) {
           style={{
             height: '64px',
             margin: '16px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Title level={4} style={{ color: 'white', margin: 0 }}>
-            {collapsed ? 'КП' : 'Коммерческие предложения'}
-          </Title>
+          {collapsed ? (
+            <Title level={4} style={{ color: 'white', margin: 0 }}>
+              КП
+            </Title>
+          ) : (
+            <OrganizationSwitcher darkMode />
+          )}
         </div>
 
         {!collapsed && <ExchangeRates />}
@@ -268,20 +259,16 @@ export default function MainLayout({ children }: MainLayoutProps) {
             borderBottom: `1px solid ${token.colorBorder}`,
           }}
         >
-          <Space>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{
-                fontSize: '16px',
-                width: 64,
-                height: 64,
-              }}
-            />
-            <Divider type="vertical" style={{ height: '32px' }} />
-            <OrganizationSwitcher />
-          </Space>
+          <Button
+            type="text"
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setCollapsed(!collapsed)}
+            style={{
+              fontSize: '16px',
+              width: 64,
+              height: 64,
+            }}
+          />
 
           <Space size="large">
             {/* Notifications */}

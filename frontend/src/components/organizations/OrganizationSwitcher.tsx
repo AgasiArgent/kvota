@@ -19,9 +19,10 @@ const { Text } = Typography;
 
 interface OrganizationSwitcherProps {
   onSwitch?: () => void;
+  darkMode?: boolean;
 }
 
-export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherProps) {
+export default function OrganizationSwitcher({ onSwitch, darkMode }: OrganizationSwitcherProps) {
   const router = useRouter();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -179,9 +180,18 @@ export default function OrganizationSwitcher({ onSwitch }: OrganizationSwitcherP
     );
   }
 
+  const buttonStyle = darkMode
+    ? {
+        background: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        color: 'white',
+        width: '100%',
+      }
+    : {};
+
   return (
     <Dropdown menu={{ items: menuItems }} trigger={['click']} disabled={switching || loading}>
-      <Button loading={loading || switching}>
+      <Button loading={loading || switching} style={buttonStyle}>
         <Space>
           <SwapOutlined />
           {currentOrg ? currentOrg.organization_name : 'Выберите организацию'}
