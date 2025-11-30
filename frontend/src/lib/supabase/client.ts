@@ -72,8 +72,24 @@ export function createClient() {
   );
 }
 
-// Export a singleton instance for convenience
-export const supabase = createClient();
+// Lazy-initialized singleton to avoid SSR issues
+// createBrowserClient accesses document during construction
+let _supabase: ReturnType<typeof createClient> | null = null;
+
+export function getSupabase() {
+  if (typeof window === 'undefined') {
+    // During SSR, create a fresh instance (will have limited functionality)
+    return createClient();
+  }
+  // In browser, use singleton
+  if (!_supabase) {
+    _supabase = createClient();
+  }
+  return _supabase;
+}
+
+// For backward compatibility - but prefer getSupabase()
+export const supabase = typeof window !== 'undefined' ? createClient() : (null as any);
 
 // Database types for TypeScript support - Multi-Industry Platform
 export interface Database {
