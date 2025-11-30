@@ -542,8 +542,8 @@ def map_variables_to_calculation_input(
 
     # ========== SystemConfig (3 fields from admin) ==========
     system = SystemConfig(
-        rate_fin_comm=admin_settings.get('rate_fin_comm', Decimal("2")),
-        rate_loan_interest_daily=admin_settings.get('rate_loan_interest_daily', Decimal("0.00069")),
+        rate_fin_comm=admin_settings.get('rate_fin_comm', Decimal("0.02")),
+        rate_loan_interest_annual=admin_settings.get('rate_loan_interest_annual', Decimal("0.25")),
         rate_insurance=safe_decimal(variables.get('rate_insurance'), Decimal("0.00047")),
         customs_logistics_pmt_due=admin_settings.get('customs_logistics_pmt_due', 10)
     )
@@ -573,9 +573,9 @@ async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
         Returns defaults if settings not found in database
 
     Default values:
-        - rate_forex_risk: 3%
-        - rate_fin_comm: 2%
-        - rate_loan_interest_daily: 0.00069 (25.19% annual)
+        - rate_forex_risk: 0.03 (3%)
+        - rate_fin_comm: 0.02 (2%)
+        - rate_loan_interest_annual: 0.25 (25%)
     """
     try:
         # Fetch from calculation_settings table
@@ -587,22 +587,18 @@ async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
         if response.data and len(response.data) > 0:
             settings = response.data[0]
 
-            # Calculate daily rate from annual rate (2025-11-09 update)
-            rate_annual = Decimal(str(settings.get('rate_loan_interest_annual', "0.25")))
-            rate_daily = rate_annual / Decimal("365")
-
             return {
-                'rate_forex_risk': Decimal(str(settings.get('rate_forex_risk', "3"))),
-                'rate_fin_comm': Decimal(str(settings.get('rate_fin_comm', "2"))),
-                'rate_loan_interest_daily': rate_daily,
+                'rate_forex_risk': Decimal(str(settings.get('rate_forex_risk', "0.03"))),
+                'rate_fin_comm': Decimal(str(settings.get('rate_fin_comm', "0.02"))),
+                'rate_loan_interest_annual': Decimal(str(settings.get('rate_loan_interest_annual', "0.25"))),
                 'customs_logistics_pmt_due': int(settings.get('customs_logistics_pmt_due', 10))
             }
         else:
             # Return defaults if no settings found
             return {
-                'rate_forex_risk': Decimal("3"),
-                'rate_fin_comm': Decimal("2"),
-                'rate_loan_interest_daily': Decimal("0.25") / Decimal("365"),  # 25% annual / 365 days
+                'rate_forex_risk': Decimal("0.03"),
+                'rate_fin_comm': Decimal("0.02"),
+                'rate_loan_interest_annual': Decimal("0.25"),
                 'customs_logistics_pmt_due': 10
             }
 
@@ -610,9 +606,9 @@ async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
         # Log error and return defaults
         print(f"Error fetching admin settings: {e}")
         return {
-            'rate_forex_risk': Decimal("3"),
-            'rate_fin_comm': Decimal("2"),
-            'rate_loan_interest_daily': Decimal("0.25") / Decimal("365"),  # 25% annual / 365 days
+            'rate_forex_risk': Decimal("0.03"),
+            'rate_fin_comm': Decimal("0.02"),
+            'rate_loan_interest_annual': Decimal("0.25"),
             'customs_logistics_pmt_due': 10
         }
 
