@@ -460,7 +460,7 @@ export default function QuotesPage() {
     },
   ];
 
-  // Calculate stats
+  // Calculate stats from displayed quotes
   const totalQuotes = totalCount;
   const approvedQuotes = quotes.filter(
     (q) =>
@@ -469,9 +469,9 @@ export default function QuotesPage() {
   const pendingQuotes = quotes.filter(
     (q) => q.workflow_state === 'awaiting_financial_approval'
   ).length;
-  const totalRevenue = quotes
-    .filter((q) => q.workflow_state === 'accepted_by_customer')
-    .reduce((sum, q) => sum + (q.total_amount || q.total || 0), 0);
+  // Sum total_usd for all displayed quotes (shows — if no data)
+  const totalRevenueUsd = quotes.reduce((sum, q) => sum + (q.total_usd || 0), 0);
+  const totalProfitUsd = quotes.reduce((sum, q) => sum + (q.total_profit_usd || 0), 0);
 
   return (
     <MainLayout>
@@ -495,8 +495,8 @@ export default function QuotesPage() {
 
         {/* Stats */}
         <Row gutter={16}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
+          <Col xs={12} sm={8} lg={4}>
+            <Card size="small">
               <Statistic
                 title="Всего КП"
                 value={totalQuotes}
@@ -505,8 +505,8 @@ export default function QuotesPage() {
               />
             </Card>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
+          <Col xs={12} sm={8} lg={4}>
+            <Card size="small">
               <Statistic
                 title="Утверждено"
                 value={approvedQuotes}
@@ -515,8 +515,8 @@ export default function QuotesPage() {
               />
             </Card>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
+          <Col xs={12} sm={8} lg={4}>
+            <Card size="small">
               <Statistic
                 title="На утверждении"
                 value={pendingQuotes}
@@ -525,14 +525,29 @@ export default function QuotesPage() {
               />
             </Card>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
+          <Col xs={12} sm={12} lg={6}>
+            <Card size="small">
               <Statistic
-                title="Общая выручка"
-                value={totalRevenue}
+                title="Выручка (USD)"
+                value={totalRevenueUsd}
                 prefix={<DollarOutlined />}
-                formatter={(value) => formatCurrency(Number(value), 'RUB')}
+                formatter={(value) =>
+                  `$${Number(value).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                }
                 valueStyle={{ color: '#722ed1' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={12} sm={12} lg={6}>
+            <Card size="small">
+              <Statistic
+                title="Прибыль (USD)"
+                value={totalProfitUsd}
+                prefix={<DollarOutlined />}
+                formatter={(value) =>
+                  `$${Number(value).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                }
+                valueStyle={{ color: totalProfitUsd >= 0 ? '#52c41a' : '#ff4d4f' }}
               />
             </Card>
           </Col>
