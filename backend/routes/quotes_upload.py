@@ -10,7 +10,7 @@ Created: 2025-11-28
 import io
 import logging
 from typing import Optional, List
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
@@ -218,14 +218,17 @@ def calculate_exchange_rate(
         # Engine does: 83333 TRY / 4.92 = 16941 EUR
         if from_rub == 0:
             return Decimal("1.0")
-        return to_rub / from_rub
+        result = to_rub / from_rub
     else:
         # For multiplication: rate = from_rub / to_rub
         # Example: EUR→RUB, returns 90.78 (how many RUB per 1 EUR)
         # Usage: 1500 EUR * 90.78 = 136170 RUB
         if to_rub == 0:
             return Decimal("1.0")
-        return from_rub / to_rub
+        result = from_rub / to_rub
+
+    # Round to 4 decimal places for consistency with calculation engine
+    return result.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
 
 async def map_to_calculation_inputs(
@@ -635,6 +638,11 @@ async def upload_excel_with_validation_export(
             # Payment milestones
             "advance_from_client": float(parsed_data.payment_milestones[0].percentage) if parsed_data.payment_milestones else 0,
             "time_to_advance": parsed_data.payment_milestones[0].days if parsed_data.payment_milestones else 0,
+            # Days to payment after receipt (F7 in расчет) - from on_receiving milestone
+            "time_to_payment": next(
+                (m.days or 0 for m in parsed_data.payment_milestones if m.name == "on_receiving"),
+                0
+            ),
             # Logistics costs
             "logistics_supplier_hub": float(parsed_data.logistics_supplier_hub.value),
             "logistics_hub_customs": float(parsed_data.logistics_hub_customs.value),

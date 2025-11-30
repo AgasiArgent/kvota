@@ -121,7 +121,8 @@ QUOTE_INPUT_MAPPING = {
     "K7": ("time_to_advance_shipping", "Дней до аванса отправки"),
     "J8": ("advance_on_customs", "Аванс при таможне (%)"),
     "K8": ("time_to_advance_customs", "Дней до аванса таможни"),
-    "K9": ("time_to_payment", "Дней до оплаты после получения"),
+    # NOTE: time_to_payment is now mapped to F7 (days after receiving)
+    "F7": ("time_to_payment", "Дней до оплаты после получения"),
     # Logistics costs
     "W2": ("logistics_supplier_hub", "Логистика: Поставщик-Хаб"),
     "W3": ("logistics_hub_customs", "Логистика: Хаб-Таможня"),
@@ -132,9 +133,12 @@ QUOTE_INPUT_MAPPING = {
     "W7": ("warehousing", "Расходы на СВХ"),
     "W8": ("documentation", "Разрешительные документы"),
     "W9": ("other_costs", "Прочее"),
-    # DM Fee
+    # DM Fee - type determines placement:
+    # AG3: dm_fee_type ("Фикс" or "комиссия %")
+    # AG4: dm_fee_value when type is "Фикс" (fixed amount)
+    # AG6: dm_fee_value when type is "комиссия %" (percentage, divided by 100)
     "AG3": ("dm_fee_type", "Тип вознаграждения ЛПР"),
-    "AG7": ("dm_fee_value", "Вознаграждение ЛПР"),
+    # NOTE: dm_fee_value is handled separately in _modify_raschet_references()
     # Admin settings
     "AH11": ("rate_forex_risk", "Резерв на курсовую разницу (%)"),
 }
@@ -332,6 +336,36 @@ class ExportValidationService:
         # Store advance_from_client for D10 calculation
         self._advance_from_client = quote_inputs.get("advance_from_client", 0)
 
+        # Handle dm_fee_value separately - placement depends on type
+        dm_fee_type = quote_inputs.get("dm_fee_type", "")
+        dm_fee_value = quote_inputs.get("dm_fee_value", 0)
+
+        # Determine target cell based on type:
+        # "Фикс" or "фикс. сумма" -> AG4 (fixed amount)
+        # "комиссия %" or "% от суммы" -> AG6 (percentage, divide by 100)
+        is_percentage = any(pct in str(dm_fee_type).lower() for pct in ["%", "комиссия", "процент"])
+
+        if is_percentage:
+            dm_target_cell = "AG6"
+            # Treat as percentage - divide by 100
+            formatted_value = dm_fee_value / 100 if dm_fee_value else 0
+        else:
+            dm_target_cell = "AG4"
+            formatted_value = dm_fee_value
+
+        # Add dm_fee_value to API_Inputs
+        ws[f"A{row}"] = dm_target_cell
+        ws[f"B{row}"] = "Вознаграждение ЛПР"
+        ws[f"C{row}"] = formatted_value
+        ws[f"C{row}"].alignment = Alignment(horizontal="right")
+        for col in ["A", "B", "C"]:
+            ws[f"{col}{row}"].border = THIN_BORDER
+
+        # Store for _modify_raschet_references
+        self._dm_fee_row = row
+        self._dm_fee_target_cell = dm_target_cell
+        row += 1
+
         # Section: Products
         row += 2
         product_header_row = row
@@ -404,6 +438,11 @@ class ExportValidationService:
         # Keep as value, not formula reference (per user request)
         payment_type = self._get_payment_type_value(self._advance_from_client)
         ws["D10"] = payment_type
+
+        # DM Fee value - placed in AG4 (Фикс) or AG6 (комиссия %)
+        # The target cell and row were determined in _create_inputs_sheet
+        if hasattr(self, '_dm_fee_target_cell') and hasattr(self, '_dm_fee_row'):
+            ws[self._dm_fee_target_cell] = f"='{inputs_sheet}'!C{self._dm_fee_row}"
 
         # Product-level inputs
         # Use the stored row from _create_inputs_sheet (row after headers)

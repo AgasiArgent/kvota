@@ -285,7 +285,7 @@ export default function QuotesPage() {
 
       if (exportType === 'validation') {
         url = `${config.apiUrl}/api/quotes-calc/validation-export/${quoteId}`;
-        filename = `validation_${quoteId}.xlsx`;
+        filename = `validation_${quoteId}.xlsm`;
       } else {
         // PDF exports: supply, supply-letter, openbook, openbook-letter
         url = `${config.apiUrl}/api/quotes/${quoteId}/export/pdf?format=${exportType}`;
