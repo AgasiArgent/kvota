@@ -1,12 +1,15 @@
 {
   "metadata": {
-    "extracted_at": "2025-11-26T20:45:04.548171",
+    "extracted_at": "2025-11-28T07:05:10.492682",
     "source_files": [
       "test_raschet.xlsm",
       "test_raschet_30pcs_logistics.xlsm",
       "test_raschet_30pct.xlsm",
       "test_raschet_logistics.xlsm",
       "test_raschet_multi_currency.xlsm",
+      "test_raschet_multi_currency_correct_rate.xlsm",
+      "test_raschet_multi_currency_correct_rate_2711.xlsm",
+      "test_raschet_multi_currency_correct_rate_2711_30pct_100k.xlsm",
       "test_raschet_multi_currency_old.xlsm",
       "test_raschet_multi_currency_rub.xlsm"
     ],
@@ -74077,6 +74080,3021 @@
             },
             "distribution_base": {
               "value": 0.007734803232575186,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        }
+      ],
+      "product_count": 5
+    },
+    "test_raschet_multi_currency_correct_rate": {
+      "quote_variables": {
+        "seller_company": "МАСТЕР БЭРИНГ ООО (ИНН 0242013464)",
+        "offer_sale_type": "поставка",
+        "offer_incoterms": "DDP",
+        "currency_of_quote": "EUR",
+        "delivery_time": 30,
+        "advance_to_supplier": 1.0,
+        "advance_from_client": 0.5,
+        "time_to_advance": null,
+        "logistics_supplier_hub": 1500.0,
+        "logistics_hub_customs": 800.0,
+        "logistics_customs_client": 500.0,
+        "brokerage_hub": 100.0,
+        "brokerage_customs": 200.0,
+        "warehousing_at_customs": 300.0,
+        "customs_documentation": 400.0,
+        "brokerage_extra": 500.0,
+        "dm_fee_type": "Фикс",
+        "dm_fee_value": 0.0,
+        "rate_forex_risk": 0.03,
+        "total_purchase": 1850.8533665943921,
+        "logistics_first_leg_total": 2801.0,
+        "logistics_last_leg_total": 1500.0,
+        "total_cogs": 6398.090000000001
+      },
+      "products": [
+        {
+          "row": 16,
+          "inputs": {
+            "row_number": 1,
+            "brand": "Komatsu",
+            "sku": "195-03-51110",
+            "product_name": "CORE",
+            "quantity": 1,
+            "unit": "шт",
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "TRY",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Турция",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 49.22,
+            "customs_code": "8708913509",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8708913509/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.009147557147722677
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 16.93078694297711,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 16.93078694297711,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 25.622307570771216,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 13.721335721584015,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 39.34364329235523,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 2.14,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 58.52,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 58.52,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 67.3,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 67.3,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 8.78,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 2.046807354473385,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 0.926911815779504,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 70.27,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 70.27,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 84.32,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 84.32,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 14.049999999999997,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 9.006461514154244,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 5.043538485845753,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.02,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 17.27,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 17.27,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 20.316944331572532,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.10281757003572917,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.009147557147722677,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 17,
+          "inputs": {
+            "row_number": 2,
+            "brand": "Komatsu",
+            "sku": "6245-31-1100",
+            "product_name": "CRANKSHAFT ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "USD",
+            "base_price_vat": 1000.0,
+            "supplier_country": "ЕС (закупка между странами ЕС)",
+            "vat_seller_country": 0.0,
+            "supplier_discount": null,
+            "exchange_rate": 1.15,
+            "customs_code": "8409990009",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8409990009/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.46981853510703664
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 869.5652173913044,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 869.5652173913044,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 1315.9617168348095,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 704.727802660555,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 2020.6895194953645,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 111.02,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 3006.56,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 3006.56,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 3457.54,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 3457.54,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 450.98,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 105.05838572575306,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 44.40619085843532,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 3607.0,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 3607.0,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 4328.4,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 4328.4,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 721.3999999999996,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 466.2663433669619,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 255.13365663303773,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.04,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 904.35,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 904.35,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 869.5652173913044,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 5.28071039703505,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.46981853510703664,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 18,
+          "inputs": {
+            "row_number": 3,
+            "brand": "Komatsu",
+            "sku": "6162-33-1202",
+            "product_name": "CRANKSHAFT ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "EUR",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Болгария",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 1.0,
+            "customs_code": "8409990009",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8409990009/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.45024276281091014
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 1261.1299786333593,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 675.3641442163652,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 1936.4941228497246,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 106.39,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 2881.28,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 2881.28,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 3313.47,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 3313.47,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 432.19,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 100.78477798718001,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 46.02259957266719,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 3460.28,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 3460.28,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 4152.34,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 4152.34,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 692.06,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 446.83799572667186,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 245.22200427332808,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.04,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 866.67,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 866.67,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 1000.0,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 5.060680797158589,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.45024276281091014,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 19,
+          "inputs": {
+            "row_number": 4,
+            "brand": "Komatsu",
+            "sku": "195-03-43100",
+            "product_name": "OIL COOLER ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "CNY",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Китай",
+            "vat_seller_country": 0.13,
+            "supplier_discount": null,
+            "exchange_rate": 8.21,
+            "customs_code": "8708913509",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8708913509/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.06580893000890281
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 121.80267965895248,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 121.80267965895248,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 184.33081295493676,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 98.71339501335422,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 283.04420796829095,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 15.43,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 421.02,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 421.02,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 484.17,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 484.17,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 63.15,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 14.719932348917908,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 6.4944116305969075,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 505.38,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 505.38,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 606.46,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 606.46,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 101.08000000000004,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 64.80016259098736,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 36.279837409012686,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.02,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 124.24,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 124.24,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 137.6370280146163,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.739685378391024,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.06580893000890281,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 20,
+          "inputs": {
+            "row_number": 5,
+            "brand": "Komatsu",
+            "sku": "600-614-5351",
+            "product_name": "REVERSIBLE FAN",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "RUB",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Россия",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 90.37,
+            "customs_code": "8414900000",
+            "import_tariff": 0.0,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8414900000/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.004982214925427798
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 9.221349267824868,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 9.221349267824868,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 13.955184006123263,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 7.473322388141697,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 21.42850639426496,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 0.0,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 30.71,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 30.71,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 35.32,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 35.32,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 4.61,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 1.074612481876508,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 0.500416062550262,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 36.9,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 36.9,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 44.28,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 44.28,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 7.380000000000003,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 4.635036801224653,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 2.7449631987753493,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.0,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 9.22,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 9.22,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 11.065619121389842,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.05599956619628847,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.004982214925427798,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        }
+      ],
+      "product_count": 5
+    },
+    "test_raschet_multi_currency_correct_rate_2711": {
+      "quote_variables": {
+        "seller_company": "МАСТЕР БЭРИНГ ООО (ИНН 0242013464)",
+        "offer_sale_type": "поставка",
+        "offer_incoterms": "DDP",
+        "currency_of_quote": "EUR",
+        "delivery_time": 30,
+        "advance_to_supplier": 1.0,
+        "advance_from_client": 0.5,
+        "time_to_advance": null,
+        "logistics_supplier_hub": 1500.0,
+        "logistics_hub_customs": 800.0,
+        "logistics_customs_client": 500.0,
+        "brokerage_hub": 100.0,
+        "brokerage_customs": 200.0,
+        "warehousing_at_customs": 300.0,
+        "customs_documentation": 400.0,
+        "brokerage_extra": 500.0,
+        "dm_fee_type": "Фикс",
+        "dm_fee_value": 0.0,
+        "rate_forex_risk": 0.03,
+        "total_purchase": 1842.8114086514347,
+        "logistics_first_leg_total": 2800.8999999999996,
+        "logistics_last_leg_total": 1499.9999999999998,
+        "total_cogs": 6378.26
+      },
+      "products": [
+        {
+          "row": 16,
+          "inputs": {
+            "row_number": 1,
+            "brand": "Komatsu",
+            "sku": "195-03-51110",
+            "product_name": "CORE",
+            "quantity": 1,
+            "unit": "шт",
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "TRY",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Турция",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 49.1889,
+            "customs_code": "8708913509",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8708913509/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.00919328557601363
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 16.941491542468594,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 16.941491542468594,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 25.749473569856576,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 13.78992836402044,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 39.539401933877016,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 2.15,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 58.63,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 58.63,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 67.42,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 67.42,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 8.79,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 2.0504915155307026,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 0.9297171843567626,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 70.4,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 70.4,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 84.48,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 84.48,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 14.079999999999998,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 9.035894713971315,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 5.0441052860286835,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.02,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 17.28,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 17.28,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 20.32978985096231,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.00919328557601363,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 17,
+          "inputs": {
+            "row_number": 2,
+            "brand": "Komatsu",
+            "sku": "6245-31-1100",
+            "product_name": "CRANKSHAFT ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "USD",
+            "base_price_vat": 1000.0,
+            "supplier_country": "ЕС (закупка между странами ЕС)",
+            "vat_seller_country": 0.0,
+            "supplier_discount": null,
+            "exchange_rate": 1.1602,
+            "customs_code": "8409990009",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8409990009/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.46772032911909345
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 861.9203585588692,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 861.9203585588692,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 1310.0378698296688,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 701.58049367864,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 2011.618363508309,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 110.32,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 2983.86,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 2983.86,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 3431.44,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 3431.44,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 447.58,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 104.26706102563853,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 44.128700854617854,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 3579.84,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 3579.84,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 4295.81,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 4295.81,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 715.9700000000003,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 463.35157396593377,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 252.6184260340665,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.04,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 896.4,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 896.4,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 861.9203585588692,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.46772032911909345,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 18,
+          "inputs": {
+            "row_number": 3,
+            "brand": "Komatsu",
+            "sku": "6162-33-1202",
+            "product_name": "CRANKSHAFT ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "EUR",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Болгария",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 1.0,
+            "customs_code": "8409990009",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8409990009/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.4522076048699768
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 1266.588280480318,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 678.311407304965,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 1944.8996877852828,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 106.66,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 2884.89,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 2884.89,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 3317.62,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 3317.62,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 432.73,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 100.91255296828818,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 46.131765609606354,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 3464.66,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 3464.66,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 4157.59,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 4157.59,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 692.9300000000003,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 447.98365609606356,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 244.94634390393674,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.04,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 866.67,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 866.67,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 1000.0,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.4522076048699768,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 19,
+          "inputs": {
+            "row_number": 4,
+            "brand": "Komatsu",
+            "sku": "195-03-43100",
+            "product_name": "OIL COOLER ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "CNY",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Китай",
+            "vat_seller_country": 0.13,
+            "supplier_discount": null,
+            "exchange_rate": 8.2347,
+            "customs_code": "8708913509",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8708913509/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.0658978621982552
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 1000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 121.43733226468481,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 121.43733226468481,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 184.57332223109302,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 98.84679329738277,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 283.4201155284758,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 15.42,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 420.28,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 420.28,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 483.32,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 483.32,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 63.04,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 14.694325194839621,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 6.490839827987375,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 504.51,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 504.51,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 605.41,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 605.41,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 100.89999999999998,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 64.7726644462186,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 36.12733555378138,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.02,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 123.87,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 123.87,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 137.22418545909383,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.0658978621982552,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 20,
+          "inputs": {
+            "row_number": 5,
+            "brand": "Komatsu",
+            "sku": "600-614-5351",
+            "product_name": "REVERSIBLE FAN",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "RUB",
+            "base_price_vat": 1000.0,
+            "supplier_country": "Россия",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 90.788,
+            "customs_code": "8414900000",
+            "import_tariff": 0.0,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8414900000/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.004980918236660977
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 833.3333333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 9.178892952078836,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 9.178892952078836,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 13.951053889063731,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 7.471377354991463,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 21.422431244055193,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 0.0,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 30.6,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 30.6,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 35.19,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 35.19,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 4.59,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 1.0706794352589348,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 0.49931450863116666,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 36.76,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 36.76,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 44.11,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 44.11,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 7.350000000000001,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 4.626210777812746,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 2.7237892221872553,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.0,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 9.18,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 9.18,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 11.014671542494604,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 0.0,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.004980918236660977,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        }
+      ],
+      "product_count": 5
+    },
+    "test_raschet_multi_currency_correct_rate_2711_30pct_100k": {
+      "quote_variables": {
+        "seller_company": "МАСТЕР БЭРИНГ ООО (ИНН 0242013464)",
+        "offer_sale_type": "поставка",
+        "offer_incoterms": "DDP",
+        "currency_of_quote": "EUR",
+        "delivery_time": 30,
+        "advance_to_supplier": 1.0,
+        "advance_from_client": 0.3,
+        "time_to_advance": null,
+        "logistics_supplier_hub": 1500.0,
+        "logistics_hub_customs": 800.0,
+        "logistics_customs_client": 500.0,
+        "brokerage_hub": 100.0,
+        "brokerage_customs": 200.0,
+        "warehousing_at_customs": 300.0,
+        "customs_documentation": 400.0,
+        "brokerage_extra": 500.0,
+        "dm_fee_type": "Фикс",
+        "dm_fee_value": 0.0,
+        "rate_forex_risk": 0.03,
+        "total_purchase": 184281.14086514348,
+        "logistics_first_leg_total": 2890.0,
+        "logistics_last_leg_total": 1500.0000000000002,
+        "total_cogs": 202433.30000000002
+      },
+      "products": [
+        {
+          "row": 16,
+          "inputs": {
+            "row_number": 1,
+            "brand": "Komatsu",
+            "sku": "195-03-51110",
+            "product_name": "CORE",
+            "quantity": 1,
+            "unit": "шт",
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "TRY",
+            "base_price_vat": 100000.0,
+            "supplier_country": "Турция",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 49.1889,
+            "customs_code": "8708913509",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8708913509/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.00919328557601363
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 1694.1491542468596,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 1694.1491542468596,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 26.56859531467939,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 13.789928364020446,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 40.35852367869983,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 87.73,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 1859.91,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 1859.91,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 2138.9,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 2138.9,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 278.99,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 65.4271242960677,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 42.004143202256714,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 2246.33,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 2246.33,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 2695.6,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 2695.6,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 449.27,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 368.46571906293593,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 80.80428093706405,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.02,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 1728.03,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 1728.03,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 2032.9789850962313,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 26.56995884172415,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 11.097941548325844,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.00919328557601363,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 17,
+          "inputs": {
+            "row_number": 2,
+            "brand": "Komatsu",
+            "sku": "6245-31-1100",
+            "product_name": "CRANKSHAFT ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "USD",
+            "base_price_vat": 100000.0,
+            "supplier_country": "ЕС (закупка между странами ЕС)",
+            "vat_seller_country": 0.0,
+            "supplier_discount": null,
+            "exchange_rate": 1.1602,
+            "customs_code": "8409990009",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8409990009/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.4677203291190934
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 100000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 100000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 86192.03585588692,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 86192.03585588692,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 1351.7117511541799,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 701.5804936786401,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 2053.29224483282,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 4549.57,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 94711.3,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 94711.3,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 108918.0,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 108918.0,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 14206.7,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 3322.134857424766,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 1819.8285808255314,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 114059.96,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 114059.96,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 136871.95,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 136871.95,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 22811.990000000005,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 19108.200350230836,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 3703.789649769169,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.04,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 89639.72,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 89639.72,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 86192.03585588692,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 1351.781122361336,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 564.622172411424,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.4677203291190934,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 18,
+          "inputs": {
+            "row_number": 3,
+            "brand": "Komatsu",
+            "sku": "6162-33-1202",
+            "product_name": "CRANKSHAFT ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "EUR",
+            "base_price_vat": 100000.0,
+            "supplier_country": "Болгария",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 1.0,
+            "customs_code": "8409990009",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8409990009/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.45220760486997685
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 1306.8799780742331,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 678.3114073049653,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 1985.1913853791984,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 4398.68,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 91570.05,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 91570.05,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 105305.56,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 105305.56,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 13735.51,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 3222.350927986844,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 2106.137599561485,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 110634.05,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 110634.05,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 132760.86,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 132760.86,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 22126.809999999983,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 18474.445995614846,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 3652.3640043851374,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.04,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 86666.67,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 86666.67,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 100000.00000000001,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 1306.9470484696851,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 545.8955370264451,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.45220760486997685,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 19,
+          "inputs": {
+            "row_number": 4,
+            "brand": "Komatsu",
+            "sku": "195-03-43100",
+            "product_name": "OIL COOLER ASS",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "CNY",
+            "base_price_vat": 100000.0,
+            "supplier_country": "Китай",
+            "vat_seller_country": 0.13,
+            "supplier_discount": null,
+            "exchange_rate": 8.2347,
+            "customs_code": "8708913509",
+            "import_tariff": 0.05,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8708913509/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.0658978621982552
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 100000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 100000.0,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 12143.733226468481,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 12143.733226468481,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 190.44482175295755,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 98.8467932973828,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 289.29161505034034,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 628.85,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 13331.88,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 13331.88,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 15331.66,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 15331.66,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 1999.78,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 468.4621870431483,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 283.74623477161055,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 16083.87,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 16083.87,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 19300.64,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 19300.64,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 3216.7699999999986,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 2641.1809643505917,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 575.5890356494069,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.02,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 12386.61,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 12386.61,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 13722.418545909382,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 190.4545955728347,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 79.55051725402676,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.0658978621982552,
+              "category": "phase2",
+              "python_attr": "distribution_base"
+            }
+          }
+        },
+        {
+          "row": 20,
+          "inputs": {
+            "row_number": 5,
+            "brand": "Komatsu",
+            "sku": "600-614-5351",
+            "product_name": "REVERSIBLE FAN",
+            "quantity": 1,
+            "unit": null,
+            "weight_per_unit": null,
+            "unknown_h": null,
+            "currency_of_base_price": "RUB",
+            "base_price_vat": 100000.0,
+            "supplier_country": "Россия",
+            "vat_seller_country": 0.2,
+            "supplier_discount": null,
+            "exchange_rate": 90.788,
+            "customs_code": "8414900000",
+            "import_tariff": 0.0,
+            "markup": 0.15,
+            "customs_url": "https://www.alta.ru/tnved/code/8414900000/",
+            "unknown_as": null,
+            "unknown_at": null,
+            "unknown_au": 0.0,
+            "unknown_av": null,
+            "unknown_bc": 0.004980918236660978
+          },
+          "calculated": {
+            "total_weight": {
+              "value": 0.0,
+              "category": "calculated",
+              "python_attr": null
+            },
+            "purchase_price_no_vat": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_no_vat"
+            },
+            "purchase_price_after_discount": {
+              "value": 83333.33333333334,
+              "category": "phase1",
+              "python_attr": "purchase_price_after_discount"
+            },
+            "purchase_price_per_unit_quote_currency": {
+              "value": 917.8892952078837,
+              "category": "phase1",
+              "python_attr": "purchase_price_per_unit_quote_currency"
+            },
+            "purchase_price_total_quote_currency": {
+              "value": 917.8892952078837,
+              "category": "phase1",
+              "python_attr": "purchase_price_total_quote_currency"
+            },
+            "logistics_first_leg": {
+              "value": 14.394853703950227,
+              "category": "phase3",
+              "python_attr": "logistics_first_leg"
+            },
+            "logistics_last_leg": {
+              "value": 7.471377354991467,
+              "category": "phase3",
+              "python_attr": "logistics_last_leg"
+            },
+            "logistics_total": {
+              "value": 21.866231058941693,
+              "category": "phase3",
+              "python_attr": "logistics_total"
+            },
+            "customs_fee": {
+              "value": 0.0,
+              "category": "phase4",
+              "python_attr": "customs_fee"
+            },
+            "excise_tax_amount": {
+              "value": null,
+              "category": "phase4",
+              "python_attr": "excise_tax_amount"
+            },
+            "cogs_per_unit": {
+              "value": 960.16,
+              "category": "phase10",
+              "python_attr": "cogs_per_unit"
+            },
+            "cogs_per_product": {
+              "value": 960.16,
+              "category": "phase10",
+              "python_attr": "cogs_per_product"
+            },
+            "sale_price_per_unit_excl_financial": {
+              "value": 1104.18,
+              "category": "phase11",
+              "python_attr": "sale_price_per_unit_excl_financial"
+            },
+            "sale_price_total_excl_financial": {
+              "value": 1104.18,
+              "category": "phase11",
+              "python_attr": "sale_price_total_excl_financial"
+            },
+            "profit": {
+              "value": 144.02,
+              "category": "phase11",
+              "python_attr": "profit"
+            },
+            "dm_fee": {
+              "value": 0.0,
+              "category": "phase11",
+              "python_attr": "dm_fee"
+            },
+            "forex_reserve": {
+              "value": 33.79491720477205,
+              "category": "phase11",
+              "python_attr": "forex_reserve"
+            },
+            "financial_agent_fee": {
+              "value": 22.317240159068216,
+              "category": "phase11",
+              "python_attr": "financial_agent_fee"
+            },
+            "sales_price_per_unit_no_vat": {
+              "value": 1160.29,
+              "category": "phase11",
+              "python_attr": "sales_price_per_unit_no_vat"
+            },
+            "sales_price_total_no_vat": {
+              "value": 1160.29,
+              "category": "phase11",
+              "python_attr": "sales_price_total_no_vat"
+            },
+            "sales_price_total_with_vat": {
+              "value": 1392.35,
+              "category": "phase12",
+              "python_attr": "sales_price_total_with_vat"
+            },
+            "sales_price_per_unit_with_vat": {
+              "value": 1392.35,
+              "category": "phase12",
+              "python_attr": "sales_price_per_unit_with_vat"
+            },
+            "vat_from_sales": {
+              "value": 232.05999999999995,
+              "category": "phase12",
+              "python_attr": "vat_from_sales"
+            },
+            "vat_on_import": {
+              "value": 186.45697074079007,
+              "category": "phase12",
+              "python_attr": "vat_on_import"
+            },
+            "vat_net_payable": {
+              "value": 45.603029259209876,
+              "category": "phase12",
+              "python_attr": "vat_net_payable"
+            },
+            "transit_commission": {
+              "value": 0.0,
+              "category": "phase13",
+              "python_attr": "transit_commission"
+            },
+            "internal_markup": {
+              "value": 0.0,
+              "category": "phase2_5",
+              "python_attr": "internal_markup"
+            },
+            "internal_sale_price_per_unit": {
+              "value": 917.89,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_per_unit"
+            },
+            "internal_sale_price_total": {
+              "value": 917.89,
+              "category": "phase2_5",
+              "python_attr": "internal_sale_price_total"
+            },
+            "purchase_with_supplier_vat": {
+              "value": 1101.4671542494605,
+              "category": "phase4",
+              "python_attr": "purchase_with_supplier_vat"
+            },
+            "financing_cost_initial": {
+              "value": 14.395592462326357,
+              "category": "phase9",
+              "python_attr": "financing_cost_initial"
+            },
+            "financing_cost_credit": {
+              "value": 6.012860036859995,
+              "category": "phase9",
+              "python_attr": "financing_cost_credit"
+            },
+            "distribution_base": {
+              "value": 0.004980918236660978,
               "category": "phase2",
               "python_attr": "distribution_base"
             }

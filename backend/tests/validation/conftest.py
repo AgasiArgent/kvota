@@ -155,7 +155,66 @@ PRODUCT_FIELD_MAPPING = {
 }
 
 
+# All 29 calculated fields to test (used by multiple test files)
+CALCULATED_FIELDS = [
+    # Phase 1: Purchase Price
+    "purchase_price_no_vat",
+    "purchase_price_after_discount",
+    "purchase_price_per_unit_quote_currency",
+    "purchase_price_total_quote_currency",
+
+    # Phase 2: Distribution
+    "distribution_base",
+
+    # Phase 2.5: Internal Pricing
+    "internal_sale_price_per_unit",
+    "internal_sale_price_total",
+
+    # Phase 3: Logistics
+    "logistics_first_leg",
+    "logistics_last_leg",
+    "logistics_total",
+
+    # Phase 4: Duties
+    "customs_fee",
+
+    # Phase 9: Financing
+    "financing_cost_initial",
+    "financing_cost_credit",
+
+    # Phase 10: COGS
+    "cogs_per_unit",
+    "cogs_per_product",
+
+    # Phase 11: Sales Price
+    "sale_price_per_unit_excl_financial",
+    "sale_price_total_excl_financial",
+    "profit",
+    "dm_fee",
+    "forex_reserve",
+    "financial_agent_fee",
+    "sales_price_per_unit_no_vat",
+    "sales_price_total_no_vat",
+
+    # Phase 12: VAT
+    "sales_price_total_with_vat",
+    "sales_price_per_unit_with_vat",
+    "vat_from_sales",
+    "vat_on_import",
+    "vat_net_payable",
+
+    # Phase 13: Transit
+    "transit_commission",
+]
+
+
 @pytest.fixture
 def field_mapping():
     """Provide standard field mapping for tests."""
     return PRODUCT_FIELD_MAPPING
+
+
+@pytest.fixture
+def calculated_fields():
+    """Provide list of all calculated fields for tests."""
+    return CALCULATED_FIELDS
