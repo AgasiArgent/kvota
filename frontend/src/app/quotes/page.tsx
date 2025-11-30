@@ -235,7 +235,7 @@ export default function QuotesPage() {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch(`${config.apiUrl}/api/quotes/upload-excel`, {
+        const response = await fetch(`${config.apiUrl}/api/quotes/upload-excel-validation`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -245,15 +245,25 @@ export default function QuotesPage() {
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.detail || 'Ошибка загрузки');
+          throw new Error(error.detail || 'Ошибка расчёта');
         }
 
-        const result = await response.json();
-        message.success(`КП ${result.quote_number} создано успешно`);
-        onSuccess?.(result);
-        fetchQuotes(); // Refresh the list
+        // Download the returned Excel file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const uploadedFile = file as File;
+        a.download = `validation_${uploadedFile.name.replace(/\.(xlsx|xls|xlsm)$/i, '')}_${new Date().toISOString().slice(0, 10)}.xlsm`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        message.success('Расчёт выполнен. Файл скачан.');
+        onSuccess?.({});
       } catch (error: any) {
-        message.error(error.message || 'Ошибка загрузки файла');
+        message.error(error.message || 'Ошибка расчёта');
         onError?.(error);
       } finally {
         setUploading(false);
