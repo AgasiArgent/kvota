@@ -1,24 +1,23 @@
-## TODO - Next Session (Session 59)
+## TODO - Next Session (Session 61)
 
-### 1. Fix Excel Validation Export Issues
-User reported "many things to fix" in the generated validation Excel:
-- Review and fix any remaining field mapping issues
-- Verify all cell references work correctly
-- Test with actual user data
+### 1. Verify Canonical Currency (USD) Outputs
+- Test end-to-end calculation with USD as internal currency
+- Verify outputs convert correctly to user's desired currency
+- Ensure audit trail is correct
 
-### 2. Full Excel Validation Test
-- Run complete test with `test_raschet_multi_currency_correct_rate_2711_30pct_100k.xlsm`
-- Verify all 13 calculation phases match Excel within 0.01%
-- Use testing guide: `docs/plans/2025-11-28-excel-validation-testing-guide.md`
-
-### 3. Build Better Frontend
-- Improve quote creation UI
-- Better input validation and error handling
+### 2. Start Frontend Implementation
+- Build quote creation UI based on export data structure
+- Improve input validation and error handling
 - Display calculated results clearly
+
+### 3. Full Excel Validation Test (if needed)
+- Run complete test with new templates
+- Verify all 13 calculation phases match Excel within 0.01%
 
 ---
 
 ### Completed
+- ~~Fix exchange rate display (TRY nominal, 4 decimals)~~ ✅ (Session 60)
 - ~~Fix exchange rate bug in frontend~~ ✅ (Session 53)
 - ~~Fix exchange rate bug in backend~~ ✅ (Session 53)
 - ~~Excel validation discrepancy investigation~~ ✅ (Session 54)
@@ -26,6 +25,124 @@ User reported "many things to fix" in the generated validation Excel:
 - ~~Achieve 0.011% accuracy target~~ ✅ (Session 56)
 - ~~Fix financing block formulas (BL4, BH9)~~ ✅ (Session 57)
 - ~~Excel validation export service~~ ✅ (Session 58)
+- ~~CI pipeline fixes~~ ✅ (Session 59)
+
+---
+
+## Session 60 (2025-11-30) - Exchange Rate Display Fix ✅
+
+### Goal
+Fix TRY/RUB exchange rate display (wrong due to CBR nominal) and show 4 decimal places
+
+### Status: COMPLETE ✅
+
+**Time:** ~30 minutes
+**Commit:** 1e7c1ca
+
+---
+
+### Issues Fixed
+
+1. **TRY/RUB Rate Incorrect (18.4498 → 1.8450)**
+   - **Problem:** TRY was showing raw CBR value (18.4498) instead of rate divided by nominal (1.8450)
+   - **Root cause:** Old cached values in database didn't have nominal division applied
+   - **Solution:** Backend already divides by nominal correctly; added admin refresh button to force fetch fresh rates from CBR
+
+2. **Exchange Rate Decimals (2 → 4)**
+   - Changed `toFixed(2)` to `toFixed(4)` in ExchangeRates.tsx
+   - All rates now display: USD 78.2284, EUR 90.8190, TRY 1.8450, CNY 11.0211
+
+3. **Admin Refresh Button**
+   - Added `refreshFromCBR()` function to ExchangeRates component
+   - Created `/api/exchange-rates/refresh` API route (Next.js → FastAPI proxy)
+   - Fixed import error in backend (check_admin_permissions from auth, not calculation_settings)
+
+---
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/components/layout/ExchangeRates.tsx` | Added refreshFromCBR(), changed toFixed(4), added supabase auth |
+| `frontend/src/app/api/exchange-rates/refresh/route.ts` | NEW - API route to proxy refresh to backend |
+| `backend/routes/exchange_rates.py` | Fixed import: check_admin_permissions from auth |
+
+---
+
+### CBR Nominal Explained
+
+Central Bank of Russia API returns rates with "Nominal" field:
+- USD: Value=78.2284, Nominal=1 → Rate = 78.2284
+- TRY: Value=18.4498, Nominal=10 → Rate = 1.8450 (divide by 10)
+- JPY: Value=67.50, Nominal=100 → Rate = 0.675 (divide by 100)
+
+Backend `exchange_rate_service.py` already handles this correctly. Issue was stale cached data.
+
+---
+
+## Session 59 (2025-11-30) - CI Pipeline Fixes ✅
+
+### Goal
+Fix GitHub Actions CI to pass on feature/user-feedback branch before merge
+
+### Status: COMPLETE ✅
+
+**Time:** ~1 hour
+**Commits:** 5 commits (f8c317c → e096802)
+
+---
+
+### Issues Fixed
+
+1. **CI Branch Triggers**
+   - Added `feature/user-feedback` to `.github/workflows/ci.yml` push triggers
+   - CI now runs on feature branches before merge
+
+2. **Missing MonetaryInput Component**
+   - `frontend/src/components/inputs/MonetaryInput.tsx` was untracked
+   - Committed to fix TypeScript error TS2307
+
+3. **Test quote_date Parameter**
+   - Added `TEST_QUOTE_DATE = date(2025, 6, 15)` to mapper tests
+   - Required for VAT 2026 feature (function signature changed)
+
+4. **Decimal Format for Percentage Values**
+   - Model constraints expect decimal format (0.15 = 15%), not percentage (15)
+   - Fixed in tests:
+     - `markup`: "15" → "0.15"
+     - `rate_forex_risk`: 3 → 0.03
+     - `rate_fin_comm`: 2 → 0.02
+   - Fixed in mapper:
+     - `advance_from_client`: 100 → 1 (1.0 = 100%)
+     - `advance_to_supplier`: 100 → 1
+
+5. **Currency of Quote Assertion**
+   - Test expected "RUB" but mapper always uses "USD" (canonical currency)
+   - Fixed test to expect "USD" for internal calculations
+
+---
+
+### CI Results
+
+All 3 jobs pass:
+- ✅ **Frontend - Lint & Type Check**
+- ✅ **Backend - Tests** (23 tests)
+- ✅ **Frontend - Build**
+
+CI Run: https://github.com/AgasiArgent/kvota/actions/runs/19791508512
+
+---
+
+### Key Learnings
+
+1. **USD Canonical Currency**: All internal calculations use USD. User's desired currency (RUB, EUR, etc.) is only for final output conversion.
+
+2. **Decimal Format Convention**: Pydantic models use decimal format for percentages:
+   - 0.15 = 15%
+   - 1.0 = 100%
+   - Max markup 5.0 = 500%
+
+3. **CI on Feature Branches**: Always run CI before merge to catch issues early.
 
 ---
 
