@@ -3,6 +3,7 @@ Tests for variable mapper function in quotes_calc.py
 """
 import pytest
 from decimal import Decimal
+from datetime import date
 from routes.quotes_calc import (
     ProductFromFile,
     map_variables_to_calculation_input,
@@ -11,6 +12,9 @@ from routes.quotes_calc import (
     safe_int,
     get_value
 )
+
+# Default test date (before 2026, so VAT = 20%)
+TEST_QUOTE_DATE = date(2025, 6, 15)
 
 
 class TestHelperFunctions:
@@ -109,7 +113,7 @@ class TestMapVariables:
             "rate_loan_interest_daily": Decimal("0.00069")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         # Verify product info
         assert result.product.base_price_VAT == Decimal("1000.0")
@@ -158,7 +162,7 @@ class TestMapVariables:
             "rate_loan_interest_daily": Decimal("0.00069")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         # Product overrides should win
         assert result.logistics.supplier_country.value == "Китай"
@@ -196,7 +200,7 @@ class TestMapVariables:
             "rate_loan_interest_daily": Decimal("0.00069")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         assert result.logistics.logistics_supplier_hub == Decimal("1500.00")
         assert result.logistics.logistics_hub_customs == Decimal("800.00")
@@ -227,7 +231,7 @@ class TestMapVariables:
             "rate_loan_interest_daily": Decimal("0.00069")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         # Check defaults
         assert result.financial.supplier_discount == Decimal("0")
