@@ -519,36 +519,9 @@ async def admin_dashboard(user: User = Depends(require_role(UserRole.ADMIN))):
     }
 
 # ============================================================================
-# DATABASE ACCESS EXAMPLES
+# DATABASE ACCESS EXAMPLES (REMOVED - conflicted with routes/customers.py)
 # ============================================================================
-
-@app.get("/api/customers")
-async def get_customers(user: User = Depends(require_permission("customers:read"))):
-    """Get customers list with RLS applied"""
-    try:
-        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
-        
-        # Set RLS context
-        await conn.execute(
-            "SELECT set_config('request.jwt.claims', $1, true)", 
-            f'{{"sub": "{user.id}", "role": "authenticated"}}'
-        )
-        
-        # Query will automatically apply RLS policies
-        customers = await conn.fetch("SELECT id, name, email, created_at FROM customers LIMIT 10")
-        await conn.close()
-        
-        return {
-            "customers": [dict(customer) for customer in customers],
-            "count": len(customers),
-            "user_access": user.role
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+# NOTE: The customers endpoint is now in routes/customers.py
 
 # ============================================================================
 # TESTING ENDPOINTS

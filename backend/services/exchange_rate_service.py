@@ -5,7 +5,10 @@ Automatic daily updates with caching and fallback mechanisms
 import os
 import httpx
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
+
+# Industry standard: 4 decimal places for exchange rates
+RATE_PRECISION = Decimal("0.0001")
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -74,10 +77,18 @@ class ExchangeRateService:
                         logger.warning(f"Skipping invalid currency data for {currency_code}")
                         continue
 
-                    if "Value" in currency_data:
+                    if "Value" in currency_data and "Nominal" in currency_data:
                         try:
                             # Convert to Decimal for precision
-                            rate = Decimal(str(currency_data["Value"]))
+                            # CBR reports rates for Nominal units, so divide to get rate per 1 unit
+                            # E.g., TRY: Nominal=10, Value=18.45 means 1 TRY = 1.845 RUB
+                            value = Decimal(str(currency_data["Value"]))
+                            nominal = Decimal(str(currency_data["Nominal"]))
+                            if nominal <= 0:
+                                logger.warning(f"Invalid nominal for {currency_code}: {nominal}")
+                                continue
+                            # Rate per 1 unit, rounded to 4 decimals (industry standard)
+                            rate = (value / nominal).quantize(RATE_PRECISION, rounding=ROUND_HALF_UP)
                             if rate <= 0:
                                 logger.warning(f"Skipping invalid rate for {currency_code}: {rate}")
                                 continue
