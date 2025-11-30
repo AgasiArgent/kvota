@@ -337,10 +337,10 @@ export default function QuotesPage() {
       ellipsis: true,
     },
     {
-      title: 'Сумма',
+      title: 'Сумма (в валюте КП)',
       dataIndex: 'total_amount',
       key: 'total_amount',
-      width: 130,
+      width: 150,
       align: 'right' as const,
       render: (_: any, record: QuoteListItem) => {
         const amount = record.total_amount || record.total || 0;
