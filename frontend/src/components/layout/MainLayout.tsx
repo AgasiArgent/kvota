@@ -52,7 +52,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
         icon: <TeamOutlined />,
         label: 'Клиенты',
       },
-      {
+    ];
+
+    // Approval menu removed - use filter on /quotes page instead
+
+    // Add CRM, Organizations, and Analytics for admin/owner only
+    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
+      baseItems.push({
         key: 'crm-menu',
         icon: <UserOutlined />,
         label: 'CRM',
@@ -66,18 +72,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
             label: 'Воронка',
           },
         ],
-      },
-      {
+      });
+      baseItems.push({
         key: '/organizations',
         icon: <ApartmentOutlined />,
         label: 'Организации',
-      },
-    ];
-
-    // Approval menu removed - use filter on /quotes page instead
-
-    // Add analytics menu for admin/owner
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
+      });
       baseItems.push({
         key: 'analytics-menu',
         icon: <BarChartOutlined />,
