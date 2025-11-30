@@ -665,7 +665,7 @@ async def upload_excel_with_validation_export(
                 "base_price_vat": float(p.base_price_vat),
                 "supplier_country": p.supplier_country if p.supplier_country else "Турция",
                 "supplier_discount": float(p.supplier_discount) if p.supplier_discount else 0,
-                "exchange_rate": float(rates.get(f"{p.currency.value}/RUB", 1)),
+                "exchange_rate": float(calculate_exchange_rate(p.currency.value, parsed_data.quote_currency.value, rates, for_division=True)),
                 "customs_code": p.customs_code or "",
                 "import_tariff": float(p.import_tariff) if p.import_tariff else 0,
                 "markup": float(p.markup),
