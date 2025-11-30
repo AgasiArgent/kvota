@@ -169,7 +169,7 @@ async def list_quotes(
         # Explicitly list fields to ensure new columns are included
         query = supabase.table("quotes").select(
             "id, quote_number, customer_id, title, description, status, workflow_state, "
-            "quote_date, valid_until, "
+            "quote_date, valid_until, currency, "
             "subtotal, tax_rate, tax_amount, total_amount, "
             "total_profit_usd, total_vat_on_import_usd, total_vat_payable_usd, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
@@ -248,6 +248,8 @@ async def list_quotes(
                 "status": quote["status"],
                 "workflow_state": quote.get("workflow_state", "draft"),
                 "total_amount": quote.get("total_amount", 0),
+                "total_profit_usd": quote.get("total_profit_usd"),
+                "currency": quote.get("currency", "USD"),
                 "quote_date": quote.get("quote_date"),
                 "valid_until": quote.get("valid_until"),
                 "created_at": quote["created_at"]
@@ -889,7 +891,7 @@ async def list_bin_quotes(
         # Explicitly list fields to ensure new columns are included
         query = supabase.table("quotes").select(
             "id, quote_number, customer_id, title, description, status, "
-            "quote_date, valid_until, "
+            "quote_date, valid_until, currency, "
             "subtotal, tax_rate, tax_amount, total_amount, "
             "total_profit_usd, total_vat_on_import_usd, total_vat_payable_usd, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
