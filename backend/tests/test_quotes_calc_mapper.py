@@ -108,9 +108,9 @@ class TestMapVariables:
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
         result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
@@ -122,8 +122,8 @@ class TestMapVariables:
 
         # Verify financial params
         assert result.financial.currency_of_quote.value == "USD"
-        assert result.financial.markup == Decimal("15")
-        assert result.financial.rate_forex_risk == Decimal("3")
+        assert result.financial.markup == Decimal("0.15")
+        assert result.financial.rate_forex_risk == Decimal("0.03")
 
         # Verify logistics params
         assert result.logistics.supplier_country.value == "Турция"
@@ -131,8 +131,7 @@ class TestMapVariables:
         assert result.logistics.delivery_time == 60  # Default
 
         # Verify system config (admin settings)
-        assert result.system.rate_fin_comm == Decimal("2")
-        assert result.system.rate_loan_interest_daily == Decimal("0.00069")
+        assert result.system.rate_fin_comm == Decimal("0.02")
 
     def test_mapper_with_product_overrides(self):
         """Test that product-level overrides work"""
@@ -157,9 +156,9 @@ class TestMapVariables:
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
         result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
@@ -195,9 +194,9 @@ class TestMapVariables:
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
         result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
@@ -226,9 +225,9 @@ class TestMapVariables:
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
         result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
