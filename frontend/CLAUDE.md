@@ -359,15 +359,31 @@ The sidebar shows live exchange rates for key currencies (USD, EUR, TRY, CNY).
 **Features:**
 
 - Auto-refresh every 30 minutes
-- Manual refresh button
+- Manual refresh button (admin only - forces CBR fetch)
 - Dark theme styling
 - Collapsible with sidebar
+- 4 decimal precision for all rates
 
-**API Route:** `src/app/api/exchange-rates/[from]/[to]/route.ts`
+**API Routes:**
 
-- Proxies requests to backend
-- Handles authentication
-- Returns rate data
+| Route                                             | Purpose                       |
+| ------------------------------------------------- | ----------------------------- |
+| `src/app/api/exchange-rates/[from]/[to]/route.ts` | Get single rate (cached)      |
+| `src/app/api/exchange-rates/refresh/route.ts`     | Admin: Force refresh from CBR |
+
+**Admin Refresh Flow:**
+
+```typescript
+// ExchangeRates.tsx - refreshFromCBR()
+const supabase = createClient();
+const {
+  data: { session },
+} = await supabase.auth.getSession();
+await fetch('/api/exchange-rates/refresh', {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${session.access_token}` },
+});
+```
 
 **Usage in MainLayout:**
 
@@ -375,6 +391,15 @@ The sidebar shows live exchange rates for key currencies (USD, EUR, TRY, CNY).
 // Shows when sidebar is expanded
 {!collapsed && <ExchangeRates />}
 ```
+
+**CBR Nominal Handling:**
+
+Central Bank of Russia returns rates with "Nominal" field:
+
+- TRY: Value=18.45, Nominal=10 → Rate = 1.845 (backend divides)
+- JPY: Value=67.50, Nominal=100 → Rate = 0.675
+
+Backend handles this in `exchange_rate_service.py`. If rates look wrong (e.g., TRY showing ~18 instead of ~1.8), use refresh button to fetch fresh data.
 
 **Styling:**
 
