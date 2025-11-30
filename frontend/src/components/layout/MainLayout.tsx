@@ -38,10 +38,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const getMenuItems = () => {
     // Get the user's role - prefer organizationRole from organization_members table
     const userRole = profile?.organizationRole || profile?.role || '';
+    const isAdmin = userRole && ['admin', 'owner'].includes(userRole.toLowerCase());
 
-    const baseItems = [
-      // Dashboard removed - stats are now on /quotes page
-      // Quotes submenu simplified to direct link - create button is on the page
+    // Common items for all users
+    const menuItems: any[] = [
       {
         key: '/quotes',
         icon: <FileTextOutlined />,
@@ -52,134 +52,121 @@ export default function MainLayout({ children }: MainLayoutProps) {
         icon: <TeamOutlined />,
         label: 'Клиенты',
       },
-    ];
-
-    // Approval menu removed - use filter on /quotes page instead
-
-    // Add CRM, Organizations, and Analytics for admin/owner only
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
-      baseItems.push({
-        key: 'crm-menu',
+      {
+        key: '/profile',
         icon: <UserOutlined />,
-        label: 'CRM',
-        children: [
-          {
-            key: '/leads',
-            label: 'Лиды',
-          },
-          {
-            key: '/leads/pipeline',
-            label: 'Воронка',
-          },
-        ],
-      });
-      baseItems.push({
-        key: '/organizations',
-        icon: <ApartmentOutlined />,
-        label: 'Организации',
-      });
-      baseItems.push({
-        key: 'analytics-menu',
-        icon: <BarChartOutlined />,
-        label: 'Аналитика',
-        children: [
-          {
-            key: '/analytics',
-            label: 'Запросы',
-          },
-          {
-            key: '/analytics/saved',
-            label: 'Сохранённые отчёты',
-          },
-          {
-            key: '/analytics/history',
-            label: 'История',
-          },
-          {
-            key: '/analytics/scheduled',
-            label: 'Расписание',
-          },
-        ],
-      });
-    }
-
-    // Add settings items
-    const settingsChildren = [];
-
-    // All users can access profile
-    settingsChildren.push({
-      key: '/profile',
-      label: 'Профиль',
-    });
-
-    // Admin/manager/owner can access team management
-    const managerRoles = [
-      'admin',
-      'owner',
-      'manager',
-      'sales_manager',
-      'finance_manager',
-      'department_manager',
-      'director',
+        label: 'Профиль',
+      },
     ];
-    if (userRole && managerRoles.includes(userRole.toLowerCase())) {
-      settingsChildren.push({
-        key: '/settings/team',
-        label: 'Команда',
-      });
-    }
 
-    // Admin/owner can access calculation settings (case-insensitive)
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
-      settingsChildren.push({
-        key: '/settings/calculation',
-        label: 'Настройки расчета',
+    // Admin-only section
+    if (isAdmin) {
+      // Divider before admin section
+      menuItems.push({
+        type: 'divider',
+        key: 'admin-divider',
       });
-      settingsChildren.push({
-        key: '/settings/exchange-rates',
-        label: 'Курсы валют',
-      });
-    }
 
-    baseItems.push({
-      key: 'settings-menu',
-      icon: <SettingOutlined />,
-      label: 'Настройки',
-      children: settingsChildren,
-    });
-
-    // Add admin items (admin and owner roles)
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
-      baseItems.push({
-        key: '/admin',
-        icon: <SettingOutlined />,
-        label: 'Администрирование',
+      // Admin section header
+      menuItems.push({
+        key: 'admin-group',
+        type: 'group',
+        label: 'Управление',
         children: [
           {
-            key: '/admin/users',
-            label: 'Пользователи',
+            key: 'crm-menu',
+            icon: <UserOutlined />,
+            label: 'CRM',
+            children: [
+              {
+                key: '/leads',
+                label: 'Лиды',
+              },
+              {
+                key: '/leads/pipeline',
+                label: 'Воронка',
+              },
+            ],
           },
           {
-            key: '/admin/settings',
+            key: '/organizations',
+            icon: <ApartmentOutlined />,
+            label: 'Организации',
+          },
+          {
+            key: 'analytics-menu',
+            icon: <BarChartOutlined />,
+            label: 'Аналитика',
+            children: [
+              {
+                key: '/analytics',
+                label: 'Запросы',
+              },
+              {
+                key: '/analytics/saved',
+                label: 'Сохранённые отчёты',
+              },
+              {
+                key: '/analytics/history',
+                label: 'История',
+              },
+              {
+                key: '/analytics/scheduled',
+                label: 'Расписание',
+              },
+            ],
+          },
+          {
+            key: 'settings-menu',
+            icon: <SettingOutlined />,
             label: 'Настройки',
+            children: [
+              {
+                key: '/settings/team',
+                label: 'Команда',
+              },
+              {
+                key: '/settings/calculation',
+                label: 'Настройки расчета',
+              },
+              {
+                key: '/settings/exchange-rates',
+                label: 'Курсы валют',
+              },
+            ],
           },
           {
-            key: '/activity',
-            label: 'История действий',
-          },
-          {
-            key: '/admin/feedback',
-            label: 'Обратная связь',
-          },
-          {
-            key: '/admin/excel-validation',
-            label: 'Валидация Excel',
+            key: '/admin',
+            icon: <SettingOutlined />,
+            label: 'Администрирование',
+            children: [
+              {
+                key: '/admin/users',
+                label: 'Пользователи',
+              },
+              {
+                key: '/admin/settings',
+                label: 'Настройки',
+              },
+              {
+                key: '/activity',
+                label: 'История действий',
+              },
+              {
+                key: '/admin/feedback',
+                label: 'Обратная связь',
+              },
+              {
+                key: '/admin/excel-validation',
+                label: 'Валидация Excel',
+              },
+            ],
           },
         ],
       });
     }
 
-    return baseItems;
+    return menuItems;
   };
 
   // User dropdown menu
