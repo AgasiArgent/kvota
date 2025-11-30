@@ -11,7 +11,6 @@ import {
   Tag,
   Typography,
   message,
-  Popconfirm,
   Popover,
   Row,
   Col,
@@ -20,9 +19,6 @@ import {
 import {
   PlusOutlined,
   SearchOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  EyeOutlined,
   TeamOutlined,
   PhoneOutlined,
   MailOutlined,
@@ -97,21 +93,6 @@ export default function CustomersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const response = await customerService.deleteCustomer(id);
-      if (response.success) {
-        message.success('Клиент успешно удален');
-      } else {
-        message.error(`Ошибка удаления: ${response.error}`);
-        return;
-      }
-      fetchCustomers();
-    } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`);
-    }
-  };
-
   const getStatusTag = (status: string) => {
     const statusMap = {
       active: { color: 'green', text: 'Активный' },
@@ -143,9 +124,7 @@ export default function CustomersPage() {
       width: 250,
       render: (text: string, record: Customer) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => router.push(`/customers/${record.id}`)} style={{ fontWeight: 500 }}>
-            {text}
-          </a>
+          <span style={{ fontWeight: 500 }}>{text}</span>
           <span style={{ fontSize: '12px', color: '#888' }}>
             {getCompanyTypeDisplay(record.company_type)}
           </span>
@@ -228,38 +207,6 @@ export default function CustomersPage() {
       key: 'status',
       width: 120,
       render: (status: string) => getStatusTag(status),
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 150,
-      fixed: 'right' as const,
-      render: (_: any, record: Customer) => (
-        <Space size="small">
-          <Button
-            type="text"
-            icon={<EyeOutlined />}
-            onClick={() => router.push(`/customers/${record.id}`)}
-            title="Просмотр"
-          />
-          <Button
-            type="text"
-            icon={<EditOutlined />}
-            onClick={() => router.push(`/customers/${record.id}?mode=edit`)}
-            title="Редактировать"
-          />
-          <Popconfirm
-            title="Удалить клиента?"
-            description="Это действие нельзя отменить"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Удалить"
-            cancelText="Отмена"
-            okButtonProps={{ danger: true }}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-          </Popconfirm>
-        </Space>
-      ),
     },
   ];
 
@@ -367,7 +314,11 @@ export default function CustomersPage() {
             dataSource={customers}
             rowKey="id"
             loading={loading}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 900 }}
+            onRow={(record) => ({
+              onClick: () => router.push(`/customers/${record.id}`),
+              style: { cursor: 'pointer' },
+            })}
             pagination={{
               current: currentPage,
               pageSize: pageSize,
