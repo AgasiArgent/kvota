@@ -34,7 +34,7 @@ class SupplierCountry(str, Enum):
     LATVIA = "Латвия"
     BULGARIA = "Болгария"
     POLAND = "Польша"
-    EU_CROSS_BORDER = "ЕС (закупка между странами ЕС)"
+    EU_CROSS_BORDER = "ЕС (между странами ЕС)"
     UAE = "ОАЭ"
     OTHER = "Прочие"
 
@@ -98,11 +98,11 @@ class FinancialParams(BaseModel):
     """Financial calculation parameters"""
     currency_of_quote: Currency = Field(default=Currency.USD, description="Quote currency")
     exchange_rate_base_price_to_quote: Decimal = Field(..., gt=0, description="Exchange rate to quote currency")
-    supplier_discount: Decimal = Field(default=Decimal("0"), ge=0, le=1, description="Supplier discount as decimal (0.05 = 5%)")
-    markup: Decimal = Field(..., gt=0, le=5, description="Markup as decimal (0.30 = 30%)")
-    rate_forex_risk: Decimal = Field(default=Decimal("0.03"), ge=0, le=1, description="Currency exchange risk as decimal (0.03 = 3%)")
+    supplier_discount: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Supplier discount %")
+    markup: Decimal = Field(..., gt=0, le=500, description="Markup on COGS %")
+    rate_forex_risk: Decimal = Field(default=Decimal("3"), ge=0, le=100, description="Currency exchange risk %")
     dm_fee_type: DMFeeType = Field(default=DMFeeType.FIXED, description="DM fee calculation type")
-    dm_fee_value: Decimal = Field(default=Decimal("0"), ge=0, description="DM fee value (amount or decimal %)")
+    dm_fee_value: Decimal = Field(default=Decimal("0"), ge=0, description="DM fee value (amount or %)")
 
 
 class LogisticsParams(BaseModel):
@@ -120,34 +120,34 @@ class LogisticsParams(BaseModel):
 
 class TaxesAndDuties(BaseModel):
     """Tax and duty parameters"""
-    import_tariff: Decimal = Field(..., ge=0, le=1, description="Import tariff as decimal (0.05 = 5%)")
+    import_tariff: Decimal = Field(..., ge=0, le=100, description="Import tariff %")
     excise_tax: Decimal = Field(default=Decimal("0"), ge=0, description="Excise tax per kg")
     util_fee: Decimal = Field(default=Decimal("0"), ge=0, description="Utilization fee (not subject to VAT)")
 
 
 class PaymentTerms(BaseModel):
     """Payment timeline parameters"""
-    advance_from_client: Decimal = Field(default=Decimal("1"), ge=0, le=1, description="Client upfront payment as decimal (1.0 = 100%)")
-    advance_to_supplier: Decimal = Field(default=Decimal("1"), ge=0, le=1, description="Supplier upfront payment as decimal (1.0 = 100%)")
-
+    advance_from_client: Decimal = Field(default=Decimal("100"), ge=0, le=100, description="Client upfront payment %")
+    advance_to_supplier: Decimal = Field(default=Decimal("100"), ge=0, le=100, description="Supplier upfront payment %")
+    
     time_to_advance: int = Field(default=0, ge=0, description="Days until client pays advance")
-
-    advance_on_loading: Decimal = Field(default=Decimal("0"), ge=0, le=1, description="Payment at loading as decimal")
+    
+    advance_on_loading: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Payment at loading %")
     time_to_advance_loading: int = Field(default=0, ge=0, description="Days to loading payment")
-
-    advance_on_going_to_country_destination: Decimal = Field(default=Decimal("0"), ge=0, le=1, description="Payment at country arrival as decimal")
+    
+    advance_on_going_to_country_destination: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Payment at country arrival %")
     time_to_advance_going_to_country_destination: int = Field(default=0, ge=0, description="Days to country arrival")
-
-    advance_on_customs_clearance: Decimal = Field(default=Decimal("0"), ge=0, le=1, description="Payment at customs as decimal")
+    
+    advance_on_customs_clearance: Decimal = Field(default=Decimal("0"), ge=0, le=100, description="Payment at customs %")
     time_to_advance_on_customs_clearance: int = Field(default=0, ge=0, description="Days to customs clearance")
-
+    
     time_to_advance_on_receiving: int = Field(default=0, ge=0, description="Days to final payment after receiving")
-
+    
     @validator('advance_from_client', 'advance_to_supplier')
     def validate_advance_percentage(cls, v):
         """Ensure advance percentages are reasonable"""
-        if v > 1:
-            raise ValueError("Advance percentage cannot exceed 1.0 (100%)")
+        if v > 100:
+            raise ValueError("Advance percentage cannot exceed 100%")
         return v
 
 
@@ -168,15 +168,10 @@ class CompanySettings(BaseModel):
 
 class SystemConfig(BaseModel):
     """System-wide configuration (admin controlled)"""
-    rate_fin_comm: Decimal = Field(default=Decimal("0.02"), ge=0, le=1, description="Financial agent fee as decimal (0.02 = 2%)")
-    rate_loan_interest_annual: Decimal = Field(default=Decimal("0.25"), gt=0, description="Annual loan interest rate (0.25 = 25%)")
+    rate_fin_comm: Decimal = Field(default=Decimal("2"), ge=0, le=100, description="Financial agent fee %")
+    rate_loan_interest_daily: Decimal = Field(default=Decimal("0.00069"), gt=0, description="Daily loan interest rate (auto-calculated from annual rate)")
     rate_insurance: Decimal = Field(default=Decimal("0.00047"), ge=0, le=1, description="Insurance rate (default 0.047%)")
     customs_logistics_pmt_due: int = Field(default=10, ge=0, le=365, description="Payment term for customs/logistics costs (days)")
-
-    @property
-    def rate_loan_interest_daily(self) -> Decimal:
-        """Calculate daily rate from annual rate (annual / 365, unrounded)"""
-        return self.rate_loan_interest_annual / Decimal("365")
 
 
 # ============================================================================
@@ -377,7 +372,7 @@ class MultiProductQuoteInput(BaseModel):
     offer_incoterms: Incoterms = Field(..., description="INCOTERMS")
     
     # Shared payment terms
-    advance_from_client: Decimal = Field(..., ge=0, le=1, description="Client advance as decimal (1.0 = 100%)")
+    advance_from_client: Decimal = Field(..., ge=0, le=100, description="Client advance %")
     delivery_time: int = Field(..., gt=0, description="Delivery time in days")
     time_to_advance: int = Field(default=0, ge=0, description="Days to advance")
     time_to_advance_on_receiving: int = Field(default=0, ge=0, description="Days to final payment")
