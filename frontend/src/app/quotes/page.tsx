@@ -55,6 +55,7 @@ interface QuoteListItem {
   status: string;
   workflow_state?: string;
   total_amount?: number;
+  total_usd?: number;
   total?: number; // Backend uses 'total' instead of 'total_amount'
   total_profit_usd?: number;
   currency?: string;
@@ -339,11 +340,30 @@ export default function QuotesPage() {
       title: 'Сумма',
       dataIndex: 'total_amount',
       key: 'total_amount',
-      width: 150,
+      width: 130,
       align: 'right' as const,
       render: (_: any, record: QuoteListItem) => {
         const amount = record.total_amount || record.total || 0;
-        return formatCurrency(amount, record.currency || 'RUB');
+        return formatCurrency(amount, record.currency || 'USD');
+      },
+    },
+    {
+      title: 'Сумма USD',
+      dataIndex: 'total_usd',
+      key: 'total_usd',
+      width: 130,
+      align: 'right' as const,
+      render: (totalUsd: number | null | undefined) => {
+        if (totalUsd === undefined || totalUsd === null) return '—';
+        return (
+          <span>
+            $
+            {totalUsd.toLocaleString('ru-RU', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+        );
       },
     },
     {
