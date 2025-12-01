@@ -755,11 +755,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context for template
         context = {
@@ -782,6 +786,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Items and totals
             'items': [],
@@ -833,11 +838,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context for template
         context = {
@@ -860,6 +869,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Items and totals
             'items': [],
@@ -932,11 +942,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context (same as supply_pdf + letter-specific fields)
         context = {
@@ -959,6 +973,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Letter-specific fields
             'letter_greeting': f"Уважаемый {contact.get('name', '')}!" if contact.get('name') else "Уважаемые партнеры!",
@@ -1014,11 +1029,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context (same as openbook_pdf + letter-specific fields)
         context = {
@@ -1041,6 +1060,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Letter-specific fields
             'letter_greeting': f"Уважаемый {contact.get('name', '')}!" if contact.get('name') else "Уважаемые партнеры!",
