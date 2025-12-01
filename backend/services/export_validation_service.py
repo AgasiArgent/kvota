@@ -121,8 +121,7 @@ QUOTE_INPUT_MAPPING = {
     "K7": ("time_to_advance_shipping", "Дней до аванса отправки"),
     "J8": ("advance_on_customs", "Аванс при таможне (%)"),
     "K8": ("time_to_advance_customs", "Дней до аванса таможни"),
-    # NOTE: time_to_payment is now mapped to F7 (days after receiving)
-    "F7": ("time_to_payment", "Дней до оплаты после получения"),
+    "K9": ("time_to_payment", "Дней до оплаты после получения"),
     # Logistics costs
     "W2": ("logistics_supplier_hub", "Логистика: Поставщик-Хаб"),
     "W3": ("logistics_hub_customs", "Логистика: Хаб-Таможня"),
