@@ -91,11 +91,11 @@ class TestQuoteSettings:
         assert isinstance(result.quote_currency, Currency)
         assert result.quote_currency in [Currency.USD, Currency.EUR, Currency.RUB, Currency.TRY, Currency.CNY]
 
-    def test_delivery_days_parsed(self, parser):
-        """delivery_days should be parsed from B6"""
+    def test_delivery_time_parsed(self, parser):
+        """delivery_time should be parsed from B6"""
         result = parser.parse()
-        assert isinstance(result.delivery_days, int)
-        assert result.delivery_days > 0
+        assert isinstance(result.delivery_time, int)
+        assert result.delivery_time > 0
 
     def test_advance_to_supplier_parsed(self, parser):
         """advance_to_supplier should be parsed from B7"""

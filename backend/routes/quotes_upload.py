@@ -9,6 +9,7 @@ Created: 2025-11-28
 
 import io
 import logging
+from datetime import date, timedelta
 from typing import Optional, List
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -269,8 +270,8 @@ async def map_to_calculation_inputs(
             financial=FinancialParams(
                 currency_of_quote=quote_currency,
                 exchange_rate_base_price_to_quote=exchange_rate,
-                supplier_discount=product.supplier_discount,
-                markup=product.markup,
+                supplier_discount=product.supplier_discount * Decimal("100"),  # Convert 0.10 -> 10%
+                markup=product.markup * Decimal("100"),  # Convert 0.15 -> 15%
                 rate_forex_risk=Decimal("3"),  # Default
                 dm_fee_type=DMFeeType.PERCENTAGE if parsed.dm_fee_type == "% от суммы" else DMFeeType.FIXED,
                 dm_fee_value=parsed.dm_fee_value,
@@ -278,7 +279,9 @@ async def map_to_calculation_inputs(
             logistics=LogisticsParams(
                 supplier_country=supplier_country,
                 offer_incoterms=INCOTERMS_MAP.get(parsed.incoterms, Incoterms.DDP),
-                delivery_time=parsed.delivery_days,
+                delivery_time=parsed.delivery_time,
+                # Calculate delivery_date for VAT determination (22% for 2026+)
+                delivery_date=date.today() + timedelta(days=parsed.delivery_time),
                 # Convert logistics costs to quote currency
                 logistics_supplier_hub=parsed.logistics_supplier_hub.value * calculate_exchange_rate(
                     parsed.logistics_supplier_hub.currency.value,
@@ -297,22 +300,23 @@ async def map_to_calculation_inputs(
                 ),
             ),
             taxes=TaxesAndDuties(
-                import_tariff=product.import_tariff,
+                import_tariff=product.import_tariff * Decimal("100"),  # Convert 0.05 -> 5%
                 excise_tax=Decimal("0"),
                 util_fee=Decimal("0"),
             ),
             payment=PaymentTerms(
+                # All percentages: convert from decimal (0.30) to percentage (30)
                 advance_from_client=next(
-                    (m.percentage for m in parsed.payment_milestones if m.name == "advance_from_client"),
+                    (m.percentage * Decimal("100") for m in parsed.payment_milestones if m.name == "advance_from_client"),
                     Decimal("100")
                 ),
-                advance_to_supplier=parsed.advance_to_supplier,
+                advance_to_supplier=parsed.advance_to_supplier * Decimal("100"),  # Convert 0.50 -> 50%
                 time_to_advance=next(
                     (m.days or 0 for m in parsed.payment_milestones if m.name == "advance_from_client"),
                     0
                 ),
                 advance_on_loading=next(
-                    (m.percentage for m in parsed.payment_milestones if m.name == "advance_on_loading"),
+                    (m.percentage * Decimal("100") for m in parsed.payment_milestones if m.name == "advance_on_loading"),
                     Decimal("0")
                 ),
                 time_to_advance_loading=next(
@@ -320,7 +324,7 @@ async def map_to_calculation_inputs(
                     0
                 ),
                 advance_on_going_to_country_destination=next(
-                    (m.percentage for m in parsed.payment_milestones if m.name == "advance_on_shipping"),
+                    (m.percentage * Decimal("100") for m in parsed.payment_milestones if m.name == "advance_on_shipping"),
                     Decimal("0")
                 ),
                 time_to_advance_going_to_country_destination=next(
@@ -328,7 +332,7 @@ async def map_to_calculation_inputs(
                     0
                 ),
                 advance_on_customs_clearance=next(
-                    (m.percentage for m in parsed.payment_milestones if m.name == "advance_on_customs"),
+                    (m.percentage * Decimal("100") for m in parsed.payment_milestones if m.name == "advance_on_customs"),
                     Decimal("0")
                 ),
                 time_to_advance_on_customs_clearance=next(
@@ -633,7 +637,7 @@ async def upload_excel_with_validation_export(
             "offer_sale_type": parsed_data.sale_type,
             "incoterms": parsed_data.incoterms,
             "quote_currency": parsed_data.quote_currency.value,
-            "delivery_days": parsed_data.delivery_days,
+            "delivery_time": parsed_data.delivery_time,
             "advance_to_supplier": float(parsed_data.advance_to_supplier),
             # Payment milestones
             "advance_from_client": float(parsed_data.payment_milestones[0].percentage) if parsed_data.payment_milestones else 0,
@@ -685,12 +689,19 @@ async def upload_excel_with_validation_export(
         total_profit = sum(r.profit for r in calc_results)
         total_revenue_no_vat = sum(r.sales_price_total_no_vat for r in calc_results)
         total_revenue_with_vat = sum(r.sales_price_total_with_vat for r in calc_results)
+        # Logistics totals
+        total_logistics_first = sum(r.logistics_first_leg for r in calc_results)
+        total_logistics_last = sum(r.logistics_last_leg for r in calc_results)
+        total_logistics = sum(r.logistics_total for r in calc_results)
 
         first_result = calc_results[0] if calc_results else None
 
         api_results = {
             # Quote totals
             "total_purchase_price": float(total_purchase),
+            "total_logistics_first": float(total_logistics_first),
+            "total_logistics_last": float(total_logistics_last),
+            "total_logistics": float(total_logistics),
             "total_cogs": float(total_cogs),
             "total_revenue": float(total_revenue_no_vat),
             "total_revenue_with_vat": float(total_revenue_with_vat),
@@ -698,13 +709,13 @@ async def upload_excel_with_validation_export(
             # Financing
             "evaluated_revenue": float(first_result.quote_level_evaluated_revenue) if first_result and first_result.quote_level_evaluated_revenue else 0,
             "client_advance": float(first_result.quote_level_client_advance) if first_result and first_result.quote_level_client_advance else 0,
-            "total_before_forwarding": 0,  # Not exposed
+            "total_before_forwarding": float(first_result.quote_level_total_before_forwarding) if first_result and hasattr(first_result, 'quote_level_total_before_forwarding') and first_result.quote_level_total_before_forwarding else 0,
             "supplier_payment": float(first_result.quote_level_supplier_payment) if first_result and first_result.quote_level_supplier_payment else 0,
             "supplier_financing_cost": float(first_result.quote_level_supplier_financing_cost) if first_result and first_result.quote_level_supplier_financing_cost else 0,
             "operational_financing_cost": float(first_result.quote_level_operational_financing_cost) if first_result and first_result.quote_level_operational_financing_cost else 0,
             "total_financing_cost": float(first_result.quote_level_total_financing_cost) if first_result and first_result.quote_level_total_financing_cost else 0,
-            "credit_sales_amount": 0,  # Not exposed
-            "credit_sales_fv": 0,  # Not exposed
+            "credit_sales_amount": float(first_result.quote_level_credit_sales_amount) if first_result and hasattr(first_result, 'quote_level_credit_sales_amount') and first_result.quote_level_credit_sales_amount else 0,
+            "credit_sales_fv": float(first_result.quote_level_credit_sales_fv) if first_result and hasattr(first_result, 'quote_level_credit_sales_fv') and first_result.quote_level_credit_sales_fv else 0,
             "credit_sales_interest": float(first_result.quote_level_credit_sales_interest) if first_result and first_result.quote_level_credit_sales_interest else 0,
         }
 

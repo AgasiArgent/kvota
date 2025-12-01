@@ -120,7 +120,7 @@ class SimplifiedQuoteInput(BaseModel):
     sale_type: str
     incoterms: str
     quote_currency: Currency
-    delivery_days: int = Field(gt=0)
+    delivery_time: int = Field(gt=0)
     advance_to_supplier: Decimal = Field(ge=0, le=100)
 
     # Payment terms
@@ -259,7 +259,7 @@ class SimplifiedExcelParser:
             sale_type=settings["sale_type"],
             incoterms=settings["incoterms"],
             quote_currency=settings["quote_currency"],
-            delivery_days=settings["delivery_days"],
+            delivery_time=settings["delivery_time"],
             advance_to_supplier=settings["advance_to_supplier"],
 
             # Payment
@@ -293,7 +293,7 @@ class SimplifiedExcelParser:
             "sale_type": self._get_value("B3", "поставка"),
             "incoterms": self._get_value("B4", "DDP"),
             "quote_currency": self._get_currency("B5", Currency.EUR),
-            "delivery_days": self._get_int("B6", 30),
+            "delivery_time": self._get_int("B6", 30),
             "advance_to_supplier": self._get_decimal("B7", Decimal("100")),
         }
 
