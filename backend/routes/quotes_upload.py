@@ -925,3 +925,353 @@ async def upload_excel_with_validation_export(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing file: {str(e)}"
         )
+
+
+# ============================================================================
+# TEMPLATE DOWNLOAD & EXPORT ENDPOINTS
+# ============================================================================
+
+# Path to blank template
+TEMPLATE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "validation_data",
+    "template_quote_input_v6_test.xlsx"
+)
+
+
+def export_quote_as_template(
+    quote: dict,
+    quote_items: list,
+    variables: dict,
+) -> bytes:
+    """
+    Export a quote to the simplified input template format.
+
+    Args:
+        quote: Quote data from database
+        quote_items: List of quote items from database
+        variables: Quote calculation variables from database
+
+    Returns:
+        Excel file bytes
+    """
+    import openpyxl
+    from pathlib import Path
+
+    # Load the blank template
+    template_path = Path(TEMPLATE_PATH)
+    if not template_path.exists():
+        raise ValueError(f"Template not found: {template_path}")
+
+    wb = openpyxl.load_workbook(template_path)
+    ws = wb["Котировка"] if "Котировка" in wb.sheetnames else wb.active
+
+    # ========== Section 1: Quote Settings (B2-B7) ==========
+    ws["B2"] = variables.get("seller_company", "МАСТЕР БЭРИНГ ООО")
+    ws["B3"] = variables.get("offer_sale_type", "поставка")
+    ws["B4"] = variables.get("offer_incoterms", "DDP")
+    ws["B5"] = quote.get("currency") or variables.get("currency_of_quote", "EUR")
+    ws["B6"] = variables.get("delivery_time", 30)
+    ws["B7"] = float(variables.get("advance_to_supplier", 100)) / 100  # Convert to decimal for Excel %
+
+    # ========== Section 2: Payment Terms (E3-F7) ==========
+    advance_from_client = float(variables.get("advance_from_client", 100))
+    # Convert percentage (0-100) to decimal (0-1) for Excel
+    ws["E3"] = advance_from_client / 100
+    ws["F3"] = int(variables.get("time_to_advance", 0))
+
+    # Other payment milestones - typically 0 for most quotes
+    ws["E4"] = 0  # On loading
+    ws["E5"] = 0  # On shipping
+    ws["E6"] = 0  # On customs
+    # E7 is formula =1-SUM(E3:E6), don't overwrite
+    ws["F7"] = int(variables.get("time_to_payment", 0))
+
+    # ========== Section 3: Logistics (I3-J5) ==========
+    ws["I3"] = float(variables.get("logistics_supplier_hub", 0))
+    ws["J3"] = variables.get("logistics_supplier_hub_currency", "EUR")
+
+    ws["I4"] = float(variables.get("logistics_hub_customs", 0))
+    ws["J4"] = variables.get("logistics_hub_customs_currency", "EUR")
+
+    ws["I5"] = float(variables.get("logistics_customs_client", 0))
+    ws["J5"] = variables.get("logistics_customs_client_currency", "RUB")
+
+    # ========== Section 4: Brokerage (I8-J12) ==========
+    ws["I8"] = float(variables.get("brokerage_hub", 0))
+    ws["J8"] = variables.get("brokerage_hub_currency", "EUR")
+
+    ws["I9"] = float(variables.get("brokerage_customs", 0))
+    ws["J9"] = variables.get("brokerage_customs_currency", "RUB")
+
+    ws["I10"] = float(variables.get("warehousing", 0))
+    ws["J10"] = variables.get("warehousing_currency", "RUB")
+
+    ws["I11"] = float(variables.get("documentation", 0))
+    ws["J11"] = variables.get("documentation_currency", "RUB")
+
+    ws["I12"] = float(variables.get("other_costs", 0))
+    ws["J12"] = variables.get("other_costs_currency", "RUB")
+
+    # ========== Section 5: DM Fee / LPR (E11-F12) ==========
+    dm_fee_type = variables.get("dm_fee_type", "% от суммы")
+    ws["E11"] = dm_fee_type
+
+    dm_fee_value = float(variables.get("dm_fee_value", 0))
+    if dm_fee_type == "% от суммы":
+        ws["E12"] = dm_fee_value / 100  # Convert to decimal for Excel %
+    else:
+        ws["E12"] = dm_fee_value
+        ws["F12"] = variables.get("dm_fee_currency", "EUR")
+
+    # ========== Section 6: Products (Row 16+) ==========
+    # Product columns: A=brand, B=sku, C=name, D=quantity, E=weight,
+    # F=currency, G=base_price_vat, H=supplier_country, I=discount,
+    # J=customs_code, K=import_tariff, L=markup
+
+    row = 16
+    for item in quote_items:
+        ws[f"A{row}"] = item.get("brand", "")
+        ws[f"B{row}"] = item.get("sku", "")
+        ws[f"C{row}"] = item.get("product_name", "")
+        ws[f"D{row}"] = int(item.get("quantity", 1))
+        ws[f"E{row}"] = float(item.get("weight_in_kg", 0)) if item.get("weight_in_kg") else None
+        ws[f"F{row}"] = item.get("currency_of_base_price", "EUR")
+        ws[f"G{row}"] = float(item.get("base_price_vat", 0))
+        ws[f"H{row}"] = item.get("supplier_country", "Турция")
+
+        # Discount as decimal for Excel %
+        supplier_discount = float(item.get("supplier_discount", 0))
+        ws[f"I{row}"] = supplier_discount / 100 if supplier_discount > 1 else supplier_discount
+
+        ws[f"J{row}"] = item.get("customs_code") or ""
+
+        # Import tariff as decimal for Excel %
+        import_tariff = float(item.get("import_tariff", 0))
+        ws[f"K{row}"] = import_tariff / 100 if import_tariff > 1 else import_tariff
+
+        # Markup as decimal for Excel %
+        markup = float(item.get("markup", 15))
+        ws[f"L{row}"] = markup / 100 if markup > 1 else markup
+
+        row += 1
+
+    # Save to bytes
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output.getvalue()
+
+
+@router.get("/upload/download-template")
+async def download_template(user: User = Depends(get_current_user)):
+    """
+    Download blank quote input template.
+
+    Returns the template Excel file that users can fill in and upload.
+    """
+    from pathlib import Path
+
+    template_path = Path(TEMPLATE_PATH)
+    if not template_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template file not found"
+        )
+
+    with open(template_path, "rb") as f:
+        content = f.read()
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": "attachment; filename=\"quote_input_template.xlsx\""
+        }
+    )
+
+
+@router.get("/upload/export-as-template/{quote_id}")
+async def export_quote_as_template_endpoint(
+    quote_id: str,
+    user: User = Depends(get_current_user),
+):
+    """
+    Export an existing quote as the big validation Excel file (.xlsm).
+
+    This regenerates the same 1.5MB+ Excel file that was returned during upload,
+    using the stored quote data and calculation results from the database.
+    """
+    if not user.current_organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not associated with any organization"
+        )
+
+    try:
+        # Get quote and verify organization ownership
+        quote_result = supabase.table("quotes").select("*").eq("id", quote_id).execute()
+        if not quote_result.data:
+            raise HTTPException(status_code=404, detail="Quote not found")
+
+        quote = quote_result.data[0]
+        if quote["organization_id"] != str(user.current_organization_id):
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        # Get quote items (these become product_inputs)
+        items_result = supabase.table("quote_items").select("*").eq("quote_id", quote_id).order("position").execute()
+        quote_items = items_result.data or []
+
+        if not quote_items:
+            raise HTTPException(status_code=404, detail="No items found for quote")
+
+        # Get calculation variables (these become quote_inputs)
+        vars_result = supabase.table("quote_calculation_variables").select("*").eq("quote_id", quote_id).execute()
+        if not vars_result.data:
+            raise HTTPException(status_code=404, detail="No calculation variables found for quote")
+
+        stored_variables = vars_result.data[0].get("variables", {})
+
+        # Build quote_inputs from stored variables
+        # Note: export_validation_service expects specific field names
+        quote_currency = quote.get("currency") or stored_variables.get("currency_of_quote", "EUR")
+        quote_inputs = {
+            "seller_company": stored_variables.get("seller_company", "МАСТЕР БЭРИНГ ООО"),
+            "offer_sale_type": stored_variables.get("offer_sale_type", "поставка"),
+            "incoterms": stored_variables.get("offer_incoterms", "DDP"),  # export service expects "incoterms"
+            "quote_currency": quote_currency,  # export service expects "quote_currency"
+            "delivery_time": stored_variables.get("delivery_time", 30),
+            "advance_to_supplier": stored_variables.get("advance_to_supplier", 100),
+            "advance_from_client": stored_variables.get("advance_from_client", 100),
+            "time_to_advance": stored_variables.get("time_to_advance", 0),
+            "time_to_payment": stored_variables.get("time_to_payment", 0),
+            "logistics_supplier_hub": stored_variables.get("logistics_supplier_hub", 0),
+            "logistics_supplier_hub_currency": stored_variables.get("logistics_supplier_hub_currency", "EUR"),
+            "logistics_hub_customs": stored_variables.get("logistics_hub_customs", 0),
+            "logistics_hub_customs_currency": stored_variables.get("logistics_hub_customs_currency", "EUR"),
+            "logistics_customs_client": stored_variables.get("logistics_customs_client", 0),
+            "logistics_customs_client_currency": stored_variables.get("logistics_customs_client_currency", "RUB"),
+            "brokerage_hub": stored_variables.get("brokerage_hub", 0),
+            "brokerage_hub_currency": stored_variables.get("brokerage_hub_currency", "EUR"),
+            "brokerage_customs": stored_variables.get("brokerage_customs", 0),
+            "brokerage_customs_currency": stored_variables.get("brokerage_customs_currency", "RUB"),
+            "warehousing": stored_variables.get("warehousing", 0),
+            "warehousing_currency": stored_variables.get("warehousing_currency", "RUB"),
+            "documentation": stored_variables.get("documentation", 0),
+            "documentation_currency": stored_variables.get("documentation_currency", "RUB"),
+            "other_costs": stored_variables.get("other_costs", 0),
+            "other_costs_currency": stored_variables.get("other_costs_currency", "RUB"),
+            "dm_fee_type": stored_variables.get("dm_fee_type", "% от суммы"),
+            "dm_fee_value": stored_variables.get("dm_fee_value", 0),
+            "dm_fee_currency": stored_variables.get("dm_fee_currency", "EUR"),
+            "rate_forex_risk": stored_variables.get("rate_forex_risk", 0),
+            "rate_fin_comm": stored_variables.get("rate_fin_comm", 0),
+            "rate_loan_interest_daily": stored_variables.get("rate_loan_interest_daily", 0),
+            "exchange_rates": stored_variables.get("exchange_rates", {}),
+        }
+
+        # Build product_inputs from quote_items
+        # Note: Some fields are stored in custom_fields JSONB column
+        product_inputs = []
+        for item in quote_items:
+            custom_fields = item.get("custom_fields", {}) or {}
+
+            # Get values from custom_fields (product-level overrides) or use defaults
+            currency_of_base_price = custom_fields.get("currency_of_base_price", "EUR")
+            exchange_rate = custom_fields.get("exchange_rate_base_price_to_quote", 1.0)
+            supplier_discount = custom_fields.get("supplier_discount", 0)
+            import_tariff = custom_fields.get("import_tariff", 0)
+            markup = custom_fields.get("markup", 15)
+
+            product_inputs.append({
+                "brand": item.get("brand", ""),
+                "sku": item.get("sku", ""),
+                "name": item.get("product_name", ""),  # export service expects "name" not "product_name"
+                "quantity": item.get("quantity", 1),
+                "weight_in_kg": item.get("weight_in_kg") or 0,
+                "currency_of_base_price": currency_of_base_price,
+                "base_price_vat": item.get("base_price_vat", 0),
+                "supplier_country": item.get("supplier_country", "Турция"),
+                "supplier_discount": supplier_discount,
+                "exchange_rate": exchange_rate,  # required for validation export
+                "customs_code": item.get("customs_code", ""),
+                "import_tariff": import_tariff,  # from custom_fields
+                "markup": markup,  # from custom_fields
+            })
+
+        # Get calculation results from DB (these become product_results)
+        calc_results = supabase.table("quote_calculation_results").select("*").eq("quote_id", quote_id).execute()
+        calc_by_item = {r["quote_item_id"]: r.get("phase_results", {}) for r in calc_results.data or []}
+
+        product_results = []
+        for item in quote_items:
+            item_id = item.get("id")
+            if item_id in calc_by_item:
+                product_results.append(calc_by_item[item_id])
+            else:
+                product_results.append({})  # Empty if not found
+
+        # Get quote summary (for api_results)
+        # The DB uses column names like "calc_s16_total_purchase_price"
+        # but export service expects "total_purchase_price"
+        summary_result = supabase.table("quote_calculation_summaries").select("*").eq("quote_id", quote_id).execute()
+        raw_summary = summary_result.data[0] if summary_result.data else {}
+
+        # Map DB column names to export service expected field names
+        api_results = {
+            # Quote totals (QUOTE_TOTAL_CELLS in export_validation_service.py)
+            "total_purchase_price": raw_summary.get("calc_s16_total_purchase_price", 0),
+            "total_logistics_first": raw_summary.get("calc_t16_first_leg_logistics", 0),
+            "total_logistics_last": raw_summary.get("calc_u16_last_leg_logistics", 0),
+            "total_logistics": raw_summary.get("calc_v16_total_logistics", 0),
+            "total_cogs": raw_summary.get("calc_ab16_cogs_total", 0),
+            "total_revenue": raw_summary.get("calc_ak16_final_price_total", 0),
+            "total_revenue_with_vat": raw_summary.get("calc_al16_total_with_vat", 0),
+            # total_profit = revenue - cogs
+            "total_profit": (
+                float(raw_summary.get("calc_ak16_final_price_total", 0) or 0)
+                - float(raw_summary.get("calc_ab16_cogs_total", 0) or 0)
+            ),
+            # Financing (FINANCING_CELLS in export_validation_service.py)
+            "evaluated_revenue": raw_summary.get("calc_bh2_revenue_estimated", 0),
+            "client_advance": raw_summary.get("calc_bh3_client_advance", 0),
+            "total_before_forwarding": raw_summary.get("calc_bh4_before_forwarding", 0),
+            "supplier_payment": raw_summary.get("calc_bh6_supplier_payment", 0),
+            "supplier_financing_cost": raw_summary.get("calc_bj7_supplier_financing_cost", 0),
+            "operational_financing_cost": raw_summary.get("calc_bj10_operational_cost", 0),
+            "total_financing_cost": raw_summary.get("calc_bj11_total_financing_cost", 0),
+            "credit_sales_amount": raw_summary.get("calc_bl3_credit_sales_amount", 0),
+            "credit_sales_fv": raw_summary.get("calc_bl4_credit_sales_with_interest", 0),
+            "credit_sales_interest": raw_summary.get("calc_bl5_credit_sales_interest", 0),
+        }
+
+        # Generate the big validation Excel file
+        excel_bytes = generate_validation_export(
+            quote_inputs=quote_inputs,
+            product_inputs=product_inputs,
+            api_results=api_results,
+            product_results=product_results,
+        )
+
+        # Build filename
+        quote_number = quote.get("quote_number", quote_id)
+        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
+        filename = f"validation_{safe_quote_number}.xlsm"
+        filename_encoded = url_quote(f"validation_{quote_number}.xlsm", safe='')
+
+        return StreamingResponse(
+            io.BytesIO(excel_bytes),
+            media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename_encoded}"
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error exporting quote as validation Excel")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error exporting quote: {str(e)}"
+        )

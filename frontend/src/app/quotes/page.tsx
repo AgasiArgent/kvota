@@ -259,7 +259,8 @@ export default function QuotesPage() {
       let filename: string;
 
       if (exportType === 'validation') {
-        url = `${config.apiUrl}/api/quotes-calc/validation-export/${quoteId}`;
+        // Export as validation Excel file (.xlsm with macros)
+        url = `${config.apiUrl}/api/quotes/upload/export-as-template/${quoteId}`;
         filename = `validation_${quoteId}.xlsm`;
       } else {
         // PDF exports: supply, supply-letter, openbook, openbook-letter
