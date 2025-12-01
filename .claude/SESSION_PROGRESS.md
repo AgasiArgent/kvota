@@ -1,4 +1,4 @@
-## TODO - Next Session (Session 61)
+## TODO - Next Session (Session 62)
 
 ### 1. Verify Canonical Currency (USD) Outputs
 - Test end-to-end calculation with USD as internal currency
@@ -17,6 +17,7 @@
 ---
 
 ### Completed
+- ~~Excel validation export fixes (logistics, financing, VAT 22%)~~ ✅ (Session 61)
 - ~~Fix exchange rate display (TRY nominal, 4 decimals)~~ ✅ (Session 60)
 - ~~Fix exchange rate bug in frontend~~ ✅ (Session 53)
 - ~~Fix exchange rate bug in backend~~ ✅ (Session 53)
@@ -26,6 +27,65 @@
 - ~~Fix financing block formulas (BL4, BH9)~~ ✅ (Session 57)
 - ~~Excel validation export service~~ ✅ (Session 58)
 - ~~CI pipeline fixes~~ ✅ (Session 59)
+
+---
+
+## Session 61 (2025-12-01) - Excel Validation Export Fixes ✅
+
+### Goal
+Fix Excel validation export issues: missing logistics totals, financing fields, percentage formatting, and VAT 22% for 2026+ deliveries
+
+### Status: COMPLETE ✅
+
+**Time:** ~1 hour
+**Commit:** c1516f7
+
+---
+
+### Issues Fixed
+
+1. **Logistics Totals Missing (T13, U13, V13 = 0)**
+   - **Problem:** API results didn't include logistics sum fields
+   - **Solution:** Added `total_logistics_first`, `total_logistics_last`, `total_logistics` to api_results dict
+
+2. **Financing Fields Missing (BH4, BL3, BL4 = 0)**
+   - **Problem:** Fields hardcoded to 0 with comment "Not exposed"
+   - **Solution:** Added proper field access for `total_before_forwarding`, `credit_sales_amount`, `credit_sales_fv`
+
+3. **Diff % Not Formatted as Percentages**
+   - **Problem:** Formula returned raw decimal, no formatting
+   - **Solution:** Added `number_format = '0.00%'` to E column (API_Results) and F column (Comparison)
+
+4. **VAT Using 20% Instead of 22% for 2026+ Deliveries**
+   - **Problem:** `delivery_date` wasn't passed to LogisticsParams
+   - **Solution:** Added `delivery_date=date.today() + timedelta(days=parsed.delivery_time)`
+   - Verified: With 60 days delivery from Dec 1, 2025 → Jan 30, 2026 → 22% VAT applied
+
+5. **Variable Naming Inconsistency**
+   - **Problem:** Model used `delivery_days` but calculation engine uses `delivery_time`
+   - **Solution:** Renamed `delivery_days` → `delivery_time` across 6 files for consistency with VARIABLES.md (#19)
+
+---
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `backend/excel_parser/simplified_parser.py` | Renamed delivery_days → delivery_time |
+| `backend/routes/quotes_upload.py` | Added logistics totals, financing fields, delivery_date |
+| `backend/services/export_validation_service.py` | Added percentage formatting, renamed field |
+| `backend/services/financial_review_export.py` | Renamed delivery_days → delivery_time |
+| `backend/tests/excel_parser/test_simplified_parser.py` | Updated test references |
+| `backend/tests/routes/test_financial_approval.py` | Updated test references |
+
+---
+
+### Verification
+- Generated `validation_final.xlsm` using `test_input_5_multi_30advance.xlsx`
+- Confirmed logistics totals populated (T13, U13, V13)
+- Confirmed financing fields populated (BH4, BL3, BL4)
+- Confirmed Diff % shows as percentages
+- Confirmed VAT uses 22% for 2026+ delivery dates
 
 ---
 
