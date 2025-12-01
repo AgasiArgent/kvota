@@ -37,6 +37,7 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import type { Dayjs } from 'dayjs';
 import { QuoteItem } from '@/lib/types/platform';
 import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
+import CreateQuoteModal from '@/components/quotes/CreateQuoteModal';
 import { config } from '@/lib/config';
 import { getAuthToken } from '@/lib/auth/auth-helper';
 
@@ -78,6 +79,10 @@ export default function QuotesPage() {
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [submitQuoteId, setSubmitQuoteId] = useState<string | null>(null);
   const [submitQuoteNumber, setSubmitQuoteNumber] = useState<string>('');
+
+  // Create quote modal state
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const quoteService = new QuoteService();
 
@@ -215,60 +220,30 @@ export default function QuotesPage() {
     }
   };
 
-  // Template upload handler
-  const [uploading, setUploading] = useState(false);
-
+  // File selection handler for Create Quote flow
   const uploadProps: UploadProps = {
     name: 'file',
     accept: '.xlsx,.xls,.xlsm',
     showUploadList: false,
-    customRequest: async ({ file, onSuccess, onError }) => {
-      setUploading(true);
-      try {
-        const token = await getAuthToken();
-        if (!token) {
-          message.error('Не авторизован');
-          onError?.(new Error('Не авторизован'));
-          return;
-        }
-
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch(`${config.apiUrl}/api/quotes/upload-excel-validation`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || 'Ошибка расчёта');
-        }
-
-        // Download the returned Excel file
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const uploadedFile = file as File;
-        a.download = `validation_${uploadedFile.name.replace(/\.(xlsx|xls|xlsm)$/i, '')}_${new Date().toISOString().slice(0, 10)}.xlsm`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-
-        message.success('Расчёт выполнен. Файл скачан.');
-        onSuccess?.({});
-      } catch (error: any) {
-        message.error(error.message || 'Ошибка расчёта');
-        onError?.(error);
-      } finally {
-        setUploading(false);
-      }
+    beforeUpload: (file) => {
+      // Capture file and open modal instead of uploading
+      setSelectedFile(file);
+      setCreateModalOpen(true);
+      return false; // Prevent automatic upload
     },
+  };
+
+  // Handle successful quote creation
+  const handleCreateQuoteSuccess = (quoteId: string, quoteNumber: string) => {
+    setCreateModalOpen(false);
+    setSelectedFile(null);
+    fetchQuotes(); // Refresh the list to show new quote
+  };
+
+  // Handle modal cancel
+  const handleCreateModalCancel = () => {
+    setCreateModalOpen(false);
+    setSelectedFile(null);
   };
 
   // Export handler
@@ -655,8 +630,8 @@ export default function QuotesPage() {
                 Скачать шаблон
               </Button>
               <Upload {...uploadProps}>
-                <Button type="primary" icon={<UploadOutlined />} size="large" loading={uploading}>
-                  Загрузить КП
+                <Button type="primary" icon={<UploadOutlined />} size="large">
+                  Создать КП
                 </Button>
               </Upload>
             </Space>
@@ -812,6 +787,14 @@ export default function QuotesPage() {
           onCancel={() => setSubmitModalOpen(false)}
           onSubmit={handleSubmitForApproval}
           quoteNumber={submitQuoteNumber}
+        />
+
+        {/* Create Quote Modal */}
+        <CreateQuoteModal
+          open={createModalOpen}
+          onCancel={handleCreateModalCancel}
+          onSuccess={handleCreateQuoteSuccess}
+          selectedFile={selectedFile}
         />
       </Space>
     </MainLayout>

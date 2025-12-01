@@ -3,18 +3,24 @@ Quote Upload from Simplified Excel Template
 
 Endpoint: POST /api/quotes/upload-excel
 Accepts simplified Excel template, parses it, and runs calculation engine.
+Optionally saves to database if customer_id is provided.
 
 Created: 2025-11-28
+Updated: 2025-12-01 - Added save-to-DB functionality
 """
 
 import io
+import os
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional, List
 from decimal import Decimal, ROUND_HALF_UP
+from uuid import UUID
+from urllib.parse import quote as url_quote
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
+from supabase import create_client, Client
 
 from auth import get_current_user, User
 from excel_parser.simplified_parser import (
@@ -44,6 +50,20 @@ from calculation_engine import calculate_multiproduct_quote
 from services.exchange_rate_service import get_exchange_rate_service
 from services.export_validation_service import generate_validation_export
 from fastapi.responses import StreamingResponse
+
+# Import helper functions from quotes_calc
+from routes.quotes_calc import (
+    generate_quote_number,
+    aggregate_product_results_to_summary,
+    get_rates_snapshot_to_usd,
+    convert_decimals_to_float,
+)
+
+# Initialize Supabase client
+supabase: Client = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+)
 
 
 logger = logging.getLogger(__name__)
@@ -592,10 +612,15 @@ async def parse_excel_only(
 @router.post("/upload-excel-validation")
 async def upload_excel_with_validation_export(
     file: UploadFile = File(...),
+    customer_id: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
 ):
     """
     Upload Excel, run calculation, and return validation Excel file.
+
+    If customer_id is provided, also saves the quote to database (5 tables):
+    - quotes, quote_items, quote_calculation_variables,
+    - quote_calculation_results, quote_calculation_summaries
 
     The validation Excel contains:
     - API_Inputs tab: All uploaded input values
@@ -605,6 +630,7 @@ async def upload_excel_with_validation_export(
 
     Returns:
         Excel file (.xlsm) as downloadable attachment
+        Headers include X-Quote-Id and X-Quote-Number if saved to DB
     """
     if not file.filename.endswith(('.xlsx', '.xls')):
         raise HTTPException(
@@ -754,6 +780,104 @@ async def upload_excel_with_validation_export(
                 "financing_cost_credit": float(r.financing_cost_credit),
             })
 
+        # ================================================================
+        # SAVE TO DATABASE (if customer_id provided)
+        # ================================================================
+        quote_id = None
+        quote_number = None
+
+        if customer_id and user.current_organization_id:
+            try:
+                # Generate quote number
+                quote_number = generate_quote_number(supabase, str(user.current_organization_id))
+
+                # Get exchange rates snapshot for audit
+                rates_snapshot = get_rates_snapshot_to_usd(date.today())
+
+                # 1. Create quote record
+                quote_data = {
+                    "organization_id": str(user.current_organization_id),
+                    "customer_id": customer_id,
+                    "quote_number": quote_number,
+                    "title": f"КП от {date.today().strftime('%d.%m.%Y')}",
+                    "status": "draft",
+                    "created_by": str(user.id),
+                    "quote_date": date.today().isoformat(),
+                    "valid_until": (date.today() + timedelta(days=30)).isoformat(),
+                    "currency": parsed_data.quote_currency.value,
+                    "subtotal": float(total_purchase),
+                    "total_amount": float(total_revenue_no_vat),
+                }
+
+                quote_response = supabase.table("quotes").insert(quote_data).execute()
+                if not quote_response.data:
+                    raise Exception("Failed to create quote")
+                quote_id = quote_response.data[0]['id']
+
+                # 2. Create quote_items records
+                items_data = []
+                for idx, p in enumerate(parsed_data.products):
+                    custom_fields = {
+                        "currency_of_base_price": p.currency.value,
+                        "exchange_rate_base_price_to_quote": float(calculate_exchange_rate(
+                            p.currency.value, parsed_data.quote_currency.value, rates, for_division=True
+                        )),
+                        "supplier_discount": float(p.supplier_discount) if p.supplier_discount else 0,
+                        "markup": float(p.markup),
+                        "import_tariff": float(p.import_tariff) if p.import_tariff else 0,
+                    }
+                    items_data.append({
+                        "quote_id": quote_id,
+                        "position": idx,
+                        "product_name": p.name,
+                        "product_code": p.sku or "",
+                        "base_price_vat": float(p.base_price_vat),
+                        "quantity": p.quantity,
+                        "weight_in_kg": float(p.weight_kg) if p.weight_kg else 0,
+                        "customs_code": p.customs_code or "",
+                        "supplier_country": p.supplier_country or "Турция",
+                        "custom_fields": custom_fields,
+                    })
+
+                items_response = supabase.table("quote_items").insert(items_data).execute()
+                if not items_response.data:
+                    raise Exception("Failed to create quote items")
+
+                # 3. Save calculation variables
+                variables_data = {
+                    "quote_id": quote_id,
+                    "variables": {
+                        **quote_inputs,
+                        "exchange_rates": {k: float(v) for k, v in rates.items()},
+                        "rates_snapshot": rates_snapshot,
+                    }
+                }
+                supabase.table("quote_calculation_variables").insert(variables_data).execute()
+
+                # 4. Save calculation results for each product
+                for idx, (r, item_record) in enumerate(zip(calc_results, items_response.data)):
+                    result_dict = convert_decimals_to_float(r.dict())
+                    result_dict["rates_snapshot"] = rates_snapshot
+
+                    results_data = {
+                        "quote_id": quote_id,
+                        "quote_item_id": item_record['id'],
+                        "phase_results": result_dict,
+                    }
+                    supabase.table("quote_calculation_results").insert(results_data).execute()
+
+                # 5. Save quote calculation summary
+                quote_summary = aggregate_product_results_to_summary(calc_results, quote_inputs)
+                quote_summary["quote_id"] = quote_id
+                supabase.table("quote_calculation_summaries").upsert(quote_summary).execute()
+
+                logger.info(f"Quote {quote_number} (ID: {quote_id}) saved to database for customer {customer_id}")
+
+            except Exception as e:
+                logger.exception(f"Error saving quote to database: {e}")
+                # Don't fail the whole request - still return validation Excel
+                # but log the error
+
         # Generate validation Excel
         excel_bytes = generate_validation_export(
             quote_inputs=quote_inputs,
@@ -763,14 +887,31 @@ async def upload_excel_with_validation_export(
         )
 
         # Return as downloadable file
-        filename = f"validation_{file.filename.replace('.xlsx', '').replace('.xls', '')}.xlsm"
+        base_name = file.filename.replace('.xlsx', '').replace('.xls', '').replace('.xlsm', '')
+        filename = f"validation_{base_name}.xlsm"
+
+        # RFC 5987 encoding for non-ASCII filenames
+        # Use ASCII-safe filename as fallback, and UTF-8 encoded filename* for modern browsers
+        safe_filename = f"validation_{url_quote(base_name, safe='')}.xlsm"
+        filename_encoded = url_quote(filename, safe='')
+
+        # Build response headers
+        response_headers = {
+            "Content-Disposition": f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{filename_encoded}"
+        }
+
+        # Add quote info headers if saved to DB
+        if quote_id:
+            response_headers["X-Quote-Id"] = str(quote_id)
+            # URL-encode quote_number for HTTP header (contains Cyrillic "КП")
+            response_headers["X-Quote-Number"] = url_quote(quote_number, safe='')
+            # Expose custom headers to frontend
+            response_headers["Access-Control-Expose-Headers"] = "X-Quote-Id, X-Quote-Number"
 
         return StreamingResponse(
             io.BytesIO(excel_bytes),
             media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
-            }
+            headers=response_headers
         )
 
     except ValueError as e:
