@@ -10,6 +10,7 @@ Creates an Excel file with:
 
 import io
 import logging
+import os
 from copy import copy
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
@@ -22,8 +23,12 @@ from openpyxl.worksheet.protection import SheetProtection
 
 logger = logging.getLogger(__name__)
 
-# Template file path
-TEMPLATE_PATH = "/home/novi/Downloads/test_raschet_new_template_vat22.xlsm"
+# Template file path (relative to project root for Railway deployment)
+TEMPLATE_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "validation_data",
+    "test_raschet_new_template_vat22.xlsm"
+)
 
 # Highlight style for differences > 0.01%
 DIFF_FILL = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
