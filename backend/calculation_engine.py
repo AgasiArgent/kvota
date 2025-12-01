@@ -88,9 +88,14 @@ RATE_VAT_BY_SELLER_REGION = {
 # HELPER FUNCTIONS
 # ============================================================================
 
-def round_decimal(value: Decimal, decimal_places: int = 2) -> Decimal:
-    """Round decimal to specified places using ROUND_HALF_UP"""
-    if decimal_places == 2:
+def round_decimal(value: Decimal, decimal_places: int = 4) -> Decimal:
+    """Round decimal to specified places using ROUND_HALF_UP.
+
+    Default is 4 decimal places to match Excel precision (validated 2025-11-28).
+    """
+    if decimal_places == 4:
+        return value.quantize(Decimal('0.0001'), rounding=ROUND_HALF_UP)
+    elif decimal_places == 2:
         return value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     elif decimal_places == 0:
         return value.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
@@ -178,14 +183,14 @@ def phase1_purchase_price(
         N16 = base_price_VAT  # Already VAT-free
     else:
         N16 = round_decimal(base_price_VAT / (Decimal("1") + vat_seller_country))
-    
+
     # Final-35: P16 = N16 * (1 - O16) - Apply discount
     discount_multiplier = Decimal("1") - (supplier_discount / Decimal("100"))
     P16 = round_decimal(N16 * discount_multiplier)
-    
+
     # Final-36: R16 = P16 / Q16 - Convert to quote currency per unit
     R16 = round_decimal(P16 / exchange_rate)
-    
+
     # Final-9: S16 = E16 * R16 - Total purchase price
     S16 = round_decimal(Decimal(quantity) * R16)
     
@@ -271,12 +276,24 @@ def phase3_logistics_distribution(
     insurance_per_product: Decimal
 ) -> Dict[str, Decimal]:
     """
-    Distribute logistics costs to product
+    Distribute logistics and brokerage costs to product
 
     Steps: Final-10
-    Excel formulas:
-    - T16 = (W2 + W3 + W5 + W8) * BD16
-    - U16 = (W4 + W6 + W7 + W9) * BD16 + insurance_per_product
+    Excel formulas (verified 2025-11-28 against test_raschet_multi_currency_correct_rate_2711.xlsm):
+    - T13 = W2 + W3 + W5 + W8 (first leg total)
+    - U13 = W4 + W6 + W7 + W9 (second leg total)
+    - T16 = T13 * BD16 + insurance_per_product
+    - U16 = U13 * BD16
+
+    Where:
+    - W2 = logistics_supplier_hub (Istanbul → hub)
+    - W3 = logistics_hub_customs (hub → RU border)
+    - W4 = logistics_customs_client (border → client)
+    - W5 = brokerage_hub
+    - W6 = brokerage_customs
+    - W7 = warehousing_at_customs
+    - W8 = customs_documentation
+    - W9 = brokerage_extra
 
     Returns: T16, U16, V16
 
@@ -284,30 +301,25 @@ def phase3_logistics_distribution(
           insurance_total = ROUNDUP(AY13_total * rate_insurance, 1)
           insurance_per_product = insurance_total * BD16 (already distributed)
     """
-    # T16 = (W2 + W3 + W5 + W8) * BD16
-    T16 = round_decimal((
-        logistics_supplier_hub +        # W2
-        logistics_hub_customs +          # W3
-        brokerage_hub +                  # W5
-        customs_documentation            # W8
-    ) * BD16)
+    # T13 = W2 + W3 + W5 + W8 (logistics first leg + brokerage hub + docs)
+    T13 = logistics_supplier_hub + logistics_hub_customs + brokerage_hub + customs_documentation
 
-    # U16 = (W4 + W6 + W7 + W9) * BD16 + insurance_per_product
-    # Note: insurance_per_product is already distributed (insurance_total * BD16)
-    U16 = round_decimal((
-        logistics_customs_client +       # W4
-        brokerage_customs +              # W6
-        warehousing_at_customs +         # W7
-        brokerage_extra                  # W9
-    ) * BD16 + insurance_per_product)
+    # U13 = W4 + W6 + W7 + W9 (logistics last leg + brokerage customs + warehousing + extra)
+    U13 = logistics_customs_client + brokerage_customs + warehousing_at_customs + brokerage_extra
 
-    # V16 = T16 + U16
+    # T16 = T13 * BD16 + insurance_per_product
+    T16 = round_decimal(T13 * BD16 + insurance_per_product)
+
+    # U16 = U13 * BD16
+    U16 = round_decimal(U13 * BD16)
+
+    # V16 = T16 + U16 (total logistics + brokerage)
     V16 = round_decimal(T16 + U16)
 
     return {
-        "T16": T16,  # First leg logistics
-        "U16": U16,  # Last leg logistics
-        "V16": V16   # Total logistics
+        "T16": T16,  # First leg (logistics + brokerage + insurance)
+        "U16": U16,  # Second leg (logistics + brokerage)
+        "V16": V16   # Total logistics + brokerage
     }
 
 
@@ -338,12 +350,14 @@ def phase4_duties(
 
     Updated 2025-11-09: Y16 formula changed to import_tariff × (AY16 + T16)
     Updated 2025-11-12: Y16 now includes insurance: import_tariff × (AY16 + T16 + insurance)
+    Updated 2025-11-28: BUGFIX - Removed double insurance. T16 already includes insurance from Phase 3.
+                        Y16 = import_tariff × (AY16 + T16) where T16 = T13×BD16 + insurance
     """
     # Final-11: Y16 = customs fee
-    # Updated 2025-11-12: Formula includes insurance (matches Excel where insurance is in T16/V11)
-    # Y16 = import_tariff × (AY16 + T16 + insurance_per_product) if DDP
+    # BUGFIX 2025-11-28: Insurance is already in T16 (added in Phase 3), don't add again!
+    # Y16 = import_tariff × (AY16 + T16) where T16 already contains insurance_per_product
     if offer_incoterms == Incoterms.DDP:
-        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16 + insurance_per_product))
+        Y16 = round_decimal((import_tariff / Decimal("100")) * (AY16 + T16))
     else:
         Y16 = Decimal("0")
 
@@ -463,8 +477,9 @@ def phase7_financing_costs(
     BH4: Decimal,
     advance_from_client: Decimal,
     delivery_time: int,
-    customs_logistics_pmt_due: int,
-    rate_loan_interest_daily: Decimal
+    offer_post_pmt_due: int,
+    rate_loan_interest_daily: Decimal,
+    additional_payment_milestones: Decimal = Decimal("0")
 ) -> Dict[str, Decimal]:
     """
     Calculate financing needs and costs
@@ -473,10 +488,12 @@ def phase7_financing_costs(
            Final-15, Final-14 (BJ7), Final-25, Final-14 (BJ10), Final-13
     Returns: BH3, BH7, BH9, BH8, BH10, BI7, BJ7, BI10, BJ10, BJ11
 
-    Updated 2025-11-09:
-    - BI7 simplified to BH7 × (1 + rate_loan_interest_daily × D9) (simple interest)
-    - BI10 simplified to BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
-    - Removed time_to_advance, time_to_advance_on_receiving, time_to_advance_loading parameters
+    Updated 2025-11-27:
+    - BI7 = BH7 × (1 + rate_loan_interest_daily × D9) (simple interest, delivery time)
+    - BI10 = BH10 × (1 + rate_loan_interest_daily × K9) (simple interest, post-payment due)
+    - BH9: Excel formula depends on payment terms type (pmt_1, pmt_2, pmt_3)
+      For pmt_3 (most common): BH9 = SUM(J6:J8) * BH2 where J6:J8 are additional milestones
+      Default to 0 when no additional milestones specified
     """
     # Final-17: BH3 = BH2 * (J5 / 100)
     BH3 = round_decimal(BH2 * (advance_from_client / Decimal("100")))
@@ -490,8 +507,10 @@ def phase7_financing_costs(
     else:
         BH7 = BH6
 
-    # Final-22: BH9 = 1 - J5
-    BH9 = Decimal("1") - (advance_from_client / Decimal("100"))
+    # Final-22: BH9 = additional payment milestones * BH2
+    # Excel: =IFS(pmt_1,0,pmt_2,0,pmt_3,SUM(J6:J8))*BH2
+    # For pmt_3 with no additional milestones, this equals 0
+    BH9 = round_decimal(additional_payment_milestones * BH2)
 
     # Final-24: BH8 = BH4 - BH6
     BH8 = round_decimal(BH4 - BH6)
@@ -512,9 +531,10 @@ def phase7_financing_costs(
     # Final-14: BJ7 = BI7 - BH7
     BJ7 = round_decimal(BI7 - BH7)
 
-    # Final-25: BI10 = BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
-    # Updated 2025-11-09: Simplified to simple interest with fixed payment term
-    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(customs_logistics_pmt_due)))
+    # Final-25: BI10 = BH10 × (1 + rate_loan_interest_daily × K9)
+    # Updated 2025-11-27: Uses offer_post_pmt_due (K9) instead of customs_logistics_pmt_due
+    K9 = offer_post_pmt_due
+    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(K9)))
 
     # Final-14: BJ10 = BI10 - BH10
     BJ10 = round_decimal(BI10 - BH10)
@@ -541,24 +561,29 @@ def phase7_financing_costs(
 # ============================================================================
 
 def phase8_credit_sales_interest(
-    BH2: Decimal,
+    BH4: Decimal,
     BH3: Decimal,
     time_to_advance_on_receiving: int,
     rate_loan_interest_daily: Decimal
 ) -> Dict[str, Decimal]:
     """
     Calculate interest on delayed payment from client
-    
+
     Steps: Final-28, Final-29, Final-30
     Returns: BL3, BL4, BL5
+
+    Updated 2025-11-27: BL3 = BH4 - BH3 (not BH2 - BH3)
+    Updated 2025-11-27: BL4 uses SIMPLE interest (not compound FV)
+                        Excel formula: BL4 = BL3 + BL3 * rate * days
     """
-    # Final-28: BL3 = BH2 - BH3
-    BL3 = round_decimal(BH2 - BH3)
-    
-    # Final-29: BL4 = FV(rate, K9, , -BL3)
+    # Final-28: BL3 = BH4 - BH3 (total before forwarding minus client advance)
+    BL3 = round_decimal(BH4 - BH3)
+
+    # Final-29: BL4 = BL3 + BL3 * rate_loan_interest_daily * K9 (SIMPLE interest)
+    # Excel: =BL3+BL3*rate_loan_interest_daily*offer_post_pmt_due
     K9 = time_to_advance_on_receiving
-    BL4 = calculate_future_value(BL3, rate_loan_interest_daily, K9)
-    
+    BL4 = round_decimal(BL3 * (Decimal("1") + rate_loan_interest_daily * Decimal(K9)))
+
     # Final-30: BL5 = BL4 - BL3
     BL5 = round_decimal(BL4 - BL3)
     
@@ -987,13 +1012,13 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         phase5_results["BH4"],
         shared.payment.advance_from_client,
         shared.logistics.delivery_time,
-        shared.system.customs_logistics_pmt_due,  # New admin variable
+        shared.payment.time_to_advance_on_receiving,  # K9: offer_post_pmt_due
         shared.system.rate_loan_interest_daily
     )
 
     # STEP 9: Calculate quote-level credit sales interest ONCE
     phase8_results = phase8_credit_sales_interest(
-        phase6_results["BH2"],
+        phase5_results["BH4"],  # Total before forwarding (not BH2 revenue)
         phase7_results["BH3"],
         shared.payment.time_to_advance_on_receiving,
         shared.system.rate_loan_interest_daily
@@ -1250,13 +1275,13 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         phase5_results["BH4"],
         inputs.payment.advance_from_client,
         inputs.logistics.delivery_time,
-        inputs.system.customs_logistics_pmt_due,  # New admin variable
+        inputs.payment.time_to_advance_on_receiving,  # K9: offer_post_pmt_due
         inputs.system.rate_loan_interest_daily
     )
     
     # PHASE 8: Credit Sales Interest
     phase8_results = phase8_credit_sales_interest(
-        phase6_results["BH2"],
+        phase5_results["BH4"],  # Total before forwarding (not BH2 revenue)
         phase7_results["BH3"],
         inputs.payment.time_to_advance_on_receiving,
         inputs.system.rate_loan_interest_daily

@@ -10,12 +10,20 @@
 backend/
 ├── main.py                    # FastAPI app entry point
 ├── auth.py                    # Authentication & authorization
+├── domain_models/
+│   ├── monetary.py            # MonetaryValue, Currency types
+│   └── quote_version.py       # QuoteVersion, QuoteVersionCreate
+├── services/
+│   ├── multi_currency_service.py   # Currency conversion (CBR/manual)
+│   └── quote_version_service.py    # Immutable version management
 ├── routes/
 │   ├── customers.py           # Customer CRUD
 │   ├── quotes.py              # Quote CRUD
 │   ├── quotes_calc.py         # Calculation engine
 │   ├── calculation_settings.py # Admin settings
 │   ├── organizations.py       # Organization management
+│   ├── exchange_rates_org.py  # Org exchange rate settings
+│   ├── quote_versions.py      # Quote version API
 │   └── team.py                # Team member management
 ├── migrations/
 │   └── *.sql                  # Database migrations
@@ -555,6 +563,167 @@ POST /api/exchange-rates/refresh
 - **Use upsert() not insert()** - Handles duplicate entries gracefully
 - **56 currencies supported** - All CBR API currencies
 - **Automatic fallback** - If cache miss, fetches fresh data
+
+---
+
+## Multi-Currency Service
+
+### Overview
+Converts monetary values to USD for storage and analytics. Supports CBR (automatic) and manual (per-organization) exchange rates.
+
+### Domain Models
+
+**MonetaryValue** - Backend representation with conversion data:
+```python
+from domain_models.monetary import MonetaryValue, MonetaryInput, Currency, SUPPORTED_CURRENCIES
+
+# Create a monetary value with conversion
+mv = MonetaryValue(
+    value=Decimal("1500.00"),
+    currency="EUR",
+    value_usd=Decimal("1620.00"),
+    rate_used=Decimal("1.08"),
+    rate_source="cbr",
+    rate_timestamp=datetime.now(timezone.utc)
+)
+
+# Supported currencies
+SUPPORTED_CURRENCIES = ["USD", "EUR", "RUB", "TRY", "CNY"]
+```
+
+**MonetaryInput** - Frontend input (no conversion):
+```python
+class MonetaryInput(BaseModel):
+    value: Decimal
+    currency: Currency
+```
+
+### Service Pattern
+```python
+from services.multi_currency_service import MultiCurrencyService
+
+service = MultiCurrencyService()
+org_id = uuid4()
+
+# Convert to USD (uses CBR or manual rates based on org settings)
+result = await service.convert_to_usd(
+    value=Decimal("1500.00"),
+    from_currency="EUR",
+    org_id=org_id
+)
+# Returns MonetaryValue with value_usd, rate_used, rate_source
+
+# Get all rates for org (for quote version snapshot)
+rates = await service.get_all_rates_for_org(org_id)
+# Returns {"USD": "1.0", "EUR": "1.08", "RUB": "0.0105", ...}
+```
+
+### Rate Priority
+1. **Manual rates** - If org has `use_manual_rates=True` and rate is set
+2. **CBR rates** - Fallback to Central Bank of Russia rates
+3. **Error** - Raises ValueError if no rate available
+
+### Organization Exchange Rate Settings
+
+**API Endpoints:**
+```python
+# Get org exchange rate settings
+GET /api/organizations/{org_id}/exchange-rates
+# Returns: {"use_manual_rates": false, "manual_rates": {...}}
+
+# Update manual rates
+PUT /api/organizations/{org_id}/exchange-rates
+# Body: {"use_manual_rates": true, "manual_rates": {"EUR": "1.10", ...}}
+```
+
+**Database Schema:**
+```sql
+CREATE TABLE organization_exchange_rates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id),
+    use_manual_rates BOOLEAN NOT NULL DEFAULT false,
+    manual_rates JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(organization_id)
+);
+```
+
+---
+
+## Quote Version Service
+
+### Overview
+Immutable quote versions with exchange rate snapshots for audit trail.
+
+### Service Pattern
+```python
+from services.quote_version_service import QuoteVersionService
+from domain_models.quote_version import QuoteVersionCreate
+
+service = QuoteVersionService()
+
+# Create new version
+version = await service.create_version(QuoteVersionCreate(
+    quote_id=quote_id,
+    quote_variables=variables,
+    products_snapshot=products,
+    exchange_rates_used=rates,  # Snapshot at calculation time
+    rates_source="cbr",
+    calculation_results=results,
+    total_usd=total,
+    total_quote_currency=total,
+    created_by=user_id,
+    change_reason="Initial calculation"
+))
+
+# List versions for quote
+versions = await service.list_versions(quote_id)
+
+# Recalculate with fresh rates
+new_version = await service.recalculate_with_fresh_rates(
+    quote_id=quote_id,
+    org_id=org_id,
+    user_id=user_id
+)
+```
+
+### Database Schema
+```sql
+CREATE TABLE quote_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quote_id UUID NOT NULL REFERENCES quotes(id),
+    version_number INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    quote_variables JSONB NOT NULL,
+    products_snapshot JSONB NOT NULL,
+    exchange_rates_used JSONB NOT NULL,  -- Rate snapshot
+    rates_source TEXT NOT NULL,          -- "cbr", "manual", "mixed"
+    calculation_results JSONB,
+    total_usd DECIMAL(15,2),
+    total_quote_currency DECIMAL(15,2),
+    created_by UUID NOT NULL REFERENCES auth.users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    change_reason TEXT,
+    parent_version_id UUID REFERENCES quote_versions(id),
+    UNIQUE(quote_id, version_number)
+);
+```
+
+### API Endpoints
+```python
+# Create version
+POST /api/quote-versions/
+# Body: QuoteVersionCreate
+
+# List versions
+GET /api/quote-versions/{quote_id}
+# Returns: [QuoteVersion, ...]
+
+# Get specific version
+GET /api/quote-versions/{quote_id}/{version_number}
+# Returns: QuoteVersion
+```
 
 ---
 

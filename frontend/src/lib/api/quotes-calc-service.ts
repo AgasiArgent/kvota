@@ -6,6 +6,7 @@
 import { ApiResponse } from '@/lib/types/platform';
 import { config, getApiEndpoint } from '@/lib/config';
 import { createClient } from '@/lib/supabase/client';
+import { MonetaryValue } from '@/components/inputs/MonetaryInput';
 
 /**
  * Product from uploaded file
@@ -105,6 +106,39 @@ export interface CalculationVariables {
 }
 
 /**
+ * Form-specific type that allows MonetaryValue objects for monetary fields.
+ * Used in the create quote form where MonetaryInput components store { value, currency } objects.
+ * The extractMonetaryValues() function converts these back to numbers for the API.
+ */
+export interface CalculationVariablesForm
+  extends Omit<
+    CalculationVariables,
+    | 'logistics_supplier_hub'
+    | 'logistics_hub_customs'
+    | 'logistics_customs_client'
+    | 'brokerage_hub'
+    | 'brokerage_customs'
+    | 'warehousing_at_customs'
+    | 'customs_documentation'
+    | 'brokerage_extra'
+  > {
+  // Logistics total - optional field used only in "total" mode
+  logistics_total?: number | MonetaryValue;
+
+  // Logistics fields - accept both number (from API) and MonetaryValue (from form input)
+  logistics_supplier_hub: number | MonetaryValue;
+  logistics_hub_customs: number | MonetaryValue;
+  logistics_customs_client: number | MonetaryValue;
+
+  // Brokerage fields - accept both number (from API) and MonetaryValue (from form input)
+  brokerage_hub: number | MonetaryValue;
+  brokerage_customs: number | MonetaryValue;
+  warehousing_at_customs: number | MonetaryValue;
+  customs_documentation: number | MonetaryValue;
+  brokerage_extra: number | MonetaryValue;
+}
+
+/**
  * Variable Template
  */
 export interface VariableTemplate {
@@ -151,10 +185,10 @@ export interface ProductCalculationResult {
   product_code?: string;
   quantity: number;
 
-  // Phase results
+  // Phase results (in USD - internal accounting)
   base_price_vat: number;
   base_price_no_vat: number;
-  purchase_price_rub: number;
+  purchase_price_rub: number; // Note: now in USD despite name
   logistics_costs: number;
   cogs: number;
   cogs_with_vat: number;
@@ -163,8 +197,14 @@ export interface ProductCalculationResult {
   financing_costs: number;
   dm_fee: number;
   total_cost: number;
-  sale_price: number;
-  margin: number;
+  sale_price: number; // In USD
+  margin: number; // In USD (internal profit tracking)
+
+  // Quote currency values (for client display)
+  sale_price_quote?: number; // Sale price in quote currency
+  sale_price_with_vat_quote?: number; // Sale price with VAT in quote currency
+  quote_currency?: string; // Quote currency code (RUB, EUR, etc.)
+  usd_to_quote_rate?: number; // Exchange rate used for conversion
 }
 
 /**

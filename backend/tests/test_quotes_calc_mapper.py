@@ -3,6 +3,7 @@ Tests for variable mapper function in quotes_calc.py
 """
 import pytest
 from decimal import Decimal
+from datetime import date
 from routes.quotes_calc import (
     ProductFromFile,
     map_variables_to_calculation_input,
@@ -11,6 +12,9 @@ from routes.quotes_calc import (
     safe_int,
     get_value
 )
+
+# Default test date (before 2026, so VAT = 20%)
+TEST_QUOTE_DATE = date(2025, 6, 15)
 
 
 class TestHelperFunctions:
@@ -99,17 +103,17 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
             "exchange_rate": "1.0",
-            "markup": "15",
+            "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция"
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         # Verify product info
         assert result.product.base_price_VAT == Decimal("1000.0")
@@ -118,8 +122,8 @@ class TestMapVariables:
 
         # Verify financial params
         assert result.financial.currency_of_quote.value == "USD"
-        assert result.financial.markup == Decimal("15")
-        assert result.financial.rate_forex_risk == Decimal("3")
+        assert result.financial.markup == Decimal("0.15")  # 15% as decimal
+        assert result.financial.rate_forex_risk == Decimal("0.03")
 
         # Verify logistics params
         assert result.logistics.supplier_country.value == "Турция"
@@ -127,8 +131,7 @@ class TestMapVariables:
         assert result.logistics.delivery_time == 60  # Default
 
         # Verify system config (admin settings)
-        assert result.system.rate_fin_comm == Decimal("2")
-        assert result.system.rate_loan_interest_daily == Decimal("0.00069")
+        assert result.system.rate_fin_comm == Decimal("0.02")
 
     def test_mapper_with_product_overrides(self):
         """Test that product-level overrides work"""
@@ -147,18 +150,18 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "RUB",
             "exchange_rate_base_price_to_quote": "95.5",
-            "markup": "20",
+            "markup": "0.20",  # 20% as decimal
             "supplier_country": "Турция",  # Quote default
             "customs_code": "9999999999"   # Quote default
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         # Product overrides should win
         assert result.logistics.supplier_country.value == "Китай"
@@ -167,7 +170,8 @@ class TestMapVariables:
 
         # Quote-level values
         assert result.financial.exchange_rate_base_price_to_quote == Decimal("95.5")
-        assert result.financial.currency_of_quote.value == "RUB"
+        # Note: currency_of_quote is always USD for internal calculations
+        assert result.financial.currency_of_quote.value == "USD"
 
     def test_mapper_with_all_logistics_fields(self):
         """Test with all logistics costs populated"""
@@ -183,7 +187,7 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
             "exchange_rate": "1.0",
-            "markup": "15",
+            "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция",
             "logistics_supplier_hub": "1500.00",
             "logistics_hub_customs": "800.00",
@@ -191,12 +195,12 @@ class TestMapVariables:
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         assert result.logistics.logistics_supplier_hub == Decimal("1500.00")
         assert result.logistics.logistics_hub_customs == Decimal("800.00")
@@ -217,24 +221,24 @@ class TestMapVariables:
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
             "exchange_rate": "1.0",
-            "markup": "15",
+            "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция"
         }
 
         admin_settings = {
-            "rate_forex_risk": Decimal("3"),
-            "rate_fin_comm": Decimal("2"),
-            "rate_loan_interest_daily": Decimal("0.00069")
+            "rate_forex_risk": Decimal("0.03"),
+            "rate_fin_comm": Decimal("0.02"),
+            "rate_loan_interest_annual": Decimal("0.25")
         }
 
-        result = map_variables_to_calculation_input(product, variables, admin_settings)
+        result = map_variables_to_calculation_input(product, variables, admin_settings, TEST_QUOTE_DATE)
 
         # Check defaults
         assert result.financial.supplier_discount == Decimal("0")
         assert result.financial.dm_fee_type.value == "fixed"
         assert result.financial.dm_fee_value == Decimal("0")
-        assert result.payment.advance_from_client == Decimal("100")
-        assert result.payment.advance_to_supplier == Decimal("100")
+        assert result.payment.advance_from_client == Decimal("1")  # 100% as decimal
+        assert result.payment.advance_to_supplier == Decimal("1")  # 100% as decimal
         assert result.taxes.import_tariff == Decimal("0")
         assert result.taxes.excise_tax == Decimal("0")
         assert result.taxes.util_fee == Decimal("0")

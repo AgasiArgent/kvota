@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Space, Typography, Tooltip, Spin } from 'antd';
+import { Space, Typography, Tooltip, Spin, message } from 'antd';
 import { SyncOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+import { createClient } from '@/lib/supabase/client';
 
 const { Text } = Typography;
 
@@ -50,6 +51,45 @@ export default function ExchangeRates() {
     }
   };
 
+  const refreshFromCBR = async () => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        message.error('Необходима авторизация');
+        return;
+      }
+
+      // Call admin refresh endpoint to force fetch from CBR
+      const response = await fetch('/api/exchange-rates/refresh', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        message.error(error.detail || 'Ошибка обновления курсов');
+        return;
+      }
+
+      message.success('Курсы обновлены из ЦБ РФ');
+      // Re-fetch to display updated rates
+      await fetchRates();
+    } catch (error) {
+      console.error('Failed to refresh rates from CBR:', error);
+      message.error('Ошибка обновления курсов');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchRates();
 
@@ -60,7 +100,7 @@ export default function ExchangeRates() {
   }, []);
 
   const formatRate = (rate: number) => {
-    return rate.toFixed(2);
+    return rate.toFixed(4);
   };
 
   const getChangeIcon = (change?: number) => {
@@ -111,11 +151,11 @@ export default function ExchangeRates() {
         >
           Курсы валют ЦБ РФ
         </Text>
-        <Tooltip title="Обновить">
+        <Tooltip title="Обновить из ЦБ РФ">
           <SyncOutlined
             spin={loading}
             style={{ fontSize: '12px', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.45)' }}
-            onClick={fetchRates}
+            onClick={refreshFromCBR}
           />
         </Tooltip>
       </div>

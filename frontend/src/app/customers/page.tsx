@@ -11,7 +11,7 @@ import {
   Tag,
   Typography,
   message,
-  Popconfirm,
+  Popover,
   Row,
   Col,
   Statistic,
@@ -19,14 +19,14 @@ import {
 import {
   PlusOutlined,
   SearchOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  EyeOutlined,
   TeamOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
-import { customerService, Customer } from '@/lib/api/customer-service';
+import { customerService, Customer, CustomerContact } from '@/lib/api/customer-service';
 
 const { Title } = Typography;
 const { Search } = Input;
@@ -42,11 +42,13 @@ export default function CustomersPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [regionFilter, setRegionFilter] = useState<string>('');
+
+  // Contacts per customer
+  const [contactsMap, setContactsMap] = useState<Record<string, CustomerContact[]>>({});
 
   useEffect(() => {
     fetchCustomers();
-  }, [currentPage, pageSize, searchTerm, statusFilter, regionFilter]);
+  }, [currentPage, pageSize, searchTerm, statusFilter]);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -56,12 +58,27 @@ export default function CustomersPage() {
         limit: pageSize,
         search: searchTerm || undefined,
         status: statusFilter || undefined,
-        region: regionFilter || undefined,
       });
 
       if (response.success && response.data) {
-        setCustomers(response.data.customers || []);
+        const customersList = response.data.customers || [];
+        setCustomers(customersList);
         setTotalCount(response.data.total || 0);
+
+        // Fetch contacts for all customers in parallel
+        const contactPromises = customersList.map((customer) =>
+          customerService.listContacts(customer.id).then((res) => ({
+            customerId: customer.id,
+            contacts: res.success && res.data ? res.data.contacts : [],
+          }))
+        );
+
+        const contactResults = await Promise.all(contactPromises);
+        const newContactsMap: Record<string, CustomerContact[]> = {};
+        contactResults.forEach(({ customerId, contacts }) => {
+          newContactsMap[customerId] = contacts;
+        });
+        setContactsMap(newContactsMap);
       } else {
         message.error(`Ошибка загрузки клиентов: ${response.error}`);
         setCustomers([]);
@@ -73,21 +90,6 @@ export default function CustomersPage() {
       setTotalCount(0);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      const response = await customerService.deleteCustomer(id);
-      if (response.success) {
-        message.success('Клиент успешно удален');
-      } else {
-        message.error(`Ошибка удаления: ${response.error}`);
-        return;
-      }
-      fetchCustomers();
-    } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`);
     }
   };
 
@@ -122,9 +124,7 @@ export default function CustomersPage() {
       width: 250,
       render: (text: string, record: Customer) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => router.push(`/customers/${record.id}`)} style={{ fontWeight: 500 }}>
-            {text}
-          </a>
+          <span style={{ fontWeight: 500 }}>{text}</span>
           <span style={{ fontSize: '12px', color: '#888' }}>
             {getCompanyTypeDisplay(record.company_type)}
           </span>
@@ -139,34 +139,67 @@ export default function CustomersPage() {
       render: (inn: string) => inn || '—',
     },
     {
-      title: 'КПП',
-      dataIndex: 'kpp',
-      key: 'kpp',
-      width: 110,
-      render: (kpp: string) => kpp || '—',
-    },
-    {
       title: 'Город',
       dataIndex: 'city',
       key: 'city',
       width: 120,
     },
     {
-      title: 'Регион',
-      dataIndex: 'region',
-      key: 'region',
-      width: 150,
-    },
-    {
-      title: 'Контакты',
-      key: 'contacts',
+      title: 'ЛПР',
+      key: 'lpr',
       width: 200,
-      render: (_: any, record: Customer) => (
-        <Space direction="vertical" size={0}>
-          {record.email && <span style={{ fontSize: '12px' }}>{record.email}</span>}
-          {record.phone && <span style={{ fontSize: '12px' }}>{record.phone}</span>}
-        </Space>
-      ),
+      render: (_: any, record: Customer) => {
+        const contacts = contactsMap[record.id] || [];
+        if (contacts.length === 0) {
+          return <span style={{ color: '#999' }}>—</span>;
+        }
+
+        return (
+          <Space size={4} wrap>
+            {contacts.map((contact) => (
+              <Popover
+                key={contact.id}
+                title={
+                  <Space>
+                    <UserOutlined />
+                    {contact.name} {contact.last_name || ''}
+                    {contact.is_primary && (
+                      <Tag color="blue" style={{ marginLeft: 4 }}>
+                        Основной
+                      </Tag>
+                    )}
+                  </Space>
+                }
+                content={
+                  <Space direction="vertical" size={4}>
+                    {contact.position && <span style={{ color: '#666' }}>{contact.position}</span>}
+                    {contact.phone && (
+                      <Space>
+                        <PhoneOutlined />
+                        <a href={`tel:${contact.phone}`}>{contact.phone}</a>
+                      </Space>
+                    )}
+                    {contact.email && (
+                      <Space>
+                        <MailOutlined />
+                        <a href={`mailto:${contact.email}`}>{contact.email}</a>
+                      </Space>
+                    )}
+                  </Space>
+                }
+                trigger="click"
+              >
+                <Tag
+                  style={{ cursor: 'pointer', marginBottom: 2 }}
+                  color={contact.is_primary ? 'blue' : 'default'}
+                >
+                  {contact.name}
+                </Tag>
+              </Popover>
+            ))}
+          </Space>
+        );
+      },
     },
     {
       title: 'Статус',
@@ -174,38 +207,6 @@ export default function CustomersPage() {
       key: 'status',
       width: 120,
       render: (status: string) => getStatusTag(status),
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 150,
-      fixed: 'right' as const,
-      render: (_: any, record: Customer) => (
-        <Space size="small">
-          <Button
-            type="text"
-            icon={<EyeOutlined />}
-            onClick={() => router.push(`/customers/${record.id}`)}
-            title="Просмотр"
-          />
-          <Button
-            type="text"
-            icon={<EditOutlined />}
-            onClick={() => router.push(`/customers/${record.id}?mode=edit`)}
-            title="Редактировать"
-          />
-          <Popconfirm
-            title="Удалить клиента?"
-            description="Это действие нельзя отменить"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Удалить"
-            cancelText="Отмена"
-            okButtonProps={{ danger: true }}
-          >
-            <Button type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-          </Popconfirm>
-        </Space>
-      ),
     },
   ];
 
@@ -268,7 +269,7 @@ export default function CustomersPage() {
         {/* Filters */}
         <Card>
           <Row gutter={[16, 16]}>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={12}>
               <Search
                 placeholder="Поиск по названию, ИНН..."
                 allowClear
@@ -286,7 +287,7 @@ export default function CustomersPage() {
                 }}
               />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={12}>
               <Select
                 placeholder="Статус"
                 allowClear
@@ -303,26 +304,6 @@ export default function CustomersPage() {
                 ]}
               />
             </Col>
-            <Col xs={24} md={8}>
-              <Select
-                placeholder="Регион"
-                allowClear
-                size="large"
-                style={{ width: '100%' }}
-                showSearch
-                onChange={(value) => {
-                  setRegionFilter(value || '');
-                  setCurrentPage(1);
-                }}
-                options={[
-                  { label: 'Москва', value: 'Москва' },
-                  { label: 'Санкт-Петербург', value: 'Санкт-Петербург' },
-                  { label: 'Московская область', value: 'Московская область' },
-                  { label: 'Ленинградская область', value: 'Ленинградская область' },
-                  // Add more regions as needed
-                ]}
-              />
-            </Col>
           </Row>
         </Card>
 
@@ -333,7 +314,11 @@ export default function CustomersPage() {
             dataSource={customers}
             rowKey="id"
             loading={loading}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 900 }}
+            onRow={(record) => ({
+              onClick: () => router.push(`/customers/${record.id}`),
+              style: { cursor: 'pointer' },
+            })}
             pagination={{
               current: currentPage,
               pageSize: pageSize,

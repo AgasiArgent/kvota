@@ -154,7 +154,7 @@ def test_markup_validation():
     is_valid, msg = validate_markup(
         markup=Decimal('3.0'),
         advance_percent=Decimal('50.0'),
-        delivery_days=60,
+        delivery_time=60,
         level='quote'
     )
     assert not is_valid
@@ -164,7 +164,7 @@ def test_markup_validation():
     is_valid, msg = validate_markup(
         markup=Decimal('16.0'),
         advance_percent=Decimal('50.0'),
-        delivery_days=60,
+        delivery_time=60,
         level='quote'
     )
     assert is_valid
@@ -174,7 +174,7 @@ def test_markup_validation():
     is_valid, msg = validate_markup(
         markup=Decimal('6.0'),
         advance_percent=Decimal('70.0'),
-        delivery_days=60,
+        delivery_time=60,
         level='product'
     )
     assert is_valid
