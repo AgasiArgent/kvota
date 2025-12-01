@@ -8,9 +8,8 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from typing import Optional
 
-from auth import get_current_user, User
+from auth import get_current_user, User, check_admin_permissions
 from services.exchange_rate_service import get_exchange_rate_service
-from routes.calculation_settings import check_admin_permissions
 
 router = APIRouter(prefix="/api/exchange-rates", tags=["exchange-rates"])
 

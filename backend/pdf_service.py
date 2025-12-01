@@ -216,10 +216,10 @@ class QuotePDFService:
                         <td>Итого без НДС:</td>
                         <td class="amount">{{ quote.subtotal|ru_currency(quote.currency) }}</td>
                     </tr>
-                    {% if quote.discount_amount > 0 %}
+                    {% if quote.discount_rate and quote.discount_rate > 0 %}
                     <tr>
-                        <td>Скидка{% if quote.discount_type == 'percentage' %} ({{ quote.discount_rate|ru_number }}%){% endif %}:</td>
-                        <td class="amount discount">-{{ quote.discount_amount|ru_currency(quote.currency) }}</td>
+                        <td>Скидка ({{ quote.discount_rate|ru_number }}%):</td>
+                        <td class="amount discount">-{{ (quote.subtotal * quote.discount_rate / 100)|ru_currency(quote.currency) }}</td>
                     </tr>
                     {% endif %}
                     <tr class="vat-row">
@@ -704,10 +704,10 @@ body {
     # ========================================================================
 
     @staticmethod
-    def format_russian_currency(value) -> str:
+    def format_russian_currency(value, currency_symbol: str = '₽') -> str:
         """Format Decimal/float as Russian currency: 1 234,56 ₽"""
         if value is None:
-            return "0,00 ₽"
+            return f"0,00 {currency_symbol}"
 
         # Convert to float if Decimal
         if isinstance(value, Decimal):
@@ -717,7 +717,7 @@ body {
         str_val = f"{value:,.2f}"
         # Replace comma with space (thousands) and period with comma (decimals)
         str_val = str_val.replace(',', ' ').replace('.', ',')
-        return f"{str_val} ₽"
+        return f"{str_val} {currency_symbol}"
 
     @staticmethod
     def format_russian_number(value) -> str:
@@ -755,11 +755,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context for template
         context = {
@@ -782,6 +786,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Items and totals
             'items': [],
@@ -799,11 +804,11 @@ body {
                 'sku': item.get('sku', ''),
                 'product_name': item.get('product_name', ''),
                 'quantity': item.get('quantity', 0),
-                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
-                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
-                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
-                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
-                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0), currency_symbol),
+                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0), currency_symbol),
+                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0), currency_symbol),
+                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0), currency_symbol),
+                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0), currency_symbol)
             }
 
             context['items'].append(item_data)
@@ -814,7 +819,7 @@ body {
 
         context['totals'] = {
             'quantity': totals['quantity'],
-            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+            'total_with_vat': self.format_russian_currency(totals['total_vat'], currency_symbol)
         }
 
         # Render HTML template
@@ -833,11 +838,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context for template
         context = {
@@ -860,6 +869,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Items and totals
             'items': [],
@@ -913,7 +923,7 @@ body {
 
         context['totals'] = {
             'quantity': totals['quantity'],
-            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+            'total_with_vat': self.format_russian_currency(totals['total_vat'], currency_symbol)
         }
 
         # Render HTML template
@@ -932,11 +942,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context (same as supply_pdf + letter-specific fields)
         context = {
@@ -959,6 +973,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Letter-specific fields
             'letter_greeting': f"Уважаемый {contact.get('name', '')}!" if contact.get('name') else "Уважаемые партнеры!",
@@ -981,11 +996,11 @@ body {
                 'sku': item.get('sku', ''),
                 'product_name': item.get('product_name', ''),
                 'quantity': item.get('quantity', 0),
-                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
-                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
-                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
-                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
-                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0), currency_symbol),
+                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0), currency_symbol),
+                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0), currency_symbol),
+                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0), currency_symbol),
+                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0), currency_symbol)
             }
 
             context['items'].append(item_data)
@@ -995,7 +1010,7 @@ body {
 
         context['totals'] = {
             'quantity': totals['quantity'],
-            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+            'total_with_vat': self.format_russian_currency(totals['total_vat'], currency_symbol)
         }
 
         # Render HTML template
@@ -1014,11 +1029,15 @@ body {
         Returns:
             PDF bytes
         """
-        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description
+        from services.export_data_mapper import get_manager_info, get_contact_info, format_payment_terms, format_delivery_description, get_currency_symbol
 
         # Get helper info
         manager = get_manager_info(export_data)
         contact = get_contact_info(export_data)
+
+        # Get currency symbol for the quote
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
 
         # Build context (same as openbook_pdf + letter-specific fields)
         context = {
@@ -1041,6 +1060,7 @@ body {
             'quote_date': parse_iso_date(export_data.quote.get('created_at', '')),
             'delivery_time': export_data.variables.get('delivery_time', 60),
             'delivery_description': format_delivery_description(export_data.variables),
+            'currency_symbol': currency_symbol,
 
             # Letter-specific fields
             'letter_greeting': f"Уважаемый {contact.get('name', '')}!" if contact.get('name') else "Уважаемые партнеры!",
@@ -1072,23 +1092,23 @@ body {
 
                 # Columns 5-15: Purchase & cost details
                 'currency': export_data.variables.get('currency_of_base_price', 'USD'),
-                'purchase_price_no_vat': self.format_russian_currency(purchase_price_no_vat),
-                'invoice_amount': self.format_russian_currency(invoice_amount),
-                'purchase_price_quote_currency': self.format_russian_currency(calc.get('purchase_price_total_quote_currency', 0)),
-                'logistics': self.format_russian_currency(calc.get('logistics_total', 0)),
+                'purchase_price_no_vat': self.format_russian_currency(purchase_price_no_vat, currency_symbol),
+                'invoice_amount': self.format_russian_currency(invoice_amount, currency_symbol),
+                'purchase_price_quote_currency': self.format_russian_currency(calc.get('purchase_price_total_quote_currency', 0), currency_symbol),
+                'logistics': self.format_russian_currency(calc.get('logistics_total', 0), currency_symbol),
                 'customs_code': item.get('customs_code', ''),
                 'import_tariff': f"{export_data.variables.get('import_tariff', 0)}%",
-                'customs_fee': self.format_russian_currency(calc.get('customs_fee', 0)),
-                'excise_tax': self.format_russian_currency(calc.get('excise_tax', 0)),
-                'util_fee': self.format_russian_currency(calc.get('util_fee', 0)),
-                'transit_commission': self.format_russian_currency(calc.get('transit_commission', 0)),
+                'customs_fee': self.format_russian_currency(calc.get('customs_fee', 0), currency_symbol),
+                'excise_tax': self.format_russian_currency(calc.get('excise_tax', 0), currency_symbol),
+                'util_fee': self.format_russian_currency(calc.get('util_fee', 0), currency_symbol),
+                'transit_commission': self.format_russian_currency(calc.get('transit_commission', 0), currency_symbol),
 
                 # Columns 16-21: Selling prices
-                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0)),
-                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0)),
-                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0)),
-                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0)),
-                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0))
+                'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0), currency_symbol),
+                'selling_price_total': self.format_russian_currency(calc.get('sales_price_total_no_vat', 0), currency_symbol),
+                'vat_from_sales': self.format_russian_currency(calc.get('vat_from_sales', 0), currency_symbol),
+                'selling_price_with_vat_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_with_vat', 0), currency_symbol),
+                'selling_price_with_vat_total': self.format_russian_currency(calc.get('sales_price_total_with_vat', 0), currency_symbol)
             }
 
             context['items'].append(item_data)
@@ -1098,7 +1118,7 @@ body {
 
         context['totals'] = {
             'quantity': totals['quantity'],
-            'total_with_vat': self.format_russian_currency(totals['total_vat'])
+            'total_with_vat': self.format_russian_currency(totals['total_vat'], currency_symbol)
         }
 
         # Render HTML template

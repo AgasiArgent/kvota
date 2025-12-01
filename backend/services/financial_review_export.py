@@ -429,7 +429,7 @@ def validate_vat_removal(product: Dict[str, Any]) -> tuple[bool, str]:
     return (True, '')
 
 
-def calculate_required_markup(advance_percent: Decimal, delivery_days: int) -> Decimal:
+def calculate_required_markup(advance_percent: Decimal, delivery_time: int) -> Decimal:
     """
     Calculate required markup based on advance and delivery time
 
@@ -444,7 +444,7 @@ def calculate_required_markup(advance_percent: Decimal, delivery_days: int) -> D
 
     Args:
         advance_percent: Client advance payment percentage
-        delivery_days: Delivery time in days
+        delivery_time: Delivery time in days
 
     Returns:
         Required markup percentage
@@ -452,7 +452,7 @@ def calculate_required_markup(advance_percent: Decimal, delivery_days: int) -> D
     base_markup = Decimal('5.0')
 
     if advance_percent <= 50:
-        penalty_periods = Decimal(str(delivery_days)) / Decimal('30')
+        penalty_periods = Decimal(str(delivery_time)) / Decimal('30')
         penalty = penalty_periods * Decimal('5.0')
         return base_markup + penalty
 
@@ -462,7 +462,7 @@ def calculate_required_markup(advance_percent: Decimal, delivery_days: int) -> D
 def validate_markup(
     markup: Decimal,
     advance_percent: Decimal,
-    delivery_days: int,
+    delivery_time: int,
     level: str = 'quote'
 ) -> tuple[bool, str]:
     """
@@ -471,19 +471,19 @@ def validate_markup(
     Args:
         markup: Actual markup percentage
         advance_percent: Client advance percentage
-        delivery_days: Delivery time in days
+        delivery_time: Delivery time in days
         level: 'quote' or 'product' (for error message)
 
     Returns:
         (is_valid, error_message)
     """
-    required_markup = calculate_required_markup(advance_percent, delivery_days)
+    required_markup = calculate_required_markup(advance_percent, delivery_time)
 
     if markup < required_markup:
         return (
             False,
             f"⚠️ {level.capitalize()}-level markup {markup:.2f}% below required threshold {required_markup:.2f}%.\n"
-            f"Advance: {advance_percent}%, Delivery: {delivery_days} days."
+            f"Advance: {advance_percent}%, Delivery: {delivery_time} days."
         )
 
     return (True, '')

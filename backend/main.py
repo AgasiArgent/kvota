@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload
 
 # Sentry for error tracking
 import sentry_sdk
@@ -201,6 +201,7 @@ frontend_url = os.getenv("FRONTEND_URL", "")
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
+    "http://localhost:3002",
     "http://localhost:5173",
     "https://kvotaflow.ru",  # Production domain (no www)
     "https://www.kvotaflow.ru",  # Production domain (with www)
@@ -518,36 +519,9 @@ async def admin_dashboard(user: User = Depends(require_role(UserRole.ADMIN))):
     }
 
 # ============================================================================
-# DATABASE ACCESS EXAMPLES
+# DATABASE ACCESS EXAMPLES (REMOVED - conflicted with routes/customers.py)
 # ============================================================================
-
-@app.get("/api/customers")
-async def get_customers(user: User = Depends(require_permission("customers:read"))):
-    """Get customers list with RLS applied"""
-    try:
-        conn = await asyncpg.connect(os.getenv("DATABASE_URL"))
-        
-        # Set RLS context
-        await conn.execute(
-            "SELECT set_config('request.jwt.claims', $1, true)", 
-            f'{{"sub": "{user.id}", "role": "authenticated"}}'
-        )
-        
-        # Query will automatically apply RLS policies
-        customers = await conn.fetch("SELECT id, name, email, created_at FROM customers LIMIT 10")
-        await conn.close()
-        
-        return {
-            "customers": [dict(customer) for customer in customers],
-            "count": len(customers),
-            "user_access": user.role
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(e)}"
-        )
+# NOTE: The customers endpoint is now in routes/customers.py
 
 # ============================================================================
 # TESTING ENDPOINTS
@@ -604,14 +578,17 @@ async def test_database(user: User = Depends(get_current_user)):
             detail=f"Database test failed: {str(e)}"
         )
 app.include_router(customers.router)
-app.include_router(quotes.router)
+app.include_router(quotes_upload.router)  # Excel template upload (BEFORE quotes.router for specific route matching)
 app.include_router(quotes_calc.router)
+app.include_router(quotes.router)
+app.include_router(quote_versions.router)  # Quote versioning for multi-currency support
 app.include_router(organizations.router)
 app.include_router(calculation_settings.router)
 app.include_router(supplier_countries.router)
 app.include_router(users.router)
 app.include_router(activity_logs.router)
 app.include_router(exchange_rates.router)
+app.include_router(org_exchange_rates.router)  # Org-specific exchange rate management
 app.include_router(feedback.router)
 app.include_router(dashboard.router)
 app.include_router(team.router)
@@ -661,19 +638,15 @@ async def fix_database_function():
                 WHERE quote_id = quote_id_to_update;
                 
                 -- Get quote-level information for additional calculations
-                SELECT 
-                    discount_type, discount_rate, discount_amount,
+                SELECT
+                    discount_type, discount_rate,
                     vat_rate, import_duty_rate, credit_rate
                 INTO quote_record
-                FROM quotes 
+                FROM quotes
                 WHERE id = quote_id_to_update;
-                
-                -- Calculate quote-level discount
-                IF quote_record.discount_type = 'percentage' THEN
-                    quote_discount := items_subtotal * (quote_record.discount_rate / 100);
-                ELSE
-                    quote_discount := quote_record.discount_amount;
-                END IF;
+
+                -- Calculate quote-level discount (percentage only, fixed amount removed in migration 036)
+                quote_discount := items_subtotal * COALESCE(quote_record.discount_rate, 0) / 100;
                 
                 -- Calculate quote-level VAT
                 quote_vat := (items_subtotal - quote_discount) * (quote_record.vat_rate / 100);
@@ -688,10 +661,9 @@ async def fix_database_function():
                 final_total := items_subtotal - quote_discount + quote_vat + quote_duties + quote_credit;
                 
                 -- Update the quote totals
-                UPDATE quotes 
-                SET 
+                UPDATE quotes
+                SET
                     subtotal = items_subtotal,
-                    discount_amount = quote_discount,
                     vat_amount = quote_vat,
                     import_duty_amount = quote_duties,
                     credit_amount = quote_credit,

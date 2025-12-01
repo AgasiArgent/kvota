@@ -113,17 +113,19 @@ def map_calculation_to_cells(item: Dict[str, Any]) -> Dict[str, Any]:
         'X16': item.get('import_tariff', 0),
         'Z16': item.get('excise_tax', 0),
 
-        # Calculated outputs
+        # Calculated outputs (in USD for internal tracking)
         'N16': calc.get('purchase_price_no_vat', 0),  # Final-34
-        'S16': calc.get('purchase_price_total_quote_currency', 0),  # Final-9
-        'V16': calc.get('logistics_total', 0),  # Final-10
-        'Y16': calc.get('customs_fee', 0),  # Final-11
+        'S16': calc.get('purchase_price_total_quote_currency', 0),  # Final-9 (USD)
+        'V16': calc.get('logistics_total', 0),  # Final-10 (USD)
+        'Y16': calc.get('customs_fee', 0),  # Final-11 (USD)
         'AQ16': calc.get('transit_commission', 0),  # Final-44
-        'AJ16': calc.get('sales_price_per_unit', 0),  # Final-2
-        'AK16': calc.get('sales_price_total_no_vat', 0),  # Final-1
+
+        # Client-facing prices - prefer quote currency if available, fallback to USD
+        'AJ16': calc.get('sales_price_per_unit_quote', calc.get('sales_price_per_unit', 0)),  # Final-2 (quote currency)
+        'AK16': calc.get('sales_price_total_quote', calc.get('sales_price_total_no_vat', 0)),  # Final-1 (quote currency)
         'AN16': calc.get('vat_amount', 0),  # Final-41
-        'AM16': calc.get('sales_price_per_unit_with_vat', 0),  # Final-39
-        'AL16': calc.get('sales_price_total_with_vat', 0),  # Final-40
+        'AM16': calc.get('sales_price_per_unit_with_vat_quote', calc.get('sales_price_per_unit_with_vat', 0)),  # Final-39 (quote currency)
+        'AL16': calc.get('sales_price_total_with_vat_quote', calc.get('sales_price_total_with_vat', 0)),  # Final-40 (quote currency)
     }
 
     # Calculate invoice amount (N16 × E16)
@@ -383,14 +385,51 @@ def format_payment_terms(variables: Dict[str, Any]) -> str:
     Returns:
         Formatted payment terms string (Russian)
     """
-    advance = variables.get('advance_from_client', 100)
+    advance_raw = variables.get('advance_from_client', 100)
 
-    if advance == 100:
+    # Handle various input formats
+    try:
+        advance = float(advance_raw) if advance_raw is not None else 100.0
+    except (ValueError, TypeError):
+        advance = 100.0
+
+    # Handle decimal format (0-1) vs percentage format (0-100)
+    # If value is between 0 and 1 (exclusive), convert to percentage
+    if 0 < advance < 1:
+        advance = advance * 100
+
+    # Round to avoid floating point issues
+    advance = round(advance)
+
+    if advance >= 100:
         return "100% предоплата"
-    elif advance == 0:
+    elif advance <= 0:
         return "Постоплата"
     else:
         return f"{advance}% аванс"
+
+
+# Currency symbol mapping
+CURRENCY_SYMBOLS = {
+    'USD': '$',
+    'EUR': '€',
+    'RUB': '₽',
+    'TRY': '₺',
+    'CNY': '¥',
+}
+
+
+def get_currency_symbol(currency_code: str) -> str:
+    """
+    Get currency symbol for a currency code.
+
+    Args:
+        currency_code: ISO currency code (e.g., 'USD', 'RUB')
+
+    Returns:
+        Currency symbol (e.g., '$', '₽')
+    """
+    return CURRENCY_SYMBOLS.get(currency_code.upper() if currency_code else 'RUB', '₽')
 
 
 def format_delivery_description(variables: Dict[str, Any]) -> str:

@@ -56,16 +56,17 @@ import {
   AppstoreOutlined,
   FilterOutlined,
   CloseCircleOutlined,
-  ReloadOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import type { UploadFile, UploadProps } from 'antd';
 import MainLayout from '@/components/layout/MainLayout';
+import { MonetaryInput, MonetaryValue, Currency } from '@/components/inputs/MonetaryInput';
 import {
   quotesCalcService,
   Product,
   VariableTemplate,
   CalculationVariables,
+  CalculationVariablesForm,
   ProductCalculationResult,
 } from '@/lib/api/quotes-calc-service';
 import { customerService, Customer } from '@/lib/api/customer-service';
@@ -73,12 +74,12 @@ import {
   calculationSettingsService,
   CalculationSettings,
 } from '@/lib/api/calculation-settings-service';
-import { exchangeRateService } from '@/lib/api/exchange-rate-service';
 import {
   getSupplierCountries,
   formatSupplierCountryOptions,
   type SupplierCountry,
 } from '@/lib/api/supplier-countries-service';
+import { exchangeRateService } from '@/lib/api/exchange-rate-service';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -128,21 +129,47 @@ const parseDecimalInput = (value: string): number | null => {
   return isNaN(parsed) ? null : parsed;
 };
 
-// Helper function to format timestamp in Russian format
-const formatTimestamp = (isoString: string): string => {
-  const date = new Date(isoString);
-  return date.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+// Helper function to extract MonetaryValue objects from form values
+// Returns the form values with MonetaryValue objects converted to their full structure
+const extractMonetaryValues = (
+  formValues: any
+): {
+  variables: any;
+  monetaryFields: Record<string, MonetaryValue>;
+} => {
+  const monetaryFieldNames = [
+    'logistics_total',
+    'logistics_supplier_hub',
+    'logistics_hub_customs',
+    'logistics_customs_client',
+    'brokerage_hub',
+    'brokerage_customs',
+    'warehousing_at_customs',
+    'customs_documentation',
+    'brokerage_extra',
+  ];
+
+  const monetaryFields: Record<string, MonetaryValue> = {};
+  const variables = { ...formValues };
+
+  // Extract monetary fields and convert to numeric values for backend compatibility
+  for (const fieldName of monetaryFieldNames) {
+    const fieldValue = formValues[fieldName];
+    if (fieldValue && typeof fieldValue === 'object' && 'value' in fieldValue) {
+      // Store the full MonetaryValue for API
+      monetaryFields[fieldName] = fieldValue as MonetaryValue;
+      // For backward compatibility, set the numeric value in variables
+      // The backend will receive the monetary_fields object separately
+      variables[fieldName] = fieldValue.value;
+    }
+  }
+
+  return { variables, monetaryFields };
 };
 
 export default function CreateQuotePage() {
   const router = useRouter();
-  const [form] = Form.useForm<CalculationVariables>();
+  const [form] = Form.useForm<CalculationVariablesForm>();
   const { message } = App.useApp();
   const gridRef = useRef<any>(null);
 
@@ -178,9 +205,6 @@ export default function CreateQuotePage() {
   const [templateSaveMode, setTemplateSaveMode] = useState<'new' | 'update'>('new');
   const [templateUpdateId, setTemplateUpdateId] = useState<string>('');
   const [templateNewName, setTemplateNewName] = useState<string>('');
-  const [exchangeRateUsdCny, setExchangeRateUsdCny] = useState<number | null>(null);
-  const [exchangeRateFetchedAt, setExchangeRateFetchedAt] = useState<string | null>(null);
-  const [rateLoading, setRateLoading] = useState(false);
   const [supplierCountries, setSupplierCountries] = useState<
     Array<{ label: string; value: string }>
   >([]);
@@ -206,7 +230,6 @@ export default function CreateQuotePage() {
     loadCustomers();
     loadTemplates();
     loadAdminSettings();
-    loadExchangeRate(); // Auto-load USD/CNY rate on mount
     loadSupplierCountries(); // Load supplier countries for dropdown
 
     // Set default values
@@ -215,6 +238,32 @@ export default function CreateQuotePage() {
       ...defaultVars,
       quote_date: dayjs(),
       valid_until: dayjs().add(30, 'day'),
+      // Transform logistics fields to MonetaryValue objects for MonetaryInput components
+      logistics_total: { value: 0, currency: 'EUR' as Currency }, // Used in "total" mode
+      logistics_supplier_hub: {
+        value: defaultVars.logistics_supplier_hub,
+        currency: 'EUR' as Currency,
+      },
+      logistics_hub_customs: {
+        value: defaultVars.logistics_hub_customs,
+        currency: 'EUR' as Currency,
+      },
+      logistics_customs_client: {
+        value: defaultVars.logistics_customs_client,
+        currency: 'RUB' as Currency,
+      },
+      // Transform brokerage fields to MonetaryValue objects
+      brokerage_hub: { value: defaultVars.brokerage_hub, currency: 'EUR' as Currency },
+      brokerage_customs: { value: defaultVars.brokerage_customs, currency: 'RUB' as Currency },
+      warehousing_at_customs: {
+        value: defaultVars.warehousing_at_customs,
+        currency: 'RUB' as Currency,
+      },
+      customs_documentation: {
+        value: defaultVars.customs_documentation,
+        currency: 'RUB' as Currency,
+      },
+      brokerage_extra: { value: defaultVars.brokerage_extra, currency: 'RUB' as Currency },
     });
   }, []);
 
@@ -232,13 +281,24 @@ export default function CreateQuotePage() {
   }, [selectedCustomer, form]);
 
   // Auto-calculate logistics breakdown when in "total" mode
-  const handleLogisticsTotalChange = (value: number | null) => {
-    if (logisticsMode === 'total' && value) {
+  const handleLogisticsTotalChange = (monetaryValue: MonetaryValue | null) => {
+    if (logisticsMode === 'total' && monetaryValue && monetaryValue.value > 0) {
+      // Distribute the total across legs, keeping the same currency
+      // Using 'as any' because form expects numbers but we're storing MonetaryValue objects
       form.setFieldsValue({
-        logistics_supplier_hub: value * 0.5, // 50%
-        logistics_hub_customs: value * 0.3, // 30%
-        logistics_customs_client: value * 0.2, // 20%
-      });
+        logistics_supplier_hub: {
+          value: monetaryValue.value * 0.5,
+          currency: monetaryValue.currency,
+        },
+        logistics_hub_customs: {
+          value: monetaryValue.value * 0.3,
+          currency: monetaryValue.currency,
+        },
+        logistics_customs_client: {
+          value: monetaryValue.value * 0.2,
+          currency: monetaryValue.currency,
+        },
+      } as any);
     }
   };
 
@@ -320,22 +380,6 @@ export default function CreateQuotePage() {
     }
   };
 
-  const loadExchangeRate = async () => {
-    try {
-      setRateLoading(true);
-      const rate = await exchangeRateService.getRate('USD', 'CNY');
-      setExchangeRateUsdCny(rate.rate);
-      setExchangeRateFetchedAt(rate.fetched_at);
-      // Update form field with fetched rate
-      form.setFieldValue('rate_usd_cny', rate.rate);
-    } catch (error) {
-      console.error('Failed to load exchange rate:', error);
-      message.error('Не удалось загрузить курс USD/CNY');
-    } finally {
-      setRateLoading(false);
-    }
-  };
-
   const loadSupplierCountries = async () => {
     try {
       const countries = await getSupplierCountries();
@@ -345,22 +389,6 @@ export default function CreateQuotePage() {
       console.error('Failed to load supplier countries:', error);
       // Fallback to empty array - graceful degradation
       setSupplierCountries([]);
-    }
-  };
-
-  const handleRefreshRate = async () => {
-    try {
-      setRateLoading(true);
-      // First refresh all rates from CBR API
-      await exchangeRateService.refreshRates();
-      // Then reload the USD/CNY rate
-      await loadExchangeRate();
-      message.success('Курс обновлен');
-    } catch (error) {
-      console.error('Failed to refresh exchange rate:', error);
-      message.error('Ошибка загрузки курса');
-    } finally {
-      setRateLoading(false);
     }
   };
 
@@ -476,7 +504,9 @@ export default function CreateQuotePage() {
     console.log('templateUpdateId:', templateUpdateId);
     console.log('templateNewName:', templateNewName);
 
-    const variables = form.getFieldsValue();
+    const formValues = form.getFieldsValue();
+    // Extract monetary values and convert to numbers for template storage
+    const { variables } = extractMonetaryValues(formValues);
     console.log('Form values to save:', variables);
 
     try {
@@ -638,12 +668,18 @@ export default function CreateQuotePage() {
     try {
       const formValues = form.getFieldsValue();
 
+      // Extract MonetaryValue objects from form values
+      // This converts MonetaryValue objects to numeric values for backend compatibility
+      const { variables: processedFormValues, monetaryFields } = extractMonetaryValues(formValues);
+
       // Merge form values with defaults to ensure all 39 variables are present
       // Form only contains visible fields, but backend needs ALL variables
       const defaultVariables = quotesCalcService.getDefaultVariables();
       const variables = {
         ...defaultVariables, // Start with all defaults
-        ...formValues, // Override with form values
+        ...processedFormValues, // Override with form values (MonetaryValue converted to numbers)
+        // Include full monetary field data for backend to store with currency info
+        monetary_fields: monetaryFields,
       };
 
       // Convert dayjs dates to ISO strings
@@ -654,25 +690,65 @@ export default function CreateQuotePage() {
         ? variables.valid_until.format('YYYY-MM-DD')
         : dayjs().add(7, 'day').format('YYYY-MM-DD');
 
+      // Get quote currency for exchange rate lookup
+      const quoteCurrency = variables.currency_of_quote || 'RUB';
+
+      // Collect unique base currencies that need exchange rate lookup
+      const uniqueBaseCurrencies = new Set<string>();
+      uploadedProducts.forEach((product, index) => {
+        const overrides = productOverrides.get(index);
+        const baseCurrency =
+          overrides?.currency_of_base_price ??
+          product.currency_of_base_price ??
+          variables.currency_of_base_price ??
+          'USD';
+        // Only need to look up if different from quote currency
+        if (baseCurrency !== quoteCurrency) {
+          uniqueBaseCurrencies.add(baseCurrency);
+        }
+      });
+
+      // Fetch exchange rates for each unique currency pair
+      const exchangeRates: Record<string, number> = {};
+      for (const baseCurrency of uniqueBaseCurrencies) {
+        try {
+          const rateData = await exchangeRateService.getRate(baseCurrency, quoteCurrency);
+          exchangeRates[baseCurrency] = rateData.rate;
+        } catch (error) {
+          console.warn(
+            `Failed to fetch exchange rate ${baseCurrency}→${quoteCurrency}, using 1.0:`,
+            error
+          );
+          exchangeRates[baseCurrency] = 1.0;
+        }
+      }
+
       // IMPORTANT: Build products with custom_fields BEFORE applying defaults
       // Otherwise applyQuoteDefaultsToProducts will overwrite user edits!
       const productsWithCustomFields = uploadedProducts.map((product, index) => {
         const overrides = productOverrides.get(index);
 
+        // Determine the base currency for this product
+        const baseCurrency =
+          overrides?.currency_of_base_price ??
+          product.currency_of_base_price ??
+          variables.currency_of_base_price ??
+          'USD';
+
+        // Get exchange rate: use override if exists, otherwise look up from CBR
+        // If same currency, rate is 1.0
+        const exchangeRate =
+          overrides?.exchange_rate_base_price_to_quote ??
+          product.exchange_rate_base_price_to_quote ??
+          variables.exchange_rate_base_price_to_quote ??
+          (baseCurrency === quoteCurrency ? 1.0 : (exchangeRates[baseCurrency] ?? 1.0));
+
         // Apply defaults but preserve overrides
         const productWithDefaults = {
           ...product,
           // Financial defaults (use override if exists, otherwise use quote default)
-          currency_of_base_price:
-            overrides?.currency_of_base_price ??
-            product.currency_of_base_price ??
-            variables.currency_of_base_price ??
-            'USD',
-          exchange_rate_base_price_to_quote:
-            overrides?.exchange_rate_base_price_to_quote ??
-            product.exchange_rate_base_price_to_quote ??
-            variables.exchange_rate_base_price_to_quote ??
-            1.0,
+          currency_of_base_price: baseCurrency,
+          exchange_rate_base_price_to_quote: exchangeRate,
           supplier_discount: overrides?.supplier_discount ?? product.supplier_discount ?? 0,
           markup: overrides?.markup ?? product.markup ?? variables.markup ?? 0,
 
@@ -843,7 +919,7 @@ export default function CreateQuotePage() {
             editable: true,
             cellEditor: 'agSelectCellEditor',
             cellEditorParams: {
-              values: ['TRY', 'USD', 'EUR', 'CNY'],
+              values: ['TRY', 'USD', 'EUR', 'CNY', 'RUB'],
             },
             cellStyle: (params) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
@@ -954,7 +1030,7 @@ export default function CreateQuotePage() {
         ],
       },
     ],
-    []
+    [supplierCountries]
   );
 
   // Default column properties
@@ -1318,8 +1394,10 @@ export default function CreateQuotePage() {
                           >
                             <Select>
                               <Select.Option value="RUB">RUB (Рубль)</Select.Option>
-                              <Select.Option value="USD">USD</Select.Option>
-                              <Select.Option value="EUR">EUR</Select.Option>
+                              <Select.Option value="USD">USD (Доллар США)</Select.Option>
+                              <Select.Option value="EUR">EUR (Евро)</Select.Option>
+                              <Select.Option value="TRY">TRY (Турецкая лира)</Select.Option>
+                              <Select.Option value="CNY">CNY (Юань)</Select.Option>
                             </Select>
                           </Form.Item>
                         </Col>
@@ -1369,58 +1447,6 @@ export default function CreateQuotePage() {
                               addonAfter="%"
                             />
                           </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="exchange_rate_base_price_to_quote"
-                            label="Курс к валюте КП"
-                            rules={[
-                              { required: true, message: 'Укажите курс к валюте КП' },
-                              {
-                                type: 'number',
-                                min: 0.0001,
-                                message: 'Курс должен быть больше 0',
-                              },
-                            ]}
-                          >
-                            <InputNumber min={0.0001} step={0.01} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="rate_usd_cny" label="Курс USD/CNY">
-                            <Space.Compact style={{ width: '100%' }}>
-                              <InputNumber
-                                min={0}
-                                step={0.0001}
-                                style={{ width: 'calc(100% - 32px)' }}
-                                value={exchangeRateUsdCny || undefined}
-                                onChange={(value) => {
-                                  setExchangeRateUsdCny(value);
-                                  form.setFieldValue('rate_usd_cny', value);
-                                }}
-                              />
-                              <Button
-                                icon={<ReloadOutlined />}
-                                onClick={handleRefreshRate}
-                                loading={rateLoading}
-                                disabled={rateLoading}
-                                title="Обновить курс"
-                              />
-                            </Space.Compact>
-                          </Form.Item>
-                          {exchangeRateFetchedAt && (
-                            <Text
-                              type="secondary"
-                              style={{
-                                fontSize: '11px',
-                                display: 'block',
-                                marginTop: '-8px',
-                                marginBottom: '8px',
-                              }}
-                            >
-                              Обновлено: {formatTimestamp(exchangeRateFetchedAt)}
-                            </Text>
-                          )}
                         </Col>
 
                         {/* Payment Terms - Basic (always visible) */}
@@ -1570,7 +1596,7 @@ export default function CreateQuotePage() {
                               <Form.Item name="dm_fee_type" label="Тип вознаграждения ЛПР">
                                 <Select>
                                   <Select.Option value="fixed">Фиксированная сумма</Select.Option>
-                                  <Select.Option value="percentage">Процент</Select.Option>
+                                  <Select.Option value="%">Процент</Select.Option>
                                 </Select>
                               </Form.Item>
                             </Col>
@@ -1617,43 +1643,35 @@ export default function CreateQuotePage() {
                           </Radio.Group>
                         </Col>
 
-                        {/* Total Logistics Field (when mode = total) */}
-                        {logisticsMode === 'total' && (
-                          <Col span={24}>
-                            <Form.Item name="logistics_total" label="Логистика всего (в валюте КП)">
-                              <InputNumber
-                                min={0}
-                                step={100}
-                                style={{ width: '100%' }}
-                                onChange={handleLogisticsTotalChange}
-                              />
-                            </Form.Item>
-                          </Col>
-                        )}
+                        {/* Total Logistics Field - Always mounted but hidden to preserve MonetaryValue form state */}
+                        <Col
+                          span={24}
+                          style={{ display: logisticsMode === 'total' ? 'block' : 'none' }}
+                        >
+                          <Form.Item name="logistics_total" label="Логистика всего">
+                            <MonetaryInput
+                              defaultCurrency="EUR"
+                              placeholder="0.00"
+                              onChange={handleLogisticsTotalChange}
+                            />
+                          </Form.Item>
+                        </Col>
 
                         {/* Detailed Logistics Fields (always present, disabled when mode = total) */}
                         <Col span={12}>
-                          <Form.Item
-                            name="logistics_supplier_hub"
-                            label="Поставщик - Турция (50%, в валюте КП)"
-                          >
-                            <InputNumber
-                              min={0}
-                              step={100}
-                              style={{ width: '100%' }}
+                          <Form.Item name="logistics_supplier_hub" label="Поставщик - Хаб (50%)">
+                            <MonetaryInput
+                              defaultCurrency="EUR"
+                              placeholder="0.00"
                               disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item
-                            name="logistics_hub_customs"
-                            label="Турция - Таможня РФ (30%, в валюте КП)"
-                          >
-                            <InputNumber
-                              min={0}
-                              step={100}
-                              style={{ width: '100%' }}
+                          <Form.Item name="logistics_hub_customs" label="Хаб - Таможня РФ (30%)">
+                            <MonetaryInput
+                              defaultCurrency="EUR"
+                              placeholder="0.00"
                               disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
@@ -1661,12 +1679,11 @@ export default function CreateQuotePage() {
                         <Col span={12}>
                           <Form.Item
                             name="logistics_customs_client"
-                            label="Таможня РФ - Клиент (20%, в валюте КП)"
+                            label="Таможня РФ - Клиент (20%)"
                           >
-                            <InputNumber
-                              min={0}
-                              step={100}
-                              style={{ width: '100%' }}
+                            <MonetaryInput
+                              defaultCurrency="RUB"
+                              placeholder="0.00"
                               disabled={logisticsMode === 'total'}
                             />
                           </Form.Item>
@@ -1689,51 +1706,32 @@ export default function CreateQuotePage() {
                           </Button>
                         </Col>
 
-                        {/* Brokerage Fields (conditionally rendered) */}
-                        {showBrokerage && (
-                          <>
-                            <Col span={12}>
-                              <Form.Item
-                                name="brokerage_hub"
-                                label="Брокерские Турция (в валюте КП)"
-                              >
-                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="brokerage_customs"
-                                label="Брокерские РФ (в валюте КП)"
-                              >
-                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="warehousing_at_customs"
-                                label="Расходы на СВХ (в валюте КП)"
-                              >
-                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="customs_documentation"
-                                label="Разрешительные документы (в валюте КП)"
-                              >
-                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="brokerage_extra"
-                                label="Прочие расходы (в валюте КП)"
-                              >
-                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                          </>
-                        )}
+                        {/* Brokerage Fields - Always mounted but visually hidden to preserve MonetaryValue form state */}
+                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
+                          <Form.Item name="brokerage_hub" label="Брокерские хаб">
+                            <MonetaryInput defaultCurrency="EUR" placeholder="0.00" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
+                          <Form.Item name="brokerage_customs" label="Брокерские РФ">
+                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
+                          <Form.Item name="warehousing_at_customs" label="Расходы на СВХ">
+                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
+                          <Form.Item name="customs_documentation" label="Разрешительные документы">
+                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
+                          <Form.Item name="brokerage_extra" label="Прочие расходы">
+                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
+                          </Form.Item>
+                        </Col>
                       </Row>
                     </Card>
                   </Col>
@@ -1770,65 +1768,8 @@ export default function CreateQuotePage() {
                           </Form.Item>
                         </Col>
                         <Col span={12}>
-                          <Form.Item name="excise_tax" label="Акциз (УЕ КП на тонну)">
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              step={0.1}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Card>
-                  </Col>
-
-                  {/* 4. Product Defaults Card */}
-                  <Col xs={24} lg={12}>
-                    <Card
-                      title="📦 Значения по умолчанию для товаров"
-                      size="small"
-                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      styles={{ body: { padding: '12px' } }}
-                    >
-                      <Text
-                        type="secondary"
-                        style={{ display: 'block', marginBottom: 8, fontSize: '12px' }}
-                      >
-                        Эти значения можно переопределить для каждого товара в таблице
-                      </Text>
-                      <Row gutter={[12, 8]}>
-                        <Col span={12}>
-                          <Form.Item name="currency_of_base_price" label="Валюта цены закупки">
-                            <Select>
-                              <Select.Option value="TRY">TRY (Турецкая лира)</Select.Option>
-                              <Select.Option value="USD">USD (Доллар США)</Select.Option>
-                              <Select.Option value="EUR">EUR (Евро)</Select.Option>
-                              <Select.Option value="CNY">CNY (Юань)</Select.Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="supplier_country" label="Страна закупки">
-                            <Select
-                              placeholder="Выберите страну"
-                              showSearch
-                              optionFilterProp="label"
-                              options={supplierCountries}
-                              loading={supplierCountries.length === 0}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="supplier_discount" label="Скидка поставщика (%)">
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              step={0.1}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
+                          <Form.Item name="excise_tax" label="Акциз (за кг)">
+                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
                           </Form.Item>
                         </Col>
                       </Row>

@@ -63,6 +63,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Redirect authenticated users from root to quotes page
+  if (user && request.nextUrl.pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/quotes';
+    return NextResponse.redirect(url);
+  }
+
   // If authenticated but accessing auth pages, redirect based on organization status
   // EXCLUDE /auth/callback to avoid breaking Supabase auth flow
   if (
@@ -90,30 +97,14 @@ export async function middleware(request: NextRequest) {
     } else {
       // Default redirect logic
       // If user has no organization, send to onboarding
-      // Otherwise send to dashboard
-      url.pathname = memberships && memberships.length > 0 ? '/dashboard' : '/onboarding';
+      // Otherwise send to quotes (main working page)
+      url.pathname = memberships && memberships.length > 0 ? '/quotes' : '/onboarding';
     }
 
     return NextResponse.redirect(url);
   }
 
-  // If user is on dashboard but has no organization, redirect to onboarding
-  if (user && request.nextUrl.pathname === '/dashboard') {
-    const { data: memberships } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .limit(1);
-
-    if (!memberships || memberships.length === 0) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/onboarding';
-      return NextResponse.redirect(url);
-    }
-  }
-
-  // If user is on onboarding but already has an organization, redirect to dashboard
+  // If user is on onboarding but already has an organization, redirect to quotes
   if (user && request.nextUrl.pathname === '/onboarding') {
     const { data: memberships } = await supabase
       .from('organization_members')
@@ -124,7 +115,7 @@ export async function middleware(request: NextRequest) {
 
     if (memberships && memberships.length > 0) {
       const url = request.nextUrl.clone();
-      url.pathname = '/dashboard';
+      url.pathname = '/quotes';
       return NextResponse.redirect(url);
     }
   }
@@ -147,7 +138,7 @@ export async function middleware(request: NextRequest) {
 
     if (!isOwner && !['admin', 'owner'].includes(roleSlug.toLowerCase())) {
       const url = request.nextUrl.clone();
-      url.pathname = '/dashboard';
+      url.pathname = '/quotes';
       return NextResponse.redirect(url);
     }
   }
@@ -163,7 +154,7 @@ export async function middleware(request: NextRequest) {
     const managerRoles = ['finance_manager', 'department_manager', 'director', 'admin'];
     if (!profile || !managerRoles.includes(profile.role)) {
       const url = request.nextUrl.clone();
-      url.pathname = '/dashboard';
+      url.pathname = '/quotes';
       return NextResponse.redirect(url);
     }
   }

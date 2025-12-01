@@ -1,20 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Typography, Space, Badge, Button, theme } from 'antd';
 import {
-  Layout,
-  Menu,
-  Avatar,
-  Dropdown,
-  Typography,
-  Space,
-  Badge,
-  Divider,
-  Button,
-  theme,
-} from 'antd';
-import {
-  DashboardOutlined,
   FileTextOutlined,
   TeamOutlined,
   UserOutlined,
@@ -24,7 +12,6 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   ApartmentOutlined,
-  HistoryOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
@@ -51,35 +38,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
   const getMenuItems = () => {
     // Get the user's role - prefer organizationRole from organization_members table
     const userRole = profile?.organizationRole || profile?.role || '';
+    const isAdmin = userRole && ['admin', 'owner'].includes(userRole.toLowerCase());
 
-    const baseItems = [
+    // Common items for all users
+    const menuItems: any[] = [
       {
-        key: '/dashboard',
-        icon: <DashboardOutlined />,
-        label: 'Панель управления',
-      },
-      {
-        key: 'quotes-menu',
+        key: '/quotes',
         icon: <FileTextOutlined />,
         label: 'Коммерческие предложения',
-        children: [
-          {
-            key: '/quotes',
-            label: 'Все КП',
-          },
-          {
-            key: '/quotes/create',
-            label: 'Создать КП',
-          },
-          {
-            key: '/quotes/drafts',
-            label: 'Черновики',
-          },
-          {
-            key: '/quotes/bin',
-            label: 'Корзина',
-          },
-        ],
       },
       {
         key: '/customers',
@@ -87,141 +53,120 @@ export default function MainLayout({ children }: MainLayoutProps) {
         label: 'Клиенты',
       },
       {
-        key: 'crm-menu',
+        key: '/profile',
         icon: <UserOutlined />,
-        label: 'CRM',
-        children: [
-          {
-            key: '/leads',
-            label: 'Лиды',
-          },
-          {
-            key: '/leads/pipeline',
-            label: 'Воронка',
-          },
-        ],
-      },
-      {
-        key: '/organizations',
-        icon: <ApartmentOutlined />,
-        label: 'Организации',
-      },
-      {
-        key: '/activity',
-        icon: <HistoryOutlined />,
-        label: 'История действий',
+        label: 'Профиль',
       },
     ];
 
-    // Add approval items for managers and above
-    if (
-      userRole &&
-      ['finance_manager', 'department_manager', 'director', 'admin', 'owner', 'manager'].includes(
-        userRole.toLowerCase()
-      )
-    ) {
-      baseItems[1].children?.push({
-        key: '/quotes/approval',
-        label: 'На утверждении',
+    // Admin-only section
+    if (isAdmin) {
+      // Divider before admin section
+      menuItems.push({
+        type: 'divider',
+        key: 'admin-divider',
       });
-    }
 
-    // Add analytics menu for admin/owner
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
-      baseItems.push({
-        key: 'analytics-menu',
-        icon: <BarChartOutlined />,
-        label: 'Аналитика',
+      // Admin section header
+      menuItems.push({
+        key: 'admin-group',
+        type: 'group',
+        label: 'Управление',
         children: [
           {
-            key: '/analytics',
-            label: 'Запросы',
+            key: 'crm-menu',
+            icon: <UserOutlined />,
+            label: 'CRM',
+            children: [
+              {
+                key: '/leads',
+                label: 'Лиды',
+              },
+              {
+                key: '/leads/pipeline',
+                label: 'Воронка',
+              },
+            ],
           },
           {
-            key: '/analytics/saved',
-            label: 'Сохранённые отчёты',
+            key: '/organizations',
+            icon: <ApartmentOutlined />,
+            label: 'Организации',
           },
           {
-            key: '/analytics/history',
-            label: 'История',
+            key: 'analytics-menu',
+            icon: <BarChartOutlined />,
+            label: 'Аналитика',
+            children: [
+              {
+                key: '/analytics',
+                label: 'Запросы',
+              },
+              {
+                key: '/analytics/saved',
+                label: 'Сохранённые отчёты',
+              },
+              {
+                key: '/analytics/history',
+                label: 'История',
+              },
+              {
+                key: '/analytics/scheduled',
+                label: 'Расписание',
+              },
+            ],
           },
           {
-            key: '/analytics/scheduled',
-            label: 'Расписание',
-          },
-        ],
-      });
-    }
-
-    // Add settings items
-    const settingsChildren = [];
-
-    // All users can access profile
-    settingsChildren.push({
-      key: '/profile',
-      label: 'Профиль',
-    });
-
-    // Admin/manager/owner can access team management
-    const managerRoles = [
-      'admin',
-      'owner',
-      'manager',
-      'sales_manager',
-      'finance_manager',
-      'department_manager',
-      'director',
-    ];
-    if (userRole && managerRoles.includes(userRole.toLowerCase())) {
-      settingsChildren.push({
-        key: '/settings/team',
-        label: 'Команда',
-      });
-    }
-
-    // Admin/owner can access calculation settings (case-insensitive)
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
-      settingsChildren.push({
-        key: '/settings/calculation',
-        label: 'Настройки расчета',
-      });
-    }
-
-    baseItems.push({
-      key: 'settings-menu',
-      icon: <SettingOutlined />,
-      label: 'Настройки',
-      children: settingsChildren,
-    });
-
-    // Add admin items (admin and owner roles)
-    if (userRole && ['admin', 'owner'].includes(userRole.toLowerCase())) {
-      baseItems.push({
-        key: '/admin',
-        icon: <SettingOutlined />,
-        label: 'Администрирование',
-        children: [
-          {
-            key: '/admin/users',
-            label: 'Пользователи',
-          },
-          {
-            key: '/admin/settings',
+            key: 'settings-menu',
+            icon: <SettingOutlined />,
             label: 'Настройки',
+            children: [
+              {
+                key: '/settings/team',
+                label: 'Команда',
+              },
+              {
+                key: '/settings/calculation',
+                label: 'Настройки расчета',
+              },
+              {
+                key: '/settings/exchange-rates',
+                label: 'Курсы валют',
+              },
+            ],
           },
           {
-            key: '/admin/feedback',
-            label: 'Обратная связь',
-          },
-          {
-            key: '/admin/excel-validation',
-            label: 'Валидация Excel',
+            key: '/admin',
+            icon: <SettingOutlined />,
+            label: 'Администрирование',
+            children: [
+              {
+                key: '/admin/users',
+                label: 'Пользователи',
+              },
+              {
+                key: '/admin/settings',
+                label: 'Настройки',
+              },
+              {
+                key: '/activity',
+                label: 'История действий',
+              },
+              {
+                key: '/admin/feedback',
+                label: 'Обратная связь',
+              },
+              {
+                key: '/admin/excel-validation',
+                label: 'Валидация Excel',
+              },
+            ],
           },
         ],
       });
     }
 
-    return baseItems;
+    return menuItems;
   };
 
   // User dropdown menu
@@ -263,16 +208,18 @@ export default function MainLayout({ children }: MainLayoutProps) {
           style={{
             height: '64px',
             margin: '16px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Title level={4} style={{ color: 'white', margin: 0 }}>
-            {collapsed ? 'КП' : 'Коммерческие предложения'}
-          </Title>
+          {collapsed ? (
+            <Title level={4} style={{ color: 'white', margin: 0 }}>
+              КП
+            </Title>
+          ) : (
+            <OrganizationSwitcher darkMode />
+          )}
         </div>
 
         {!collapsed && <ExchangeRates />}
@@ -281,7 +228,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
           theme="dark"
           mode="inline"
           selectedKeys={[pathname]}
-          defaultOpenKeys={['quotes-menu']}
           items={getMenuItems()}
           onClick={({ key }) => router.push(key)}
         />
@@ -298,20 +244,16 @@ export default function MainLayout({ children }: MainLayoutProps) {
             borderBottom: `1px solid ${token.colorBorder}`,
           }}
         >
-          <Space>
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{
-                fontSize: '16px',
-                width: 64,
-                height: 64,
-              }}
-            />
-            <Divider type="vertical" style={{ height: '32px' }} />
-            <OrganizationSwitcher />
-          </Space>
+          <Button
+            type="text"
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setCollapsed(!collapsed)}
+            style={{
+              fontSize: '16px',
+              width: 64,
+              height: 64,
+            }}
+          />
 
           <Space size="large">
             {/* Notifications */}

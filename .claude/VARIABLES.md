@@ -2,14 +2,103 @@
 
 **Complete reference for all 44 variables in B2B quotation platform**
 
-**Last Updated:** 2025-11-09
+**Last Updated:** 2025-11-25
 
 Quick navigation:
+- [Section 0: Multi-Currency Support](#section-0-multi-currency-support) - **NEW** Monetary fields with currency selection
 - [Section 1: Master Variables Table](#section-1-master-variables-table) - All 44 variables overview
 - [Section 2: UI Implementation](#section-2-ui-implementation) - Where variables appear in UI
 - [Section 3: Derived Variables](#section-3-derived-variables) - Auto-calculated from user inputs
 - [Section 4: Admin Variables](#section-4-admin-variables) - System-wide settings
 - [Section 5: Key Formulas](#section-5-key-formulas) - Important calculation references
+
+---
+
+## Section 0: Multi-Currency Support
+
+**Added:** 2025-11-25
+
+Logistics and brokerage fields now support multi-currency input. Users can enter values in any supported currency, and the system automatically converts to USD for storage and analytics.
+
+### Supported Currencies
+
+| Currency | Code | Symbol | Primary Use |
+|----------|------|--------|-------------|
+| US Dollar | USD | $ | Quote currency, base for analytics |
+| Euro | EUR | € | European logistics, Turkey hub |
+| Russian Ruble | RUB | ₽ | RF customs, domestic logistics |
+| Turkish Lira | TRY | ₺ | Turkey operations |
+| Chinese Yuan | CNY | ¥ | China operations |
+
+### Multi-Currency Fields
+
+The following variables now accept `MonetaryValue` objects instead of plain numbers:
+
+| # | Variable Name | Default Currency | Typical Use |
+|---|---------------|------------------|-------------|
+| 30 | logistics_supplier_hub | EUR | Supplier to hub leg |
+| 31 | logistics_hub_customs | EUR | Hub to RF customs leg |
+| 32 | logistics_customs_client | RUB | RF customs to client (domestic) |
+| 33 | brokerage_hub | EUR | Hub brokerage fees |
+| 34 | brokerage_customs | RUB | RF customs brokerage |
+| 35 | warehousing_at_customs | RUB | SVH warehouse fees |
+| 36 | customs_documentation | RUB | Permit documents |
+| 37 | brokerage_extra | RUB | Other expenses |
+
+### MonetaryValue Structure
+
+**Frontend Input:**
+```typescript
+interface MonetaryValue {
+  value: number;       // The numeric amount
+  currency: Currency;  // 'USD' | 'EUR' | 'RUB' | 'TRY' | 'CNY'
+}
+```
+
+**Backend Storage (after conversion):**
+```typescript
+interface MonetaryValueFull {
+  value: number;         // Original amount
+  currency: Currency;    // Original currency
+  value_usd: number;     // Converted to USD
+  rate_used: number;     // Exchange rate applied
+  rate_source: string;   // 'cbr' or 'manual'
+  rate_timestamp: string;// When rate was fetched
+}
+```
+
+### Exchange Rate Sources
+
+1. **CBR (Central Bank of Russia)** - Default, auto-updated daily
+2. **Manual Rates** - Organization-specific rates set by admin
+
+**Rate Priority:**
+1. Check org setting: `use_manual_exchange_rates`
+2. If manual enabled: use `organization_exchange_rates` table
+3. If no manual rate: fallback to CBR rates
+
+### Quote Versioning
+
+Each quote save/recalculation creates an immutable version that includes:
+- Complete snapshot of quote variables (with currencies)
+- All exchange rates used at time of calculation
+- Rate source (cbr/manual/mixed)
+- USD equivalents for all monetary fields
+
+**Recalculation:** Users can recalculate with fresh rates, creating a new version while preserving history.
+
+### UI Component: MonetaryInput
+
+```tsx
+<Form.Item name="logistics_supplier_hub" label="Поставщик - Хаб">
+  <MonetaryInput defaultCurrency="EUR" placeholder="0.00" />
+</Form.Item>
+```
+
+**Features:**
+- Currency selector dropdown
+- Shows USD equivalent hint when not in USD
+- Tooltip with rate info and source
 
 ---
 

@@ -2,7 +2,7 @@ name: CI - Test & Lint
 
 on:
   push:
-    branches: [main, develop, dev]
+    branches: [main, develop, dev, feature/user-feedback]
   pull_request:
     branches: [main, develop, dev]
   workflow_dispatch:

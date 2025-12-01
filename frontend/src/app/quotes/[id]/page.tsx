@@ -173,7 +173,7 @@ export default function QuoteDetailPage() {
           last_approval_comment: quoteData.last_approval_comment, // Comment when approved by finance
           quote_date: quoteData.quote_date,
           valid_until: quoteData.valid_until,
-          currency: quoteData.currency || 'RUB',
+          currency: quoteData.currency_of_quote || quoteData.currency || 'RUB',
           total_amount: quoteData.total_amount,
           created_at: quoteData.created_at,
           items: items,
@@ -328,6 +328,61 @@ export default function QuoteDetailPage() {
     [quote?.items, quoteId, exportLoading]
   );
 
+  // Debug export handler for intermediate calculation results
+  const handleDebugExport = useCallback(async () => {
+    if (exportLoading) {
+      message.warning('Экспорт уже выполняется. Пожалуйста, подождите.');
+      return;
+    }
+
+    setExportLoading(true);
+
+    try {
+      const token = await getAuthToken();
+
+      const response = await fetch(`${config.apiUrl}/api/quotes-calc/debug-export/${quoteId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.detail || 'Debug export failed');
+      }
+
+      // Get filename from Content-Disposition header or generate
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `quote_${quoteId}_debug.csv`;
+
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=["']?([^"';\n]+)["']?/i);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].trim();
+        }
+      }
+
+      // Download file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      message.success('Debug export загружен');
+    } catch (error: any) {
+      console.error('Debug export error:', error);
+      message.error('Ошибка debug export: ' + (error.message || 'Попробуйте снова'));
+    } finally {
+      setExportLoading(false);
+    }
+  }, [quoteId, exportLoading]);
+
   // Create export menu items (memoized to prevent recreation on state changes)
   // Must be before early returns to satisfy Rules of Hooks
   const exportMenuItems = useMemo(
@@ -382,8 +437,21 @@ export default function QuoteDetailPage() {
           },
         ],
       },
+      { type: 'divider' as const },
+      {
+        key: 'debug-group',
+        label: 'Debug',
+        type: 'group' as const,
+        children: [
+          {
+            key: 'debug-calculation',
+            label: 'Расчеты в USD (CSV)',
+            onClick: handleDebugExport,
+          },
+        ],
+      },
     ],
-    [handleExport]
+    [handleExport, handleDebugExport]
   );
 
   const getStatusTag = (status: string) => {
@@ -465,7 +533,12 @@ export default function QuoteDetailPage() {
       headerName: 'Цена продажи',
       width: 150,
       type: 'numericColumn',
-      valueFormatter: (params) => (params.value ? Number(params.value).toFixed(2) + ' ₽' : '—'),
+      valueFormatter: (params) => {
+        if (!params.value) return '—';
+        const currency = quote?.currency || 'RUB';
+        const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
+        return Number(params.value).toFixed(2) + ' ' + symbol;
+      },
       cellStyle: { fontWeight: 'bold', color: '#1890ff' },
     },
     {
@@ -490,7 +563,12 @@ export default function QuoteDetailPage() {
         const quantity = params.data?.quantity;
         return finalPrice && quantity ? Number(finalPrice) * Number(quantity) : null;
       },
-      valueFormatter: (params) => (params.value ? Number(params.value).toFixed(2) + ' ₽' : '—'),
+      valueFormatter: (params) => {
+        if (!params.value) return '—';
+        const currency = quote?.currency || 'RUB';
+        const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
+        return Number(params.value).toFixed(2) + ' ' + symbol;
+      },
       cellStyle: { fontWeight: 'bold', color: '#52c41a' },
     },
   ];
