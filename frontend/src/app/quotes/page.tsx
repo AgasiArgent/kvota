@@ -333,11 +333,14 @@ export default function QuotesPage() {
     // If already loaded, don't refetch
     if (popoverProducts[quoteId]) return;
 
+    const organizationId = profile?.organization_id || '';
+    if (!organizationId) {
+      console.error('[fetchProductsForPopover] No organization_id available');
+      return;
+    }
+
     setPopoverLoading((prev) => ({ ...prev, [quoteId]: true }));
     try {
-      const organizationId = profile?.organization_id || '';
-      if (!organizationId) return;
-
       const response = await quoteService.getQuoteDetails(quoteId, organizationId);
       if (response.success && response.data) {
         const { items } = response.data as any;
@@ -371,9 +374,9 @@ export default function QuotesPage() {
       );
     }
 
-    const totalQuantity = products.reduce((sum, p) => sum + (p.quantity || 0), 0);
+    const totalQuantity = products.reduce((sum, p) => sum + Number(p.quantity || 0), 0);
     const totalAmount = products.reduce(
-      (sum, p) => sum + (p.final_price || 0) * (p.quantity || 0),
+      (sum, p) => sum + Number(p.final_price || 0) * Number(p.quantity || 0),
       0
     );
 
