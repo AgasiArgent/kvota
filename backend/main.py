@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import asyncpg
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -227,6 +228,15 @@ app.add_middleware(
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "*.railway.app", "*.vercel.app", "*.render.com", "api.kvotaflow.ru", "kvotaflow.ru", "www.kvotaflow.ru"]  # Railway, Vercel, Render, and custom domains
+)
+
+# Proxy headers middleware - trust X-Forwarded-Proto and X-Forwarded-For headers
+# This is essential for Railway deployment where HTTPS terminates at the proxy
+# Without this, redirects (like trailing slash redirects) will use http:// instead of https://
+# causing Mixed Content errors when the frontend is served over HTTPS
+app.add_middleware(
+    ProxyHeadersMiddleware,
+    trusted_hosts=["*"]  # Trust proxy headers from Railway/Vercel
 )
 
 # ============================================================================
