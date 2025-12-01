@@ -484,6 +484,9 @@ export default function QuotesPage() {
         >
           <a
             style={{
+              display: 'inline-block',
+              padding: '4px 8px',
+              margin: '-4px -8px',
               fontWeight: 500,
               color: '#1890ff',
               cursor: 'pointer',
@@ -597,7 +600,7 @@ export default function QuotesPage() {
             />
           )}
           <Dropdown menu={{ items: getExportMenuItems(record.id) }} trigger={['click']}>
-            <Button icon={<DownloadOutlined />}>
+            <Button icon={<DownloadOutlined />} onClick={(e) => e.preventDefault()}>
               Экспорт <DownOutlined />
             </Button>
           </Dropdown>
