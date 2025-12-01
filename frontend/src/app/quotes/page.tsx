@@ -596,7 +596,7 @@ export default function QuotesPage() {
               style={{ color: '#52c41a' }}
             />
           )}
-          <Dropdown menu={{ items: getExportMenuItems(record.id) }}>
+          <Dropdown menu={{ items: getExportMenuItems(record.id) }} trigger={['click']}>
             <Button icon={<DownloadOutlined />}>
               Экспорт <DownOutlined />
             </Button>
