@@ -10,7 +10,6 @@ import {
   Card,
   Tag,
   Typography,
-  message,
   Row,
   Col,
   Statistic,
@@ -18,6 +17,7 @@ import {
   Dropdown,
   Upload,
   Popover,
+  App,
 } from 'antd';
 import type { MenuProps, UploadProps } from 'antd';
 import {
@@ -64,6 +64,7 @@ interface QuoteListItem {
 
 export default function QuotesPage() {
   const { profile } = useAuth();
+  const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [quotes, setQuotes] = useState<QuoteListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -246,6 +247,29 @@ export default function QuotesPage() {
     setSelectedFile(null);
   };
 
+  // Extract filename from Content-Disposition header
+  const extractFilename = (contentDisposition: string | null, fallback: string): string => {
+    if (!contentDisposition) return fallback;
+
+    // Try to get UTF-8 encoded filename first (filename*=UTF-8''...)
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match) {
+      try {
+        return decodeURIComponent(utf8Match[1]);
+      } catch {
+        // Fall through to ASCII version
+      }
+    }
+
+    // Try to get ASCII filename (filename="...")
+    const asciiMatch = contentDisposition.match(/filename="([^"]+)"/i);
+    if (asciiMatch) {
+      return asciiMatch[1];
+    }
+
+    return fallback;
+  };
+
   // Export handler
   const handleExport = async (quoteId: string, exportType: string) => {
     try {
@@ -256,19 +280,24 @@ export default function QuotesPage() {
       }
 
       let url: string;
-      let filename: string;
+      let fallbackFilename: string;
 
       if (exportType === 'validation') {
         // Export as validation Excel file (.xlsm with macros)
         url = `${config.apiUrl}/api/quotes/upload/export-as-template/${quoteId}`;
-        filename = `validation_${quoteId}.xlsm`;
+        fallbackFilename = `validation_${quoteId}.xlsm`;
+        // Show informative loading message for validation export (takes 10-15 sec)
+        message.loading({
+          content: 'Создание файла для проверки... Это займет 10-15 секунд',
+          key: 'export',
+          duration: 0, // Don't auto-hide
+        });
       } else {
         // PDF exports: supply, supply-letter, openbook, openbook-letter
         url = `${config.apiUrl}/api/quotes/${quoteId}/export/pdf?format=${exportType}`;
-        filename = `quote_${exportType}_${quoteId}.pdf`;
+        fallbackFilename = `quote_${exportType}_${quoteId}.pdf`;
+        message.loading({ content: 'Экспорт...', key: 'export', duration: 0 });
       }
-
-      message.loading({ content: 'Экспорт...', key: 'export' });
 
       const response = await fetch(url, {
         headers: {
@@ -279,6 +308,10 @@ export default function QuotesPage() {
       if (!response.ok) {
         throw new Error('Ошибка экспорта');
       }
+
+      // Extract filename from Content-Disposition header (server sends proper quote number)
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = extractFilename(contentDisposition, fallbackFilename);
 
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
