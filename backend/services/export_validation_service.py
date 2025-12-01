@@ -18,6 +18,7 @@ import openpyxl
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.protection import SheetProtection
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +275,14 @@ class ExportValidationService:
 
         # 4. Add conditional formatting for comparison
         self._add_comparison_formatting(wb, len(product_results))
+
+        # 5. Protect all sheets with password
+        self._protect_all_sheets(wb, password="vba2025")
+
+        # 6. Force formula recalculation on open
+        # This ensures date-based formulas (like BH2 VAT multiplier) recalculate
+        wb.calculation.calcMode = "auto"
+        wb.calculation.fullCalcOnLoad = True
 
         # Save to bytes
         output = io.BytesIO()
@@ -726,6 +735,23 @@ class ExportValidationService:
 
         # Default formatting
         return self._format_value(value)
+
+    def _protect_all_sheets(self, wb: openpyxl.Workbook, password: str = "vba2025") -> None:
+        """
+        Protect all sheets in the workbook with the specified password.
+
+        Args:
+            wb: Workbook to protect
+            password: Protection password (default: vba2025)
+        """
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            # Enable sheet protection
+            ws.protection.sheet = True
+            ws.protection.password = password
+            # Standard protection settings - allow users to view but not edit
+            ws.protection.enable()
+            logger.debug(f"Protected sheet '{sheet_name}' with password")
 
     def _get_payment_type_value(self, advance_from_client: float) -> str:
         """
