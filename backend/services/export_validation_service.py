@@ -738,13 +738,21 @@ class ExportValidationService:
 
     def _protect_all_sheets(self, wb: openpyxl.Workbook, password: str = "vba2025") -> None:
         """
-        Protect all sheets in the workbook with the specified password.
+        Protect all sheets in the workbook with the specified password,
+        except for "КП open book" and "КП price" which remain unprotected.
 
         Args:
             wb: Workbook to protect
             password: Protection password (default: vba2025)
         """
+        # Sheets to leave unprotected (for user editing)
+        unprotected_sheets = {"КП open book", "КП price"}
+
         for sheet_name in wb.sheetnames:
+            if sheet_name in unprotected_sheets:
+                logger.debug(f"Skipping protection for sheet '{sheet_name}'")
+                continue
+
             ws = wb[sheet_name]
             # Enable sheet protection
             ws.protection.sheet = True
