@@ -762,7 +762,7 @@ body {
         contact = get_contact_info(export_data)
 
         # Get currency symbol for the quote
-        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
         currency_symbol = get_currency_symbol(currency_code)
 
         # Build context for template
@@ -845,7 +845,7 @@ body {
         contact = get_contact_info(export_data)
 
         # Get currency symbol for the quote
-        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
         currency_symbol = get_currency_symbol(currency_code)
 
         # Build context for template
@@ -949,7 +949,7 @@ body {
         contact = get_contact_info(export_data)
 
         # Get currency symbol for the quote
-        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
         currency_symbol = get_currency_symbol(currency_code)
 
         # Build context (same as supply_pdf + letter-specific fields)
@@ -1036,7 +1036,7 @@ body {
         contact = get_contact_info(export_data)
 
         # Get currency symbol for the quote
-        currency_code = export_data.variables.get('currency_of_quote', 'RUB')
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
         currency_symbol = get_currency_symbol(currency_code)
 
         # Build context (same as openbook_pdf + letter-specific fields)
