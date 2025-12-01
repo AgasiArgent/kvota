@@ -110,7 +110,7 @@ QUOTE_INPUT_MAPPING = {
     "D6": ("offer_sale_type", "Вид КП"),
     "D7": ("incoterms", "Базис поставки"),
     "D8": ("quote_currency", "Валюта КП"),
-    "D9": ("delivery_days", "Срок поставки (дней)"),
+    "D9": ("delivery_time", "Срок поставки (дней)"),
     "D11": ("advance_to_supplier", "Аванс поставщику (%)"),
     # Payment milestones
     "J5": ("advance_from_client", "Аванс от клиента (%)"),
@@ -505,8 +505,9 @@ class ExportValidationService:
             api_value = api_results.get(field)
             ws[f"C{row}"] = self._format_value(api_value)
             ws[f"D{row}"] = f"=расчет!{cell_addr}"
-            # Diff formula
-            ws[f"E{row}"] = f'=IF(D{row}=0,"N/A",ABS(C{row}-D{row})/ABS(D{row})*100)'
+            # Diff formula (result as decimal for percentage formatting)
+            ws[f"E{row}"] = f'=IF(D{row}=0,"N/A",ABS(C{row}-D{row})/ABS(D{row}))'
+            ws[f"E{row}"].number_format = '0.00%'
             for col in ["A", "B", "C", "D", "E"]:
                 ws[f"{col}{row}"].border = THIN_BORDER
             row += 1
@@ -524,7 +525,8 @@ class ExportValidationService:
             api_value = api_results.get(field)
             ws[f"C{row}"] = self._format_value(api_value)
             ws[f"D{row}"] = f"=расчет!{cell_addr}"
-            ws[f"E{row}"] = f'=IF(D{row}=0,"N/A",ABS(C{row}-D{row})/ABS(D{row})*100)'
+            ws[f"E{row}"] = f'=IF(D{row}=0,"N/A",ABS(C{row}-D{row})/ABS(D{row}))'
+            ws[f"E{row}"].number_format = '0.00%'
             for col in ["A", "B", "C", "D", "E"]:
                 ws[f"{col}{row}"].border = THIN_BORDER
             row += 1
@@ -644,8 +646,9 @@ class ExportValidationService:
                 # Excel value from расчет
                 ws[f"E{row}"] = f"=расчет!{col_letter}{raschet_row}"
 
-                # Diff percentage
-                ws[f"F{row}"] = f'=IF(E{row}=0,"N/A",ABS(D{row}-E{row})/ABS(E{row})*100)'
+                # Diff percentage (as decimal for percentage formatting)
+                ws[f"F{row}"] = f'=IF(E{row}=0,"N/A",ABS(D{row}-E{row})/ABS(E{row}))'
+                ws[f"F{row}"].number_format = '0.00%'
 
                 for col in ["A", "B", "C", "D", "E", "F"]:
                     ws[f"{col}{row}"].border = THIN_BORDER
