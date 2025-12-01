@@ -385,14 +385,51 @@ def format_payment_terms(variables: Dict[str, Any]) -> str:
     Returns:
         Formatted payment terms string (Russian)
     """
-    advance = variables.get('advance_from_client', 100)
+    advance_raw = variables.get('advance_from_client', 100)
 
-    if advance == 100:
+    # Handle various input formats
+    try:
+        advance = float(advance_raw) if advance_raw is not None else 100.0
+    except (ValueError, TypeError):
+        advance = 100.0
+
+    # Handle decimal format (0-1) vs percentage format (0-100)
+    # If value is between 0 and 1 (exclusive), convert to percentage
+    if 0 < advance < 1:
+        advance = advance * 100
+
+    # Round to avoid floating point issues
+    advance = round(advance)
+
+    if advance >= 100:
         return "100% предоплата"
-    elif advance == 0:
+    elif advance <= 0:
         return "Постоплата"
     else:
         return f"{advance}% аванс"
+
+
+# Currency symbol mapping
+CURRENCY_SYMBOLS = {
+    'USD': '$',
+    'EUR': '€',
+    'RUB': '₽',
+    'TRY': '₺',
+    'CNY': '¥',
+}
+
+
+def get_currency_symbol(currency_code: str) -> str:
+    """
+    Get currency symbol for a currency code.
+
+    Args:
+        currency_code: ISO currency code (e.g., 'USD', 'RUB')
+
+    Returns:
+        Currency symbol (e.g., '$', '₽')
+    """
+    return CURRENCY_SYMBOLS.get(currency_code.upper() if currency_code else 'RUB', '₽')
 
 
 def format_delivery_description(variables: Dict[str, Any]) -> str:
