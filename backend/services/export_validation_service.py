@@ -23,10 +23,12 @@ from openpyxl.worksheet.protection import SheetProtection
 
 logger = logging.getLogger(__name__)
 
-# Template file path (relative to project root for Railway deployment)
+# Template file path (relative to backend directory for Railway deployment)
+# Railway deploys only the backend/ directory, so templates must be inside backend/
 TEMPLATE_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "validation_data",
+    os.path.dirname(os.path.dirname(__file__)),
+    "templates",
+    "validation",
     "test_raschet_new_template_vat22.xlsm"
 )
 

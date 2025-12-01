@@ -931,10 +931,12 @@ async def upload_excel_with_validation_export(
 # TEMPLATE DOWNLOAD & EXPORT ENDPOINTS
 # ============================================================================
 
-# Path to blank template
+# Path to blank template (relative to backend directory for Railway deployment)
+# Railway deploys only the backend/ directory, so templates must be inside backend/
 TEMPLATE_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "validation_data",
+    os.path.dirname(os.path.dirname(__file__)),
+    "templates",
+    "validation",
     "template_quote_input_v6_test.xlsx"
 )
 
