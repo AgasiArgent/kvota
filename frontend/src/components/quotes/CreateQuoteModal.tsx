@@ -50,7 +50,7 @@ export default function CreateQuoteModal({
         return;
       }
 
-      const response = await fetch(`${config.apiUrl}/api/customers?limit=100`, {
+      const response = await fetch(`${config.apiUrl}/api/customers/?limit=100`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
