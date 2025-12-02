@@ -873,11 +873,11 @@ List all team members in the organization.
 - Only shows active and invited members
 - RLS ensures organization isolation
 
-#### 2. Invite Team Member
+#### 2. Add Team Member
 
 **POST `/api/organizations/{organization_id}/members`**
 
-Invite new member by email.
+Add new member to organization. Creates Supabase Auth user if doesn't exist.
 
 **Auth:** Manager/Admin/Owner only (`require_org_admin()`)
 
@@ -885,6 +885,7 @@ Invite new member by email.
 ```python
 {
     "email": "newuser@example.com",
+    "full_name": "John Doe",
     "role_id": "uuid"  # UUID of role to assign
 }
 ```
@@ -892,26 +893,60 @@ Invite new member by email.
 **Response:**
 ```python
 {
-    "message": "Member added successfully",
+    "message": "Участник добавлен и пользователь создан",
     "member_id": "uuid",
     "user_email": "newuser@example.com",
-    "role": "Member"
+    "user_full_name": "John Doe",
+    "role": "Sales Manager",
+    "generated_password": "Ab3xY9kLm2Pq",  # Only if new user created
+    "is_new_user": true
+}
+```
+
+**Behavior:**
+- If user exists in Supabase Auth → adds to organization
+- If user doesn't exist → creates user with generated password
+- Password is 12 chars (letters + digits), shown only once
+- Admin must share password with user manually (no email sent)
+
+**Validation:**
+- User cannot already be a member of this organization
+- Role must be valid (cannot assign owner role)
+
+**Error Codes:**
+- `409` - User already a member
+- `400` - Invalid role ID or attempting to assign owner role
+- `500` - Failed to create user
+
+#### 3. Reset Member Password
+
+**POST `/api/organizations/{organization_id}/members/{member_id}/reset-password`**
+
+Generate new password for a team member.
+
+**Auth:** Admin/Owner only (`require_org_admin()`)
+
+**Response:**
+```python
+{
+    "message": "Пароль успешно сброшен",
+    "user_email": "user@example.com",
+    "new_password": "Xy7mNp2kLq9R"
 }
 ```
 
 **Validation:**
-- User must exist in Supabase Auth
-- User cannot already be a member
-- Role must be valid
+- Cannot reset owner's password
+- Cannot reset your own password
+- Member must exist and be active
 
 **Error Codes:**
-- `404` - User not found
-- `409` - User already a member
-- `400` - Invalid role ID
+- `400` - Attempting to reset owner or own password
+- `404` - Member not found
 
-#### 3. Update Member Role
+#### 4. Update Member Role
 
-**PUT `/api/organizations/{organization_id}/members/{member_id}/role`**
+**PUT `/api/organizations/{organization_id}/members/{member_id}`**
 
 Change a member's role.
 
@@ -944,7 +979,7 @@ Change a member's role.
 - `400` - Attempting to change owner role or own role
 - `404` - Member not found
 
-#### 4. Remove Team Member
+#### 5. Remove Team Member
 
 **DELETE `/api/organizations/{organization_id}/members/{member_id}`**
 
