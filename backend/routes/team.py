@@ -3,10 +3,13 @@ Team Management API Routes
 Handles organization member CRUD operations
 """
 from fastapi import APIRouter, HTTPException, Depends, status
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from supabase import create_client, Client
+from pydantic import BaseModel, EmailStr
 import os
+import secrets
+import string
 
 from models import (
     OrganizationMember, OrganizationMemberWithDetails,
@@ -17,6 +20,51 @@ from auth import (
     get_current_user, get_organization_context,
     require_org_admin
 )
+
+
+# ============================================================================
+# REQUEST/RESPONSE MODELS
+# ============================================================================
+
+class AddMemberRequest(BaseModel):
+    """Request body for adding a new team member"""
+    email: EmailStr
+    full_name: str
+    role_id: UUID
+
+
+class AddMemberResponse(BaseModel):
+    """Response after adding a new team member"""
+    message: str
+    member_id: str
+    user_email: str
+    user_full_name: str
+    role: str
+    generated_password: Optional[str] = None  # Only set if new user was created
+    is_new_user: bool
+
+
+class ResetPasswordResponse(BaseModel):
+    """Response after resetting a user's password"""
+    message: str
+    user_email: str
+    new_password: str
+
+
+def generate_password(length: int = 12) -> str:
+    """Generate a secure random password"""
+    alphabet = string.ascii_letters + string.digits
+    # Ensure at least one of each type
+    password = [
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.digits),
+    ]
+    # Fill the rest randomly
+    password += [secrets.choice(alphabet) for _ in range(length - 3)]
+    # Shuffle to avoid predictable pattern
+    secrets.SystemRandom().shuffle(password)
+    return ''.join(password)
 
 router = APIRouter(prefix="/api/organizations", tags=["team"])
 
@@ -100,32 +148,29 @@ async def list_team_members(
         )
 
 
-@router.post("/{organization_id}/members", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def invite_team_member(
+@router.post("/{organization_id}/members", response_model=AddMemberResponse, status_code=status.HTTP_201_CREATED)
+async def add_team_member(
     organization_id: str,
-    email: str,
-    role_id: UUID,
+    request: AddMemberRequest,
     context: OrganizationContext = Depends(require_org_admin())
 ):
     """
-    Invite new member by email
+    Add new member to organization
 
-    - Request body: email and role_id
-    - Roles allowed: any role except changing ownership
-    - Auth: Only manager/admin/owner can invite
-    - Logic:
-      - Check if user with email exists in Supabase auth
-      - If exists: Add to organization_members table
-      - If not exists: Return error "User not found"
-    - Return: Success message with invitation details
+    - Creates Supabase Auth user if doesn't exist (with generated password)
+    - Adds user to organization_members table
+    - Auth: Only manager/admin/owner can add members
+    - Returns: Member details + generated password (if new user)
     """
     supabase = get_supabase_client()
+    generated_password = None
+    is_new_user = False
 
     try:
         # Validate role exists and is not owner-only
         role_result = supabase.table("roles") \
             .select("id, name, slug") \
-            .eq("id", str(role_id)) \
+            .eq("id", str(request.role_id)) \
             .single() \
             .execute()
 
@@ -135,39 +180,58 @@ async def invite_team_member(
                 detail="Invalid role ID"
             )
 
-        # Check if user exists in Supabase Auth
-        try:
-            # Try to find user by email using Admin API
-            users_list = supabase_admin.auth.admin.list_users()
-            target_user = None
-
-            for user in users_list:
-                if hasattr(user, 'email') and user.email == email:
-                    target_user = user
-                    break
-
-            if not target_user:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"User with email '{email}' not found. User must register first."
-                )
-
-            user_id = target_user.id
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Error looking up user: {e}")
+        if role_result.data["slug"] == "owner":
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to lookup user"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot assign owner role. Only one owner per organization."
             )
 
-        # Check if user is already a member
+        # Check if user exists in Supabase Auth
+        target_user = None
+        try:
+            users_list = supabase_admin.auth.admin.list_users()
+            for user in users_list:
+                if hasattr(user, 'email') and user.email == request.email:
+                    target_user = user
+                    break
+        except Exception as e:
+            print(f"Error listing users: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to lookup users"
+            )
+
+        # If user doesn't exist, create them
+        if not target_user:
+            generated_password = generate_password()
+            is_new_user = True
+
+            try:
+                create_response = supabase_admin.auth.admin.create_user({
+                    "email": request.email,
+                    "password": generated_password,
+                    "email_confirm": True,  # Skip email verification
+                    "user_metadata": {
+                        "full_name": request.full_name,
+                        "role": "member"  # Default metadata role
+                    }
+                })
+                target_user = create_response.user
+                print(f"Created new user: {request.email}")
+            except Exception as e:
+                print(f"Error creating user: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to create user: {str(e)}"
+                )
+
+        user_id = target_user.id
+
+        # Check if user is already a member of this organization
         existing_member = supabase.table("organization_members") \
             .select("id, status") \
             .eq("organization_id", organization_id) \
-            .eq("user_id", user_id) \
+            .eq("user_id", str(user_id)) \
             .execute()
 
         if existing_member.data and len(existing_member.data) > 0:
@@ -177,10 +241,26 @@ async def invite_team_member(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="User is already a member of this organization"
                 )
-            elif member.get("status") == "invited":
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="User already has a pending invitation"
+            elif member.get("status") == "left":
+                # Re-activate the member
+                from datetime import datetime, timezone
+                reactivate_result = supabase.table("organization_members") \
+                    .update({
+                        "status": "active",
+                        "role_id": str(request.role_id),
+                        "joined_at": datetime.now(timezone.utc).isoformat()
+                    }) \
+                    .eq("id", member["id"]) \
+                    .execute()
+
+                return AddMemberResponse(
+                    message="Member re-activated successfully",
+                    member_id=member["id"],
+                    user_email=request.email,
+                    user_full_name=request.full_name,
+                    role=role_result.data["name"],
+                    generated_password=generated_password,
+                    is_new_user=is_new_user
                 )
 
         # Add user to organization
@@ -188,8 +268,8 @@ async def invite_team_member(
 
         member_data = {
             "organization_id": organization_id,
-            "user_id": user_id,
-            "role_id": str(role_id),
+            "user_id": str(user_id),
+            "role_id": str(request.role_id),
             "status": "active",
             "is_owner": False,
             "invited_by": str(context.user.id),
@@ -204,20 +284,23 @@ async def invite_team_member(
                 detail="Failed to add member"
             )
 
-        return {
-            "message": "Member added successfully",
-            "member_id": member_result.data[0]["id"],
-            "user_email": email,
-            "role": role_result.data["name"]
-        }
+        return AddMemberResponse(
+            message="Member added successfully",
+            member_id=member_result.data[0]["id"],
+            user_email=request.email,
+            user_full_name=request.full_name,
+            role=role_result.data["name"],
+            generated_password=generated_password,
+            is_new_user=is_new_user
+        )
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error inviting team member: {e}")
+        print(f"Error adding team member: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to invite member: {str(e)}"
+            detail=f"Failed to add member: {str(e)}"
         )
 
 
@@ -375,4 +458,93 @@ async def remove_team_member(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to remove member: {str(e)}"
+        )
+
+
+@router.post("/{organization_id}/members/{member_id}/reset-password", response_model=ResetPasswordResponse)
+async def reset_member_password(
+    organization_id: str,
+    member_id: str,
+    context: OrganizationContext = Depends(require_org_admin())
+):
+    """
+    Reset a member's password (admin only)
+
+    - Generates new random password
+    - Updates user in Supabase Auth
+    - Auth: Only admin/owner can reset passwords
+    - Validation: Cannot reset owner's password (unless you are the owner)
+    - Returns: New password (one-time display)
+    """
+    supabase = get_supabase_client()
+
+    try:
+        # Get member details
+        member = supabase.table("organization_members") \
+            .select("user_id, is_owner") \
+            .eq("id", member_id) \
+            .eq("organization_id", organization_id) \
+            .single() \
+            .execute()
+
+        if not member.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Member not found"
+            )
+
+        # Only owner can reset owner's password
+        if member.data.get("is_owner") and not context.is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the owner can reset the owner's password"
+            )
+
+        # Cannot reset your own password through this endpoint
+        if member.data["user_id"] == str(context.user.id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot reset your own password. Use the profile settings instead."
+            )
+
+        user_id = member.data["user_id"]
+
+        # Get user email for response
+        try:
+            user_response = supabase_admin.auth.admin.get_user_by_id(user_id)
+            user_email = user_response.user.email if user_response and user_response.user else "unknown"
+        except Exception as e:
+            print(f"Error fetching user: {e}")
+            user_email = "unknown"
+
+        # Generate new password
+        new_password = generate_password()
+
+        # Update user password in Supabase Auth
+        try:
+            supabase_admin.auth.admin.update_user_by_id(
+                user_id,
+                {"password": new_password}
+            )
+            print(f"Password reset for user: {user_email}")
+        except Exception as e:
+            print(f"Error resetting password: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to reset password: {str(e)}"
+            )
+
+        return ResetPasswordResponse(
+            message="Password reset successfully",
+            user_email=user_email,
+            new_password=new_password
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error resetting member password: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset password: {str(e)}"
         )
