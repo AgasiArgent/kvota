@@ -1,95 +1,93 @@
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
 
-export function createClient() {
-  return createBrowserClient(
+// Singleton client - created once in browser
+let _supabase: SupabaseClient | null = null;
+let _initialized = false;
+
+// Helper to get session data from cookie (set by middleware)
+function getSessionFromCookie(): { access_token: string; refresh_token: string } | null {
+  if (typeof document === 'undefined') return null;
+
+  const cookieName = 'sb-wstwwmiihkzlgvlymlfd-auth-token';
+  const cookies = document.cookie.split(';');
+
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex === -1) continue;
+    const name = trimmed.substring(0, eqIndex);
+    const value = trimmed.substring(eqIndex + 1);
+
+    if (name === cookieName) {
+      try {
+        const decoded = decodeURIComponent(value);
+        // Handle base64 prefix from SSR middleware
+        const jsonStr = decoded.startsWith('base64-') ? atob(decoded.slice(7)) : decoded;
+        const data = JSON.parse(jsonStr);
+        return {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        };
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+// Create a new client instance (internal use only)
+function _createNewClient(): SupabaseClient {
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: {
-        get(name: string) {
-          // Use document.cookie for browser-side cookie access
-          // Guard against SSR where document is not available
-          if (typeof document === 'undefined') {
-            return null;
-          }
-          const cookies = document.cookie.split(';');
-          for (const cookie of cookies) {
-            const [cookieName, cookieValue] = cookie.trim().split('=');
-            if (cookieName === name) {
-              return decodeURIComponent(cookieValue);
-            }
-          }
-          return null;
-        },
-        set(name: string, value: string, options: Record<string, unknown>) {
-          // Set cookie with domain=.kvotaflow.ru to work on both www and non-www
-          const isProd =
-            typeof window !== 'undefined' &&
-            (window.location.hostname === 'kvotaflow.ru' ||
-              window.location.hostname === 'www.kvotaflow.ru');
-
-          const cookieOptions: Record<string, unknown> = {
-            ...options,
-            domain: isProd ? '.kvotaflow.ru' : undefined, // Root domain for production
-            path: '/',
-            sameSite: 'lax',
-          };
-
-          let cookieString = `${name}=${encodeURIComponent(value)}`;
-
-          if (cookieOptions.domain) {
-            cookieString += `; domain=${cookieOptions.domain}`;
-          }
-          if (cookieOptions.path) {
-            cookieString += `; path=${cookieOptions.path}`;
-          }
-          if (cookieOptions.maxAge) {
-            cookieString += `; max-age=${cookieOptions.maxAge}`;
-          }
-          if (cookieOptions.sameSite) {
-            cookieString += `; samesite=${cookieOptions.sameSite}`;
-          }
-          if (cookieOptions.secure) {
-            cookieString += '; secure';
-          }
-
-          document.cookie = cookieString;
-        },
-        remove(name: string, options: Record<string, unknown>) {
-          const isProd =
-            typeof window !== 'undefined' &&
-            (window.location.hostname === 'kvotaflow.ru' ||
-              window.location.hostname === 'www.kvotaflow.ru');
-
-          this.set(name, '', {
-            ...options,
-            domain: isProd ? '.kvotaflow.ru' : undefined,
-            maxAge: 0,
-          });
-        },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
       },
     }
   );
 }
 
-// Lazy-initialized singleton to avoid SSR issues
-// createBrowserClient accesses document during construction
-let _supabase: ReturnType<typeof createClient> | null = null;
-
-export function getSupabase() {
+// SINGLETON: Always returns the same client instance
+// This is called by all services - MUST be singleton to avoid multiple GoTrueClient
+export function createClient(): SupabaseClient {
   if (typeof window === 'undefined') {
-    // During SSR, create a fresh instance (will have limited functionality)
-    return createClient();
+    // During SSR, create fresh instances (they don't persist anyway)
+    return _createNewClient();
   }
-  // In browser, use singleton
+
+  // Browser: always return singleton
   if (!_supabase) {
-    _supabase = createClient();
+    _supabase = _createNewClient();
+
+    // Initialize session from cookie if available (only once)
+    if (!_initialized) {
+      _initialized = true;
+      const sessionData = getSessionFromCookie();
+      if (sessionData) {
+        _supabase.auth
+          .setSession({
+            access_token: sessionData.access_token,
+            refresh_token: sessionData.refresh_token,
+          })
+          .then(() => {
+            console.log('[Supabase] Session initialized from cookie');
+          })
+          .catch((err) => {
+            console.error('[Supabase] Error setting session:', err);
+          });
+      }
+    }
   }
+
   return _supabase;
 }
 
-// For backward compatibility - but prefer getSupabase()
-export const supabase = typeof window !== 'undefined' ? createClient() : (null as any);
+// Alias for backward compatibility
+export const getSupabase = createClient;
 
 // Database types for TypeScript support - Multi-Industry Platform
 export interface Database {

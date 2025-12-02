@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button, Dropdown, Space, Typography, message } from 'antd';
-import { DownOutlined, CheckOutlined, ApartmentOutlined, SwapOutlined } from '@ant-design/icons';
+import { CheckOutlined, ApartmentOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useRouter } from 'next/navigation';
 import { organizationService } from '@/lib/api/organization-service';
@@ -192,11 +192,7 @@ export default function OrganizationSwitcher({ onSwitch, darkMode }: Organizatio
   return (
     <Dropdown menu={{ items: menuItems }} trigger={['click']} disabled={switching || loading}>
       <Button loading={loading || switching} style={buttonStyle}>
-        <Space>
-          <SwapOutlined />
-          {currentOrg ? currentOrg.organization_name : 'Выберите организацию'}
-          <DownOutlined />
-        </Space>
+        {currentOrg ? currentOrg.organization_name : 'Выберите организацию'}
       </Button>
     </Dropdown>
   );
