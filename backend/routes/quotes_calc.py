@@ -305,7 +305,7 @@ def get_exchange_rate(from_currency: str, to_currency: str, supabase: Client) ->
 
 
 def get_converted_monetary_value(
-    supabase: Client,
+    supabase: Optional[Client],
     field_name: str,
     variables: Dict[str, Any],
     quote_currency: str,
@@ -318,6 +318,7 @@ def get_converted_monetary_value(
     Falls back to raw value if no monetary_fields entry exists.
 
     Args:
+        supabase: Supabase client for exchange rate lookups (can be None if no conversion needed)
         field_name: Name of the field (e.g., 'logistics_supplier_hub')
         variables: Quote variables dict containing monetary_fields
         quote_currency: Target currency to convert to (e.g., 'RUB')
@@ -325,6 +326,9 @@ def get_converted_monetary_value(
 
     Returns:
         Value converted to quote currency as Decimal
+
+    Raises:
+        ValueError: If currency conversion needed but supabase is None
     """
     monetary_fields = variables.get('monetary_fields', {})
 
@@ -336,6 +340,8 @@ def get_converted_monetary_value(
             source_currency = monetary_value['currency']
 
             if source_currency != quote_currency:
+                if supabase is None:
+                    raise ValueError(f"supabase client required for currency conversion of {field_name}")
                 rate = get_exchange_rate(source_currency, quote_currency, supabase)
                 converted = value * rate
                 logger.info(f"Currency conversion: {field_name} {value} {source_currency} -> {converted:.2f} {quote_currency} (rate: {rate})")
@@ -372,7 +378,8 @@ def map_variables_to_calculation_input(
     variables: Dict[str, Any],
     admin_settings: Dict[str, Decimal],
     quote_date: date,
-    quote_currency: str = "USD"
+    quote_currency: str = "USD",
+    supabase: Optional[Client] = None
 ) -> QuoteCalculationInput:
     """
     Transform flat variables dict + product into nested QuoteCalculationInput.
@@ -388,12 +395,13 @@ def map_variables_to_calculation_input(
         admin_settings: Admin settings with rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
         quote_date: Quote creation date (for delivery_date calculation)
         quote_currency: Target currency for calculations (e.g., 'RUB')
+        supabase: Supabase client for exchange rate lookups (optional for tests with manual rates)
 
     Returns:
         QuoteCalculationInput with all nested models populated
 
     Raises:
-        ValueError: If required fields are missing
+        ValueError: If required fields are missing or supabase required but not provided
     """
 
     # ========== ProductInfo (5 fields) ==========
@@ -424,10 +432,13 @@ def map_variables_to_calculation_input(
         logger.info(f"Using manual exchange rate override: {exchange_rate_for_phase1}")
     else:
         # Fall back to database rates (CBR)
+        if supabase is None:
+            raise ValueError("supabase client required for exchange rate lookup when no manual rate provided")
         # get_exchange_rate returns multiplier format, so we invert it for Phase 1
         rate_multiplier = get_exchange_rate(
-            product_info.currency_of_base_price.value, # from_currency (e.g., EUR, supabase)
-            "USD"  # to_currency (always USD)
+            product_info.currency_of_base_price.value,  # from_currency (e.g., EUR)
+            "USD",  # to_currency (always USD)
+            supabase
         )
         # Invert to get divisor format for Phase 1
         exchange_rate_for_phase1 = Decimal("1") / rate_multiplier if rate_multiplier > 0 else Decimal("1")
@@ -475,9 +486,9 @@ def map_variables_to_calculation_input(
         offer_incoterms=Incoterms(variables.get('offer_incoterms', 'DDP')),
         delivery_time=delivery_time_days,
         delivery_date=delivery_date,
-        logistics_supplier_hub=get_converted_monetary_value('logistics_supplier_hub', variables, "USD"),
-        logistics_hub_customs=get_converted_monetary_value('logistics_hub_customs', variables, "USD"),
-        logistics_customs_client=get_converted_monetary_value('logistics_customs_client', variables, "USD")
+        logistics_supplier_hub=get_converted_monetary_value(supabase, 'logistics_supplier_hub', variables, "USD"),
+        logistics_hub_customs=get_converted_monetary_value(supabase, 'logistics_hub_customs', variables, "USD"),
+        logistics_customs_client=get_converted_monetary_value(supabase, 'logistics_customs_client', variables, "USD")
     )
 
     # ========== TaxesAndDuties (3 fields) ==========
@@ -510,11 +521,11 @@ def map_variables_to_calculation_input(
     # Convert brokerage costs to USD (canonical calculation currency)
     # Field names: frontend sends brokerage_hub, brokerage_customs, etc.
     customs = CustomsAndClearance(
-        brokerage_hub=get_converted_monetary_value('brokerage_hub', variables, "USD"),
-        brokerage_customs=get_converted_monetary_value('brokerage_customs', variables, "USD"),
-        warehousing_at_customs=get_converted_monetary_value('warehousing_at_customs', variables, "USD"),
-        customs_documentation=get_converted_monetary_value('customs_documentation', variables, "USD"),
-        brokerage_extra=get_converted_monetary_value('brokerage_extra', variables, "USD")
+        brokerage_hub=get_converted_monetary_value(supabase, 'brokerage_hub', variables, "USD"),
+        brokerage_customs=get_converted_monetary_value(supabase, 'brokerage_customs', variables, "USD"),
+        warehousing_at_customs=get_converted_monetary_value(supabase, 'warehousing_at_customs', variables, "USD"),
+        customs_documentation=get_converted_monetary_value(supabase, 'customs_documentation', variables, "USD"),
+        brokerage_extra=get_converted_monetary_value(supabase, 'brokerage_extra', variables, "USD")
     )
 
     # ========== CompanySettings (2 fields) ==========
@@ -1445,7 +1456,7 @@ async def calculate_quote(
             .execute()
 
         # 4. Fetch admin settings for organization
-        admin_settings = await fetch_admin_settings(str(user.current_organization_id, supabase))
+        admin_settings = await fetch_admin_settings(str(user.current_organization_id), supabase)
 
         # 5. Validate all products and build calculation inputs
         calc_inputs = []
@@ -1480,7 +1491,8 @@ async def calculate_quote(
                 variables=request.variables,
                 admin_settings=admin_settings,
                 quote_date=request.quote_date,
-                quote_currency=quote_currency
+                quote_currency=quote_currency,
+                supabase=supabase
             )
 
             # DEBUG: Log what was mapped
