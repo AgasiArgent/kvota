@@ -54,6 +54,7 @@ interface QuoteListItem {
   status: string;
   workflow_state?: string;
   total_amount?: number;
+  total_with_vat_quote?: number;
   total_usd?: number;
   total?: number; // Backend uses 'total' instead of 'total_amount'
   total_profit_usd?: number;
@@ -550,13 +551,14 @@ export default function QuotesPage() {
       render: (name: string) => name || '—',
     },
     {
-      title: 'Сумма (в валюте КП)',
-      dataIndex: 'total_amount',
-      key: 'total_amount',
+      title: 'Сумма с НДС',
+      dataIndex: 'total_with_vat_quote',
+      key: 'total_with_vat_quote',
       width: 150,
       align: 'right' as const,
       render: (_: any, record: QuoteListItem) => {
-        const amount = record.total_amount || record.total || 0;
+        // Use total_with_vat_quote (AL16) - final price with VAT in quote currency
+        const amount = record.total_with_vat_quote || record.total_amount || record.total || 0;
         return formatCurrency(amount, record.currency || 'USD');
       },
     },
