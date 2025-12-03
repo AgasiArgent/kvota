@@ -198,7 +198,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (name === cookieName) {
         try {
           const decoded = decodeURIComponent(value);
-          const jsonStr = decoded.startsWith('base64-') ? atob(decoded.slice(7)) : decoded;
+          let jsonStr: string;
+          if (decoded.startsWith('base64-')) {
+            // Handle URL-safe base64 (replace - with + and _ with /)
+            const base64Part = decoded.slice(7);
+            const standardBase64 = base64Part.replace(/-/g, '+').replace(/_/g, '/');
+            jsonStr = atob(standardBase64);
+          } else {
+            jsonStr = decoded;
+          }
           const data = JSON.parse(jsonStr);
           return {
             access_token: data.access_token,
