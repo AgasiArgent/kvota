@@ -14,16 +14,11 @@ from workflow_models import (
     WorkflowSettings, WorkflowSettingsUpdate, MyTask, WorkflowTransition
 )
 from workflow_validator import WorkflowValidator
-from supabase import create_client, Client
-import os
+from supabase import Client
+from dependencies import get_supabase
 
 router = APIRouter(prefix="/api/quotes", tags=["workflow"])
 logger = logging.getLogger(__name__)
-
-supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-)
 
 # ============================================================================
 # ENDPOINT 1: Transition Workflow State
@@ -33,7 +28,8 @@ supabase: Client = create_client(
 async def transition_quote_workflow(
     quote_id: UUID,
     request: WorkflowTransitionRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Transition quote to next workflow state.
@@ -219,7 +215,8 @@ def get_transition_message(action: str, next_state: str) -> str:
 @router.get("/{quote_id}/workflow", response_model=WorkflowStatus)
 async def get_quote_workflow_status(
     quote_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Get current workflow status and history for quote.
@@ -326,7 +323,10 @@ async def get_quote_workflow_status(
 # ============================================================================
 
 @router.get("/my-tasks")
-async def get_my_workflow_tasks(user: User = Depends(get_current_user)):
+async def get_my_workflow_tasks(
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
     """
     Get all quotes currently assigned to user's role.
 

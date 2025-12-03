@@ -7,11 +7,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, EmailStr
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User
 from services.activity_log_service import log_activity
-import os
+from dependencies import get_supabase
 
 
 # ============================================================================
@@ -65,17 +65,8 @@ class LeadContact(LeadContactBase):
 # HELPER FUNCTIONS
 # ============================================================================
 
-def get_supabase_client() -> Client:
-    """Create Supabase client with service role key"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
-
-async def verify_lead_access(lead_id: str, user: User) -> bool:
+async def verify_lead_access(lead_id: str, user: User, supabase: Client) -> bool:
     """Verify user has access to lead (RLS check)"""
-    supabase = get_supabase_client()
     result = supabase.table("leads").select("id")\
         .eq("id", lead_id)\
         .eq("organization_id", str(user.current_organization_id))\
@@ -90,7 +81,8 @@ async def verify_lead_access(lead_id: str, user: User) -> bool:
 @router.get("/lead/{lead_id}", response_model=List[LeadContact])
 async def list_lead_contacts(
     lead_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List all contacts for a lead
@@ -99,13 +91,11 @@ async def list_lead_contacts(
     """
     try:
         # Verify lead access
-        if not await verify_lead_access(lead_id, user):
+        if not await verify_lead_access(lead_id, user, supabase):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Lead not found or access denied"
             )
-
-        supabase = get_supabase_client()
 
         result = supabase.table("lead_contacts").select("*")\
             .eq("lead_id", lead_id)\
@@ -127,7 +117,8 @@ async def list_lead_contacts(
 @router.get("/{contact_id}", response_model=LeadContact)
 async def get_lead_contact(
     contact_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get contact by ID
@@ -135,8 +126,6 @@ async def get_lead_contact(
     RLS ensures user can only access contacts for their leads
     """
     try:
-        supabase = get_supabase_client()
-
         result = supabase.table("lead_contacts").select("*")\
             .eq("id", contact_id)\
             .eq("organization_id", str(user.current_organization_id))\
@@ -150,7 +139,7 @@ async def get_lead_contact(
 
         # Verify lead access via RLS
         contact = result.data[0]
-        if not await verify_lead_access(contact["lead_id"], user):
+        if not await verify_lead_access(contact["lead_id"], user, supabase):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contact not found or access denied"
@@ -171,7 +160,8 @@ async def get_lead_contact(
 async def create_lead_contact(
     lead_id: str,
     contact_data: LeadContactCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create new contact for lead
@@ -180,13 +170,11 @@ async def create_lead_contact(
     """
     try:
         # Verify lead access
-        if not await verify_lead_access(lead_id, user):
+        if not await verify_lead_access(lead_id, user, supabase):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Lead not found or access denied"
             )
-
-        supabase = get_supabase_client()
 
         # If creating primary contact, unset existing primary
         if contact_data.is_primary:
@@ -244,7 +232,8 @@ async def create_lead_contact(
 async def update_lead_contact(
     contact_id: str,
     contact_data: LeadContactUpdate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update contact
@@ -252,8 +241,6 @@ async def update_lead_contact(
     If setting is_primary=true, automatically unsets other primary contacts
     """
     try:
-        supabase = get_supabase_client()
-
         # Get existing contact
         existing = supabase.table("lead_contacts").select("*")\
             .eq("id", contact_id)\
@@ -270,7 +257,7 @@ async def update_lead_contact(
         lead_id = contact["lead_id"]
 
         # Verify lead access
-        if not await verify_lead_access(lead_id, user):
+        if not await verify_lead_access(lead_id, user, supabase):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contact not found or access denied"
@@ -325,7 +312,8 @@ async def update_lead_contact(
 @router.delete("/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lead_contact(
     contact_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Delete contact
@@ -333,8 +321,6 @@ async def delete_lead_contact(
     Cannot delete if it's the only contact for the lead (at least one required)
     """
     try:
-        supabase = get_supabase_client()
-
         # Get existing contact
         existing = supabase.table("lead_contacts").select("lead_id,full_name")\
             .eq("id", contact_id)\
@@ -352,7 +338,7 @@ async def delete_lead_contact(
         full_name = contact["full_name"]
 
         # Verify lead access
-        if not await verify_lead_access(lead_id, user):
+        if not await verify_lead_access(lead_id, user, supabase):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contact not found or access denied"
@@ -403,7 +389,8 @@ async def delete_lead_contact(
 @router.patch("/{contact_id}/set-primary")
 async def set_primary_contact(
     contact_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Set contact as primary
@@ -411,8 +398,6 @@ async def set_primary_contact(
     Automatically unsets other primary contacts for the same lead
     """
     try:
-        supabase = get_supabase_client()
-
         # Get existing contact
         existing = supabase.table("lead_contacts").select("lead_id")\
             .eq("id", contact_id)\
@@ -428,7 +413,7 @@ async def set_primary_contact(
         lead_id = existing.data[0]["lead_id"]
 
         # Verify lead access
-        if not await verify_lead_access(lead_id, user):
+        if not await verify_lead_access(lead_id, user, supabase):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Contact not found or access denied"

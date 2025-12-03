@@ -508,7 +508,14 @@ DATABASE_URL=postgresql://postgres:xxx@db.xxx.supabase.co:5432/postgres
 ## Exchange Rate Service
 
 ### Overview
-Exchange rates are fetched daily from Central Bank of Russia (CBR) API and cached in the database.
+Exchange rates are fetched daily from Central Bank of Russia (CBR) API at 12:05 MSK
+and cached in memory. Rate lookups are instant (no DB queries).
+
+### In-Memory Caching
+- Rates stored in `ExchangeRateService` singleton memory
+- Cron job at 12:05 MSK fetches fresh rates from CBR (after they publish ~11:30-12:00)
+- First request after server restart loads from DB, then caches in memory
+- All subsequent requests served from memory (sub-millisecond)
 
 ### Service Pattern
 ```python
@@ -517,17 +524,21 @@ from services.exchange_rate_service import get_exchange_rate_service
 # Get service singleton
 service = get_exchange_rate_service()
 
-# Get exchange rate (auto-fetches if stale)
+# Get single exchange rate (instant from memory)
 rate = await service.get_rate("USD", "RUB")
 
-# Manual refresh (admin only)
-rates = await service.fetch_cbr_rates()
+# Get all rates (for bulk access)
+rates = service.get_all_rates()  # {USD: Decimal('77.46'), EUR: ...}
+
+# Get cache metadata
+info = service.get_cache_info()
+# {"cached": True, "currencies_count": 56, "last_updated": "...", "cbr_date": "..."}
 ```
 
 ### Automatic Updates
-- **Daily Update:** 10:00 AM Moscow Time
-- **Weekly Cleanup:** Sundays (keeps 30 days of history)
-- **Cache Duration:** 24 hours
+- **Daily Update:** 12:05 MSK (after CBR publishes ~11:30-12:00)
+- **Weekly Cleanup:** Sundays 3 AM UTC (keeps 30 days of history)
+- **Cache:** In-memory, persisted to DB for restart recovery
 
 ### Database Schema
 ```sql
@@ -535,7 +546,7 @@ CREATE TABLE exchange_rates (
     id UUID PRIMARY KEY,
     from_currency TEXT NOT NULL,  -- e.g., "USD"
     to_currency TEXT NOT NULL,    -- e.g., "RUB"
-    rate DECIMAL NOT NULL,        -- e.g., 81.13
+    rate DECIMAL NOT NULL,        -- e.g., 77.46
     fetched_at TIMESTAMPTZ,       -- When fetched from CBR
     source TEXT DEFAULT 'cbr',
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -548,21 +559,23 @@ ON exchange_rates(from_currency, to_currency, fetched_at);
 
 ### API Endpoints
 ```python
-# Get exchange rate
+# Get ALL exchange rates (primary endpoint)
+GET /api/exchange-rates/all
+# Returns: {"rates": {"USD": 77.46, "EUR": 89.85, ...},
+#           "last_updated": "2025-12-03T12:05:00+00:00",
+#           "currencies_count": 56}
+
+# Get single exchange rate
 GET /api/exchange-rates/{from_currency}/{to_currency}
 # Example: GET /api/exchange-rates/USD/RUB
-# Returns: {"rate": 81.13, "fetched_at": "2025-11-15T10:00:00Z", ...}
-
-# Manual refresh (admin only)
-POST /api/exchange-rates/refresh
-# Returns: {"success": true, "rates_updated": 56, ...}
+# Returns: {"rate": 77.46, "from_currency": "USD", "to_currency": "RUB"}
 ```
 
 ### Important Notes
-- **Always use Supabase client** - More reliable than asyncpg for network operations
-- **Use upsert() not insert()** - Handles duplicate entries gracefully
+- **In-memory first** - All lookups served from memory, no DB queries
 - **56 currencies supported** - All CBR API currencies
-- **Automatic fallback** - If cache miss, fetches fresh data
+- **Automatic fallback** - On server start: memory -> DB -> CBR API
+- **CBR Nominal handling** - Rates per 1 unit (TRY Value=18.45, Nominal=10 → Rate=1.845)
 
 ---
 

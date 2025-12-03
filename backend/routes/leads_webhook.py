@@ -6,12 +6,13 @@ from typing import Optional
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Header, status
+from fastapi import APIRouter, HTTPException, Header, Depends, status
 from pydantic import BaseModel
-from supabase import create_client, Client
+from supabase import Client
 import os
 
 from services.activity_log_service import log_activity
+from dependencies import get_supabase
 
 
 # ============================================================================
@@ -74,15 +75,7 @@ class LeadWebhookPayload(BaseModel):
 # HELPER FUNCTIONS
 # ============================================================================
 
-def get_supabase_client() -> Client:
-    """Create Supabase client with service role key"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
-
-async def get_organization_id(payload: LeadWebhookPayload) -> str:
+async def get_organization_id(payload: LeadWebhookPayload, supabase: Client) -> str:
     """
     Get organization ID from payload or default to first organization
 
@@ -91,8 +84,6 @@ async def get_organization_id(payload: LeadWebhookPayload) -> str:
     - Use external_id to lookup organization
     - Require organization_id in payload
     """
-    supabase = get_supabase_client()
-
     # If organization_id provided in payload, use it
     if payload.organization_id:
         # Verify organization exists
@@ -132,7 +123,7 @@ def map_result_to_stage(result: str) -> str:
     return mapping.get(result, "Отправить письмо")
 
 
-async def get_or_create_stage(organization_id: str, stage_name: str) -> dict:
+async def get_or_create_stage(organization_id: str, stage_name: str, supabase: Client) -> dict:
     """
     Find or create lead stage by name
 
@@ -143,8 +134,6 @@ async def get_or_create_stage(organization_id: str, stage_name: str) -> dict:
     Returns:
         Stage record dict
     """
-    supabase = get_supabase_client()
-
     # Try to find existing stage
     result = supabase.table("lead_stages")\
         .select("*")\
@@ -204,7 +193,8 @@ async def parse_phones(phones_str: Optional[str]) -> list:
 @router.post("/webhook")
 async def receive_lead_from_webhook(
     payload: LeadWebhookPayload,
-    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret")
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Receive lead data from Make.com webhook
@@ -238,7 +228,7 @@ async def receive_lead_from_webhook(
     # ========================================================================
 
     try:
-        organization_id = await get_organization_id(payload)
+        organization_id = await get_organization_id(payload, supabase)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -254,7 +244,7 @@ async def receive_lead_from_webhook(
     stage_name = map_result_to_stage(result_text)
 
     try:
-        stage = await get_or_create_stage(organization_id, stage_name)
+        stage = await get_or_create_stage(organization_id, stage_name, supabase)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -271,8 +261,6 @@ async def receive_lead_from_webhook(
     # ========================================================================
     # STEP 5: Create lead
     # ========================================================================
-
-    supabase = get_supabase_client()
 
     lead_data = {
         "organization_id": organization_id,
@@ -502,7 +490,8 @@ class CalendarEventUpdate(BaseModel):
 async def update_calendar_event_id(
     lead_id: str,
     event_data: CalendarEventUpdate,
-    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret")
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Callback from n8n to store Google Calendar event ID
@@ -513,7 +502,6 @@ async def update_calendar_event_id(
     Security: Validates webhook secret from X-Webhook-Secret header
     No user authentication required (webhook callback)
     """
-    supabase = get_supabase_client()
 
     # Verify webhook secret
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "your-secret-key-change-in-production")

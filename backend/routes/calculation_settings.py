@@ -9,22 +9,11 @@ from pydantic import BaseModel, Field
 from decimal import Decimal
 from typing import Optional
 from datetime import datetime
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User
+from dependencies import get_supabase
 
-# Initialize Supabase client (allow None in test environment)
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-environment = os.getenv("ENVIRONMENT", "development")
-
-if supabase_url and supabase_key:
-    supabase: Client = create_client(supabase_url, supabase_key)
-elif environment == "test":
-    # Allow imports in test environment without credentials
-    supabase = None  # type: ignore
-else:
-    raise ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
 
 router = APIRouter(prefix="/api/calculation-settings", tags=["Calculation Settings"])
 
@@ -94,7 +83,7 @@ class CalculationSettingsCreate(BaseModel):
 # Helper Functions
 # ============================================================================
 
-async def get_user_organization_id(user: User) -> str:
+async def get_user_organization_id(user: User, supabase: Client) -> str:
     """Get the user's organization ID"""
     # Get user's organization membership
     response = supabase.table('organization_members')\
@@ -113,7 +102,7 @@ async def get_user_organization_id(user: User) -> str:
     return response.data[0]['organization_id']
 
 
-async def check_admin_permissions(user: User, organization_id: str) -> bool:
+async def check_admin_permissions(user: User, organization_id: str, supabase: Client) -> bool:
     """Check if user has admin permissions for calculation settings"""
     # Get user's membership with role
     response = supabase.table('organization_members')\
@@ -145,7 +134,8 @@ async def check_admin_permissions(user: User, organization_id: str) -> bool:
 # ============================================================================
 
 @router.get("", response_model=CalculationSettings)
-async def get_calculation_settings(user: User = Depends(get_current_user)):
+async def get_calculation_settings(user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)):
     """
     Get calculation settings for user's organization
 
@@ -154,7 +144,7 @@ async def get_calculation_settings(user: User = Depends(get_current_user)):
     - rate_fin_comm: Financial agent commission %
     - rate_loan_interest_daily: Daily loan interest rate
     """
-    organization_id = await get_user_organization_id(user)
+    organization_id = await get_user_organization_id(user, supabase)
 
     # Get organization info
     org_response = supabase.table('organizations')\
@@ -220,7 +210,8 @@ async def get_calculation_settings(user: User = Depends(get_current_user)):
 @router.post("", response_model=CalculationSettings, status_code=status.HTTP_201_CREATED)
 async def create_or_update_calculation_settings(
     settings_data: CalculationSettingsCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create or update calculation settings for user's organization
@@ -229,10 +220,10 @@ async def create_or_update_calculation_settings(
 
     Creates new settings if none exist, otherwise updates existing settings.
     """
-    organization_id = await get_user_organization_id(user)
+    organization_id = await get_user_organization_id(user, supabase)
 
     # Check admin permissions
-    is_admin = await check_admin_permissions(user, organization_id)
+    is_admin = await check_admin_permissions(user, organization_id, supabase)
     if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

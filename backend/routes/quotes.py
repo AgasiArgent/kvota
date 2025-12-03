@@ -26,7 +26,8 @@ from fastapi import File, UploadFile
 import os
 from services.activity_log_service import log_activity, log_activity_decorator
 from async_supabase import async_supabase_call
-from supabase import create_client, Client
+from supabase import Client
+from dependencies import get_supabase
 
 
 # ============================================================================
@@ -38,26 +39,6 @@ router = APIRouter(
     tags=["quotes"],
     dependencies=[Depends(get_current_user)]
 )
-
-
-# ============================================================================
-# DATABASE HELPER FUNCTIONS
-# ============================================================================
-
-def get_supabase_client():
-    """Get Supabase client for database operations"""
-    from supabase import create_client, Client
-
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-    if not supabase_url or not supabase_key:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase configuration missing"
-        )
-
-    return create_client(supabase_url, supabase_key)
 
 
 async def get_db_connection():
@@ -155,7 +136,8 @@ async def list_quotes(
     min_amount: Optional[float] = Query(None, description="Minimum total amount"),
     max_amount: Optional[float] = Query(None, description="Maximum total amount"),
     search: Optional[str] = Query(None, description="Search in quote number, customer name, or title"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List quotes with filtering and pagination
@@ -163,7 +145,6 @@ async def list_quotes(
     Uses Supabase client for database operations (RLS enforced automatically)
     """
     try:
-        supabase = get_supabase_client()
 
         # Build query with joins, exclude soft-deleted quotes
         # Explicitly list fields to ensure new columns are included
@@ -718,7 +699,8 @@ async def delete_quote(
 @router.patch("/{quote_id}/soft-delete", response_model=SuccessResponse)
 async def soft_delete_quote(
     quote_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Soft delete quote (move to bin)
@@ -726,7 +708,6 @@ async def soft_delete_quote(
     Sets deleted_at timestamp without permanently removing data
     """
     try:
-        supabase = get_supabase_client()
 
         # Verify quote exists and user has access
         result = supabase.table("quotes").select("id, quote_number, organization_id, deleted_at").eq("id", str(quote_id)).execute()
@@ -775,7 +756,8 @@ async def soft_delete_quote(
 @log_activity_decorator("quote", "restored")
 async def restore_quote(
     quote_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Restore soft-deleted quote from bin
@@ -783,7 +765,6 @@ async def restore_quote(
     Clears deleted_at timestamp to restore access
     """
     try:
-        supabase = get_supabase_client()
 
         # Verify quote exists and user has access
         result = supabase.table("quotes").select("id, quote_number, organization_id, deleted_at").eq("id", str(quote_id)).execute()
@@ -840,7 +821,8 @@ async def restore_quote(
 @router.delete("/{quote_id}/permanent", response_model=SuccessResponse)
 async def permanently_delete_quote(
     quote_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Permanently delete quote
@@ -849,7 +831,6 @@ async def permanently_delete_quote(
     This operation cannot be undone
     """
     try:
-        supabase = get_supabase_client()
 
         # Verify quote exists and user has access
         result = supabase.table("quotes").select("id, quote_number, organization_id, deleted_at").eq("id", str(quote_id)).execute()
@@ -896,7 +877,8 @@ async def permanently_delete_quote(
 async def list_bin_quotes(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List soft-deleted quotes (bin)
@@ -908,7 +890,6 @@ async def list_bin_quotes(
     DELETE FROM quotes WHERE deleted_at < NOW() - INTERVAL '7 days'
     """
     try:
-        supabase = get_supabase_client()
 
         # Build query for soft-deleted quotes
         # Explicitly list fields to ensure new columns are included
@@ -1157,16 +1138,12 @@ async def delete_quote_item(
 async def submit_quote_for_financial_approval(
     quote_id: UUID,
     comment: str = Body(None, description="Optional comment when submitting"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Submit quote for financial approval (simplified single-manager workflow)
     """
-    supabase = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     try:
         # Get quote and verify it's in draft status
         result = supabase.table("quotes").select("*").eq("id", str(quote_id)).eq("organization_id", str(user.current_organization_id)).execute()
@@ -1217,16 +1194,13 @@ async def submit_quote_for_financial_approval(
 async def approve_quote_financially(
     quote_id: UUID,
     comment: str = Body(None, description="Optional comment when approving"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Approve a quote financially - only financial manager can do this
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Check if user has financial approval authority
         # Allowed roles: financial_manager, cfo, admin, or organization owner
@@ -1302,16 +1276,13 @@ async def approve_quote_financially(
 async def reject_quote_financially(
     quote_id: UUID,
     comment: str = Body(..., description="Required comment when rejecting"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Reject a quote financially - only financial manager can do this
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Check if user has financial approval authority
         # Allowed roles: financial_manager, cfo, admin, or organization owner
@@ -1382,16 +1353,13 @@ async def reject_quote_financially(
 async def send_quote_back_for_revision(
     quote_id: UUID,
     comment: str = Body(..., description="Required comment explaining what needs revision"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Send a quote back for revision - only financial manager can do this
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Check if user has financial approval authority
         # Allowed roles: financial_manager, cfo, admin, or organization owner

@@ -11,10 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from pydantic import BaseModel
 from decimal import Decimal
-import os
 
-from supabase import create_client, Client
+from supabase import Client
 from auth import get_current_user, User
+from dependencies import get_supabase
 
 router = APIRouter(prefix="/api/supplier-countries", tags=["reference"])
 
@@ -30,7 +30,8 @@ class SupplierCountryResponse(BaseModel):
 
 @router.get("/", response_model=List[SupplierCountryResponse])
 async def list_supplier_countries(
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Get list of all supplier countries with VAT and markup rates
@@ -59,11 +60,6 @@ async def list_supplier_countries(
         ]
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         result = supabase.table("supplier_countries")\
             .select("code, name_ru, vat_rate, internal_markup_ru, internal_markup_tr")\
             .order("name_ru")\
@@ -83,7 +79,8 @@ async def list_supplier_countries(
 @router.get("/{code}", response_model=SupplierCountryResponse)
 async def get_supplier_country(
     code: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Get specific supplier country by code
@@ -98,11 +95,6 @@ async def get_supplier_country(
         404: Country not found
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         result = supabase.table("supplier_countries")\
             .select("code, name_ru, vat_rate, internal_markup_ru, internal_markup_tr")\
             .eq("code", code)\
