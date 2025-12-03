@@ -1128,16 +1128,28 @@ def convert_decimals_to_float(obj):
         return obj
 
 
-def aggregate_product_results_to_summary(results_list: List, quote_variables: Dict[str, Any] = None) -> Dict[str, float]:
+def aggregate_product_results_to_summary(
+    results_list: List,
+    quote_variables: Dict[str, Any] = None,
+    quote_currency: str = "RUB",
+    usd_to_quote_rate: Decimal = None,
+    exchange_rate_source: str = "cbr",
+    exchange_rate_timestamp: datetime = None
+) -> Dict[str, float]:
     """
     Aggregate product-level calculation results to quote-level summary.
 
     Args:
         results_list: List of ProductCalculationResult objects
         quote_variables: Quote-level variables dict (for brokerage calculation)
+        quote_currency: Client's quote currency (e.g., 'RUB', 'EUR')
+        usd_to_quote_rate: Exchange rate: 1 USD = X quote_currency
+        exchange_rate_source: Rate source ('cbr', 'manual', 'mixed')
+        exchange_rate_timestamp: When rate was fetched
 
     Returns:
-        Dict with 45 calculated fields ready for quote_calculation_summaries table
+        Dict with calculated fields ready for quote_calculation_summaries table
+        Includes both USD (canonical) and quote currency values
     """
     from decimal import Decimal
 
@@ -1146,6 +1158,10 @@ def aggregate_product_results_to_summary(results_list: List, quote_variables: Di
 
     if quote_variables is None:
         quote_variables = {}
+
+    # Default exchange rate if not provided
+    if usd_to_quote_rate is None:
+        usd_to_quote_rate = Decimal("1")  # 1:1 if USD or not provided
 
     # Initialize sums for monetary fields (Phase 1-13)
     summary = {
@@ -1270,6 +1286,25 @@ def aggregate_product_results_to_summary(results_list: List, quote_variables: Di
 
     summary["calc_total_brokerage"] = brokerage_total
     summary["calc_total_logistics_and_brokerage"] = summary["calc_v16_total_logistics"] + brokerage_total
+
+    # =========================================================================
+    # QUOTE CURRENCY VALUES (new in migration 037)
+    # =========================================================================
+
+    # Exchange rate metadata
+    summary["quote_currency"] = quote_currency
+    summary["usd_to_quote_rate"] = usd_to_quote_rate
+    summary["exchange_rate_source"] = exchange_rate_source
+    summary["exchange_rate_timestamp"] = exchange_rate_timestamp.isoformat() if exchange_rate_timestamp else None
+
+    # Key totals in quote currency (USD values * rate)
+    summary["calc_s16_total_purchase_price_quote"] = summary["calc_s16_total_purchase_price"] * usd_to_quote_rate
+    summary["calc_v16_total_logistics_quote"] = summary["calc_v16_total_logistics"] * usd_to_quote_rate
+    summary["calc_ab16_cogs_total_quote"] = summary["calc_ab16_cogs_total"] * usd_to_quote_rate
+    summary["calc_ak16_final_price_total_quote"] = summary["calc_ak16_final_price_total"] * usd_to_quote_rate
+    summary["calc_al16_total_with_vat_quote"] = summary["calc_al16_total_with_vat"] * usd_to_quote_rate
+    summary["calc_total_brokerage_quote"] = brokerage_total * usd_to_quote_rate
+    summary["calc_total_logistics_and_brokerage_quote"] = summary["calc_total_logistics_and_brokerage"] * usd_to_quote_rate
 
     # Convert all Decimals to float for JSON/database
     return convert_decimals_to_float(summary)
@@ -1521,11 +1556,29 @@ async def calculate_quote(
                 result_dict["sales_price_total_with_vat_quote"] = float(result.sales_price_total_with_vat * usd_to_quote_rate)
                 result_dict["rates_snapshot"] = rates_snapshot
 
-                # Save calculation results
+                # Build quote currency version of key results
+                # This creates a separate JSONB for client-facing values
+                phase_results_quote = {
+                    "quote_currency": client_quote_currency,
+                    "usd_to_quote_rate": float(usd_to_quote_rate),
+                    # Key values in quote currency
+                    "purchase_price_total": float(result.purchase_price_total_quote_currency * usd_to_quote_rate),
+                    "logistics_total": float(result.logistics_total * usd_to_quote_rate),
+                    "cogs_per_product": float(result.cogs_per_product * usd_to_quote_rate),
+                    "sales_price_total_no_vat": float(result.sales_price_total_no_vat * usd_to_quote_rate),
+                    "sales_price_total_with_vat": float(result.sales_price_total_with_vat * usd_to_quote_rate),
+                    "sales_price_per_unit_no_vat": float(result.sales_price_per_unit_no_vat * usd_to_quote_rate),
+                    "sales_price_per_unit_with_vat": float(result.sales_price_per_unit_with_vat * usd_to_quote_rate),
+                    "profit": float(result.profit * usd_to_quote_rate),
+                    "dm_fee": float(result.dm_fee * usd_to_quote_rate),
+                }
+
+                # Save calculation results (USD in phase_results, quote currency in phase_results_quote_currency)
                 results_data = {
                     "quote_id": quote_id,
                     "quote_item_id": item_record['id'],
-                    "phase_results": result_dict
+                    "phase_results": result_dict,
+                    "phase_results_quote_currency": phase_results_quote  # New in migration 037
                 }
 
                 results_response = supabase.table("quote_calculation_results")\
@@ -1586,17 +1639,34 @@ async def calculate_quote(
                     detail=f"Failed to save results for product {product.product_name}: {str(e)}"
                 )
 
-        # 8. Update quote totals
+        # 8. Update quote totals (USD + quote currency)
+        # Calculate quote currency totals
+        total_amount_quote = total_amount * usd_to_quote_rate
+        total_with_vat_quote = sum(r.sales_price_total_with_vat for r in results_list) * usd_to_quote_rate
+
         supabase.table("quotes").update({
             "subtotal": float(total_subtotal),
             "total_amount": float(total_amount),
             "total_profit_usd": float(total_profit_usd),
             "total_vat_on_import_usd": float(total_vat_on_import_usd),
-            "total_vat_payable_usd": float(total_vat_payable_usd)
+            "total_vat_payable_usd": float(total_vat_payable_usd),
+            # New dual-currency fields (migration 037)
+            "usd_to_quote_rate": float(usd_to_quote_rate),
+            "exchange_rate_source": "cbr",  # TODO: support manual rates
+            "exchange_rate_timestamp": datetime.now().isoformat(),
+            "total_amount_quote": float(total_amount_quote),
+            "total_with_vat_quote": float(total_with_vat_quote)
         }).eq("id", quote_id).execute()
 
-        # 8b. Aggregate product results to quote-level summary
-        quote_summary = aggregate_product_results_to_summary(results_list, request.variables)
+        # 8b. Aggregate product results to quote-level summary (with dual currency)
+        quote_summary = aggregate_product_results_to_summary(
+            results_list,
+            request.variables,
+            quote_currency=client_quote_currency,
+            usd_to_quote_rate=usd_to_quote_rate,
+            exchange_rate_source="cbr",
+            exchange_rate_timestamp=datetime.now()
+        )
         quote_summary["quote_id"] = quote_id
 
         # Upsert (insert or update) quote calculation summary

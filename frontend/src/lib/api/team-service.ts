@@ -37,24 +37,26 @@ export interface Role {
   created_at: string;
 }
 
-export interface InviteMemberRequest {
+export interface AddMemberRequest {
   email: string;
+  full_name: string;
   role_id: string;
-  message?: string;
 }
 
-export interface Invitation {
-  id: string;
-  organization_id: string;
-  email: string;
-  role_id: string;
-  invited_by: string;
-  token: string;
-  status: 'pending' | 'accepted' | 'expired' | 'cancelled';
-  message: string | null;
-  created_at: string;
-  expires_at: string;
-  accepted_at: string | null;
+export interface AddMemberResponse {
+  message: string;
+  member_id: string;
+  user_email: string;
+  user_full_name: string;
+  role: string;
+  generated_password: string | null;
+  is_new_user: boolean;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+  user_email: string;
+  new_password: string;
 }
 
 // ============================================================================
@@ -105,16 +107,17 @@ export async function fetchTeamMembers(organizationId: string): Promise<TeamMemb
 }
 
 /**
- * Invite a new member to the organization
+ * Add a new member to the organization
+ * Creates user if doesn't exist (returns generated password)
  */
-export async function inviteMember(
+export async function addMember(
   organizationId: string,
-  data: InviteMemberRequest
-): Promise<Invitation> {
+  data: AddMemberRequest
+): Promise<AddMemberResponse> {
   const headers = await getAuthHeaders();
   const apiUrl = getApiUrl();
 
-  const response = await fetch(`${apiUrl}/api/organizations/${organizationId}/invitations`, {
+  const response = await fetch(`${apiUrl}/api/organizations/${organizationId}/members`, {
     method: 'POST',
     headers,
     body: JSON.stringify(data),
@@ -122,26 +125,34 @@ export async function inviteMember(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || error.detail || 'Ошибка при приглашении участника');
+    throw new Error(error.message || error.detail || 'Ошибка при добавлении участника');
   }
 
   return response.json();
 }
 
 /**
- * Fetch pending invitations for the organization
+ * Reset a member's password (admin only)
+ * Returns the new generated password
  */
-export async function fetchInvitations(organizationId: string): Promise<Invitation[]> {
+export async function resetMemberPassword(
+  organizationId: string,
+  memberId: string
+): Promise<ResetPasswordResponse> {
   const headers = await getAuthHeaders();
   const apiUrl = getApiUrl();
 
-  const response = await fetch(`${apiUrl}/api/organizations/${organizationId}/invitations`, {
-    headers,
-  });
+  const response = await fetch(
+    `${apiUrl}/api/organizations/${organizationId}/members/${memberId}/reset-password`,
+    {
+      method: 'POST',
+      headers,
+    }
+  );
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || 'Ошибка загрузки приглашений');
+    throw new Error(error.detail || 'Ошибка сброса пароля');
   }
 
   return response.json();
@@ -189,30 +200,6 @@ export async function removeMember(organizationId: string, userId: string): Prom
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Ошибка удаления участника');
-  }
-}
-
-/**
- * Cancel a pending invitation
- */
-export async function cancelInvitation(
-  organizationId: string,
-  invitationId: string
-): Promise<void> {
-  const headers = await getAuthHeaders();
-  const apiUrl = getApiUrl();
-
-  const response = await fetch(
-    `${apiUrl}/api/organizations/${organizationId}/invitations/${invitationId}`,
-    {
-      method: 'DELETE',
-      headers,
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || 'Ошибка отмены приглашения');
   }
 }
 
