@@ -293,7 +293,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        const userProfile = await fetchProfile(session.user.id);
+        // Pass access_token from session to avoid cookie timing issues
+        const userProfile = await fetchProfile(session.user.id, session.access_token);
         if (isMounted) {
           setProfile(userProfile);
         }
@@ -316,13 +317,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const recheckProfile = async () => {
       if (user && !profile && !loading) {
         console.log('[AuthProvider] Profile missing but user exists - re-fetching...');
-        const userProfile = await fetchProfile(user.id);
+        // Use session access_token if available, otherwise fall back to cookie
+        const userProfile = await fetchProfile(user.id, session?.access_token);
         setProfile(userProfile);
       }
     };
 
     recheckProfile();
-  }, [user, profile, loading]);
+  }, [user, profile, loading, session]);
 
   // Check if phone is required (first login)
   useEffect(() => {
