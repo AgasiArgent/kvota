@@ -1,4 +1,4 @@
-## TODO - Next Session (Session 63)
+## TODO - Next Session (Session 64)
 
 ### 1. Test Dual Currency Storage End-to-End
 - Create quote and verify both USD and quote currency values are stored
@@ -19,6 +19,7 @@
 ---
 
 ### Completed
+- ~~Fix URL-safe base64 decoding in session cookie~~ ✅ (Session 63)
 - ~~Dual currency storage implementation~~ ✅ (Session 62)
 - ~~Excel validation export fixes (logistics, financing, VAT 22%)~~ ✅ (Session 61)
 - ~~Fix exchange rate display (TRY nominal, 4 decimals)~~ ✅ (Session 60)
@@ -30,6 +31,58 @@
 - ~~Fix financing block formulas (BL4, BH9)~~ ✅ (Session 57)
 - ~~Excel validation export service~~ ✅ (Session 58)
 - ~~CI pipeline fixes~~ ✅ (Session 59)
+
+---
+
+## Session 63 (2025-12-03) - Production Bug Fix: Phone Number Save ✅
+
+### Goal
+Fix "No access token available" error when users try to save their phone number in production.
+
+### Status: COMPLETE ✅
+
+**Time:** ~20 minutes
+**Commit:** 5e303b9
+
+---
+
+### Problem
+Users on production (kvotaflow.ru) saw "No access token available" error when trying to save phone number in the PhoneRequiredModal.
+
+### Root Cause
+Supabase encodes session cookies using **URL-safe Base64** (RFC 4648), which uses `-` and `_` characters instead of standard `+` and `/`. JavaScript's `atob()` function only handles standard Base64, causing silent decode failures.
+
+**Cookie format:** `base64-eyJhY2Nlc3NfdG...` (URL-safe encoded)
+
+**Code path:**
+1. `handlePhoneSubmit()` calls `getSessionDataFromCookie()`
+2. `getSessionDataFromCookie()` tries `atob(decoded.slice(7))`
+3. `atob()` fails on URL-safe chars → throws → returns `null`
+4. No access token → error shown to user
+
+### Fix
+**File:** `frontend/src/lib/auth/AuthProvider.tsx:198-218`
+
+Convert URL-safe Base64 to standard Base64 before decoding:
+```typescript
+if (decoded.startsWith('base64-')) {
+  // Handle URL-safe base64 (replace - with + and _ with /)
+  const base64Part = decoded.slice(7);
+  const standardBase64 = base64Part.replace(/-/g, '+').replace(/_/g, '/');
+  jsonStr = atob(standardBase64);
+} else {
+  jsonStr = decoded;
+}
+```
+
+### Technical Note
+- **Standard Base64:** `A-Z`, `a-z`, `0-9`, `+`, `/` (and `=` padding)
+- **URL-safe Base64:** `A-Z`, `a-z`, `0-9`, `-`, `_` (safe for URLs/cookies)
+- Conversion: `-` → `+`, `_` → `/`
+
+### Also in this session
+- Synced local repo with GitHub (was 95 commits behind)
+- Removed accidentally committed `.env` files from repo (commit 104e4e1)
 
 ---
 
