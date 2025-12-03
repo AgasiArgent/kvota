@@ -102,7 +102,7 @@ class TestMapVariables:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция"
         }
@@ -186,7 +186,7 @@ class TestMapVariables:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция",
             "logistics_supplier_hub": "1500.00",
@@ -220,7 +220,7 @@ class TestMapVariables:
             "offer_incoterms": "DDP",
             "currency_of_base_price": "USD",
             "currency_of_quote": "USD",
-            "exchange_rate": "1.0",
+            "exchange_rate_base_price_to_quote": "1.0",
             "markup": "0.15",  # 15% as decimal
             "supplier_country": "Турция"
         }

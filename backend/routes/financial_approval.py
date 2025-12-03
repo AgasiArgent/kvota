@@ -17,14 +17,10 @@ import uuid
 import os
 
 from auth import get_current_user, User
+from dependencies import get_supabase
 from services.financial_review_export import create_financial_review_excel
-from supabase import create_client, Client
+from supabase import Client
 
-# Initialize Supabase client
-supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-)
 
 router = APIRouter(prefix='/api/quotes', tags=['financial-approval'])
 
@@ -54,7 +50,8 @@ class ApprovalResponse(BaseModel):
 @router.get('/{quote_id}/financial-review')
 async def get_financial_review_excel(
     quote_id: uuid.UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Generate Excel file for financial manager review
@@ -324,7 +321,8 @@ async def get_financial_review_excel(
 async def approve_quote(
     quote_id: uuid.UUID,
     request: ApprovalRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Approve quote by financial manager (Financial Approval Workflow)
@@ -403,7 +401,8 @@ async def approve_quote(
 async def send_back_quote(
     quote_id: uuid.UUID,
     request: ApprovalRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Send quote back to sales manager for corrections (Financial Approval Workflow)

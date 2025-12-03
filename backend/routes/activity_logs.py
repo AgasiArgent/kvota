@@ -7,10 +7,10 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User
-import os
+from dependencies import get_supabase
 
 
 # ============================================================================
@@ -37,7 +37,8 @@ async def list_activity_logs(
     action: Optional[str] = Query(None, description="Filter by action"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(100, ge=1, le=100, description="Items per page"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List activity logs with filtering and pagination
@@ -55,10 +56,6 @@ async def list_activity_logs(
     - per_page: Items per page
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Build query with organization filter
         query = supabase.table("activity_logs").select(
@@ -106,7 +103,8 @@ async def list_activity_logs(
 async def get_activity_stats(
     date_from: Optional[date] = Query(None, description="Stats from date"),
     date_to: Optional[date] = Query(None, description="Stats to date"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get activity statistics summary
@@ -114,10 +112,6 @@ async def get_activity_stats(
     Returns counts by action type and entity type
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Build base query
         query = supabase.table("activity_logs").select(
@@ -160,7 +154,8 @@ async def get_activity_stats(
 
 @router.get("/users")
 async def list_users(
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get list of users in organization for filter dropdown
@@ -169,10 +164,6 @@ async def list_users(
     - List of users with id, email, full_name
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Get all users who have activity logs in this organization
         result = supabase.table("activity_logs").select(
@@ -214,7 +205,8 @@ async def list_users(
 @router.get("/recent")
 async def get_recent_activity(
     limit: int = Query(20, ge=1, le=100, description="Number of recent logs"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get most recent activity logs
@@ -222,10 +214,6 @@ async def get_recent_activity(
     Useful for dashboard widgets
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         result = supabase.table("activity_logs").select(
             "id, user_id, action, entity_type, entity_id, metadata, created_at"

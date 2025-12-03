@@ -5,9 +5,8 @@ Handles organization member CRUD operations
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List, Optional
 from uuid import UUID
-from supabase import create_client, Client
+from supabase import Client
 from pydantic import BaseModel, EmailStr
-import os
 import secrets
 import string
 
@@ -20,6 +19,7 @@ from auth import (
     get_current_user, get_organization_context,
     require_org_admin
 )
+from dependencies import get_supabase
 
 
 # ============================================================================
@@ -72,13 +72,7 @@ router = APIRouter(prefix="/api/organizations", tags=["team"])
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
-
-def get_supabase_client() -> Client:
-    """Get Supabase client for database operations"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
+# Note: get_supabase_client() removed - now using dependency injection
 
 
 # ============================================================================
@@ -88,7 +82,8 @@ def get_supabase_client() -> Client:
 @router.get("/{organization_id}/members", response_model=List[OrganizationMemberWithDetails])
 async def list_team_members(
     organization_id: str,
-    context: OrganizationContext = Depends(get_organization_context)
+    context: OrganizationContext = Depends(get_organization_context),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     List all team members in the organization
@@ -98,8 +93,6 @@ async def list_team_members(
     - Auth: Any authenticated user in the organization
     - RLS: Only shows members from user's organization
     """
-    supabase = get_supabase_client()
-
     try:
         # Get members with role details
         result = supabase.table("organization_members") \
@@ -152,7 +145,8 @@ async def list_team_members(
 async def add_team_member(
     organization_id: str,
     request: AddMemberRequest,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Add new member to organization
@@ -162,7 +156,6 @@ async def add_team_member(
     - Auth: Only manager/admin/owner can add members
     - Returns: Member details + generated password (if new user)
     """
-    supabase = get_supabase_client()
     generated_password = None
     is_new_user = False
 
@@ -309,7 +302,8 @@ async def update_member_role(
     organization_id: str,
     member_id: str,
     role_id: UUID,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Change member's role
@@ -322,8 +316,6 @@ async def update_member_role(
       - Cannot promote to owner (transfer ownership not in MVP)
     - Return: Updated member record
     """
-    supabase = get_supabase_client()
-
     try:
         # Get current member details
         member = supabase.table("organization_members") \
@@ -395,7 +387,8 @@ async def update_member_role(
 async def remove_team_member(
     organization_id: str,
     member_id: str,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Remove member from organization
@@ -407,8 +400,6 @@ async def remove_team_member(
     - Logic: Soft delete (set status to 'left')
     - Return: Success (204 No Content)
     """
-    supabase = get_supabase_client()
-
     try:
         # Get member details
         member = supabase.table("organization_members") \
@@ -465,7 +456,8 @@ async def remove_team_member(
 async def reset_member_password(
     organization_id: str,
     member_id: str,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Reset a member's password (admin only)
@@ -476,8 +468,6 @@ async def reset_member_password(
     - Validation: Cannot reset owner's password (unless you are the owner)
     - Returns: New password (one-time display)
     """
-    supabase = get_supabase_client()
-
     try:
         # Get member details
         member = supabase.table("organization_members") \

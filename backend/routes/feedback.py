@@ -7,10 +7,11 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from uuid import UUID
-from supabase import create_client, Client
+from supabase import Client
 import os
 
 from auth import get_current_user, User, require_role, UserRole
+from dependencies import get_supabase
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
@@ -57,7 +58,8 @@ class FeedbackListResponse(BaseModel):
 @router.post("/", response_model=FeedbackResponse, status_code=status.HTTP_201_CREATED)
 async def create_feedback(
     feedback_data: FeedbackCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Submit new feedback/bug report
@@ -67,11 +69,6 @@ async def create_feedback(
     - Optionally captures browser info
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Insert feedback
         result = supabase.table("feedback").insert({
             "organization_id": str(user.current_organization_id),
@@ -109,7 +106,8 @@ async def list_feedback(
     status_filter: Optional[str] = Query(None, regex="^(open|resolved)$"),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List feedback for current organization
@@ -119,11 +117,6 @@ async def list_feedback(
     - Returns feedback with user info
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Build query
         query = supabase.table("feedback").select(
             "*",
@@ -176,7 +169,8 @@ async def list_feedback(
 @router.put("/{feedback_id}/resolve", response_model=FeedbackResponse)
 async def resolve_feedback(
     feedback_id: UUID,
-    user: User = Depends(require_role(UserRole.ADMIN))
+    user: User = Depends(require_role(UserRole.ADMIN)),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Mark feedback as resolved (Admin only)
@@ -186,11 +180,6 @@ async def resolve_feedback(
     """
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Update feedback status
         result = supabase.table("feedback").update({
             "status": "resolved"
@@ -226,7 +215,8 @@ async def resolve_feedback(
         )
 
 @router.get("/stats")
-async def get_feedback_stats(user: User = Depends(get_current_user)):
+async def get_feedback_stats(user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)):
     """
     Get feedback statistics for current organization
 
@@ -235,11 +225,6 @@ async def get_feedback_stats(user: User = Depends(get_current_user)):
     - Resolved count
     """
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Get total count
         total_result = supabase.table("feedback").select(
             "*", count="exact"

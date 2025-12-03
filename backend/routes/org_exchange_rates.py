@@ -13,14 +13,14 @@ from pydantic import BaseModel, Field
 from decimal import Decimal
 from datetime import datetime, timezone
 from typing import Optional
-import os
 import logging
 
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User, check_admin_permissions
 from services.exchange_rate_service import get_exchange_rate_service
 from domain_models.monetary import SUPPORTED_CURRENCIES
+from dependencies import get_supabase
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -71,7 +71,10 @@ class SyncResponse(BaseModel):
 # ============================================================
 
 @router.get("", response_model=OrgExchangeRateSettings)
-async def get_org_exchange_rates(user: User = Depends(get_current_user)):
+async def get_org_exchange_rates(
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
+):
     """
     Get organization's exchange rate settings and current rates.
 
@@ -80,11 +83,6 @@ async def get_org_exchange_rates(user: User = Depends(get_current_user)):
         - default_input_currency: Default currency for new inputs
         - rates: List of all configured rates (currency to USD)
     """
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     org_id = str(user.current_organization_id)
 
     # Get settings from calculation_settings
@@ -129,7 +127,8 @@ async def get_org_exchange_rates(user: User = Depends(get_current_user)):
 @router.put("/settings")
 async def update_exchange_rate_settings(
     request: UpdateSettingsRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Toggle manual exchange rates on/off.
@@ -139,11 +138,6 @@ async def update_exchange_rate_settings(
     When disabled, the system will use CBR rates automatically.
     """
     await check_admin_permissions(user)
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     org_id = str(user.current_organization_id)
 
@@ -172,7 +166,8 @@ async def update_exchange_rate_settings(
 async def update_org_rate(
     currency: str,
     request: UpdateRateRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update a specific exchange rate for the organization.
@@ -201,11 +196,6 @@ async def update_org_rate(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot set USD rate (always 1.0)"
         )
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     org_id = str(user.current_organization_id)
     now = datetime.now(timezone.utc)
@@ -236,7 +226,10 @@ async def update_org_rate(
 
 
 @router.post("/sync", response_model=SyncResponse)
-async def sync_rates_from_cbr(user: User = Depends(get_current_user)):
+async def sync_rates_from_cbr(
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
+):
     """
     Sync all rates from CBR to organization's manual rate table.
     Admin only.
@@ -248,11 +241,6 @@ async def sync_rates_from_cbr(user: User = Depends(get_current_user)):
     Rates are stored as currency/USD (how many USD per 1 unit).
     """
     await check_admin_permissions(user)
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     org_id = str(user.current_organization_id)
     exchange_service = get_exchange_rate_service()

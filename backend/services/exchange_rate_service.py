@@ -1,6 +1,9 @@
 """
 Exchange Rate Service - Central Bank of Russia (CBR) API Integration
-Automatic daily updates with caching and fallback mechanisms
+
+CBR publishes rates once daily around 11:30-12:00 Moscow time.
+This service fetches rates once per day at 12:05 MSK and caches them in memory.
+No database queries needed for rate lookups - pure in-memory cache.
 """
 import os
 import httpx
@@ -22,9 +25,6 @@ logger = logging.getLogger(__name__)
 # CBR API endpoint
 CBR_API_URL = "https://www.cbr-xml-daily.ru/daily_json.js"
 
-# Cache TTL (24 hours)
-CACHE_TTL_HOURS = 24
-
 # Request timeout
 REQUEST_TIMEOUT = 10.0
 
@@ -34,10 +34,19 @@ RETRY_BACKOFF_BASE = 2  # exponential backoff: 2^0, 2^1, 2^2 seconds
 
 
 class ExchangeRateService:
-    """Service for fetching and caching exchange rates from CBR API"""
+    """
+    Service for fetching and caching exchange rates from CBR API.
+
+    Rates are cached in memory and refreshed once daily at 12:05 MSK
+    (after CBR publishes new rates around 11:30-12:00).
+    """
 
     def __init__(self):
         self.scheduler: Optional[AsyncIOScheduler] = None
+        # In-memory cache: rates and timestamp
+        self._cached_rates: Dict[str, Decimal] = {}
+        self._cache_timestamp: Optional[datetime] = None
+        self._cbr_date: Optional[str] = None  # Date from CBR response
 
     async def fetch_cbr_rates(self) -> Dict[str, Decimal]:
         """
@@ -105,7 +114,12 @@ class ExchangeRateService:
 
                 logger.info(f"Successfully fetched {len(rates)} exchange rates from CBR")
 
-                # Store in database
+                # Update in-memory cache
+                self._cached_rates = rates
+                self._cache_timestamp = datetime.now(timezone.utc)
+                self._cbr_date = data.get("Date", "")  # e.g. "2025-12-03T11:30:00+03:00"
+
+                # Store in database (for persistence across restarts)
                 await self._store_rates(rates)
 
                 return rates
@@ -180,13 +194,36 @@ class ExchangeRateService:
             # Don't raise - we want the service to continue even if storage fails
             # Rates can still be fetched from API on demand
 
+    def _calculate_rate(
+        self,
+        from_currency: str,
+        to_currency: str,
+        rates: Dict[str, Decimal]
+    ) -> Optional[Decimal]:
+        """Calculate rate from cached rates (all rates are X to RUB)"""
+        if to_currency == "RUB":
+            return rates.get(from_currency)
+        elif from_currency == "RUB":
+            to_rate = rates.get(to_currency)
+            return (Decimal("1.0") / to_rate).quantize(RATE_PRECISION) if to_rate else None
+        else:
+            # Cross-rate (e.g., USD to EUR via RUB)
+            from_rate = rates.get(from_currency)
+            to_rate = rates.get(to_currency)
+            if from_rate and to_rate:
+                return (from_rate / to_rate).quantize(RATE_PRECISION)
+            return None
+
     async def get_rate(
         self,
         from_currency: str,
         to_currency: str
     ) -> Optional[Decimal]:
         """
-        Get exchange rate with caching and fallback
+        Get exchange rate from in-memory cache.
+
+        Cache is populated once daily at 12:05 MSK. On first request
+        after server start, loads from DB or fetches from CBR.
 
         Args:
             from_currency: Source currency code (e.g., "USD")
@@ -195,90 +232,67 @@ class ExchangeRateService:
         Returns:
             Exchange rate as Decimal, or None if not available
         """
-        # Same currency conversion
+        # Same currency = 1.0
         if from_currency == to_currency:
             return Decimal("1.0")
 
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
+        # If cache is populated, use it (instant, no DB query)
+        if self._cached_rates:
+            return self._calculate_rate(from_currency, to_currency, self._cached_rates)
 
+        # Cache empty - try to load from DB first (server just started)
+        await self._load_from_db()
+
+        if self._cached_rates:
+            return self._calculate_rate(from_currency, to_currency, self._cached_rates)
+
+        # DB empty too - fetch from CBR
+        logger.info("No cached rates found, fetching from CBR...")
+        await self.fetch_cbr_rates()
+
+        if self._cached_rates:
+            return self._calculate_rate(from_currency, to_currency, self._cached_rates)
+
+        logger.error(f"No rate available for {from_currency}/{to_currency}")
+        return None
+
+    async def _load_from_db(self) -> None:
+        """Load latest rates from database into memory cache"""
         try:
-            # Check for cached rate (< 24 hours old)
-            cache_cutoff = datetime.now(timezone.utc) - timedelta(hours=CACHE_TTL_HOURS)
-
-            # Query for recent rates
-            result = supabase.table("exchange_rates") \
-                .select("rate, fetched_at") \
-                .eq("from_currency", from_currency) \
-                .eq("to_currency", to_currency) \
-                .gte("fetched_at", cache_cutoff.isoformat()) \
-                .order("fetched_at", desc=True) \
-                .limit(1) \
-                .execute()
-
-            if result.data and len(result.data) > 0:
-                rate_record = result.data[0]
-                logger.info(
-                    f"Using cached rate for {from_currency}/{to_currency}: "
-                    f"{rate_record['rate']} (fetched at {rate_record['fetched_at']})"
-                )
-                return Decimal(str(rate_record["rate"]))
-
-            # Cache miss or expired - fetch fresh rates
-            logger.info(
-                f"No cached rate for {from_currency}/{to_currency}, "
-                f"fetching fresh rates..."
+            supabase: Client = create_client(
+                os.getenv("SUPABASE_URL"),
+                os.getenv("SUPABASE_SERVICE_ROLE_KEY")
             )
 
-            try:
-                rates = await self.fetch_cbr_rates()
+            # Get the most recent rates (one per currency)
+            result = supabase.table("exchange_rates") \
+                .select("from_currency, rate, fetched_at") \
+                .eq("to_currency", "RUB") \
+                .order("fetched_at", desc=True) \
+                .limit(100) \
+                .execute()
 
-                # Calculate cross-rate if needed
-                if to_currency == "RUB":
-                    return rates.get(from_currency)
-                elif from_currency == "RUB":
-                    # Inverse rate (RUB to other currency)
-                    to_rate = rates.get(to_currency)
-                    return Decimal("1.0") / to_rate if to_rate else None
-                else:
-                    # Cross-rate (e.g., USD to EUR)
-                    from_rate = rates.get(from_currency)
-                    to_rate = rates.get(to_currency)
-                    if from_rate and to_rate:
-                        return from_rate / to_rate
-                    return None
+            if result.data:
+                # Group by currency, take most recent
+                rates = {}
+                latest_timestamp = None
+                for row in result.data:
+                    currency = row["from_currency"]
+                    if currency not in rates:
+                        rates[currency] = Decimal(str(row["rate"]))
+                        if latest_timestamp is None:
+                            latest_timestamp = row["fetched_at"]
 
-            except Exception as e:
-                logger.error(f"Failed to fetch fresh rates: {e}")
-
-                # Fallback: use last cached rate (even if expired)
-                fallback_result = supabase.table("exchange_rates") \
-                    .select("rate, fetched_at") \
-                    .eq("from_currency", from_currency) \
-                    .eq("to_currency", to_currency) \
-                    .order("fetched_at", desc=True) \
-                    .limit(1) \
-                    .execute()
-
-                if fallback_result.data and len(fallback_result.data) > 0:
-                    fallback_record = fallback_result.data[0]
-                    logger.warning(
-                        f"Using stale fallback rate for {from_currency}/{to_currency}: "
-                        f"{fallback_record['rate']} "
-                        f"(fetched at {fallback_record['fetched_at']})"
-                    )
-                    return Decimal(str(fallback_record["rate"]))
-
-                logger.error(
-                    f"No fallback rate available for {from_currency}/{to_currency}"
-                )
-                return None
+                if rates:
+                    rates["RUB"] = Decimal("1.0")
+                    self._cached_rates = rates
+                    self._cache_timestamp = datetime.fromisoformat(
+                        latest_timestamp.replace("Z", "+00:00")
+                    ) if latest_timestamp else datetime.now(timezone.utc)
+                    logger.info(f"Loaded {len(rates)} rates from DB into memory cache")
 
         except Exception as e:
-            logger.error(f"Error accessing exchange rates: {e}")
-            return None
+            logger.error(f"Failed to load rates from DB: {e}")
 
     async def cleanup_old_rates(self, days_to_keep: int = 30) -> int:
         """
@@ -326,10 +340,30 @@ class ExchangeRateService:
             logger.error(f"Failed to cleanup old rates: {e}")
             return 0
 
+    def get_cache_info(self) -> Dict:
+        """
+        Get information about the cached rates.
+
+        Returns:
+            Dict with cache status, timestamp, and CBR date
+        """
+        return {
+            "cached": bool(self._cached_rates),
+            "currencies_count": len(self._cached_rates),
+            "last_updated": self._cache_timestamp.isoformat() if self._cache_timestamp else None,
+            "cbr_date": self._cbr_date,
+        }
+
+    def get_all_rates(self) -> Dict[str, Decimal]:
+        """Get all cached rates (for bulk access)"""
+        return self._cached_rates.copy()
+
     def setup_cron_job(self) -> None:
         """
-        Setup daily cron job to fetch exchange rates
-        Scheduled for 10:00 AM Moscow time (UTC+3)
+        Setup daily cron job to fetch exchange rates.
+
+        CBR publishes rates around 11:30-12:00 MSK.
+        We fetch at 12:05 MSK to ensure fresh rates are available.
         """
         if self.scheduler is not None:
             logger.warning("Scheduler already running")
@@ -337,10 +371,10 @@ class ExchangeRateService:
 
         self.scheduler = AsyncIOScheduler()
 
-        # Schedule daily at 10:00 AM Moscow time (UTC+3 = 07:00 UTC)
+        # Schedule daily at 12:05 PM Moscow time (UTC+3 = 09:05 UTC)
         trigger = CronTrigger(
-            hour=7,  # 10:00 AM MSK = 07:00 UTC
-            minute=0,
+            hour=9,   # 12:00 MSK = 09:00 UTC
+            minute=5, # 5 minutes after CBR typically publishes
             timezone="UTC"
         )
 
@@ -370,7 +404,7 @@ class ExchangeRateService:
         )
 
         self.scheduler.start()
-        logger.info("Exchange rate scheduler started (daily at 10:00 AM MSK)")
+        logger.info("Exchange rate scheduler started (daily at 12:05 MSK)")
 
     async def _scheduled_fetch(self) -> None:
         """Internal method for scheduled fetching with error handling"""

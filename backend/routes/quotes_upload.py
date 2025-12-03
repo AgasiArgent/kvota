@@ -20,9 +20,10 @@ from urllib.parse import quote as url_quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User
+from dependencies import get_supabase
 from excel_parser.simplified_parser import (
     SimplifiedExcelParser,
     SimplifiedQuoteInput,
@@ -59,11 +60,7 @@ from routes.quotes_calc import (
     convert_decimals_to_float,
 )
 
-# Initialize Supabase client
-supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-)
+# Supabase client is now injected via dependency injection (see get_supabase)
 
 
 logger = logging.getLogger(__name__)
@@ -495,6 +492,7 @@ async def upload_excel_quote(
     file: UploadFile = File(...),
     calculate: bool = True,
     user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Upload simplified Excel template and optionally run calculation.
@@ -567,6 +565,7 @@ async def upload_excel_quote(
 async def parse_excel_only(
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Parse Excel template without running calculation.
@@ -614,6 +613,7 @@ async def upload_excel_with_validation_export(
     file: UploadFile = File(...),
     customer_id: Optional[str] = Form(None),
     user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Upload Excel, run calculation, and return validation Excel file.
@@ -1066,7 +1066,10 @@ def export_quote_as_template(
 
 
 @router.get("/upload/download-template")
-async def download_template(user: User = Depends(get_current_user)):
+async def download_template(
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
     """
     Download blank quote input template.
 
@@ -1097,6 +1100,7 @@ async def download_template(user: User = Depends(get_current_user)):
 async def export_quote_as_template_endpoint(
     quote_id: str,
     user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Export an existing quote as the big validation Excel file (.xlsm).

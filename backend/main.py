@@ -10,8 +10,14 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import asyncpg
-from supabase import create_client, Client
 from dotenv import load_dotenv
+
+# ============================================================================
+# SUPABASE CLIENT (Singleton via Dependency Injection)
+# ============================================================================
+# Client initialized once in lifespan, accessed via Depends(get_supabase)
+# This avoids creating new HTTP connections on every request (~200-500ms saved)
+from supabase import create_client, Client
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -84,20 +90,24 @@ async def lifespan(app: FastAPI):
     await init_db_pool()
     print("✅ Database connection pool initialized (10-20 connections)")
 
+    # Initialize singleton Supabase client (stored in app.state)
+    # This client is reused across all requests via Depends(get_supabase)
+    app.state.supabase = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    )
+    print("✅ Supabase client singleton initialized")
+
     # Start exchange rate scheduler
     from services.exchange_rate_service import get_exchange_rate_service
     exchange_service = get_exchange_rate_service()
     exchange_service.setup_cron_job()
     print("✅ Exchange rate scheduler started")
 
-    # Test database connection using Supabase client
+    # Test database connection using singleton Supabase client
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-        # Test query
-        result = supabase.table("roles").select("count", count="exact").limit(1).execute()
+        # Test query using the singleton client
+        result = app.state.supabase.table("roles").select("count", count="exact").limit(1).execute()
         print("✅ Database connection verified (Supabase REST API)")
     except Exception as e:
         print(f"⚠️  Database connection failed: {e}")
@@ -325,20 +335,16 @@ async def root():
     }
 
 @app.get("/api/health")
-async def health_check():
+async def health_check(request: Request):
     """Health check endpoint"""
     try:
-        # Test database connection using Supabase client
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-        result = supabase.table("roles").select("count", count="exact").limit(1).execute()
+        # Test database connection using singleton Supabase client
+        result = request.app.state.supabase.table("roles").select("count", count="exact").limit(1).execute()
 
         return {
             "status": "healthy",
             "database": "connected",
-            "connection_type": "Supabase REST API",
+            "connection_type": "Supabase REST API (singleton)",
             "timestamp": time.time()
         }
     except Exception as e:
@@ -353,7 +359,7 @@ async def health_check():
         )
 
 @app.get("/api/health/detailed")
-async def health_check_detailed():
+async def health_check_detailed(request: Request):
     """
     Enhanced health check with system metrics
 
@@ -369,12 +375,8 @@ async def health_check_detailed():
         from services.activity_log_service import log_queue
         from routes.dashboard import dashboard_cache
 
-        # Test database connection
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-        result = supabase.table("roles").select("count", count="exact").limit(1).execute()
+        # Test database connection using singleton client
+        result = request.app.state.supabase.table("roles").select("count", count="exact").limit(1).execute()
 
         # Get memory usage
         process = psutil.Process()

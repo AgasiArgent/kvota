@@ -18,12 +18,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Backgrou
 from fastapi.responses import FileResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from supabase import create_client, Client
+from supabase import Client
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import csv
 
 from auth import get_current_user, User, check_admin_permissions
+from dependencies import get_supabase
 from models import (
     SavedReportCreate,
     SavedReportUpdate,
@@ -58,7 +59,8 @@ limiter = Limiter(key_func=get_remote_address)
 # ============================================================================
 
 @router.get("/saved-reports", response_model=List[SavedReport])
-async def list_saved_reports(user: User = Depends(get_current_user)):
+async def list_saved_reports(user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)):
     """
     List all saved reports for current organization.
 
@@ -69,11 +71,6 @@ async def list_saved_reports(user: User = Depends(get_current_user)):
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Query with RLS - returns personal + shared reports
         query = supabase.table("saved_reports") \
             .select("*") \
@@ -96,7 +93,8 @@ async def list_saved_reports(user: User = Depends(get_current_user)):
 @router.get("/saved-reports/{report_id}", response_model=SavedReport)
 async def get_saved_report(
     report_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get single saved report with versions (future).
@@ -107,11 +105,6 @@ async def get_saved_report(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         query = supabase.table("saved_reports") \
             .select("*") \
             .eq("id", str(report_id)) \
@@ -141,7 +134,8 @@ async def get_saved_report(
 @router.post("/saved-reports", response_model=SavedReport)
 async def create_saved_report(
     report: SavedReportCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create new saved report template.
@@ -163,12 +157,6 @@ async def create_saved_report(
 
         # Validate filters
         safe_filters = QuerySecurityValidator.sanitize_filters(report.filters)
-
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Insert report
         query = supabase.table("saved_reports").insert({
             "organization_id": str(user.current_organization_id),
@@ -208,7 +196,8 @@ async def create_saved_report(
 async def update_saved_report(
     report_id: UUID,
     report: SavedReportUpdate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update existing saved report.
@@ -220,11 +209,6 @@ async def update_saved_report(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Validate fields if provided
         update_data = {}
         if report.name is not None:
@@ -287,7 +271,8 @@ async def update_saved_report(
 @router.delete("/saved-reports/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_saved_report(
     report_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Soft delete saved report.
@@ -299,11 +284,6 @@ async def delete_saved_report(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Soft delete (set deleted_at)
         query = supabase.table("saved_reports") \
             .update({"deleted_at": datetime.utcnow().isoformat()}) \
@@ -344,7 +324,8 @@ async def delete_saved_report(
 async def execute_analytics_query(
     request: Request,
     query_request: AnalyticsQueryRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Execute analytics query (standard mode).
@@ -499,7 +480,8 @@ async def execute_analytics_query(
 async def execute_analytics_aggregation(
     request: Request,
     query_request: AnalyticsQueryRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Execute analytics aggregation (lightweight mode).
@@ -830,11 +812,6 @@ async def upload_to_storage(file_path: str, org_id: str) -> str:
 
     Files stored in: analytics/{org_id}/{date}/{filename}
     """
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     with open(file_path, 'rb') as f:
         file_data = f.read()
 
@@ -871,11 +848,6 @@ async def create_execution_record(
 
     Immutable record for compliance and tracking.
     """
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     # Get client IP and user agent
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
@@ -930,7 +902,8 @@ async def list_executions(
     execution_type: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List execution history with pagination and filters.
@@ -942,11 +915,6 @@ async def list_executions(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Build query with filters
         query = supabase.table("report_executions") \
             .select("*", count="exact") \
@@ -1002,7 +970,8 @@ async def list_executions(
 @router.get("/executions/{execution_id}")
 async def get_execution(
     execution_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get detailed execution record by ID.
@@ -1014,11 +983,6 @@ async def get_execution(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         query = supabase.table("report_executions") \
             .select("*") \
             .eq("id", str(execution_id)) \
@@ -1051,7 +1015,8 @@ async def get_execution(
 @router.get("/executions/{execution_id}/download")
 async def download_execution_file(
     execution_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Download exported file from execution record.
@@ -1064,11 +1029,6 @@ async def download_execution_file(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Get execution record
         query = supabase.table("report_executions") \
             .select("*") \
@@ -1136,7 +1096,8 @@ async def download_execution_file(
 # ============================================================================
 
 @router.get("/scheduled")
-async def list_scheduled_reports(user: User = Depends(get_current_user)):
+async def list_scheduled_reports(user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)):
     """
     List all scheduled reports for current organization.
 
@@ -1147,11 +1108,6 @@ async def list_scheduled_reports(user: User = Depends(get_current_user)):
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Query with JOIN to get saved_report details
         query = supabase.table("scheduled_reports") \
             .select("*, saved_report:saved_reports(id, name, description, filters, selected_fields)") \
@@ -1175,7 +1131,8 @@ async def list_scheduled_reports(user: User = Depends(get_current_user)):
 @router.get("/scheduled/{schedule_id}")
 async def get_scheduled_report(
     schedule_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get single scheduled report by ID.
@@ -1187,11 +1144,6 @@ async def get_scheduled_report(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         query = supabase.table("scheduled_reports") \
             .select("*, saved_report:saved_reports(*)") \
             .eq("id", str(schedule_id)) \
@@ -1220,7 +1172,8 @@ async def get_scheduled_report(
 @router.post("/scheduled")
 async def create_scheduled_report(
     schedule_data: Dict[str, Any],
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create new scheduled report.
@@ -1269,12 +1222,6 @@ async def create_scheduled_report(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid cron expression: {str(e)}"
             )
-
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Create schedule
         query = supabase.table("scheduled_reports").insert({
             "organization_id": str(user.current_organization_id),
@@ -1315,7 +1262,8 @@ async def create_scheduled_report(
 async def update_scheduled_report(
     schedule_id: UUID,
     update_data: Dict[str, Any],
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update existing scheduled report.
@@ -1327,11 +1275,6 @@ async def update_scheduled_report(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # If cron expression changed, recalculate next_run_at
         if "schedule_cron" in update_data:
             try:
@@ -1374,7 +1317,8 @@ async def update_scheduled_report(
 @router.delete("/scheduled/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scheduled_report(
     schedule_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Delete scheduled report.
@@ -1386,11 +1330,6 @@ async def delete_scheduled_report(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         query = supabase.table("scheduled_reports") \
             .delete() \
             .eq("id", str(schedule_id)) \
@@ -1423,7 +1362,8 @@ async def delete_scheduled_report(
 @router.post("/scheduled/{schedule_id}/run")
 async def run_scheduled_report(
     schedule_id: UUID,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Manually trigger scheduled report execution.
@@ -1435,11 +1375,6 @@ async def run_scheduled_report(
     await check_admin_permissions(user)
 
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Load schedule with saved_report
         query = supabase.table("scheduled_reports") \
             .select("*, saved_report:saved_reports(*)") \
@@ -1494,12 +1429,6 @@ async def download_from_storage(file_url: str) -> str:
     Returns: Path to temporary file
     """
     import tempfile
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     # Extract bucket and path from URL
     # URL format: https://xxx.supabase.co/storage/v1/object/public/analytics/{path}
     bucket = "analytics"
@@ -1625,11 +1554,6 @@ async def execute_scheduled_report_internal(
         result_summary = calculate_summary(rows, saved_report["selected_fields"])
 
         # Create execution record
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         file_expires_at = datetime.utcnow() + timedelta(days=7)
 
         query = supabase.table("report_executions").insert({
@@ -1686,12 +1610,6 @@ async def execute_scheduled_report_internal(
     except Exception as e:
         # Update schedule with failure status
         logger.error(f"Failed to execute scheduled report: {e}")
-
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         consecutive_failures = schedule.get("consecutive_failures", 0) + 1
 
         update_query = supabase.table("scheduled_reports").update({

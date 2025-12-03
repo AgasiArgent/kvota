@@ -11,12 +11,13 @@ import asyncio
 import logging
 import re
 
-from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, status
+from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, status, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from supabase import create_client, Client
+from supabase import Client
 import pandas as pd
 
 from auth import get_current_user, User
+from dependencies import get_supabase
 from pydantic import BaseModel, Field
 from decimal import Decimal
 
@@ -58,18 +59,6 @@ router = APIRouter(
 )
 
 
-# Initialize Supabase client (allow None in test environment)
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-environment = os.getenv("ENVIRONMENT", "development")
-
-if supabase_url and supabase_key:
-    supabase: Client = create_client(supabase_url, supabase_key)
-elif environment == "test":
-    # Allow imports in test environment without credentials
-    supabase = None  # type: ignore
-else:
-    raise ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
 
 
 # ============================================================================
@@ -260,18 +249,10 @@ def get_value(field_name: str, product: ProductFromFile, variables: Dict[str, An
     return default
 
 
-def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
-    """
-    Get exchange rate from database.
+def get_exchange_rate(from_currency: str, to_currency: str, supabase: Client) -> Decimal:
+    """Get exchange rate from database.
     Returns rate to multiply by (e.g., 1 USD = 100 RUB means rate is 100)
     """
-    if from_currency == to_currency:
-        return Decimal("1.0")
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     # Try direct rate (from_currency -> to_currency)
     result = supabase.table("exchange_rates")\
@@ -324,6 +305,7 @@ def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
 
 
 def get_converted_monetary_value(
+    supabase: Optional[Client],
     field_name: str,
     variables: Dict[str, Any],
     quote_currency: str,
@@ -336,6 +318,7 @@ def get_converted_monetary_value(
     Falls back to raw value if no monetary_fields entry exists.
 
     Args:
+        supabase: Supabase client for exchange rate lookups (can be None if no conversion needed)
         field_name: Name of the field (e.g., 'logistics_supplier_hub')
         variables: Quote variables dict containing monetary_fields
         quote_currency: Target currency to convert to (e.g., 'RUB')
@@ -343,6 +326,9 @@ def get_converted_monetary_value(
 
     Returns:
         Value converted to quote currency as Decimal
+
+    Raises:
+        ValueError: If currency conversion needed but supabase is None
     """
     monetary_fields = variables.get('monetary_fields', {})
 
@@ -354,7 +340,9 @@ def get_converted_monetary_value(
             source_currency = monetary_value['currency']
 
             if source_currency != quote_currency:
-                rate = get_exchange_rate(source_currency, quote_currency)
+                if supabase is None:
+                    raise ValueError(f"supabase client required for currency conversion of {field_name}")
+                rate = get_exchange_rate(source_currency, quote_currency, supabase)
                 converted = value * rate
                 logger.info(f"Currency conversion: {field_name} {value} {source_currency} -> {converted:.2f} {quote_currency} (rate: {rate})")
                 return converted
@@ -365,7 +353,7 @@ def get_converted_monetary_value(
     return safe_decimal(raw_value, default)
 
 
-def get_rates_snapshot_to_usd(quote_date: date) -> Dict[str, Any]:
+def get_rates_snapshot_to_usd(quote_date: date, supabase: Client) -> Dict[str, Any]:
     """
     Get snapshot of all exchange rates to USD for audit trail.
 
@@ -376,10 +364,10 @@ def get_rates_snapshot_to_usd(quote_date: date) -> Dict[str, Any]:
         Dict with currency pair rates and metadata
     """
     return {
-        "EUR_USD": float(get_exchange_rate("EUR", "USD")),
-        "RUB_USD": float(get_exchange_rate("RUB", "USD")),
-        "TRY_USD": float(get_exchange_rate("TRY", "USD")),
-        "CNY_USD": float(get_exchange_rate("CNY", "USD")),
+        "EUR_USD": float(get_exchange_rate("EUR", "USD", supabase)),
+        "RUB_USD": float(get_exchange_rate("RUB", "USD", supabase)),
+        "TRY_USD": float(get_exchange_rate("TRY", "USD", supabase)),
+        "CNY_USD": float(get_exchange_rate("CNY", "USD", supabase)),
         "quote_date": quote_date.isoformat(),
         "source": "cbr"
     }
@@ -390,7 +378,8 @@ def map_variables_to_calculation_input(
     variables: Dict[str, Any],
     admin_settings: Dict[str, Decimal],
     quote_date: date,
-    quote_currency: str = "USD"
+    quote_currency: str = "USD",
+    supabase: Optional[Client] = None
 ) -> QuoteCalculationInput:
     """
     Transform flat variables dict + product into nested QuoteCalculationInput.
@@ -406,12 +395,13 @@ def map_variables_to_calculation_input(
         admin_settings: Admin settings with rate_forex_risk, rate_fin_comm, rate_loan_interest_daily
         quote_date: Quote creation date (for delivery_date calculation)
         quote_currency: Target currency for calculations (e.g., 'RUB')
+        supabase: Supabase client for exchange rate lookups (optional for tests with manual rates)
 
     Returns:
         QuoteCalculationInput with all nested models populated
 
     Raises:
-        ValueError: If required fields are missing
+        ValueError: If required fields are missing or supabase required but not provided
     """
 
     # ========== ProductInfo (5 fields) ==========
@@ -442,10 +432,13 @@ def map_variables_to_calculation_input(
         logger.info(f"Using manual exchange rate override: {exchange_rate_for_phase1}")
     else:
         # Fall back to database rates (CBR)
+        if supabase is None:
+            raise ValueError("supabase client required for exchange rate lookup when no manual rate provided")
         # get_exchange_rate returns multiplier format, so we invert it for Phase 1
         rate_multiplier = get_exchange_rate(
             product_info.currency_of_base_price.value,  # from_currency (e.g., EUR)
-            "USD"  # to_currency (always USD)
+            "USD",  # to_currency (always USD)
+            supabase
         )
         # Invert to get divisor format for Phase 1
         exchange_rate_for_phase1 = Decimal("1") / rate_multiplier if rate_multiplier > 0 else Decimal("1")
@@ -493,9 +486,9 @@ def map_variables_to_calculation_input(
         offer_incoterms=Incoterms(variables.get('offer_incoterms', 'DDP')),
         delivery_time=delivery_time_days,
         delivery_date=delivery_date,
-        logistics_supplier_hub=get_converted_monetary_value('logistics_supplier_hub', variables, "USD"),
-        logistics_hub_customs=get_converted_monetary_value('logistics_hub_customs', variables, "USD"),
-        logistics_customs_client=get_converted_monetary_value('logistics_customs_client', variables, "USD")
+        logistics_supplier_hub=get_converted_monetary_value(supabase, 'logistics_supplier_hub', variables, "USD"),
+        logistics_hub_customs=get_converted_monetary_value(supabase, 'logistics_hub_customs', variables, "USD"),
+        logistics_customs_client=get_converted_monetary_value(supabase, 'logistics_customs_client', variables, "USD")
     )
 
     # ========== TaxesAndDuties (3 fields) ==========
@@ -528,11 +521,11 @@ def map_variables_to_calculation_input(
     # Convert brokerage costs to USD (canonical calculation currency)
     # Field names: frontend sends brokerage_hub, brokerage_customs, etc.
     customs = CustomsAndClearance(
-        brokerage_hub=get_converted_monetary_value('brokerage_hub', variables, "USD"),
-        brokerage_customs=get_converted_monetary_value('brokerage_customs', variables, "USD"),
-        warehousing_at_customs=get_converted_monetary_value('warehousing_at_customs', variables, "USD"),
-        customs_documentation=get_converted_monetary_value('customs_documentation', variables, "USD"),
-        brokerage_extra=get_converted_monetary_value('brokerage_extra', variables, "USD")
+        brokerage_hub=get_converted_monetary_value(supabase, 'brokerage_hub', variables, "USD"),
+        brokerage_customs=get_converted_monetary_value(supabase, 'brokerage_customs', variables, "USD"),
+        warehousing_at_customs=get_converted_monetary_value(supabase, 'warehousing_at_customs', variables, "USD"),
+        customs_documentation=get_converted_monetary_value(supabase, 'customs_documentation', variables, "USD"),
+        brokerage_extra=get_converted_monetary_value(supabase, 'brokerage_extra', variables, "USD")
     )
 
     # ========== CompanySettings (2 fields) ==========
@@ -562,7 +555,7 @@ def map_variables_to_calculation_input(
     )
 
 
-async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
+async def fetch_admin_settings(organization_id: str, supabase: Client) -> Dict[str, Decimal]:
     """
     Fetch admin calculation settings for organization.
 
@@ -1463,7 +1456,7 @@ async def calculate_quote(
             .execute()
 
         # 4. Fetch admin settings for organization
-        admin_settings = await fetch_admin_settings(str(user.current_organization_id))
+        admin_settings = await fetch_admin_settings(str(user.current_organization_id), supabase)
 
         # 5. Validate all products and build calculation inputs
         calc_inputs = []
@@ -1498,7 +1491,8 @@ async def calculate_quote(
                 variables=request.variables,
                 admin_settings=admin_settings,
                 quote_date=request.quote_date,
-                quote_currency=quote_currency
+                quote_currency=quote_currency,
+                supabase=supabase
             )
 
             # DEBUG: Log what was mapped
@@ -1539,8 +1533,8 @@ async def calculate_quote(
 
         # Get quote currency conversion rate (USD -> quote currency)
         client_quote_currency = request.variables.get('currency_of_quote', 'USD')
-        usd_to_quote_rate = get_exchange_rate("USD", client_quote_currency)
-        rates_snapshot = get_rates_snapshot_to_usd(request.quote_date)
+        usd_to_quote_rate = get_exchange_rate("USD", client_quote_currency, supabase)
+        rates_snapshot = get_rates_snapshot_to_usd(request.quote_date, supabase)
 
         for idx, (result, product, item_record) in enumerate(zip(results_list, request.products, items_response.data)):
             try:

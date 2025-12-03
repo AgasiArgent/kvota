@@ -9,9 +9,10 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Query, Header, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User, require_permission
+from dependencies import get_supabase
 from services.activity_log_service import log_activity
 import os
 
@@ -126,17 +127,8 @@ class LeadQualifyRequest(BaseModel):
 # HELPER FUNCTIONS
 # ============================================================================
 
-def get_supabase_client() -> Client:
-    """Create Supabase client with service role key"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
-
-async def verify_stage_belongs_to_org(stage_id: str, organization_id: str) -> bool:
+async def verify_stage_belongs_to_org(stage_id: str, organization_id: str, supabase: Client) -> bool:
     """Verify stage belongs to organization"""
-    supabase = get_supabase_client()
     result = supabase.table("lead_stages")\
         .select("id")\
         .eq("id", stage_id)\
@@ -145,9 +137,8 @@ async def verify_stage_belongs_to_org(stage_id: str, organization_id: str) -> bo
     return result.data and len(result.data) > 0
 
 
-async def get_default_stage_id(organization_id: str) -> str:
+async def get_default_stage_id(organization_id: str, supabase: Client) -> str:
     """Get default 'Новый' stage for organization"""
-    supabase = get_supabase_client()
     result = supabase.table("lead_stages")\
         .select("id")\
         .eq("organization_id", organization_id)\
@@ -193,8 +184,6 @@ async def list_leads(
     RLS: Users see their assigned leads + unassigned leads
     """
     try:
-        supabase = get_supabase_client()
-
         if not user.current_organization_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -308,8 +297,6 @@ async def get_lead(
     Includes: stage info, assigned user, contacts
     """
     try:
-        supabase = get_supabase_client()
-
         result = supabase.table("leads").select(
             "*,lead_stages(name,color)"
         )\
@@ -381,8 +368,6 @@ async def create_lead(
     Optionally create contacts at the same time
     """
     try:
-        supabase = get_supabase_client()
-
         if not user.current_organization_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -392,10 +377,10 @@ async def create_lead(
         # Get default stage if not provided
         stage_id = lead_data.stage_id
         if not stage_id:
-            stage_id = await get_default_stage_id(str(user.current_organization_id))
+            stage_id = await get_default_stage_id(str(user.current_organization_id, supabase))
         else:
             # Verify stage belongs to organization
-            if not await verify_stage_belongs_to_org(stage_id, str(user.current_organization_id)):
+            if not await verify_stage_belongs_to_org(stage_id, str(user.current_organization_id, supabase)):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid stage_id for organization"
@@ -478,8 +463,6 @@ async def update_lead(
     Only assigned user or managers can update
     """
     try:
-        supabase = get_supabase_client()
-
         # Verify lead exists and user has access
         existing = supabase.table("leads").select("*")\
             .eq("id", lead_id)\
@@ -497,7 +480,7 @@ async def update_lead(
 
         # Verify stage_id if provided
         if "stage_id" in update_dict and update_dict["stage_id"]:
-            if not await verify_stage_belongs_to_org(update_dict["stage_id"], str(user.current_organization_id)):
+            if not await verify_stage_belongs_to_org(update_dict["stage_id"], str(user.current_organization_id, supabase)):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid stage_id for organization"
@@ -546,8 +529,6 @@ async def delete_lead(
     Cascades to contacts and activities
     """
     try:
-        supabase = get_supabase_client()
-
         # Verify lead exists
         existing = supabase.table("leads").select("id,company_name")\
             .eq("id", lead_id)\
@@ -602,8 +583,6 @@ async def assign_lead(
     Allows managers to assign leads to team members
     """
     try:
-        supabase = get_supabase_client()
-
         # Verify lead exists
         existing = supabase.table("leads").select("id,company_name")\
             .eq("id", lead_id)\
@@ -663,8 +642,6 @@ async def change_lead_stage(
     Used for pipeline/Kanban board
     """
     try:
-        supabase = get_supabase_client()
-
         # Verify lead exists
         existing = supabase.table("leads").select("id,stage_id,company_name")\
             .eq("id", lead_id)\
@@ -680,7 +657,7 @@ async def change_lead_stage(
         old_stage_id = existing.data[0].get("stage_id")
 
         # Verify new stage belongs to organization
-        if not await verify_stage_belongs_to_org(stage_data.stage_id, str(user.current_organization_id)):
+        if not await verify_stage_belongs_to_org(stage_data.stage_id, str(user.current_organization_id, supabase)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid stage_id for organization"
@@ -732,8 +709,6 @@ async def qualify_lead_to_customer(
     Creates customer record, updates lead stage to "Квалифицирован"
     """
     try:
-        supabase = get_supabase_client()
-
         # Get lead details
         lead_result = supabase.table("leads").select("*")\
             .eq("id", lead_id)\
@@ -878,10 +853,7 @@ async def create_calendar_meeting(
     4. n8n calls back to /calendar-event endpoint with event_id
     5. Return success
     """
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
+    
 
     if not user.current_organization_id:
         raise HTTPException(

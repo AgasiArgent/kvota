@@ -6,8 +6,7 @@ Using Supabase REST API instead of direct PostgreSQL for WSL2 compatibility
 from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List
 from uuid import UUID
-from supabase import create_client, Client
-import os
+from supabase import Client
 from datetime import datetime, timezone
 
 from models import (
@@ -23,6 +22,7 @@ from auth import (
     require_org_admin, require_org_owner, require_org_permission,
     AuthenticationService, get_permissions_from_jsonb
 )
+from dependencies import get_supabase
 
 router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 
@@ -31,25 +31,9 @@ router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 # HELPER FUNCTIONS
 # ============================================================================
 
-def get_supabase_client() -> Client:
-    """Get Supabase client for database operations"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
-def get_supabase_admin_client() -> Client:
-    """Get Supabase admin client for auth operations"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
-
-def get_default_role_id() -> UUID:
+def get_default_role_id(supabase: Client) -> UUID:
     """Get the default role (Sales Manager) ID"""
-    supabase = get_supabase_client()
-
     result = supabase.table("roles").select("id").eq("is_system_role", True).eq("slug", "sales_manager").limit(1).execute()
 
     if result.data and len(result.data) > 0:
@@ -68,13 +52,13 @@ def get_default_role_id() -> UUID:
 @router.post("/", response_model=Organization, status_code=status.HTTP_201_CREATED)
 async def create_organization(
     org_data: OrganizationCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create a new organization
     User becomes the owner automatically
     """
-    supabase = get_supabase_client()
 
     try:
         # Check if slug is unique
@@ -110,7 +94,7 @@ async def create_organization(
         # Get admin role
         admin_role = supabase.table("roles").select("id").eq("is_system_role", True).eq("slug", "admin").limit(1).execute()
 
-        admin_role_id = admin_role.data[0]["id"] if admin_role.data else str(get_default_role_id())
+        admin_role_id = admin_role.data[0]["id"] if admin_role.data else str(get_default_role_id(supabase))
 
         # Add user as owner with admin role
         from datetime import datetime, timezone
@@ -146,11 +130,13 @@ async def create_organization(
 
 
 @router.get("/", response_model=List[UserOrganization])
-async def list_user_organizations(user: User = Depends(get_current_user)):
+async def list_user_organizations(
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
+):
     """
     Get all organizations the current user belongs to
     """
-    supabase = get_supabase_client()
 
     try:
         # Get user's organization memberships
@@ -188,14 +174,13 @@ async def list_user_organizations(user: User = Depends(get_current_user)):
 @router.get("/{organization_id}", response_model=Organization)
 async def get_organization(
     organization_id: str,
-    context: OrganizationContext = Depends(get_organization_context)
+    context: OrganizationContext = Depends(get_organization_context),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get organization details
     User must be a member of the organization
     """
-    supabase = get_supabase_client()
-
     try:
         result = supabase.table("organizations").select("*").eq("id", organization_id).single().execute()
 
@@ -220,14 +205,13 @@ async def get_organization(
 async def update_organization(
     organization_id: str,
     updates: OrganizationUpdate,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update organization details
     Requires admin or owner role
     """
-    supabase = get_supabase_client()
-
     try:
         # Build update data
         update_data = updates.dict(exclude_unset=True)
@@ -264,14 +248,13 @@ async def update_organization(
 @router.delete("/{organization_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_organization(
     organization_id: str,
-    context: OrganizationContext = Depends(require_org_owner())
+    context: OrganizationContext = Depends(require_org_owner()),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Delete organization (soft delete - set status to 'deleted')
     Only owner can delete
     """
-    supabase = get_supabase_client()
-
     try:
         # Check if there are other active members
         members = supabase.table("organization_members") \
@@ -308,13 +291,12 @@ async def delete_organization(
 @router.get("/{organization_id}/members", response_model=List[OrganizationMemberWithDetails])
 async def list_members(
     organization_id: str,
-    context: OrganizationContext = Depends(get_organization_context)
+    context: OrganizationContext = Depends(get_organization_context),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List all members of the organization
     """
-    supabase = get_supabase_client()
-
     try:
         # Get members with role details (no user_profiles join - fetch separately if needed)
         result = supabase.table("organization_members") \
@@ -325,11 +307,10 @@ async def list_members(
             .execute()
 
         members = []
-        supabase_admin = get_supabase_admin_client()
         for row in result.data:
             # Fetch user email from Supabase Auth
             try:
-                user_response = supabase_admin.auth.admin.get_user_by_id(row["user_id"])
+                user_response = supabase.auth.admin.get_user_by_id(row["user_id"])
                 user_email = user_response.user.email if user_response and user_response.user else f"user-{row['user_id'][:8]}"
                 user_full_name = user_response.user.user_metadata.get('full_name') if user_response and user_response.user else None
             except:
@@ -361,14 +342,13 @@ async def update_member_role(
     organization_id: str,
     user_id: str,
     role_id: UUID,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update a member's role
     Requires admin role
     """
-    supabase = get_supabase_client()
-
     try:
         # Check if trying to change owner's role
         member = supabase.table("organization_members") \
@@ -412,15 +392,14 @@ async def update_member_role(
 async def remove_member(
     organization_id: str,
     user_id: str,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Remove a member from the organization
     Requires admin role
     Cannot remove owner
     """
-    supabase = get_supabase_client()
-
     try:
         # Check if trying to remove owner
         member = supabase.table("organization_members") \
@@ -466,14 +445,13 @@ async def remove_member(
 async def create_invitation(
     organization_id: str,
     invitation: InvitationCreate,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create an invitation to join the organization
     Requires admin role
     """
-    supabase = get_supabase_client()
-
     try:
         # Check for pending invitation
         pending = supabase.table("organization_invitations") \
@@ -521,14 +499,13 @@ async def create_invitation(
 @router.get("/{organization_id}/invitations", response_model=List[InvitationWithDetails])
 async def list_invitations(
     organization_id: str,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List all invitations for the organization
     Requires admin role
     """
-    supabase = get_supabase_client()
-
     try:
         result = supabase.table("organization_invitations") \
             .select("*, organizations(name), roles(name,slug)") \
@@ -538,14 +515,13 @@ async def list_invitations(
             .execute()
 
         invitations = []
-        supabase_admin = get_supabase_admin_client()
         for row in result.data:
             # Fetch inviter details from Supabase Auth if needed
             inviter_email = None
             inviter_name = None
             if row.get("invited_by"):
                 try:
-                    inviter_response = supabase_admin.auth.admin.get_user_by_id(row["invited_by"])
+                    inviter_response = supabase.auth.admin.get_user_by_id(row["invited_by"])
                     if inviter_response and inviter_response.user:
                         inviter_email = inviter_response.user.email
                         inviter_name = inviter_response.user.user_metadata.get('full_name')
@@ -572,13 +548,12 @@ async def list_invitations(
 @router.post("/invitations/{token}/accept", status_code=status.HTTP_200_OK)
 async def accept_invitation(
     token: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Accept an invitation to join an organization
     """
-    supabase = get_supabase_client()
-
     try:
         # Get invitation
         result = supabase.table("organization_invitations") \
@@ -661,14 +636,13 @@ async def accept_invitation(
 async def cancel_invitation(
     organization_id: str,
     invitation_id: str,
-    context: OrganizationContext = Depends(require_org_admin())
+    context: OrganizationContext = Depends(require_org_admin()),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Cancel a pending invitation
     Requires admin role
     """
-    supabase = get_supabase_client()
-
     try:
         result = supabase.table("organization_invitations") \
             .update({"status": "cancelled"}) \
@@ -699,13 +673,12 @@ async def cancel_invitation(
 @router.get("/{organization_id}/roles", response_model=List[Role])
 async def list_roles(
     organization_id: str,
-    context: OrganizationContext = Depends(get_organization_context)
+    context: OrganizationContext = Depends(get_organization_context),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List all available roles (system + custom org roles)
     """
-    supabase = get_supabase_client()
-
     try:
         # Get system roles and org-specific roles
         result = supabase.table("roles") \
@@ -731,14 +704,13 @@ async def list_roles(
 @router.post("/{organization_id}/switch", status_code=status.HTTP_200_OK)
 async def switch_organization(
     organization_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Switch user's active organization
     Updates user_profiles.last_active_organization_id
     """
-    supabase = get_supabase_client()
-
     try:
         # Verify user is member
         member = supabase.table("organization_members") \

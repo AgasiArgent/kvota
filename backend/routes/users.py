@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field, validator
 from typing import Optional
 import re
-import os
-from supabase import create_client, Client
+from supabase import Client
 from auth import get_current_user, User
+from dependencies import get_supabase
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -68,7 +68,10 @@ class UpdateUserProfileRequest(BaseModel):
 # ============================================================================
 
 @router.get("/profile", response_model=UserProfileResponse)
-async def get_user_profile(user: User = Depends(get_current_user)):
+async def get_user_profile(
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+):
     """
     Get current user's profile including manager info.
 
@@ -76,12 +79,6 @@ async def get_user_profile(user: User = Depends(get_current_user)):
         UserProfileResponse: User profile data
     """
     try:
-        # Initialize Supabase client
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Fetch user profile
         result = supabase.table("user_profiles").select("*").eq(
             "user_id", str(user.id)
@@ -109,7 +106,8 @@ async def get_user_profile(user: User = Depends(get_current_user)):
 @router.put("/profile", response_model=UserProfileResponse)
 async def update_user_profile(
     profile_update: UpdateUserProfileRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
 ):
     """
     Update current user's manager info.
@@ -123,12 +121,6 @@ async def update_user_profile(
         UserProfileResponse: Updated profile data
     """
     try:
-        # Initialize Supabase client
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
-
         # Build update dict (only include non-None values)
         update_data = profile_update.dict(exclude_unset=True)
 
