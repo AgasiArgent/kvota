@@ -11,12 +11,13 @@ import asyncio
 import logging
 import re
 
-from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, status
+from fastapi import APIRouter, HTTPException, Depends, File, UploadFile, status, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from supabase import create_client, Client
+from supabase import Client
 import pandas as pd
 
 from auth import get_current_user, User
+from dependencies import get_supabase
 from pydantic import BaseModel, Field
 from decimal import Decimal
 
@@ -58,18 +59,6 @@ router = APIRouter(
 )
 
 
-# Initialize Supabase client (allow None in test environment)
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-environment = os.getenv("ENVIRONMENT", "development")
-
-if supabase_url and supabase_key:
-    supabase: Client = create_client(supabase_url, supabase_key)
-elif environment == "test":
-    # Allow imports in test environment without credentials
-    supabase = None  # type: ignore
-else:
-    raise ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
 
 
 # ============================================================================
@@ -260,18 +249,10 @@ def get_value(field_name: str, product: ProductFromFile, variables: Dict[str, An
     return default
 
 
-def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
-    """
-    Get exchange rate from database.
+def get_exchange_rate(from_currency: str, to_currency: str, supabase: Client) -> Decimal:
+    """Get exchange rate from database.
     Returns rate to multiply by (e.g., 1 USD = 100 RUB means rate is 100)
     """
-    if from_currency == to_currency:
-        return Decimal("1.0")
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     # Try direct rate (from_currency -> to_currency)
     result = supabase.table("exchange_rates")\
@@ -324,6 +305,7 @@ def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal:
 
 
 def get_converted_monetary_value(
+    supabase: Client,
     field_name: str,
     variables: Dict[str, Any],
     quote_currency: str,
@@ -354,7 +336,7 @@ def get_converted_monetary_value(
             source_currency = monetary_value['currency']
 
             if source_currency != quote_currency:
-                rate = get_exchange_rate(source_currency, quote_currency)
+                rate = get_exchange_rate(source_currency, quote_currency, supabase)
                 converted = value * rate
                 logger.info(f"Currency conversion: {field_name} {value} {source_currency} -> {converted:.2f} {quote_currency} (rate: {rate})")
                 return converted
@@ -365,7 +347,7 @@ def get_converted_monetary_value(
     return safe_decimal(raw_value, default)
 
 
-def get_rates_snapshot_to_usd(quote_date: date) -> Dict[str, Any]:
+def get_rates_snapshot_to_usd(quote_date: date, supabase: Client) -> Dict[str, Any]:
     """
     Get snapshot of all exchange rates to USD for audit trail.
 
@@ -376,10 +358,10 @@ def get_rates_snapshot_to_usd(quote_date: date) -> Dict[str, Any]:
         Dict with currency pair rates and metadata
     """
     return {
-        "EUR_USD": float(get_exchange_rate("EUR", "USD")),
-        "RUB_USD": float(get_exchange_rate("RUB", "USD")),
-        "TRY_USD": float(get_exchange_rate("TRY", "USD")),
-        "CNY_USD": float(get_exchange_rate("CNY", "USD")),
+        "EUR_USD": float(get_exchange_rate("EUR", "USD", supabase)),
+        "RUB_USD": float(get_exchange_rate("RUB", "USD", supabase)),
+        "TRY_USD": float(get_exchange_rate("TRY", "USD", supabase)),
+        "CNY_USD": float(get_exchange_rate("CNY", "USD", supabase)),
         "quote_date": quote_date.isoformat(),
         "source": "cbr"
     }
@@ -444,7 +426,7 @@ def map_variables_to_calculation_input(
         # Fall back to database rates (CBR)
         # get_exchange_rate returns multiplier format, so we invert it for Phase 1
         rate_multiplier = get_exchange_rate(
-            product_info.currency_of_base_price.value,  # from_currency (e.g., EUR)
+            product_info.currency_of_base_price.value, # from_currency (e.g., EUR, supabase)
             "USD"  # to_currency (always USD)
         )
         # Invert to get divisor format for Phase 1
@@ -562,7 +544,7 @@ def map_variables_to_calculation_input(
     )
 
 
-async def fetch_admin_settings(organization_id: str) -> Dict[str, Decimal]:
+async def fetch_admin_settings(organization_id: str, supabase: Client) -> Dict[str, Decimal]:
     """
     Fetch admin calculation settings for organization.
 
@@ -1463,7 +1445,7 @@ async def calculate_quote(
             .execute()
 
         # 4. Fetch admin settings for organization
-        admin_settings = await fetch_admin_settings(str(user.current_organization_id))
+        admin_settings = await fetch_admin_settings(str(user.current_organization_id, supabase))
 
         # 5. Validate all products and build calculation inputs
         calc_inputs = []
@@ -1539,8 +1521,8 @@ async def calculate_quote(
 
         # Get quote currency conversion rate (USD -> quote currency)
         client_quote_currency = request.variables.get('currency_of_quote', 'USD')
-        usd_to_quote_rate = get_exchange_rate("USD", client_quote_currency)
-        rates_snapshot = get_rates_snapshot_to_usd(request.quote_date)
+        usd_to_quote_rate = get_exchange_rate("USD", client_quote_currency, supabase)
+        rates_snapshot = get_rates_snapshot_to_usd(request.quote_date, supabase)
 
         for idx, (result, product, item_record) in enumerate(zip(results_list, request.products, items_response.data)):
             try:

@@ -8,7 +8,8 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import JSONResponse
-from supabase import create_client, Client
+from supabase import Client
+from dependencies import get_supabase
 
 from auth import get_current_user, get_auth_context, User, AuthContext, require_permission
 from models import (
@@ -65,7 +66,8 @@ async def list_customers(
     status: Optional[str] = Query(None, description="Filter by status"),
     company_type: Optional[str] = Query(None, description="Filter by company type"),
     region: Optional[str] = Query(None, description="Filter by Russian region"),
-    user: User = Depends(require_permission("customers:read"))
+    user: User = Depends(require_permission("customers:read")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List customers with pagination and filtering
@@ -77,13 +79,6 @@ async def list_customers(
     - Russian region
     """
     try:
-        from supabase import create_client, Client
-
-        # Create Supabase client with service role key
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Check if user has an organization
         if not user.current_organization_id:
@@ -152,7 +147,8 @@ async def list_customers(
 @log_activity_decorator("customer", "created")
 async def create_customer(
     customer_data: CustomerCreate,
-    auth_context: AuthContext = Depends(get_auth_context)
+    auth_context: AuthContext = Depends(get_auth_context),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create a new customer with Russian business validation
@@ -163,13 +159,6 @@ async def create_customer(
     - Russian postal code format (6 digits)
     """
     try:
-        from supabase import create_client, Client
-
-        # Create Supabase client with service role key for RLS bypass
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Check for duplicate INN if provided
         if customer_data.inn:
@@ -232,17 +221,11 @@ async def create_customer(
 @router.get("/{customer_id}", response_model=Customer)
 async def get_customer(
     customer_id: UUID,
-    user: User = Depends(require_permission("customers:read"))
+    user: User = Depends(require_permission("customers:read")),
+    supabase: Client = Depends(get_supabase)
 ):
     """Get customer by ID"""
     try:
-        from supabase import create_client, Client
-
-        # Create Supabase client with service role key
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        )
 
         # Check if user has an organization
         if not user.current_organization_id:
@@ -277,18 +260,14 @@ async def get_customer(
 async def update_customer(
     customer_id: UUID,
     customer_update: CustomerUpdate,
-    user: User = Depends(require_permission("customers:update"))
+    user: User = Depends(require_permission("customers:update")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update customer information with Russian business validation
 
     Only updates provided fields, preserves existing values for omitted fields
     """
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     try:
         # Check if customer exists
         existing_result = supabase.table("customers").select("*")\
@@ -363,18 +342,14 @@ async def update_customer(
 @log_activity_decorator("customer", "deleted")
 async def delete_customer(
     customer_id: UUID,
-    user: User = Depends(require_permission("customers:delete"))
+    user: User = Depends(require_permission("customers:delete")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Delete customer by ID
 
     Checks for dependent quotes before deletion
     """
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     try:
         # Check if customer has associated quotes
         quotes_result = supabase.table("quotes").select("id", count="exact")\
@@ -433,14 +408,10 @@ async def get_customer_quotes(
     customer_id: UUID,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    user: User = Depends(require_permission("quotes:read"))
+    user: User = Depends(require_permission("quotes:read")),
+    supabase: Client = Depends(get_supabase)
 ):
     """Get all quotes for a specific customer"""
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     try:
         # Verify customer exists
         customer_result = supabase.table("customers").select("id")\
@@ -489,18 +460,14 @@ async def get_customer_quotes(
 @router.get("/search/inn/{inn}")
 async def search_customer_by_inn(
     inn: str,
-    user: User = Depends(require_permission("customers:read"))
+    user: User = Depends(require_permission("customers:read")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Search customer by Russian INN (Tax ID)
 
     Useful for quick customer lookup during quote creation
     """
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
     try:
         # Clean INN (remove spaces and hyphens)
         inn_clean = ''.join(filter(str.isdigit, inn))
@@ -544,15 +511,10 @@ async def search_customer_by_inn(
 @router.get("/{customer_id}/contacts")
 async def list_customer_contacts(
     customer_id: UUID,
-    user: User = Depends(require_permission("customers:read"))
+    user: User = Depends(require_permission("customers:read")),
+    supabase: Client = Depends(get_supabase)
 ):
     """List all contacts for a customer"""
-    from supabase import create_client, Client
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     # Verify customer belongs to user's organization
     customer = supabase.table("customers")\
@@ -584,15 +546,10 @@ async def list_customer_contacts(
 async def create_contact(
     customer_id: UUID,
     contact: dict,
-    user: User = Depends(require_permission("customers:update"))
+    user: User = Depends(require_permission("customers:update")),
+    supabase: Client = Depends(get_supabase)
 ):
     """Create a new contact for customer"""
-    from supabase import create_client, Client
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     # Validate customer belongs to organization
     customer = supabase.table("customers")\
@@ -653,15 +610,10 @@ async def update_contact(
     customer_id: UUID,
     contact_id: UUID,
     contact: dict,
-    user: User = Depends(require_permission("customers:update"))
+    user: User = Depends(require_permission("customers:update")),
+    supabase: Client = Depends(get_supabase)
 ):
     """Update contact"""
-    from supabase import create_client, Client
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     # If setting as primary, unset others
     if contact.get('is_primary'):
@@ -703,15 +655,10 @@ async def update_contact(
 async def delete_contact(
     customer_id: UUID,
     contact_id: UUID,
-    user: User = Depends(require_permission("customers:update"))
+    user: User = Depends(require_permission("customers:update")),
+    supabase: Client = Depends(get_supabase)
 ):
     """Delete contact"""
-    from supabase import create_client, Client
-
-    supabase: Client = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
 
     result = supabase.table("customer_contacts")\
         .delete()\

@@ -352,45 +352,43 @@ npm run lint       # ESLint
 
 ## Exchange Rates Display
 
-The sidebar shows live exchange rates for key currencies (USD, EUR, TRY, CNY).
+The sidebar shows CBR exchange rates for key currencies (USD, EUR, TRY, CNY).
 
 **Component:** `src/components/layout/ExchangeRates.tsx`
 
 **Features:**
 
-- Auto-refresh every 30 minutes
-- Manual refresh button (admin only - forces CBR fetch)
-- Dark theme styling
-- Collapsible with sidebar
+- Single API call to `/api/exchange-rates/all` (fetches all 56 currencies at once)
+- Rates cached in backend memory - instant lookups, no DB queries
+- Daily auto-refresh at 12:05 MSK (after CBR publishes ~11:30-12:00)
+- Shows actual `last_updated` timestamp from backend
+- Dark theme styling, collapsible with sidebar
 - 4 decimal precision for all rates
 
 **API Routes:**
 
-| Route                                             | Purpose                       |
-| ------------------------------------------------- | ----------------------------- |
-| `src/app/api/exchange-rates/[from]/[to]/route.ts` | Get single rate (cached)      |
-| `src/app/api/exchange-rates/refresh/route.ts`     | Admin: Force refresh from CBR |
+| Route                                             | Purpose                               |
+| ------------------------------------------------- | ------------------------------------- |
+| `src/app/api/exchange-rates/all/route.ts`         | Get all rates + metadata (primary)    |
+| `src/app/api/exchange-rates/[from]/[to]/route.ts` | Get single rate (legacy, still works) |
 
-**Admin Refresh Flow:**
-
-```typescript
-// ExchangeRates.tsx - refreshFromCBR()
-const supabase = createClient();
-const {
-  data: { session },
-} = await supabase.auth.getSession();
-await fetch('/api/exchange-rates/refresh', {
-  method: 'POST',
-  headers: { Authorization: `Bearer ${session.access_token}` },
-});
-```
-
-**Usage in MainLayout:**
+**Usage:**
 
 ```typescript
-// Shows when sidebar is expanded
-{!collapsed && <ExchangeRates />}
+// ExchangeRates.tsx - single request for all rates
+const response = await fetch('/api/exchange-rates/all');
+const data = await response.json();
+// data.rates: { USD: 77.46, EUR: 89.85, ... }
+// data.last_updated: "2025-12-03T12:05:00+00:00"
+// data.currencies_count: 56
 ```
+
+**Backend Caching:**
+
+- Rates stored in memory on backend (ExchangeRateService singleton)
+- Cron job at 12:05 MSK fetches fresh rates from CBR
+- First request after server restart loads from DB, then caches in memory
+- All subsequent requests served from memory (sub-millisecond)
 
 **CBR Nominal Handling:**
 
@@ -399,13 +397,13 @@ Central Bank of Russia returns rates with "Nominal" field:
 - TRY: Value=18.45, Nominal=10 → Rate = 1.845 (backend divides)
 - JPY: Value=67.50, Nominal=100 → Rate = 0.675
 
-Backend handles this in `exchange_rate_service.py`. If rates look wrong (e.g., TRY showing ~18 instead of ~1.8), use refresh button to fetch fresh data.
+Backend handles this in `exchange_rate_service.py`.
 
 **Styling:**
 
 - Background: `rgba(255, 255, 255, 0.04)` (subtle highlight)
 - Text: Russian labels ("Курсы валют ЦБ РФ")
-- Updates: Shows last update time in tooltip
+- Shows date/time of last CBR update below rates
 
 ---
 

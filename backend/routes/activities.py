@@ -8,11 +8,11 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from pydantic import BaseModel
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User
 from services.activity_log_service import log_activity
-import os
+from dependencies import get_supabase
 
 
 # ============================================================================
@@ -98,21 +98,13 @@ class MarkCompleteRequest(BaseModel):
 # HELPER FUNCTIONS
 # ============================================================================
 
-def get_supabase_client() -> Client:
-    """Create Supabase client with service role key"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
-
 async def verify_lead_or_customer_access(
     lead_id: Optional[str],
     customer_id: Optional[str],
-    user: User
+    user: User,
+    supabase: Client
 ) -> bool:
     """Verify user has access to lead or customer"""
-    supabase = get_supabase_client()
 
     if lead_id:
         result = supabase.table("leads").select("id")\
@@ -146,7 +138,8 @@ async def list_activities(
     customer_id: Optional[str] = Query(None, description="Filter by customer"),
     from_date: Optional[datetime] = Query(None, description="Scheduled from date"),
     to_date: Optional[datetime] = Query(None, description="Scheduled to date"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List activities with pagination and filtering
@@ -154,7 +147,6 @@ async def list_activities(
     Returns activities for leads and customers user has access to
     """
     try:
-        supabase = get_supabase_client()
 
         if not user.current_organization_id:
             raise HTTPException(
@@ -234,11 +226,11 @@ async def list_activities(
 @router.get("/{activity_id}", response_model=ActivityWithDetails)
 async def get_activity(
     activity_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """Get activity by ID with details"""
     try:
-        supabase = get_supabase_client()
 
         result = supabase.table("activities").select(
             "*,"
@@ -276,7 +268,8 @@ async def get_activity(
 @router.post("/", response_model=Activity, status_code=status.HTTP_201_CREATED)
 async def create_activity(
     activity_data: ActivityCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create new activity
@@ -284,7 +277,6 @@ async def create_activity(
     Must provide either lead_id OR customer_id (not both)
     """
     try:
-        supabase = get_supabase_client()
 
         if not user.current_organization_id:
             raise HTTPException(
@@ -309,7 +301,8 @@ async def create_activity(
         if not await verify_lead_or_customer_access(
             activity_data.lead_id,
             activity_data.customer_id,
-            user
+            user,
+            supabase
         ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -379,7 +372,8 @@ async def create_activity(
 async def update_activity(
     activity_id: str,
     activity_data: ActivityUpdate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update activity
@@ -387,7 +381,6 @@ async def update_activity(
     Only assigned user or creator can update
     """
     try:
-        supabase = get_supabase_client()
 
         # Verify activity exists and user has access
         existing = supabase.table("activities").select("*")\
@@ -443,7 +436,8 @@ async def update_activity(
 @router.delete("/{activity_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_activity(
     activity_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Delete activity
@@ -451,7 +445,6 @@ async def delete_activity(
     Only assigned user or creator can delete
     """
     try:
-        supabase = get_supabase_client()
 
         # Get activity for logging
         existing = supabase.table("activities").select("type,title")\
@@ -503,7 +496,8 @@ async def delete_activity(
 async def mark_activity_complete(
     activity_id: str,
     complete_data: MarkCompleteRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Mark activity as completed
@@ -511,7 +505,6 @@ async def mark_activity_complete(
     Sets completed=true, completed_at=now, optionally updates result
     """
     try:
-        supabase = get_supabase_client()
 
         # Verify activity exists
         existing = supabase.table("activities").select("id,completed")\
@@ -572,7 +565,8 @@ async def mark_activity_complete(
 @router.patch("/{activity_id}/reopen")
 async def reopen_activity(
     activity_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Reopen completed activity
@@ -580,7 +574,6 @@ async def reopen_activity(
     Sets completed=false, completed_at=null
     """
     try:
-        supabase = get_supabase_client()
 
         # Verify activity exists
         existing = supabase.table("activities").select("id,completed")\
@@ -638,7 +631,8 @@ async def reopen_activity(
 @router.get("/upcoming/my", response_model=List[ActivityWithDetails])
 async def get_my_upcoming_activities(
     days: int = Query(7, ge=1, le=30, description="Number of days to look ahead"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get upcoming activities assigned to current user
@@ -646,7 +640,6 @@ async def get_my_upcoming_activities(
     Returns incomplete activities scheduled in next N days
     """
     try:
-        supabase = get_supabase_client()
 
         now = datetime.utcnow()
         future = now + timedelta(days=days)
@@ -687,7 +680,8 @@ async def get_my_upcoming_activities(
 
 @router.get("/overdue/my", response_model=List[ActivityWithDetails])
 async def get_my_overdue_activities(
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get overdue activities assigned to current user
@@ -695,7 +689,6 @@ async def get_my_overdue_activities(
     Returns incomplete activities scheduled in the past
     """
     try:
-        supabase = get_supabase_client()
 
         now = datetime.utcnow()
 

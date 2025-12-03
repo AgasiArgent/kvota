@@ -1,23 +1,25 @@
 /**
  * Exchange Rate Service
- * Handles fetching and refreshing exchange rates from backend
+ * Handles fetching exchange rates from backend (cached in memory on backend)
+ *
+ * Rates are updated once daily at 12:05 MSK by backend cron job.
+ * All rate lookups are instant (no DB queries - served from backend memory cache).
  */
 
 import { createClient } from '@/lib/supabase/client';
-import { config, getApiEndpoint } from '@/lib/config';
+import { config } from '@/lib/config';
 
 export interface ExchangeRate {
   rate: number;
-  fetched_at: string;
-  source: string;
   from_currency: string;
   to_currency: string;
 }
 
-export interface RefreshResponse {
-  success: boolean;
-  rates_updated: number;
-  message: string;
+export interface AllRatesResponse {
+  rates: Record<string, number>; // Currency -> rate to RUB
+  last_updated: string | null; // ISO timestamp when rates were fetched from CBR
+  cbr_date: string | null; // Date from CBR response
+  currencies_count: number;
 }
 
 export class ExchangeRateService {
@@ -41,11 +43,31 @@ export class ExchangeRateService {
   }
 
   /**
+   * Get all exchange rates in a single request
+   *
+   * Rates are cached in backend memory and served instantly.
+   * Updated daily at 12:05 MSK (after CBR publishes ~11:30-12:00).
+   *
+   * @returns All rates with cache metadata
+   */
+  async getAllRates(): Promise<AllRatesResponse> {
+    const headers = await this.getAuthHeaders();
+    const response = await fetch(`${config.apiUrl}/api/exchange-rates/all`, { headers });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || 'Failed to fetch exchange rates');
+    }
+
+    return response.json();
+  }
+
+  /**
    * Get exchange rate between two currencies
    *
    * @param from - Source currency code (e.g., "USD")
-   * @param to - Target currency code (e.g., "CNY")
-   * @returns Exchange rate with metadata
+   * @param to - Target currency code (e.g., "RUB")
+   * @returns Exchange rate
    */
   async getRate(from: string, to: string): Promise<ExchangeRate> {
     const headers = await this.getAuthHeaders();
@@ -57,27 +79,6 @@ export class ExchangeRateService {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: response.statusText }));
       throw new Error(error.detail || `Failed to fetch exchange rate`);
-    }
-
-    return response.json();
-  }
-
-  /**
-   * Manually refresh all exchange rates from CBR API
-   * Admin only endpoint
-   *
-   * @returns Success status and number of rates updated
-   */
-  async refreshRates(): Promise<RefreshResponse> {
-    const headers = await this.getAuthHeaders();
-    const response = await fetch(`${config.apiUrl}/api/exchange-rates/refresh`, {
-      method: 'POST',
-      headers,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(error.detail || 'Failed to refresh exchange rates');
     }
 
     return response.json();

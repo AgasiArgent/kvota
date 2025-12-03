@@ -6,11 +6,11 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
-from supabase import create_client, Client
+from supabase import Client
 
 from auth import get_current_user, User, require_permission
 from services.activity_log_service import log_activity
-import os
+from dependencies import get_supabase
 
 
 # ============================================================================
@@ -60,24 +60,13 @@ class LeadStage(LeadStageBase):
 
 
 # ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def get_supabase_client() -> Client:
-    """Create Supabase client with service role key"""
-    return create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    )
-
-
-# ============================================================================
 # LEAD STAGES CRUD OPERATIONS
 # ============================================================================
 
 @router.get("/", response_model=List[LeadStage])
 async def list_lead_stages(
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List all stages for organization
@@ -85,8 +74,6 @@ async def list_lead_stages(
     Returns stages ordered by order_index
     """
     try:
-        supabase = get_supabase_client()
-
         if not user.current_organization_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -112,11 +99,11 @@ async def list_lead_stages(
 @router.get("/{stage_id}", response_model=LeadStage)
 async def get_lead_stage(
     stage_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """Get stage by ID"""
     try:
-        supabase = get_supabase_client()
 
         result = supabase.table("lead_stages").select("*")\
             .eq("id", stage_id)\
@@ -143,7 +130,8 @@ async def get_lead_stage(
 @router.post("/", response_model=LeadStage, status_code=status.HTTP_201_CREATED)
 async def create_lead_stage(
     stage_data: LeadStageCreate,
-    user: User = Depends(require_permission("settings:manage"))  # Managers+ only
+    user: User = Depends(require_permission("settings:manage")),  # Managers+ only
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create custom stage
@@ -151,7 +139,6 @@ async def create_lead_stage(
     Managers can add custom stages to pipeline
     """
     try:
-        supabase = get_supabase_client()
 
         if not user.current_organization_id:
             raise HTTPException(
@@ -222,7 +209,8 @@ async def create_lead_stage(
 async def update_lead_stage(
     stage_id: str,
     stage_data: LeadStageUpdate,
-    user: User = Depends(require_permission("settings:manage"))
+    user: User = Depends(require_permission("settings:manage")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update stage
@@ -230,7 +218,6 @@ async def update_lead_stage(
     Managers can modify stages
     """
     try:
-        supabase = get_supabase_client()
 
         # Verify stage exists
         existing = supabase.table("lead_stages").select("*")\
@@ -276,7 +263,8 @@ async def update_lead_stage(
 @router.delete("/{stage_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lead_stage(
     stage_id: str,
-    user: User = Depends(require_permission("settings:manage"))
+    user: User = Depends(require_permission("settings:manage")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Delete stage
@@ -284,7 +272,6 @@ async def delete_lead_stage(
     Cannot delete if leads are using this stage
     """
     try:
-        supabase = get_supabase_client()
 
         # Check if stage is in use
         leads_using_stage = supabase.table("leads").select("id", count="exact")\

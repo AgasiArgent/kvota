@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
 
 from auth import get_current_user, User
+from dependencies import get_supabase
+from supabase import Client
 
 # ============================================================================
 # ROUTER SETUP
@@ -56,26 +58,15 @@ class DashboardStats(BaseModel):
 MAX_CACHE_SIZE = 100
 dashboard_cache: OrderedDict = OrderedDict()
 
-def get_supabase_client():
-    """Get Supabase client for database operations"""
-    from supabase import create_client, Client
-
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-    if not supabase_url or not supabase_key:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase configuration missing"
-        )
-
-    return create_client(supabase_url, supabase_key)
+def get_supabase_client(supabase: Client):
+    """Pass-through for supabase client"""
+    return supabase
 
 # ============================================================================
 # STATISTICS CALCULATION
 # ============================================================================
 
-def calculate_stats(organization_id: str) -> DashboardStats:
+def calculate_stats(organization_id: str, supabase: Client) -> DashboardStats:
     """
     Calculate dashboard statistics from database
 
@@ -84,7 +75,6 @@ def calculate_stats(organization_id: str) -> DashboardStats:
     - Revenue this month vs last month
     - Recent quotes (top 5)
     """
-    supabase = get_supabase_client()
 
     # Get current date for month calculations
     now = datetime.now()
@@ -168,7 +158,8 @@ def calculate_stats(organization_id: str) -> DashboardStats:
 # ============================================================================
 
 @router.get("/stats", response_model=DashboardStats)
-async def get_dashboard_stats(user: User = Depends(get_current_user)):
+async def get_dashboard_stats(user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)):
     """
     Get dashboard statistics
 
@@ -193,7 +184,7 @@ async def get_dashboard_stats(user: User = Depends(get_current_user)):
 
     # Calculate fresh stats
     try:
-        stats = calculate_stats(organization_id)
+        stats = calculate_stats(organization_id, supabase)
 
         # Evict oldest entry if cache is full
         if len(dashboard_cache) >= MAX_CACHE_SIZE:
