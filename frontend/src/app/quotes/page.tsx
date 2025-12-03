@@ -49,6 +49,7 @@ interface QuoteListItem {
   id: string;
   quote_number: string;
   customer_name?: string;
+  created_by_name?: string;
   title?: string;
   status: string;
   workflow_state?: string;
@@ -541,6 +542,14 @@ export default function QuotesPage() {
       ellipsis: true,
     },
     {
+      title: 'Автор',
+      dataIndex: 'created_by_name',
+      key: 'created_by_name',
+      width: 150,
+      ellipsis: true,
+      render: (name: string) => name || '—',
+    },
+    {
       title: 'Сумма (в валюте КП)',
       dataIndex: 'total_amount',
       key: 'total_amount',
@@ -806,7 +815,7 @@ export default function QuotesPage() {
             dataSource={quotes}
             rowKey="id"
             loading={loading}
-            scroll={{ x: 1400 }}
+            scroll={{ x: 1550 }}
             pagination={{
               current: currentPage,
               pageSize: pageSize,
