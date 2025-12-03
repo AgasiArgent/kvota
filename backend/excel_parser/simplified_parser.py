@@ -196,6 +196,13 @@ class SimplifiedExcelParser:
         value = self.sheet[cell].value
         return value if value is not None else default
 
+    def _get_string(self, cell: str, default: str = None) -> str:
+        """Get cell value as string, converting numbers if needed"""
+        value = self.sheet[cell].value
+        if value is None:
+            return default
+        return str(value)
+
     def _get_decimal(self, cell: str, default: Decimal = Decimal("0")) -> Decimal:
         """Get cell value as Decimal"""
         value = self.sheet[cell].value
@@ -422,8 +429,8 @@ class SimplifiedExcelParser:
                 continue
 
             product = ProductInput(
-                brand=brand,
-                sku=self._get_value(f"B{row}"),
+                brand=self._get_string(f"A{row}"),
+                sku=self._get_string(f"B{row}"),
                 name=str(name),
                 quantity=self._get_int(f"D{row}", 1),
                 weight_kg=self._get_decimal(f"E{row}") if self._get_value(f"E{row}") else None,
