@@ -1,86 +1,27 @@
-import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Singleton client - created once in browser
 let _supabase: SupabaseClient | null = null;
-let _initialized = false;
-
-// Helper to get session data from cookie (set by middleware)
-function getSessionFromCookie(): { access_token: string; refresh_token: string } | null {
-  if (typeof document === 'undefined') return null;
-
-  const cookieName = 'sb-wstwwmiihkzlgvlymlfd-auth-token';
-  const cookies = document.cookie.split(';');
-
-  for (const cookie of cookies) {
-    const trimmed = cookie.trim();
-    const eqIndex = trimmed.indexOf('=');
-    if (eqIndex === -1) continue;
-    const name = trimmed.substring(0, eqIndex);
-    const value = trimmed.substring(eqIndex + 1);
-
-    if (name === cookieName) {
-      try {
-        const decoded = decodeURIComponent(value);
-        // Handle base64 prefix from SSR middleware
-        const jsonStr = decoded.startsWith('base64-') ? atob(decoded.slice(7)) : decoded;
-        const data = JSON.parse(jsonStr);
-        return {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-        };
-      } catch {
-        return null;
-      }
-    }
-  }
-  return null;
-}
-
-// Create a new client instance (internal use only)
-function _createNewClient(): SupabaseClient {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    }
-  );
-}
 
 // SINGLETON: Always returns the same client instance
-// This is called by all services - MUST be singleton to avoid multiple GoTrueClient
+// Uses @supabase/ssr's createBrowserClient which automatically handles cookies
+// This syncs with middleware.ts which also uses @supabase/ssr
 export function createClient(): SupabaseClient {
   if (typeof window === 'undefined') {
     // During SSR, create fresh instances (they don't persist anyway)
-    return _createNewClient();
+    return createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
   }
 
   // Browser: always return singleton
   if (!_supabase) {
-    _supabase = _createNewClient();
-
-    // Initialize session from cookie if available (only once)
-    if (!_initialized) {
-      _initialized = true;
-      const sessionData = getSessionFromCookie();
-      if (sessionData) {
-        _supabase.auth
-          .setSession({
-            access_token: sessionData.access_token,
-            refresh_token: sessionData.refresh_token,
-          })
-          .then(() => {
-            console.log('[Supabase] Session initialized from cookie');
-          })
-          .catch((err) => {
-            console.error('[Supabase] Error setting session:', err);
-          });
-      }
-    }
+    _supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
   }
 
   return _supabase;
