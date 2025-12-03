@@ -1,9 +1,14 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabase } from '@/lib/supabase/client';
 import { message } from 'antd';
+import { PhoneRequiredModal } from '@/components/auth/PhoneRequiredModal';
+
+// Supabase REST API URL for direct fetch
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 interface UserProfile {
   id: string;
@@ -25,6 +30,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   session: Session | null;
   loading: boolean;
+  phoneRequired: boolean; // True when user hasn't set phone yet
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (
     email: string,
@@ -43,83 +49,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const [phoneRequired, setPhoneRequired] = useState(false);
+  const supabaseRef = useRef(getSupabase());
+  const supabase = supabaseRef.current;
 
-  // Fetch user profile from database
-  const fetchProfile = async (userId: string): Promise<UserProfile | null> => {
+  // Helper for direct REST API calls (bypasses Supabase client issues)
+  const supabaseRest = async (
+    table: string,
+    accessToken: string,
+    query?: Record<string, string>
+  ): Promise<{ data: unknown; error: unknown }> => {
+    const params = new URLSearchParams(query || {});
+    const url = `${SUPABASE_URL}/rest/v1/${table}?${params}`;
+
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+      const response = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) {
-        // If profile doesn't exist (PGRST116 = no rows), create it
-        if (error.code === 'PGRST116') {
-          console.log('Profile not found, creating one...');
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { data: null, error: { message: errorText, status: response.status } };
+      }
 
-          // Get user metadata from auth
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
+      const data = await response.json();
+      return { data, error: null };
+    } catch (err) {
+      return { data: null, error: err };
+    }
+  };
 
-          if (user) {
-            const newProfile = {
-              user_id: userId,
-              full_name: user.user_metadata?.full_name || '',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            };
+  // Fetch user profile from database using direct REST API
+  const fetchProfile = async (
+    userId: string,
+    accessToken?: string
+  ): Promise<UserProfile | null> => {
+    try {
+      // Get access token from cookie if not provided
+      let token = accessToken;
+      if (!token) {
+        const sessionData = getSessionDataFromCookie();
+        token = sessionData?.access_token;
+      }
 
-            const { data: createdProfile, error: createError } = await supabase
-              .from('user_profiles')
-              .insert(newProfile)
-              .select()
-              .single();
-
-            if (createError) {
-              console.error('Error creating profile:', createError);
-              return null;
-            }
-
-            console.log('Profile created successfully!');
-            return createdProfile;
-          }
-        }
-
-        console.error('Error fetching profile:', error);
+      if (!token) {
+        console.error('[fetchProfile] No access token available');
         return null;
       }
 
+      console.log('[fetchProfile] Fetching profile via REST API for user:', userId);
+
+      // Fetch user profile via REST API
+      const { data: profileData, error: profileError } = await supabaseRest(
+        'user_profiles',
+        token,
+        { user_id: `eq.${userId}`, select: '*' }
+      );
+
+      if (profileError || !profileData || !Array.isArray(profileData) || profileData.length === 0) {
+        console.error('[fetchProfile] Error fetching profile:', profileError);
+        return null;
+      }
+
+      const data = profileData[0];
+      console.log('[fetchProfile] Got profile data:', data);
+
       // Map database fields to UserProfile interface
-      // The database has 'last_active_organization_id', we map it to 'organization_id'
       let organizationId = data.last_active_organization_id;
 
-      // If last_active_organization_id is NULL, auto-load first organization
+      // If no organization, try to fetch first one
       if (!organizationId) {
         console.log(
           '[fetchProfile] No last_active_organization_id, fetching first organization...'
         );
-        const { data: orgMember, error: orgError } = await supabase
-          .from('organization_members')
-          .select('organization_id')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .single();
+        const { data: orgData } = await supabaseRest('organization_members', token, {
+          user_id: `eq.${userId}`,
+          select: 'organization_id',
+          order: 'created_at.asc',
+          limit: '1',
+        });
 
-        if (!orgError && orgMember) {
-          organizationId = orgMember.organization_id;
+        if (orgData && Array.isArray(orgData) && orgData.length > 0) {
+          organizationId = orgData[0].organization_id;
           console.log('[fetchProfile] Auto-selected organization:', organizationId);
-
-          // Update last_active_organization_id in database for future logins
-          await supabase
-            .from('user_profiles')
-            .update({ last_active_organization_id: organizationId })
-            .eq('user_id', userId);
-        } else {
-          console.warn('[fetchProfile] No organization found for user');
         }
       }
 
@@ -136,82 +152,151 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updated_at: data.updated_at,
       };
 
-      // Fetch organization-specific role and owner status from organization_members table
+      // Fetch organization role if we have an organization
       if (profile.organization_id) {
-        try {
-          const { data: orgMember, error: orgError } = await supabase
-            .from('organization_members')
-            .select('roles(slug), is_owner')
-            .eq('user_id', userId)
-            .eq('organization_id', profile.organization_id)
-            .single();
+        const { data: orgMemberData } = await supabaseRest('organization_members', token, {
+          user_id: `eq.${userId}`,
+          organization_id: `eq.${profile.organization_id}`,
+          select: 'is_owner,role_id,roles(slug)',
+        });
 
-          console.log('[fetchProfile] orgMember query result:', { orgMember, orgError });
-
-          if (!orgError && orgMember) {
-            // @ts-expect-error - roles is a relation
-            profile.organizationRole = orgMember.roles?.slug;
-            profile.is_owner = orgMember.is_owner || false;
-            console.log(
-              `[fetchProfile] Organization role for org ${profile.organization_id}:`,
-              profile.organizationRole,
-              'is_owner:',
-              profile.is_owner
-            );
-          } else {
-            console.warn('[fetchProfile] Failed to load organization role:', orgError);
-          }
-        } catch (error) {
-          console.error('Error fetching organization role:', error);
+        if (orgMemberData && Array.isArray(orgMemberData) && orgMemberData.length > 0) {
+          const orgMember = orgMemberData[0];
+          profile.organizationRole = orgMember.roles?.slug;
+          profile.is_owner = orgMember.is_owner || false;
+          console.log(
+            '[fetchProfile] Organization role:',
+            profile.organizationRole,
+            'is_owner:',
+            profile.is_owner
+          );
         }
-      } else {
-        console.warn('[fetchProfile] No organization_id - skipping role fetch');
       }
 
       console.log('[fetchProfile] Mapped profile:', profile);
       return profile;
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('[fetchProfile] Error:', error);
       return null;
     }
   };
 
-  // Initialize auth state
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        // Get initial session
-        const {
-          data: { session: initialSession },
-        } = await supabase.auth.getSession();
+  // Get session data (access_token) from cookie
+  const getSessionDataFromCookie = (): { access_token: string; refresh_token: string } | null => {
+    if (typeof document === 'undefined') return null;
 
-        if (initialSession?.user) {
-          setUser(initialSession.user);
-          setSession(initialSession);
-          const userProfile = await fetchProfile(initialSession.user.id);
-          setProfile(userProfile);
+    const cookieName = 'sb-wstwwmiihkzlgvlymlfd-auth-token';
+    const cookies = document.cookie.split(';');
+
+    for (const cookie of cookies) {
+      const trimmed = cookie.trim();
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) continue;
+      const name = trimmed.substring(0, eqIndex);
+      const value = trimmed.substring(eqIndex + 1);
+
+      if (name === cookieName) {
+        try {
+          const decoded = decodeURIComponent(value);
+          const jsonStr = decoded.startsWith('base64-') ? atob(decoded.slice(7)) : decoded;
+          const data = JSON.parse(jsonStr);
+          return {
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+          };
+        } catch {
+          return null;
         }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
+      }
+    }
+    return null;
+  };
+
+  // Helper to get user info from cookie (extracts user id/email from the session JWT)
+  const getUserFromCookie = (): { id: string; email: string } | null => {
+    if (typeof document === 'undefined') return null;
+
+    const sessionData = getSessionDataFromCookie();
+    if (!sessionData?.access_token) return null;
+
+    try {
+      // Decode JWT payload (middle part, base64)
+      const parts = sessionData.access_token.split('.');
+      if (parts.length !== 3) return null;
+
+      const payload = JSON.parse(atob(parts[1]));
+      return {
+        id: payload.sub,
+        email: payload.email,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  // Initialize auth state by reading from cookie directly
+  useEffect(() => {
+    let isMounted = true;
+    console.log('[AuthProvider] Setting up auth');
+
+    const initAuth = async () => {
+      try {
+        // Read user from cookie directly (middleware sets this)
+        const cookieUser = getUserFromCookie();
+        console.log('[AuthProvider] Cookie user:', cookieUser?.email);
+
+        if (!isMounted) return;
+
+        if (cookieUser) {
+          // Create minimal user object
+          setUser({ id: cookieUser.id, email: cookieUser.email } as any);
+
+          // Fetch profile
+          console.log('[AuthProvider] User found, fetching profile...');
+          const userProfile = await fetchProfile(cookieUser.id);
+          if (isMounted) {
+            console.log(
+              '[AuthProvider] Profile fetched:',
+              userProfile?.id,
+              'phone:',
+              userProfile?.phone
+            );
+            setProfile(userProfile);
+          }
+        } else {
+          console.log('[AuthProvider] No user in cookie');
+          setUser(null);
+          setSession(null);
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error('[AuthProvider] Error in initAuth:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          console.log('[AuthProvider] Setting loading to false');
+          setLoading(false);
+        }
       }
     };
 
-    initializeAuth();
+    initAuth();
 
-    // Listen for auth changes
+    // Also set up auth state change listener for login/logout events
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
+      console.log('[AuthProvider] Auth state changed:', event, session?.user?.email);
+
+      if (!isMounted) return;
 
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
         const userProfile = await fetchProfile(session.user.id);
-        setProfile(userProfile);
+        if (isMounted) {
+          setProfile(userProfile);
+        }
       } else {
         setProfile(null);
       }
@@ -219,7 +304,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('[AuthProvider] Cleanup');
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Safety check: Re-fetch profile if user exists but profile is missing
@@ -234,6 +323,98 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     recheckProfile();
   }, [user, profile, loading]);
+
+  // Check if phone is required (first login)
+  useEffect(() => {
+    console.log(
+      '[AuthProvider] Phone check - profile:',
+      profile?.id,
+      'loading:',
+      loading,
+      'phone:',
+      profile?.phone
+    );
+    if (profile && !loading) {
+      const needsPhone = !profile.phone || profile.phone.trim() === '';
+      console.log('[AuthProvider] needsPhone:', needsPhone);
+      setPhoneRequired(needsPhone);
+      if (needsPhone) {
+        console.log('[AuthProvider] Phone required - showing modal');
+      }
+    } else {
+      setPhoneRequired(false);
+    }
+  }, [profile, loading]);
+
+  // Helper for direct REST API updates (bypasses Supabase client issues)
+  const supabaseRestUpdate = async (
+    table: string,
+    accessToken: string,
+    data: Record<string, unknown>,
+    query: Record<string, string>
+  ): Promise<{ error: unknown }> => {
+    const params = new URLSearchParams(query);
+    const url = `${SUPABASE_URL}/rest/v1/${table}?${params}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { error: { message: errorText, status: response.status } };
+      }
+
+      return { error: null };
+    } catch (err) {
+      return { error: err };
+    }
+  };
+
+  // Handle phone submission from modal
+  const handlePhoneSubmit = async (phone: string) => {
+    if (!user) return;
+
+    // Get access token from cookie
+    const sessionData = getSessionDataFromCookie();
+    if (!sessionData?.access_token) {
+      throw new Error('No access token available');
+    }
+
+    console.log('[handlePhoneSubmit] Updating phone via REST API...');
+
+    const { error } = await supabaseRestUpdate(
+      'user_profiles',
+      sessionData.access_token,
+      {
+        phone: phone,
+        updated_at: new Date().toISOString(),
+      },
+      { user_id: `eq.${user.id}` }
+    );
+
+    if (error) {
+      console.error('[handlePhoneSubmit] Error:', error);
+      throw new Error((error as { message?: string }).message || 'Failed to save phone');
+    }
+
+    console.log('[handlePhoneSubmit] Phone saved, refreshing profile...');
+
+    // Refresh profile to update state
+    const userProfile = await fetchProfile(user.id);
+    setProfile(userProfile);
+    setPhoneRequired(false);
+
+    console.log('[handlePhoneSubmit] Complete!');
+  };
 
   // Sign in function
   const signIn = async (email: string, password: string) => {
@@ -371,6 +552,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     session,
     loading,
+    phoneRequired,
     signIn,
     signUp,
     signOut,
@@ -378,7 +560,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshProfile,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <PhoneRequiredModal open={phoneRequired} onSubmit={handlePhoneSubmit} />
+    </AuthContext.Provider>
+  );
 }
 
 // Custom hook to use auth context

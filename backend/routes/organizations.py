@@ -352,35 +352,8 @@ async def list_members(
         )
 
 
-@router.post("/{organization_id}/members", response_model=OrganizationMember, status_code=status.HTTP_201_CREATED)
-async def add_member_directly(
-    organization_id: str,
-    email: str,
-    role_id: UUID,
-    context: OrganizationContext = Depends(require_org_admin())
-):
-    """
-    Add a user to the organization directly (if user exists)
-    Requires admin role
-    """
-    supabase = get_supabase_client()
-
-    try:
-        # Note: Cannot query auth.users directly via REST API
-        # This endpoint should use Supabase Auth Admin API instead
-        # For now, return error asking to use invitation system
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Please use the invitation system to add members"
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add member: {str(e)}"
-        )
+# NOTE: POST /{organization_id}/members endpoint moved to routes/team.py
+# The new endpoint uses AddMemberRequest body model and creates Supabase Auth users directly
 
 
 @router.put("/{organization_id}/members/{user_id}", response_model=OrganizationMember)

@@ -1,22 +1,25 @@
-## TODO - Next Session (Session 62)
+## TODO - Next Session (Session 63)
 
-### 1. Verify Canonical Currency (USD) Outputs
-- Test end-to-end calculation with USD as internal currency
-- Verify outputs convert correctly to user's desired currency
-- Ensure audit trail is correct
+### 1. Test Dual Currency Storage End-to-End
+- Create quote and verify both USD and quote currency values are stored
+- Check `quote_calculation_summaries` has populated `*_quote` columns
+- Check `quote_calculation_results` has `phase_results_quote_currency` JSONB
+- Verify `quotes` table has exchange rate metadata and quote currency totals
 
-### 2. Start Frontend Implementation
+### 2. Investigate Organization Switching Bug
+- Bug: Customer created after switching organizations goes to wrong org
+- Likely cause: Frontend cache or backend JWT token not refreshing properly
+- Files to check: `OrganizationSwitcher.tsx`, `organization-cache.ts`, `auth.py`
+
+### 3. Start Frontend Implementation
 - Build quote creation UI based on export data structure
 - Improve input validation and error handling
 - Display calculated results clearly
 
-### 3. Full Excel Validation Test (if needed)
-- Run complete test with new templates
-- Verify all 13 calculation phases match Excel within 0.01%
-
 ---
 
 ### Completed
+- ~~Dual currency storage implementation~~ ✅ (Session 62)
 - ~~Excel validation export fixes (logistics, financing, VAT 22%)~~ ✅ (Session 61)
 - ~~Fix exchange rate display (TRY nominal, 4 decimals)~~ ✅ (Session 60)
 - ~~Fix exchange rate bug in frontend~~ ✅ (Session 53)
@@ -27,6 +30,104 @@
 - ~~Fix financing block formulas (BL4, BH9)~~ ✅ (Session 57)
 - ~~Excel validation export service~~ ✅ (Session 58)
 - ~~CI pipeline fixes~~ ✅ (Session 59)
+
+---
+
+## Session 62 (2025-12-02/03) - Dual Currency Storage Implementation ✅
+
+### Goal
+Implement dual currency storage - store all monetary values in both USD (canonical) and quote currency for audit trail and historical accuracy.
+
+### Status: COMPLETE ✅
+
+**Time:** ~2 hours
+**Commit:** c7ccfd1
+
+---
+
+### Implementation Summary
+
+**Problem:** Calculation engine computes in USD internally, but quote currency values were computed at response time and NOT persisted. This meant:
+- Exchange rates could change between calculation and viewing
+- No audit trail for client-facing documents
+- Historical quotes showed current rates, not rates at time of calculation
+
+**Solution:** Store both USD and quote currency values with exchange rate metadata.
+
+---
+
+### Database Changes (Migration 037)
+
+**File:** `backend/migrations/037_dual_currency_storage.sql`
+
+1. **`quote_calculation_summaries` table additions:**
+   - Exchange rate metadata: `quote_currency`, `usd_to_quote_rate`, `exchange_rate_source`, `exchange_rate_timestamp`
+   - Quote currency totals: `calc_s16_total_purchase_price_quote`, `calc_v16_total_logistics_quote`, `calc_ab16_cogs_total_quote`, `calc_ak16_final_price_total_quote`, `calc_al16_total_with_vat_quote`, `calc_total_brokerage_quote`, `calc_total_logistics_and_brokerage_quote`
+
+2. **`quote_calculation_results` table additions:**
+   - `phase_results_quote_currency` JSONB - Per-product results in quote currency
+
+3. **`quotes` table additions:**
+   - `usd_to_quote_rate`, `exchange_rate_source`, `exchange_rate_timestamp`
+   - `total_amount_quote`, `total_with_vat_quote`
+
+---
+
+### Backend Code Changes
+
+**File:** `backend/routes/quotes_calc.py`
+
+1. **Updated `aggregate_product_results_to_summary()`** (+50 lines)
+   - Added parameters: `quote_currency`, `usd_to_quote_rate`, `exchange_rate_source`, `exchange_rate_timestamp`
+   - Calculates and stores quote currency totals alongside USD totals
+
+2. **Updated quote save logic** (+20 lines)
+   - Stores exchange rate metadata on quote record
+   - Stores `total_amount_quote` and `total_with_vat_quote`
+
+3. **Updated results insert** (+10 lines)
+   - Populates `phase_results_quote_currency` JSONB with per-product values in quote currency
+
+---
+
+### How It Works
+
+1. **At calculation time:**
+   - Calculate all values in USD (canonical)
+   - Fetch current exchange rate (USD → quote currency)
+   - Multiply USD values by rate to get quote currency values
+   - Store BOTH values with exchange rate metadata
+
+2. **For historical quotes:**
+   - Quote currency values are preserved exactly as calculated
+   - Exchange rate at time of calculation is recorded
+   - Audit trail shows which source (CBR/manual) was used
+
+---
+
+### Bug Found: Organization Switching
+
+**Issue:** Customer created after switching organizations was saved to wrong organization.
+
+**Investigation Results:**
+- User switched from "Ромашка" to "Мастер Бэринг" in UI
+- Created customer "testclient"
+- Customer was saved to "Ромашка" instead of "Мастер Бэринг"
+
+**Root Cause:** Likely frontend cache (`organization-cache.ts`) or JWT token not properly refreshing after org switch.
+
+**Workaround:** Manually moved customer to correct org via SQL.
+
+**TODO:** Investigate and fix in Session 63.
+
+---
+
+### Files Changed
+
+| File | Lines | Change |
+|------|-------|--------|
+| `backend/migrations/037_dual_currency_storage.sql` | +94 | New migration for dual currency columns |
+| `backend/routes/quotes_calc.py` | +78/-8 | Store quote currency values and exchange rate metadata |
 
 ---
 
