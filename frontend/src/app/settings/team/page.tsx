@@ -43,8 +43,7 @@ import {
   getRoleDisplayName,
   canModifyMember,
 } from '@/lib/api/team-service';
-import { organizationService } from '@/lib/api/organization-service';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
 dayjs.locale('ru');
 
@@ -52,6 +51,7 @@ const { Title, Text } = Typography;
 
 export default function TeamManagementPage() {
   const { message } = App.useApp();
+  const { user, profile, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -73,34 +73,17 @@ export default function TeamManagementPage() {
     isReset: boolean;
   } | null>(null);
 
-  // Fetch current user and organization
+  // Use current organization from auth context (profile.organization_id)
+  // This ensures we use the same org that the user is currently working in
   useEffect(() => {
-    const fetchCurrentUser = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        setCurrentUserId(user.id);
-
-        // Get user's organizations from API
-        const result = await organizationService.listOrganizations();
-
-        if (result.success && result.data && result.data.length > 0) {
-          // Use the first organization's ID
-          const orgId = result.data[0].organization_id;
-          setOrganizationId(orgId);
-          // Pass user.id directly to avoid React state timing issues
-          loadData(orgId, user.id);
-        } else {
-          message.error('Организация не найдена. Пожалуйста, обратитесь к администратору.');
-        }
-      }
-    };
-
-    fetchCurrentUser();
-  }, []);
+    if (!authLoading && user && profile?.organization_id) {
+      setCurrentUserId(user.id);
+      setOrganizationId(profile.organization_id);
+      loadData(profile.organization_id, user.id);
+    } else if (!authLoading && user && !profile?.organization_id) {
+      message.error('Организация не найдена. Пожалуйста, обратитесь к администратору.');
+    }
+  }, [authLoading, user, profile?.organization_id]);
 
   const loadData = async (orgId: string, userId?: string) => {
     setLoading(true);

@@ -168,9 +168,9 @@ async def list_quotes(
         # Build query with joins, exclude soft-deleted quotes
         # Explicitly list fields to ensure new columns are included
         query = supabase.table("quotes").select(
-            "id, quote_number, customer_id, title, description, status, workflow_state, "
+            "id, quote_number, customer_id, created_by, title, description, status, workflow_state, "
             "quote_date, valid_until, currency, "
-            "subtotal, tax_rate, tax_amount, total_amount, total_usd, "
+            "subtotal, tax_rate, tax_amount, total_amount, total_with_vat_quote, total_usd, "
             "total_profit_usd, total_vat_on_import_usd, total_vat_payable_usd, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
             "customers(name)",
@@ -232,6 +232,22 @@ async def list_quotes(
         total = result.count if result.count is not None else 0
         total_pages = (total + limit - 1) // limit if total > 0 else 0
 
+        # Collect unique creator IDs to fetch names
+        creator_ids = list(set(
+            quote.get("created_by") for quote in result.data
+            if quote.get("created_by")
+        ))
+
+        # Batch fetch creator names from user_profiles
+        creator_names = {}
+        if creator_ids:
+            profiles_result = supabase.table("user_profiles").select(
+                "user_id, full_name"
+            ).in_("user_id", creator_ids).execute()
+
+            for profile in (profiles_result.data or []):
+                creator_names[profile["user_id"]] = profile.get("full_name", "")
+
         # Transform data for response
         quotes_data = []
         for quote in result.data:
@@ -240,14 +256,20 @@ async def list_quotes(
             if quote.get("customers"):
                 customer_name = quote["customers"].get("name", "") if isinstance(quote["customers"], dict) else ""
 
+            # Get creator name from batch-fetched profiles
+            created_by = quote.get("created_by")
+            created_by_name = creator_names.get(created_by, "") if created_by else ""
+
             quotes_data.append({
                 "id": quote["id"],
                 "quote_number": quote["quote_number"],
                 "customer_name": customer_name,
+                "created_by_name": created_by_name,
                 "title": quote.get("title", ""),
                 "status": quote["status"],
                 "workflow_state": quote.get("workflow_state", "draft"),
                 "total_amount": quote.get("total_amount", 0),
+                "total_with_vat_quote": quote.get("total_with_vat_quote"),
                 "total_usd": quote.get("total_usd"),
                 "total_profit_usd": quote.get("total_profit_usd"),
                 "currency": quote.get("currency", "USD"),
