@@ -388,75 +388,17 @@ export default function QuoteDetailPage() {
   const exportMenuItems = useMemo(
     () => [
       {
-        key: 'pdf-group',
-        label: 'PDF Экспорт',
-        type: 'group' as const,
-        children: [
-          {
-            key: 'pdf-supply',
-            label: 'КП поставка (9 колонок)',
-            onClick: () => handleExport('supply', 'pdf'),
-          },
-          {
-            key: 'pdf-openbook',
-            label: 'КП open book (21 колонка)',
-            onClick: () => handleExport('openbook', 'pdf'),
-          },
-          {
-            key: 'pdf-supply-letter',
-            label: 'КП поставка письмо',
-            onClick: () => handleExport('supply-letter', 'pdf'),
-          },
-          {
-            key: 'pdf-openbook-letter',
-            label: 'КП open book письмо',
-            onClick: () => handleExport('openbook-letter', 'pdf'),
-          },
-          {
-            key: 'pdf-invoice',
-            label: 'Счет (Invoice)',
-            onClick: () => handleExport('invoice', 'pdf'),
-          },
-        ],
+        key: 'excel-validation',
+        label: 'Экспорт для проверки',
+        onClick: () => handleExport('validation', 'excel'),
       },
-      { type: 'divider' as const },
       {
-        key: 'excel-group',
-        label: 'Excel Экспорт',
-        type: 'group' as const,
-        children: [
-          {
-            key: 'excel-validation',
-            label: 'Проверка расчетов',
-            onClick: () => handleExport('validation', 'excel'),
-          },
-          {
-            key: 'excel-supply-grid',
-            label: 'КП поставка (9 колонок)',
-            onClick: () => handleExport('supply-grid', 'excel'),
-          },
-          {
-            key: 'excel-openbook-grid',
-            label: 'КП open book (21 колонка)',
-            onClick: () => handleExport('openbook-grid', 'excel'),
-          },
-        ],
-      },
-      { type: 'divider' as const },
-      {
-        key: 'debug-group',
-        label: 'Debug',
-        type: 'group' as const,
-        children: [
-          {
-            key: 'debug-calculation',
-            label: 'Расчеты в USD (CSV)',
-            onClick: handleDebugExport,
-          },
-        ],
+        key: 'pdf-invoice',
+        label: 'Счет (Invoice)',
+        onClick: () => handleExport('invoice', 'pdf'),
       },
     ],
-    [handleExport, handleDebugExport]
+    [handleExport]
   );
 
   const getStatusTag = (status: string) => {
