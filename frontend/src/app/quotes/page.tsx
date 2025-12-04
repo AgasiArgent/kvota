@@ -358,6 +358,12 @@ export default function QuotesPage() {
       label: 'КП open book — письмо',
       onClick: () => handleExport(quoteId, 'openbook-letter'),
     },
+    { type: 'divider' },
+    {
+      key: 'invoice',
+      label: 'Счет (Invoice)',
+      onClick: () => handleExport(quoteId, 'invoice'),
+    },
   ];
 
   // Products popover state
