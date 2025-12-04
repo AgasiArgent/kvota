@@ -15,6 +15,120 @@ from weasyprint import HTML, CSS
 from models import Quote, QuoteItem, Customer, QuoteWithItems
 
 
+# ============================================================================
+# RUSSIAN NUMBER TO WORDS
+# ============================================================================
+
+def number_to_words_ru(number: float, currency: str = 'RUB') -> str:
+    """
+    Convert a number to Russian words with currency.
+
+    Args:
+        number: The amount to convert
+        currency: Currency code (RUB, EUR, USD, etc.)
+
+    Returns:
+        String like "двадцать восемь тысяч пятьсот семьдесят шесть евро 06 центов"
+    """
+    # Define word forms
+    ones = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять']
+    ones_fem = ['', 'одна', 'две', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять']
+    teens = ['десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать',
+             'пятнадцать', 'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать']
+    tens = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят',
+            'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто']
+    hundreds = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот',
+                'шестьсот', 'семьсот', 'восемьсот', 'девятьсот']
+
+    # Currency forms [1, 2-4, 5+] and gender (True = feminine)
+    currency_forms = {
+        'RUB': (['рубль', 'рубля', 'рублей'], ['копейка', 'копейки', 'копеек'], False, True),
+        'EUR': (['евро', 'евро', 'евро'], ['цент', 'цента', 'центов'], False, False),
+        'USD': (['доллар', 'доллара', 'долларов'], ['цент', 'цента', 'центов'], False, False),
+        'TRY': (['лира', 'лиры', 'лир'], ['куруш', 'куруша', 'курушей'], True, False),
+        'CNY': (['юань', 'юаня', 'юаней'], ['фэнь', 'фэня', 'фэней'], False, False),
+    }
+
+    def get_form(n: int, forms: list) -> str:
+        """Get correct word form based on number"""
+        if 11 <= n % 100 <= 19:
+            return forms[2]
+        elif n % 10 == 1:
+            return forms[0]
+        elif 2 <= n % 10 <= 4:
+            return forms[1]
+        else:
+            return forms[2]
+
+    def convert_group(n: int, feminine: bool = False) -> str:
+        """Convert a 3-digit group to words"""
+        if n == 0:
+            return ''
+
+        result = []
+
+        # Hundreds
+        if n >= 100:
+            result.append(hundreds[n // 100])
+            n %= 100
+
+        # Tens and ones
+        if 10 <= n <= 19:
+            result.append(teens[n - 10])
+        else:
+            if n >= 10:
+                result.append(tens[n // 10])
+                n %= 10
+            if n > 0:
+                if feminine:
+                    result.append(ones_fem[n])
+                else:
+                    result.append(ones[n])
+
+        return ' '.join(filter(None, result))
+
+    # Get currency info
+    main_forms, cent_forms, main_fem, cent_fem = currency_forms.get(
+        currency, (['единица', 'единицы', 'единиц'], ['сотая', 'сотых', 'сотых'], True, True)
+    )
+
+    # Split into integer and decimal parts
+    integer_part = int(abs(number))
+    decimal_part = int(round((abs(number) - integer_part) * 100))
+
+    if integer_part == 0:
+        words = ['ноль']
+    else:
+        words = []
+
+        # Millions
+        if integer_part >= 1000000:
+            millions = integer_part // 1000000
+            words.append(convert_group(millions, False))
+            words.append(get_form(millions, ['миллион', 'миллиона', 'миллионов']))
+            integer_part %= 1000000
+
+        # Thousands (feminine in Russian)
+        if integer_part >= 1000:
+            thousands = integer_part // 1000
+            words.append(convert_group(thousands, True))
+            words.append(get_form(thousands, ['тысяча', 'тысячи', 'тысяч']))
+            integer_part %= 1000
+
+        # Remainder (use main currency gender)
+        if integer_part > 0:
+            words.append(convert_group(integer_part, main_fem))
+
+    # Add main currency
+    words.append(get_form(int(abs(number)), main_forms))
+
+    # Add cents
+    words.append(f'{decimal_part:02d}')
+    words.append(get_form(decimal_part, cent_forms))
+
+    return ' '.join(filter(None, words))
+
+
 def parse_iso_date(value) -> str:
     """
     Parse ISO date string to DD.MM.YYYY format.
@@ -1123,6 +1237,186 @@ body {
 
         # Render HTML template
         html = self.render_template('openbook_letter.html', context)
+
+        # Convert to PDF
+        return self.html_to_pdf(html)
+
+    def generate_invoice_pdf(self, export_data) -> bytes:
+        """
+        Generate Счет (Invoice) PDF - Russian standard commercial invoice.
+
+        Features:
+        - Master Bearing branding and bank details
+        - Quote validity date display
+        - Amount in Russian words
+        - Multi-currency support (EUR, USD, RUB, etc.)
+        - Professional layout matching Russian business standards
+
+        Args:
+            export_data: ExportData object from export_data_mapper
+
+        Returns:
+            PDF bytes
+        """
+        from services.export_data_mapper import get_manager_info, format_payment_terms, format_delivery_description, get_currency_symbol
+
+        # Get helper info
+        manager = get_manager_info(export_data)
+
+        # Get currency info
+        currency_code = export_data.quote.get('currency') or export_data.variables.get('currency_of_quote', 'RUB')
+        currency_symbol = get_currency_symbol(currency_code)
+
+        # Master Bearing company info (hardcoded for now)
+        seller_info = {
+            'company': 'ООО "МАСТЕР БЭРИНГ"',
+            'inn': '0242013464',
+            'kpp': '772101001',
+            'address': '109428, г. Москва, вн.тер.г. муниципальный округ Рязанский, пр-кт Рязанский, д. 22, к. 2, помещ. 1/1.',
+            'phone': '8 (800) 350-21-34 (многоканальный)',
+        }
+
+        # Get customer info
+        customer = export_data.customer or {}
+
+        # Build invoice number from quote number
+        quote_number = export_data.quote.get('quote_number', '')
+
+        # Parse dates
+        quote_date = parse_iso_date(export_data.quote.get('created_at', ''))
+        valid_until = parse_iso_date(export_data.quote.get('valid_until')) if export_data.quote.get('valid_until') else None
+
+        # CEO info (hardcoded for Master Bearing)
+        ceo_title = 'Генеральный директор'
+        ceo_name = 'Доленко-Дольская Е.В.'
+
+        # Calculate VAT rate based on delivery date (valid_until)
+        # Russia VAT: 20% for deliveries before 2025, 22% for 2025+
+        vat_rate = 20
+        if valid_until:
+            try:
+                from datetime import datetime
+                # valid_until is already formatted as DD.MM.YYYY
+                delivery_year = int(valid_until.split('.')[-1])
+                if delivery_year >= 2025:
+                    vat_rate = 22
+            except (ValueError, IndexError):
+                pass  # Keep default 20%
+
+        # Logo as base64 data URI for WeasyPrint
+        logo_file = os.path.join(os.path.dirname(__file__), 'templates', 'mb_logo.webp')
+        try:
+            import base64
+            with open(logo_file, 'rb') as f:
+                logo_data = base64.b64encode(f.read()).decode('utf-8')
+            logo_path = f'data:image/webp;base64,{logo_data}'
+        except Exception:
+            logo_path = ''  # Fallback if logo can't be loaded
+
+        # Calculate totals from calculation_results (stored in quote_calculation_results.phase_results)
+        totals = {
+            'subtotal': Decimal('0'),
+            'vat': Decimal('0'),
+            'total_with_vat': Decimal('0'),
+        }
+
+        items_list = []
+        for item in export_data.items:
+            calc = item.get('calculation_results', {}) or {}
+            quantity = item.get('quantity', 0)
+
+            # Get prices from phase_results (calculation engine output)
+            # Fields: sales_price_per_unit_no_vat, sales_price_total_no_vat, vat_from_sales, sales_price_total_with_vat
+            price_no_vat = Decimal(str(calc.get('sales_price_per_unit_no_vat', 0)))
+            amount_no_vat = Decimal(str(calc.get('sales_price_total_no_vat', 0)))
+            vat_amount = Decimal(str(calc.get('vat_from_sales', 0)))
+            amount_with_vat = Decimal(str(calc.get('sales_price_total_with_vat', 0)))
+
+            items_list.append({
+                'product_name': item.get('product_name', ''),
+                'quantity': quantity,
+                'price_no_vat': self.format_russian_number(price_no_vat),
+                'amount_no_vat': self.format_russian_number(amount_no_vat),
+            })
+
+            totals['subtotal'] += amount_no_vat
+            totals['vat'] += vat_amount
+            totals['total_with_vat'] += amount_with_vat
+
+        # If no calculation results, use quote totals
+        if totals['subtotal'] == 0:
+            totals['subtotal'] = Decimal(str(export_data.quote.get('subtotal', 0)))
+            totals['total_with_vat'] = Decimal(str(export_data.quote.get('total_amount', 0)))
+            totals['vat'] = totals['total_with_vat'] - totals['subtotal']
+
+        # Format payment terms
+        payment_terms = format_payment_terms(export_data.variables)
+
+        # Delivery time
+        delivery_time = export_data.variables.get('delivery_time', 60)
+
+        # Price includes description
+        price_includes = format_delivery_description(export_data.variables)
+
+        # Number to words
+        total_in_words = number_to_words_ru(float(totals['total_with_vat']), currency_code)
+
+        # Build context
+        context = {
+            # Logo
+            'logo_path': logo_path,
+
+            # Invoice info
+            'invoice_number': quote_number,
+            'invoice_date': quote_date,
+            'valid_until': valid_until,
+
+            # Seller info
+            'seller_company': seller_info['company'],
+            'seller_inn': seller_info['inn'],
+            'seller_kpp': seller_info['kpp'],
+            'seller_address': seller_info['address'],
+            'seller_phone': seller_info['phone'],
+
+            # Customer info
+            'customer_name': customer.get('name', export_data.quote.get('customer_name', '')),
+            'customer_inn': customer.get('inn', ''),
+            'customer_kpp': customer.get('kpp', ''),
+            'customer_address': customer.get('address', ''),
+            'customer_phone': customer.get('phone', ''),
+
+            # Currency
+            'currency_code': currency_code,
+            'currency_symbol': currency_symbol,
+
+            # Items
+            'items': items_list,
+            'items_count': len(items_list),
+
+            # Totals
+            'subtotal': self.format_russian_number(totals['subtotal']),
+            'vat_rate': vat_rate,
+            'vat_amount': self.format_russian_number(totals['vat']),
+            'total_with_vat': self.format_russian_number(totals['total_with_vat']),
+            'total_in_words': total_in_words,
+
+            # Terms
+            'payment_terms': payment_terms,
+            'delivery_time': delivery_time,
+            'price_includes': price_includes,
+
+            # Signature
+            'ceo_title': ceo_title,
+            'ceo_name': ceo_name,
+
+            # Manager contact
+            'manager_name': manager.get('name', ''),
+            'manager_phone': manager.get('phone', ''),
+            'manager_email': manager.get('email', ''),
+        }
+
+        # Render HTML template
+        html = self.render_template('invoice.html', context)
 
         # Convert to PDF
         return self.html_to_pdf(html)

@@ -1877,7 +1877,7 @@ async def generate_quote_pdf(
 @router.get("/{quote_id}/export/pdf")
 async def export_quote_pdf(
     quote_id: UUID,
-    format: str = Query(..., regex="^(supply|openbook|supply-letter|openbook-letter)$"),
+    format: str = Query(..., regex="^(supply|openbook|supply-letter|openbook-letter|invoice)$"),
     user: User = Depends(get_current_user)
 ):
     """
@@ -1888,6 +1888,7 @@ async def export_quote_pdf(
     - openbook: КП open book (21-column detailed quote)
     - supply-letter: КП поставка письмо (formal letter + 9-column grid)
     - openbook-letter: КП open book письмо (formal letter + 21-column grid)
+    - invoice: Счет (Russian standard commercial invoice)
     """
     import tempfile
     from fastapi.responses import FileResponse
@@ -1911,6 +1912,9 @@ async def export_quote_pdf(
         elif format == "supply-letter":
             pdf_bytes = pdf_service.generate_supply_letter_pdf(export_data)
             format_name = "supply_letter"
+        elif format == "invoice":
+            pdf_bytes = pdf_service.generate_invoice_pdf(export_data)
+            format_name = "invoice"
         else:  # openbook-letter
             pdf_bytes = pdf_service.generate_openbook_letter_pdf(export_data)
             format_name = "openbook_letter"
