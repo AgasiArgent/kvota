@@ -337,28 +337,6 @@ export default function QuotesPage() {
       label: 'Экспорт для проверки',
       onClick: () => handleExport(quoteId, 'validation'),
     },
-    { type: 'divider' },
-    {
-      key: 'supply',
-      label: 'КП поставка',
-      onClick: () => handleExport(quoteId, 'supply'),
-    },
-    {
-      key: 'supply-letter',
-      label: 'КП поставка — письмо',
-      onClick: () => handleExport(quoteId, 'supply-letter'),
-    },
-    {
-      key: 'openbook',
-      label: 'КП open book',
-      onClick: () => handleExport(quoteId, 'openbook'),
-    },
-    {
-      key: 'openbook-letter',
-      label: 'КП open book — письмо',
-      onClick: () => handleExport(quoteId, 'openbook-letter'),
-    },
-    { type: 'divider' },
     {
       key: 'invoice',
       label: 'Счет (Invoice)',
