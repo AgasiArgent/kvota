@@ -412,6 +412,11 @@ export default function QuoteDetailPage() {
             label: 'КП open book письмо',
             onClick: () => handleExport('openbook-letter', 'pdf'),
           },
+          {
+            key: 'pdf-invoice',
+            label: 'Счет (Invoice)',
+            onClick: () => handleExport('invoice', 'pdf'),
+          },
         ],
       },
       { type: 'divider' as const },
