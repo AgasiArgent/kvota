@@ -130,6 +130,7 @@ async def list_quotes(
     quote_status: Optional[str] = Query(None, description="Filter by quote status (deprecated, use workflow_state)"),
     workflow_state: Optional[str] = Query(None, description="Filter by workflow state"),
     customer_id: Optional[UUID] = Query(None, description="Filter by customer"),
+    created_by: Optional[UUID] = Query(None, description="Filter by quote author (created_by user ID)"),
     date_from: Optional[date] = Query(None, description="Filter quotes from date"),
     date_to: Optional[date] = Query(None, description="Filter quotes to date"),
     currency: Optional[str] = Query(None, description="Filter by currency"),
@@ -167,6 +168,8 @@ async def list_quotes(
             query = query.eq("status", quote_status)
         if customer_id:
             query = query.eq("customer_id", str(customer_id))
+        if created_by:
+            query = query.eq("created_by", str(created_by))
         if date_from:
             query = query.gte("quote_date", date_from.isoformat())
         if date_to:
