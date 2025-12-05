@@ -151,7 +151,7 @@ async def list_quotes(
         query = supabase.table("quotes").select(
             "id, quote_number, customer_id, created_by, title, description, status, workflow_state, "
             "quote_date, valid_until, currency, "
-            "subtotal, tax_rate, tax_amount, total_amount, total_with_vat_quote, total_usd, "
+            "subtotal, tax_rate, tax_amount, total_amount, total_with_vat_quote, total_with_vat_usd, total_usd,"
             "total_profit_usd, total_vat_on_import_usd, total_vat_payable_usd, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
             "customers(name)",
@@ -251,6 +251,7 @@ async def list_quotes(
                 "workflow_state": quote.get("workflow_state", "draft"),
                 "total_amount": quote.get("total_amount", 0),
                 "total_with_vat_quote": quote.get("total_with_vat_quote"),
+                "total_with_vat_usd": quote.get("total_with_vat_usd"),
                 "total_usd": quote.get("total_usd"),
                 "total_profit_usd": quote.get("total_profit_usd"),
                 "currency": quote.get("currency", "USD"),

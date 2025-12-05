@@ -249,59 +249,53 @@ def get_value(field_name: str, product: ProductFromFile, variables: Dict[str, An
     return default
 
 
-def get_exchange_rate(from_currency: str, to_currency: str, supabase: Client) -> Decimal:
-    """Get exchange rate from database.
+async def get_exchange_rate_async(from_currency: str, to_currency: str) -> Decimal:
+    """Get exchange rate from in-memory CBR cache.
+
+    Uses ExchangeRateService which caches CBR rates in memory (refreshed daily at 12:05 MSK).
+    No database queries - instant lookup.
+
     Returns rate to multiply by (e.g., 1 USD = 100 RUB means rate is 100)
     """
+    # Same currency shortcut
+    if from_currency == to_currency:
+        return Decimal("1.0")
 
-    # Try direct rate (from_currency -> to_currency)
-    result = supabase.table("exchange_rates")\
-        .select("rate")\
-        .eq("from_currency", from_currency)\
-        .eq("to_currency", to_currency)\
-        .order("fetched_at", desc=True)\
-        .limit(1)\
-        .execute()
+    from services.exchange_rate_service import get_exchange_rate_service
+    service = get_exchange_rate_service()
 
-    if result.data:
-        return Decimal(str(result.data[0]["rate"]))
+    # get_rate handles cross-rates via RUB automatically
+    rate = await service.get_rate(from_currency, to_currency)
 
-    # Try reverse rate (to_currency -> from_currency)
-    result = supabase.table("exchange_rates")\
-        .select("rate")\
-        .eq("from_currency", to_currency)\
-        .eq("to_currency", from_currency)\
-        .order("fetched_at", desc=True)\
-        .limit(1)\
-        .execute()
+    if rate is None:
+        logger.warning(f"No exchange rate found for {from_currency} -> {to_currency}, using 1.0")
+        return Decimal("1.0")
 
-    if result.data:
-        return Decimal("1") / Decimal(str(result.data[0]["rate"]))
+    return rate
 
-    # Try via RUB (from_currency -> RUB -> to_currency)
-    from_to_rub = supabase.table("exchange_rates")\
-        .select("rate")\
-        .eq("from_currency", from_currency)\
-        .eq("to_currency", "RUB")\
-        .order("fetched_at", desc=True)\
-        .limit(1)\
-        .execute()
 
-    to_to_rub = supabase.table("exchange_rates")\
-        .select("rate")\
-        .eq("from_currency", to_currency)\
-        .eq("to_currency", "RUB")\
-        .order("fetched_at", desc=True)\
-        .limit(1)\
-        .execute()
+def get_exchange_rate(from_currency: str, to_currency: str, supabase: Client) -> Decimal:
+    """Synchronous wrapper for get_exchange_rate_async.
 
-    if from_to_rub.data and to_to_rub.data:
-        from_rate = Decimal(str(from_to_rub.data[0]["rate"]))
-        to_rate = Decimal(str(to_to_rub.data[0]["rate"]))
-        return from_rate / to_rate
+    DEPRECATED: Use get_exchange_rate_async directly in async contexts.
+    This wrapper exists for backward compatibility with sync code paths.
+    """
+    # Same currency shortcut (no async needed)
+    if from_currency == to_currency:
+        return Decimal("1.0")
 
-    logger.warning(f"No exchange rate found for {from_currency} -> {to_currency}, using 1.0")
-    return Decimal("1.0")
+    # Run async function in event loop
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        # We're in an async context, create a task
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, get_exchange_rate_async(from_currency, to_currency))
+            return future.result()
+    except RuntimeError:
+        # No running loop, we can use asyncio.run directly
+        return asyncio.run(get_exchange_rate_async(from_currency, to_currency))
 
 
 def get_converted_monetary_value(
@@ -422,27 +416,20 @@ def map_variables_to_calculation_input(
     # e.g., for RUB: Q16 = 78.25 (78.25 RUB = 1 USD), so 1000 RUB / 78.25 = 12.77 USD
     # e.g., for EUR: Q16 = 0.86 (0.86 EUR = 1 USD), so 1000 EUR / 0.86 = 1163 USD
 
-    # Check for product-level exchange rate override first
-    # This allows using Excel rates for validation (matching Q16 exactly)
-    product_exchange_rate = get_value('exchange_rate_base_price_to_quote', product, variables, None)
+    # Always use CBR exchange rate from in-memory cache
+    # Frontend may send exchange_rate_base_price_to_quote but we ignore it
+    # This ensures correct currency conversion using daily CBR rates
+    base_currency = product_info.currency_of_base_price.value
 
-    if product_exchange_rate is not None:
-        # Use provided exchange rate directly (already in Q16 divisor format)
-        exchange_rate_for_phase1 = safe_decimal(product_exchange_rate)
-        logger.info(f"Using manual exchange rate override: {exchange_rate_for_phase1}")
-    else:
-        # Fall back to database rates (CBR)
-        if supabase is None:
-            raise ValueError("supabase client required for exchange rate lookup when no manual rate provided")
-        # get_exchange_rate returns multiplier format, so we invert it for Phase 1
-        rate_multiplier = get_exchange_rate(
-            product_info.currency_of_base_price.value,  # from_currency (e.g., EUR)
-            "USD",  # to_currency (always USD)
-            supabase
-        )
-        # Invert to get divisor format for Phase 1
-        exchange_rate_for_phase1 = Decimal("1") / rate_multiplier if rate_multiplier > 0 else Decimal("1")
-        logger.info(f"Using CBR exchange rate: {exchange_rate_for_phase1} (1/{rate_multiplier})")
+    # get_exchange_rate returns multiplier format (e.g., EUR->USD = 1.08)
+    # Phase 1 needs divisor format: R16 = P16 / Q16
+    rate_multiplier = get_exchange_rate(base_currency, "USD", supabase)
+
+    # Invert to get divisor format for Phase 1
+    # e.g., if EUR->USD = 1.08, then Q16 = 1/1.08 = 0.926
+    # So 100 EUR / 0.926 = 108 USD (correct conversion)
+    exchange_rate_for_phase1 = Decimal("1") / rate_multiplier if rate_multiplier > 0 else Decimal("1")
+    logger.info(f"Using CBR exchange rate for {base_currency}->USD: {exchange_rate_for_phase1} (1/{rate_multiplier})")
 
     financial = FinancialParams(
         currency_of_quote=Currency("USD"),  # Always USD for internal calculation
@@ -1532,7 +1519,8 @@ async def calculate_quote(
         total_vat_payable_usd = Decimal("0")
 
         # Get quote currency conversion rate (USD -> quote currency)
-        client_quote_currency = request.variables.get('currency_of_quote', 'USD')
+        # Use 'or' to handle None values (dict.get returns None if key exists with None value)
+        client_quote_currency = request.variables.get('currency_of_quote') or 'USD'
         usd_to_quote_rate = get_exchange_rate("USD", client_quote_currency, supabase)
         rates_snapshot = get_rates_snapshot_to_usd(request.quote_date, supabase)
 
@@ -1634,13 +1622,16 @@ async def calculate_quote(
                 )
 
         # 8. Update quote totals (USD + quote currency)
-        # Calculate quote currency totals
+        # Calculate totals
+        total_with_vat_usd = sum(r.sales_price_total_with_vat for r in results_list)  # AL16 sum in USD
         total_amount_quote = total_amount * usd_to_quote_rate
-        total_with_vat_quote = sum(r.sales_price_total_with_vat for r in results_list) * usd_to_quote_rate
+        total_with_vat_quote = total_with_vat_usd * usd_to_quote_rate
 
         supabase.table("quotes").update({
             "subtotal": float(total_subtotal),
             "total_amount": float(total_amount),
+            "total_usd": float(total_amount),  # AK16 sum - without VAT in USD
+            "total_with_vat_usd": float(total_with_vat_usd),  # AL16 sum - with VAT in USD
             "total_profit_usd": float(total_profit_usd),
             "total_vat_on_import_usd": float(total_vat_on_import_usd),
             "total_vat_payable_usd": float(total_vat_payable_usd),
