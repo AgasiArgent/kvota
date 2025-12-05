@@ -76,7 +76,13 @@ export default function QuotesPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [authorFilter, setAuthorFilter] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
+
+  // Team members for author filter
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [authorFilterInitialized, setAuthorFilterInitialized] = useState(false);
 
   // Submit modal state
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
@@ -90,14 +96,69 @@ export default function QuotesPage() {
 
   const quoteService = new QuoteService();
 
+  // Fetch team members for author filter on load
+  useEffect(() => {
+    if (profile?.organization_id && !loadingMembers && teamMembers.length === 0) {
+      fetchTeamMembers();
+    }
+  }, [profile?.organization_id]);
+
+  // Pre-select current user once team members are loaded
+  useEffect(() => {
+    if (teamMembers.length > 0 && profile?.id && !authorFilterInitialized) {
+      // Pre-select current user in author filter
+      setAuthorFilter(profile.id);
+      setAuthorFilterInitialized(true);
+    }
+  }, [teamMembers, profile?.id, authorFilterInitialized]);
+
   useEffect(() => {
     console.log('[useEffect] Triggered - profile:', profile?.organization_id, 'page:', currentPage);
-    if (profile?.organization_id) {
+    if (profile?.organization_id && authorFilterInitialized) {
       fetchQuotes();
     } else {
-      console.log('[useEffect] BLOCKED - no organization_id');
+      console.log('[useEffect] BLOCKED - no organization_id or author filter not initialized');
     }
-  }, [currentPage, pageSize, searchTerm, statusFilter, dateRange, profile]);
+  }, [
+    currentPage,
+    pageSize,
+    searchTerm,
+    statusFilter,
+    authorFilter,
+    dateRange,
+    profile,
+    authorFilterInitialized,
+  ]);
+
+  const fetchTeamMembers = async () => {
+    if (!profile?.organization_id) return;
+    setLoadingMembers(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(
+        `${config.apiUrl}/api/organizations/${profile.organization_id}/members`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Map to simpler format for dropdown
+        const members = data.map((m: any) => ({
+          id: m.user_id,
+          name: m.user_full_name || m.user_email,
+        }));
+        setTeamMembers(members);
+      }
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
 
   const fetchQuotes = async () => {
     console.log(
@@ -119,6 +180,9 @@ export default function QuotesPage() {
       if (dateRange) {
         filters.date_from = dateRange[0].format('YYYY-MM-DD');
         filters.date_to = dateRange[1].format('YYYY-MM-DD');
+      }
+      if (authorFilter) {
+        filters.created_by = authorFilter;
       }
 
       const organizationId = profile?.organization_id || '';
@@ -753,7 +817,7 @@ export default function QuotesPage() {
         {/* Filters */}
         <Card>
           <Row gutter={[16, 16]}>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={6}>
               <Search
                 placeholder="Поиск по номеру, клиенту..."
                 allowClear
@@ -771,7 +835,7 @@ export default function QuotesPage() {
                 }}
               />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={6}>
               <Select
                 placeholder="Статус"
                 allowClear
@@ -796,7 +860,25 @@ export default function QuotesPage() {
                 ]}
               />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={6}>
+              <Select
+                placeholder="Автор"
+                allowClear
+                size="large"
+                style={{ width: '100%' }}
+                value={authorFilter}
+                loading={loadingMembers}
+                onChange={(value) => {
+                  setAuthorFilter(value);
+                  setCurrentPage(1);
+                }}
+                options={teamMembers.map((m) => ({
+                  label: m.name,
+                  value: m.id,
+                }))}
+              />
+            </Col>
+            <Col xs={24} md={6}>
               <RangePicker
                 size="large"
                 style={{ width: '100%' }}

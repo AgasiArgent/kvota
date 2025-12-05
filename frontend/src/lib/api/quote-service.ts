@@ -201,6 +201,7 @@ export class QuoteService extends BaseApiService {
       if (filters?.workflow_state)
         params.append('workflow_state', filters.workflow_state as string);
       if (filters?.customer_id) params.append('customer_id', filters.customer_id as string);
+      if (filters?.created_by) params.append('created_by', filters.created_by as string);
       if (filters?.date_from) params.append('date_from', filters.date_from as string);
       if (filters?.date_to) params.append('date_to', filters.date_to as string);
       if (filters?.search) params.append('search', filters.search as string);
