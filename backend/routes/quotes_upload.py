@@ -792,7 +792,29 @@ async def upload_excel_with_validation_export(
                 quote_number = generate_quote_number(supabase, str(user.current_organization_id))
 
                 # Get exchange rates snapshot for audit
-                rates_snapshot = get_rates_snapshot_to_usd(date.today())
+                rates_snapshot = get_rates_snapshot_to_usd(date.today(), supabase)
+
+                # Calculate VAT totals
+                total_vat_on_import = sum(r.vat_on_import for r in calc_results)
+                total_vat_payable = sum(r.vat_net_payable for r in calc_results)
+
+                # Get quote currency to USD conversion rate
+                # Calculation engine outputs in QUOTE CURRENCY, we need to convert to USD
+                quote_currency = parsed_data.quote_currency.value
+                if quote_currency == "USD":
+                    quote_to_usd_rate = Decimal("1.0")
+                else:
+                    # rates contains {currency}/RUB rates
+                    # quote_to_usd = quote_currency/RUB ÷ USD/RUB
+                    usd_rub = rates.get("USD/RUB", Decimal("1.0"))
+                    quote_rub = rates.get(f"{quote_currency}/RUB", Decimal("1.0"))
+                    quote_to_usd_rate = quote_rub / usd_rub if usd_rub else Decimal("1.0")
+
+                # Convert from quote currency to USD
+                # total_revenue_* values are already in quote currency from calc engine
+                total_revenue_no_vat_usd = total_revenue_no_vat * quote_to_usd_rate
+                total_revenue_with_vat_usd = total_revenue_with_vat * quote_to_usd_rate
+                total_profit_usd = total_profit * quote_to_usd_rate
 
                 # 1. Create quote record
                 quote_data = {
@@ -804,9 +826,18 @@ async def upload_excel_with_validation_export(
                     "created_by": str(user.id),
                     "quote_date": date.today().isoformat(),
                     "valid_until": (date.today() + timedelta(days=30)).isoformat(),
-                    "currency": parsed_data.quote_currency.value,
+                    "currency": quote_currency,
                     "subtotal": float(total_purchase),
-                    "total_amount": float(total_revenue_no_vat),
+                    "total_amount": float(total_revenue_no_vat),  # In quote currency
+                    # USD totals for display (converted from quote currency)
+                    "total_usd": float(total_revenue_no_vat_usd),  # AK16 sum converted to USD
+                    "total_with_vat_usd": float(total_revenue_with_vat_usd),  # AL16 sum converted to USD
+                    "total_profit_usd": float(total_profit_usd),  # AF16 sum converted to USD
+                    "total_vat_on_import_usd": float(total_vat_on_import * quote_to_usd_rate),
+                    "total_vat_payable_usd": float(total_vat_payable * quote_to_usd_rate),
+                    # Quote currency totals (already in quote currency from calc engine)
+                    "total_amount_quote": float(total_revenue_no_vat),
+                    "total_with_vat_quote": float(total_revenue_with_vat),
                 }
 
                 quote_response = supabase.table("quotes").insert(quote_data).execute()
