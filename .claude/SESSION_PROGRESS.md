@@ -1,4 +1,4 @@
-## TODO - Next Session (Session 64)
+## TODO - Next Session (Session 65)
 
 ### 1. Test Dual Currency Storage End-to-End
 - Create quote and verify both USD and quote currency values are stored
@@ -16,9 +16,122 @@
 - Improve input validation and error handling
 - Display calculated results clearly
 
+### 4. Infrastructure Migration to Russia (Performance Critical)
+- **Problem:** API latency 2-4 seconds (Railway US → Russian users)
+- **Solution:** Migrate backend + database to Beget VPS (Russia)
+- **Expected improvement:** 150-300ms (3-5x faster)
+- **Steps:**
+  1. Check Supabase features used (auth, realtime, storage) to determine if full Supabase or just PostgreSQL needed
+  2. Set up PostgreSQL on Beget VPS
+  3. Set up FastAPI backend on Beget (Docker or direct)
+  4. Configure nginx, SSL (Let's Encrypt)
+  5. Migrate data from Supabase to new PostgreSQL
+  6. Update frontend API endpoints
+  7. Keep Vercel for frontend (CDN already optimized globally)
+
 ---
 
 ### Completed
+- ~~Fix currency_of_quote None handling~~ ✅ (Session 64)
+- ~~Fix rate_loan_interest_daily precision~~ ✅ (Session 65)
+- ~~Fix BI10 to use customs_logistics_pmt_due~~ ✅ (Session 65)
+
+---
+
+## Session 65 (2025-12-05) - Fix Financial Calculation Discrepancies
+
+### Goal
+Fix high discrepancy (>0.01%) in financial phase calculations identified via validation file.
+
+### Status: COMPLETE ✅
+
+**Time:** ~45 minutes
+
+---
+
+### Problem 1: 7.29% discrepancy in BA column (Initial Financing)
+
+**Root cause:** BI10 formula used `offer_post_pmt_due` (K9 = ~30 days) instead of `customs_logistics_pmt_due` (helpsheet E27 = 10 days).
+
+**Fix:** `backend/calculation_engine.py:535-541`
+- Changed parameter from `offer_post_pmt_due` to `customs_logistics_pmt_due`
+- Updated both call sites (lines 1013-1020 and 1276-1284)
+
+### Problem 2: 0.74% discrepancy in BJ7, BJ10, BJ11, BA, BB columns
+
+**Root cause:** `SystemConfig` had hardcoded `rate_loan_interest_daily=0.00069` but Excel uses exact `0.25/365 = 0.0006849315...` (0.74% difference).
+
+**Fix:** `backend/calculation_models.py:169-179`
+- Replaced `rate_loan_interest_daily` field with `rate_loan_interest_annual` field
+- Added `@property rate_loan_interest_daily` that computes `annual/365` with full precision
+- Updated all 9 test files to use `rate_loan_interest_annual=Decimal("0.25")`
+
+### Problem 3: 0.21% discrepancy in AP (VAT payable)
+
+**Root cause:** Cascading effect from financing cost discrepancy - financing costs feed into sales price (AJ16/AK16) which affects VAT calculation (AP16 = AN16 - AO16).
+
+**Fix:** Resolved by fixing Problem 2 (rate precision).
+
+### Commits
+- `f1234ab` - fix: use customs_logistics_pmt_due for BI10 operational financing
+- `ac8abad` - fix: correct rate_loan_interest_daily precision (0.00069 -> 0.25/365)
+
+---
+
+## Session 64 (2025-12-04) - Fix Quote Totals Display on /quotes Page
+
+### Goal
+Fix "Сумма USD" and "Прибыль" columns showing empty (—) on the /quotes page.
+
+### Status: COMPLETE ✅
+
+**Time:** ~30 minutes
+
+---
+
+### Problem
+The `/quotes` page showed "—" for "Сумма USD" and "Прибыль" columns even for calculated quotes.
+
+### Root Cause
+When `currency_of_quote` is explicitly `None` in the request variables:
+- `dict.get('currency_of_quote', 'USD')` returns `None` (not the default 'USD')
+- `get_exchange_rate("USD", None)` was called, which logged warning and returned 1.0
+- `usd_to_quote_rate` was set to 1.0 but not saved correctly to the database
+
+**Key Python behavior:**
+```python
+d = {'currency_of_quote': None}
+d.get('currency_of_quote', 'USD')  # Returns None, NOT 'USD'
+d.get('currency_of_quote') or 'USD'  # Returns 'USD'
+```
+
+### Fix
+**File:** `backend/routes/quotes_calc.py:1522-1523`
+
+```python
+# OLD (buggy):
+client_quote_currency = request.variables.get('currency_of_quote', 'USD')
+
+# NEW (fixed):
+client_quote_currency = request.variables.get('currency_of_quote') or 'USD'
+```
+
+### Backfill
+Ran Python script to backfill `usd_to_quote_rate` for existing quotes:
+- 20 EUR quotes updated with rate 0.8605
+- 128 USD quotes updated with rate 1.0
+
+### Technical Details
+- Calculation engine works in USD internally (line 435: `currency_of_quote=Currency("USD")`)
+- `total_amount` and `total_usd` are in USD
+- `usd_to_quote_rate` converts USD to client's display currency
+- `total_with_vat_quote` is the VAT-inclusive total in quote currency
+
+### Files Modified
+- `backend/routes/quotes_calc.py` - Fixed None handling
+- `backend/migrations/040_backfill_usd_to_quote_rate.sql` - Created migration (not run via SQL, used Python instead)
+
+---
 - ~~Fix URL-safe base64 decoding in session cookie~~ ✅ (Session 63)
 - ~~Dual currency storage implementation~~ ✅ (Session 62)
 - ~~Excel validation export fixes (logistics, financing, VAT 22%)~~ ✅ (Session 61)
