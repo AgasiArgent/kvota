@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Table,
   Button,
@@ -15,11 +15,10 @@ import {
   Statistic,
   DatePicker,
   Dropdown,
-  Upload,
   Popover,
   App,
 } from 'antd';
-import type { MenuProps, UploadProps } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   SearchOutlined,
   FileTextOutlined,
@@ -55,6 +54,7 @@ interface QuoteListItem {
   workflow_state?: string;
   total_amount?: number;
   total_with_vat_quote?: number;
+  total_with_vat_usd?: number;
   total_usd?: number;
   total?: number; // Backend uses 'total' instead of 'total_amount'
   total_profit_usd?: number;
@@ -86,6 +86,7 @@ export default function QuotesPage() {
   // Create quote modal state
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const quoteService = new QuoteService();
 
@@ -223,17 +224,19 @@ export default function QuotesPage() {
     }
   };
 
-  // File selection handler for Create Quote flow
-  const uploadProps: UploadProps = {
-    name: 'file',
-    accept: '.xlsx,.xls,.xlsm',
-    showUploadList: false,
-    beforeUpload: (file) => {
-      // Capture file and open modal instead of uploading
+  // File selection handler for Create Quote flow (native input for React 19 compatibility)
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
       setSelectedFile(file);
       setCreateModalOpen(true);
-      return false; // Prevent automatic upload
-    },
+    }
+    // Reset the input so the same file can be selected again
+    event.target.value = '';
+  };
+
+  const handleCreateQuoteClick = () => {
+    fileInputRef.current?.click();
   };
 
   // Handle successful quote creation
@@ -542,22 +545,25 @@ export default function QuotesPage() {
       align: 'right' as const,
       render: (_: any, record: QuoteListItem) => {
         // Use total_with_vat_quote (AL16) - final price with VAT in quote currency
-        const amount = record.total_with_vat_quote || record.total_amount || record.total || 0;
-        return formatCurrency(amount, record.currency || 'USD');
+        // Show '—' if not calculated yet (consistent with other columns)
+        if (!record.total_with_vat_quote) return '—';
+        return formatCurrency(record.total_with_vat_quote, record.currency || 'USD');
       },
     },
     {
       title: 'Сумма USD',
-      dataIndex: 'total_usd',
-      key: 'total_usd',
+      dataIndex: 'total_with_vat_usd',
+      key: 'total_with_vat_usd',
       width: 130,
       align: 'right' as const,
-      render: (totalUsd: number | null | undefined) => {
-        if (totalUsd === undefined || totalUsd === null) return '—';
+      render: (_: any, record: QuoteListItem) => {
+        // Use total_with_vat_usd (AL16 sum) - final price with VAT in USD
+        // Show '—' if not calculated yet
+        if (!record.total_with_vat_usd) return '—';
         return (
           <span>
             $
-            {totalUsd.toLocaleString('ru-RU', {
+            {record.total_with_vat_usd.toLocaleString('ru-RU', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -664,11 +670,22 @@ export default function QuotesPage() {
               <Button icon={<DownloadOutlined />} size="large" onClick={handleDownloadTemplate}>
                 Скачать шаблон
               </Button>
-              <Upload {...uploadProps}>
-                <Button type="primary" icon={<UploadOutlined />} size="large">
-                  Создать КП
-                </Button>
-              </Upload>
+              {/* Hidden file input for React 19 compatibility */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept=".xlsx,.xls,.xlsm"
+                style={{ display: 'none' }}
+              />
+              <Button
+                type="primary"
+                icon={<UploadOutlined />}
+                size="large"
+                onClick={handleCreateQuoteClick}
+              >
+                Создать КП
+              </Button>
             </Space>
           </Col>
         </Row>
