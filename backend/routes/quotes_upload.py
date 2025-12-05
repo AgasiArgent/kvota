@@ -185,8 +185,10 @@ async def get_exchange_rates(quote_currency: str, product_currencies: List[str])
     rates = {}
 
     # Get unique currencies needed
+    # Always include USD for final totals conversion (even if no USD products)
     all_currencies = set(product_currencies)
     all_currencies.add(quote_currency)
+    all_currencies.add("USD")  # Required for total_with_vat_usd calculation
 
     # Get rates to RUB (CBR base currency)
     for currency in all_currencies:
