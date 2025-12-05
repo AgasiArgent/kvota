@@ -35,6 +35,45 @@
 - ~~Fix currency_of_quote None handling~~ ✅ (Session 64)
 - ~~Fix rate_loan_interest_daily precision~~ ✅ (Session 65)
 - ~~Fix BI10 to use customs_logistics_pmt_due~~ ✅ (Session 65)
+- ~~Fix EUR quote USD totals showing 90x too large~~ ✅ (Session 66)
+
+---
+
+## Session 66 (2025-12-05) - Fix EUR Quote USD Totals Conversion
+
+### Goal
+Fix incorrect `total_with_vat_usd` values for EUR quotes uploaded via Excel (showing ~90x too large).
+
+### Status: COMPLETE ✅
+
+**Time:** ~15 minutes
+
+---
+
+### Problem
+EUR quotes (КП25-0012 to КП25-0015) showed incorrect USD totals on the /quotes page:
+- Example: КП25-0015 showed 24,553.24 € → $2,224,285.29 (should be ~$28,500)
+- Ratio 2,224,285.29 / 24,553.24 = 90.58 (the EUR/RUB rate, not EUR/USD)
+
+### Root Cause
+In `quotes_upload.py`, the `get_exchange_rates()` function only fetched rates for:
+1. Product currencies (e.g., TRY)
+2. Quote currency (e.g., EUR)
+
+When converting EUR totals to USD for storage (lines 809-816), the code tried:
+```python
+usd_rub = rates.get("USD/RUB", Decimal("1.0"))  # Fallback to 1.0!
+quote_rub = rates.get("EUR/RUB", ...)  # = 90.59
+quote_to_usd_rate = quote_rub / usd_rub  # = 90.59 / 1.0 = 90.59 (WRONG!)
+```
+
+Expected: `90.59 / 77.95 = 1.16` (correct EUR→USD rate)
+
+### Fix
+`backend/routes/quotes_upload.py:191` - Added `all_currencies.add("USD")` to always fetch USD/RUB rate.
+
+### Commit
+- `cace805` - fix: always fetch USD rate for EUR quote totals conversion
 
 ---
 
