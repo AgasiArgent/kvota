@@ -154,7 +154,7 @@ def test_11_china_supply_ru():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -235,7 +235,7 @@ def test_12_china_transit_ru():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -316,7 +316,7 @@ def test_13_china_turkish_seller():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -397,7 +397,7 @@ def test_14_lithuania_supply_ru():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -479,7 +479,7 @@ def test_15_lithuania_turkish_seller():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )

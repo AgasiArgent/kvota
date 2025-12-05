@@ -270,8 +270,8 @@ def map_api_product_to_input(product: Dict[str, Any], variables: Dict[str, Any])
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            # Excel uses 25% annual / 365 days
-            rate_loan_interest_daily=Decimal("0.25") / 365,
+            # Excel uses 25% annual rate
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047"),
             customs_logistics_pmt_due=10,
         ),

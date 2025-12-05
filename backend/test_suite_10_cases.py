@@ -146,7 +146,7 @@ def test_1_baseline():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -216,7 +216,7 @@ def test_2_transit():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -293,7 +293,7 @@ def test_3_export():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -371,7 +371,7 @@ def test_4_turkish_seller():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -448,7 +448,7 @@ def test_5_non_ddp():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -529,7 +529,7 @@ def test_6_full_advance():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -607,7 +607,7 @@ def test_7_zero_advance():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -685,7 +685,7 @@ def test_8_percentage_dm_fee():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -771,7 +771,7 @@ def test_9_two_products():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )
@@ -827,7 +827,7 @@ def test_9_two_products():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047")
         )
     )

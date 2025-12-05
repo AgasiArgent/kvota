@@ -250,7 +250,7 @@ def build_calculation_input(product: dict) -> QuoteCalculationInput:
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047"),
             customs_logistics_pmt_due=10,
         ),
@@ -460,7 +460,7 @@ def build_input_from_json(product: Dict[str, Any]) -> QuoteCalculationInput:
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            rate_loan_interest_daily=Decimal("0.00069"),
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047"),
             customs_logistics_pmt_due=10,
         ),
