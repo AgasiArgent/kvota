@@ -232,7 +232,7 @@ def run_simple_quote_validation():
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),           # Financial agent fee 2%
-            rate_loan_interest_daily=Decimal("0.00069")  # ~25% annual
+            rate_loan_interest_annual=Decimal("0.25")  # 25% annual
         )
     )
     
