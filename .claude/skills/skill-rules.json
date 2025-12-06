@@ -2,11 +2,84 @@
   "version": "1.0",
   "description": "Skill activation triggers for B2B Quotation Platform (optimized for natural business language)",
   "skills": {
-    "frontend-dev-guidelines": {
+    "frontend-design": {
+    "type": "domain",
+    "enforcement": "suggest",
+    "priority": "critical",
+    "description": "UI/UX design principles for distinctive interfaces - dark theme, typography, color palette, shadcn/ui patterns",
+    "promptTriggers": {
+      "keywords": [
+        "design",
+        "redesign",
+        "theme",
+        "dark theme",
+        "dark mode",
+        "light theme",
+        "styling",
+        "visual",
+        "aesthetic",
+        "shadcn",
+        "shadcn/ui",
+        "radix",
+        "tailwind",
+        "css variables",
+        "color palette",
+        "typography",
+        "font",
+        "spacing",
+        "layout",
+        "sidebar",
+        "topbar",
+        "navigation",
+        "component library",
+        "UI library",
+        "warm",
+        "linear",
+        "modern",
+        "distinctive",
+        "beautiful",
+        "pretty",
+        "ugly",
+        "generic",
+        "boring"
+      ],
+      "intentPatterns": [
+        "(create|build|implement|design).*?(theme|layout|sidebar|topbar|navigation)",
+        "(dark|light|warm|cool).*?(theme|mode|design)",
+        "(shadcn|radix|tailwind).*?(component|ui|design)",
+        "(improve|change|update|fix).*?(look|style|design|aesthetic|visual)",
+        "(color|font|typography|spacing).*?(change|update|set|configure)",
+        "(css|tailwind).*?(variable|class|style)"
+      ]
+    },
+    "fileTriggers": {
+      "pathPatterns": [
+        "frontend/src/app/globals.css",
+        "frontend/src/styles/**",
+        "frontend/src/components/ui/**",
+        "frontend/src/components/layout/**",
+        "frontend/tailwind.config.ts",
+        "frontend/components.json"
+      ],
+      "contentPatterns": [
+        "@layer base",
+        "--background:",
+        "--foreground:",
+        "--primary:",
+        "hsl\\(var\\(",
+        "from '@/components/ui",
+        "from 'lucide-react'",
+        "className=.*dark:",
+        "cn\\("
+      ]
+    }
+  },
+
+  "frontend-dev-guidelines": {
     "type": "domain",
     "enforcement": "suggest",
     "priority": "high",
-    "description": "React 19, Ant Design v5, ag-Grid patterns for Next.js 15 App Router",
+    "description": "React 19, shadcn/ui, ag-Grid patterns for Next.js 15 App Router",
     "promptTriggers": {
       "keywords": [
         "react",
@@ -14,8 +87,8 @@
         "frontend",
         "UI",
         "UX",
-        "ant design",
-        "antd",
+        "shadcn",
+        "shadcn/ui",
         "form",
         "table",
         "layout",
@@ -86,7 +159,7 @@
       ],
       "contentPatterns": [
         "import.*from 'react'",
-        "import.*from 'antd'",
+        "import.*from '@/components/ui",
         "import.*ag-grid",
         "export.*function.*Component",
         "export default function",
@@ -94,7 +167,7 @@
         "useState|useEffect|useCallback|useMemo",
         "'use client'",
         "'use server'",
-        "<Form|<Button|<Input|<Select|<Card",
+        "cn\\(|from 'lucide-react'",
         "AgGridReact"
       ]
     }
