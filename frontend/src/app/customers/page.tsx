@@ -95,15 +95,27 @@ export default function CustomersPage() {
 
   const getStatusTag = (status: string) => {
     const statusMap = {
-      active: { color: 'green', text: 'Активный' },
-      inactive: { color: 'default', text: 'Неактивный' },
-      suspended: { color: 'red', text: 'Приостановлен' },
+      active: { dotColor: '#34d399', text: 'Активный' }, // Emerald
+      inactive: { dotColor: '#666666', text: 'Неактивный' }, // Grey
+      suspended: { dotColor: '#fb7185', text: 'Приостановлен' }, // Rose
     };
     const config = statusMap[status as keyof typeof statusMap] || {
-      color: 'default',
+      dotColor: '#666666',
       text: status,
     };
-    return <Tag color={config.color}>{config.text}</Tag>;
+    return (
+      <Tag style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            backgroundColor: config.dotColor,
+          }}
+        />
+        {config.text}
+      </Tag>
+    );
   };
 
   const getCompanyTypeDisplay = (type: string) => {
