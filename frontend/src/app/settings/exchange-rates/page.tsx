@@ -189,7 +189,7 @@ export default function ExchangeRateSettingsPage() {
       dataIndex: 'source',
       key: 'source',
       render: (source: string) => (
-        <Tag color={source === 'manual' ? 'blue' : 'green'}>
+        <Tag color={source === 'manual' ? 'default' : 'green'}>
           {source === 'manual' ? 'Ручной' : source === 'cbr_sync' ? 'ЦБ РФ' : source}
         </Tag>
       ),

@@ -249,7 +249,7 @@ export default function ActivityLogPage() {
           const displayText = record.metadata?.quote_number || record.entity_id.slice(0, 8);
 
           return (
-            <Link href={link} style={{ color: '#1890ff' }}>
+            <Link href={link} style={{ color: '#f59e0b' }}>
               {displayText}
             </Link>
           );
@@ -365,7 +365,12 @@ export default function ActivityLogPage() {
             </Space>
 
             <Space>
-              <Button type="primary" icon={<FilterOutlined />} onClick={handleApplyFilters}>
+              <Button
+                type="primary"
+                icon={<FilterOutlined />}
+                onClick={handleApplyFilters}
+                style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
+              >
                 Применить фильтры
               </Button>
               <Button onClick={handleResetFilters}>Сбросить</Button>

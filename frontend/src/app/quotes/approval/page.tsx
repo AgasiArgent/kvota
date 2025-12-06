@@ -279,7 +279,6 @@ export default function QuoteApprovalPage() {
                 title="Частично утверждено"
                 value={partialCount}
                 prefix={<CheckCircleOutlined />}
-                valueStyle={{ color: '#1890ff' }}
               />
             </Card>
           </Col>
@@ -340,7 +339,7 @@ export default function QuoteApprovalPage() {
                 <Text strong>Название:</Text> <Text>{selectedQuote.title}</Text>
                 <br />
                 <Text strong>Сумма:</Text>{' '}
-                <Text style={{ fontSize: '16px', color: '#1890ff' }}>
+                <Text style={{ fontSize: '16px' }}>
                   {formatCurrency(selectedQuote.total_amount, selectedQuote.currency)}
                 </Text>
               </div>

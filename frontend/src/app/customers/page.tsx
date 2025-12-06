@@ -163,11 +163,7 @@ export default function CustomersPage() {
                   <Space>
                     <UserOutlined />
                     {contact.name} {contact.last_name || ''}
-                    {contact.is_primary && (
-                      <Tag color="blue" style={{ marginLeft: 4 }}>
-                        Основной
-                      </Tag>
-                    )}
+                    {contact.is_primary && <Tag style={{ marginLeft: 4 }}>Основной</Tag>}
                   </Space>
                 }
                 content={
@@ -189,10 +185,7 @@ export default function CustomersPage() {
                 }
                 trigger="click"
               >
-                <Tag
-                  style={{ cursor: 'pointer', marginBottom: 2 }}
-                  color={contact.is_primary ? 'blue' : 'default'}
-                >
+                <Tag style={{ cursor: 'pointer', marginBottom: 2 }} color="default">
                   {contact.name}
                 </Tag>
               </Popover>
@@ -238,30 +231,17 @@ export default function CustomersPage() {
         <Row gutter={16}>
           <Col xs={24} sm={8}>
             <Card>
-              <Statistic
-                title="Всего клиентов"
-                value={totalCount}
-                prefix={<TeamOutlined />}
-                valueStyle={{ color: '#1890ff' }}
-              />
+              <Statistic title="Всего клиентов" value={totalCount} prefix={<TeamOutlined />} />
             </Card>
           </Col>
           <Col xs={24} sm={8}>
             <Card>
-              <Statistic
-                title="Активные"
-                value={activeCustomers}
-                valueStyle={{ color: '#52c41a' }}
-              />
+              <Statistic title="Активные" value={activeCustomers} />
             </Card>
           </Col>
           <Col xs={24} sm={8}>
             <Card>
-              <Statistic
-                title="Неактивные"
-                value={inactiveCustomers}
-                valueStyle={{ color: '#8c8c8c' }}
-              />
+              <Statistic title="Неактивные" value={inactiveCustomers} />
             </Card>
           </Col>
         </Row>

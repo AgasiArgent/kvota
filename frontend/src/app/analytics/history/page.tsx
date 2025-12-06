@@ -51,11 +51,11 @@ const FORMAT_ICONS: Record<string, React.ReactNode> = {
   json: <FileTextOutlined style={{ color: '#0078D4' }} />,
 };
 
-// Execution type colors
+// Execution type colors (using grey for all)
 const TYPE_COLORS: Record<string, string> = {
-  manual: 'blue',
-  scheduled: 'green',
-  api: 'purple',
+  manual: 'default',
+  scheduled: 'default',
+  api: 'default',
 };
 
 export default function ExecutionHistoryPage() {
@@ -311,7 +311,7 @@ export default function ExecutionHistoryPage() {
           {record.export_file_url && !isFileExpired(record) && (
             <Button
               size="small"
-              type="primary"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               icon={<DownloadOutlined />}
               onClick={() => handleDownload(record)}
             />
@@ -377,7 +377,10 @@ export default function ExecutionHistoryPage() {
               { value: 'api', label: 'API' },
             ]}
           />
-          <Button type="primary" onClick={handleApplyFilters}>
+          <Button
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={handleApplyFilters}
+          >
             Применить фильтры
           </Button>
           <Button onClick={handleResetFilters}>Сбросить</Button>
@@ -414,7 +417,7 @@ export default function ExecutionHistoryPage() {
           selectedExecution?.export_file_url && !isFileExpired(selectedExecution) && (
             <Button
               key="download"
-              type="primary"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               icon={<DownloadOutlined />}
               onClick={() => selectedExecution && handleDownload(selectedExecution)}
             >

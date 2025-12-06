@@ -88,11 +88,11 @@ export default function DashboardPage() {
   const getStatusTag = (status: string) => {
     const statusMap = {
       draft: { color: 'default', text: 'Черновик' },
-      pending_approval: { color: 'orange', text: 'На утверждении' },
-      approved: { color: 'green', text: 'Утверждено' },
-      sent: { color: 'blue', text: 'Отправлено' },
-      accepted: { color: 'cyan', text: 'Принято' },
-      rejected: { color: 'red', text: 'Отклонено' },
+      pending_approval: { color: 'default', text: 'На утверждении' },
+      approved: { color: 'default', text: 'Утверждено' },
+      sent: { color: 'default', text: 'Отправлено' },
+      accepted: { color: 'default', text: 'Принято' },
+      rejected: { color: 'default', text: 'Отклонено' },
       expired: { color: 'default', text: 'Истекло' },
     };
     return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
@@ -183,7 +183,7 @@ export default function DashboardPage() {
                 title="Всего КП"
                 value={stats.totalQuotes}
                 prefix={<FileTextOutlined />}
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: '#d9d9d9' }}
               />
             </Card>
           </Col>
@@ -193,7 +193,7 @@ export default function DashboardPage() {
                 title="Утверждено"
                 value={stats.approvedQuotes}
                 prefix={<CheckCircleOutlined />}
-                valueStyle={{ color: '#52c41a' }}
+                valueStyle={{ color: '#d9d9d9' }}
               />
             </Card>
           </Col>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                 title="На утверждении"
                 value={stats.pendingQuotes}
                 prefix={<ClockCircleOutlined />}
-                valueStyle={{ color: '#faad14' }}
+                valueStyle={{ color: '#d9d9d9' }}
               />
             </Card>
           </Col>
@@ -214,7 +214,7 @@ export default function DashboardPage() {
                 value={stats.totalRevenue}
                 prefix={<DollarOutlined />}
                 formatter={(value) => formatCurrency(Number(value), 'RUB')}
-                valueStyle={{ color: '#722ed1' }}
+                valueStyle={{ color: '#d9d9d9' }}
               />
             </Card>
           </Col>
@@ -236,13 +236,7 @@ export default function DashboardPage() {
                     </Text>
                   </Col>
                 </Row>
-                <Progress
-                  percent={stats.monthlyGrowth}
-                  strokeColor={{
-                    '0%': '#108ee9',
-                    '100%': '#87d068',
-                  }}
-                />
+                <Progress percent={stats.monthlyGrowth} strokeColor="#999999" />
 
                 <Divider />
 
@@ -296,7 +290,7 @@ export default function DashboardPage() {
                 <Divider />
 
                 <div style={{ textAlign: 'center' }}>
-                  <TrophyOutlined style={{ fontSize: '24px', color: '#faad14' }} />
+                  <TrophyOutlined style={{ fontSize: '24px', color: '#999999' }} />
                   <div style={{ marginTop: '8px' }}>
                     <Text strong>Цель месяца</Text>
                     <br />

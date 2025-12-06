@@ -234,11 +234,7 @@ export default function LeadDetailPage() {
                       title={
                         <Space>
                           {contact.full_name}
-                          {contact.is_primary && (
-                            <Tag color="blue" style={{ fontSize: '11px' }}>
-                              Основной
-                            </Tag>
-                          )}
+                          {contact.is_primary && <Tag style={{ fontSize: '11px' }}>Основной</Tag>}
                         </Space>
                       }
                       description={
@@ -288,7 +284,7 @@ export default function LeadDetailPage() {
           {activities.length > 0 ? (
             <Timeline
               items={activities.map((activity) => ({
-                color: activity.completed ? 'green' : 'blue',
+                color: activity.completed ? 'green' : 'gray',
                 children: (
                   <div>
                     <Space direction="vertical" size={4} style={{ width: '100%' }}>

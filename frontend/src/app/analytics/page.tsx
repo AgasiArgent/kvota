@@ -679,7 +679,7 @@ export default function AnalyticsPage() {
           <Card>
             <Space wrap>
               <Button
-                type="primary"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
                 icon={<SearchOutlined />}
                 onClick={handleExecuteQuery}
                 loading={loading}

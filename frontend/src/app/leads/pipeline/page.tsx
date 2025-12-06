@@ -162,7 +162,7 @@ function DraggableLeadCard({ lead, onLeadClick }: LeadCardProps) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              style={{ fontSize: '11px', color: '#1890ff' }}
+              className="text-sm text-muted-foreground"
             >
               <LinkOutlined style={{ marginRight: 4 }} />
               Google Meet
@@ -233,13 +233,13 @@ function DroppableColumn({
       style={{
         flex: collapsed ? '0 0 60px' : 1,
         minWidth: collapsed ? 60 : 0,
-        backgroundColor: isOver ? '#e6f7ff' : '#f5f5f5',
+        backgroundColor: isOver ? 'hsl(38 92% 50% / 0.12)' : '#f5f5f5',
         borderRadius: 8,
         padding: collapsed ? 8 : 16,
         maxHeight: 'calc(100vh - 280px)',
         display: 'flex',
         flexDirection: 'column',
-        border: isOver ? '2px dashed #1890ff' : 'none',
+        border: isOver ? '2px dashed #f59e0b' : 'none',
         transition: 'all 0.3s ease',
       }}
     >

@@ -202,9 +202,7 @@ export default function SavedReportsPage() {
       ],
       onFilter: (value, record) => record.visibility === value,
       render: (visibility) => (
-        <Tag color={visibility === 'shared' ? 'blue' : 'default'}>
-          {visibility === 'shared' ? 'Общий' : 'Личный'}
-        </Tag>
+        <Tag color="default">{visibility === 'shared' ? 'Общий' : 'Личный'}</Tag>
       ),
     },
     {
@@ -230,7 +228,7 @@ export default function SavedReportsPage() {
       render: (_, record) => (
         <Space size="small">
           <Button
-            type="primary"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             size="small"
             icon={<PlayCircleOutlined />}
             onClick={() => handleRun(record)}
