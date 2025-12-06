@@ -394,6 +394,7 @@ export default function ExcelValidationPage() {
                 onClick={handleUpload}
                 loading={loading}
                 disabled={files.length === 0}
+                style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
               >
                 Запустить валидацию
               </Button>

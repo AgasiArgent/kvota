@@ -218,11 +218,11 @@ export default function CustomerDetailPage() {
   const getQuoteStatusTag = (status: string) => {
     const statusMap = {
       draft: { color: 'default', text: 'Черновик' },
-      pending_approval: { color: 'orange', text: 'На утверждении' },
-      approved: { color: 'green', text: 'Утверждено' },
-      sent: { color: 'blue', text: 'Отправлено' },
-      accepted: { color: 'cyan', text: 'Принято' },
-      rejected: { color: 'red', text: 'Отклонено' },
+      pending_approval: { color: 'default', text: 'На утверждении' },
+      approved: { color: 'default', text: 'Утверждено' },
+      sent: { color: 'default', text: 'Отправлено' },
+      accepted: { color: 'default', text: 'Принято' },
+      rejected: { color: 'default', text: 'Отклонено' },
     };
     return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
   };
@@ -277,11 +277,7 @@ export default function CustomerDetailPage() {
         <>
           {text}
           {record.last_name ? ` ${record.last_name}` : ''}
-          {record.is_primary && (
-            <Tag color="blue" style={{ marginLeft: 8 }}>
-              Основной
-            </Tag>
-          )}
+          {record.is_primary && <Tag style={{ marginLeft: 8 }}>Основной</Tag>}
         </>
       ),
     },
@@ -361,7 +357,7 @@ export default function CustomerDetailPage() {
           <Col>
             <Space>
               {!isEditMode && (
-                <Button type="primary" icon={<EditOutlined />} onClick={() => setIsEditMode(true)}>
+                <Button icon={<EditOutlined />} onClick={() => setIsEditMode(true)}>
                   Редактировать
                 </Button>
               )}
@@ -607,7 +603,10 @@ export default function CustomerDetailPage() {
               children: (
                 <Card
                   extra={
-                    <Button type="primary" onClick={() => openContactModal()}>
+                    <Button
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      onClick={() => openContactModal()}
+                    >
                       Добавить контакт
                     </Button>
                   }

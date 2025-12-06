@@ -151,15 +151,20 @@ export default function OrganizationSettingsPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; color: string }> = {
-      active: { label: 'Активна', color: 'green' },
-      trial: { label: 'Пробный период', color: 'blue' },
-      suspended: { label: 'Приостановлена', color: 'red' },
-      deleted: { label: 'Удалена', color: 'gray' },
+    const statusMap: Record<string, { label: string; dotColor: string }> = {
+      active: { label: 'Активна', dotColor: 'bg-emerald-400' },
+      trial: { label: 'Пробный период', dotColor: 'bg-amber-400' },
+      suspended: { label: 'Приостановлена', dotColor: 'bg-rose-400' },
+      deleted: { label: 'Удалена', dotColor: 'bg-muted-foreground' },
     };
 
-    const s = statusMap[status] || { label: status, color: 'default' };
-    return <Tag color={s.color}>{s.label}</Tag>;
+    const s = statusMap[status] || { label: status, dotColor: 'bg-muted-foreground' };
+    return (
+      <Tag className="bg-secondary text-muted-foreground border-border gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${s.dotColor}`} />
+        {s.label}
+      </Tag>
+    );
   };
 
   if (loading) {
@@ -217,7 +222,11 @@ export default function OrganizationSettingsPage() {
         {/* Header */}
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
           <Space>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/organizations')}>
+            <Button
+              variant="outline"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => router.push('/organizations')}
+            >
               Назад
             </Button>
             <Title level={2} style={{ margin: 0 }}>
@@ -226,7 +235,11 @@ export default function OrganizationSettingsPage() {
             {getStatusBadge(organization.status)}
           </Space>
           {canEdit && !editMode && (
-            <Button type="primary" icon={<EditOutlined />} onClick={() => setEditMode(true)}>
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+              icon={<EditOutlined />}
+              onClick={() => setEditMode(true)}
+            >
               Редактировать
             </Button>
           )}
@@ -288,10 +301,17 @@ export default function OrganizationSettingsPage() {
               </Form.Item>
 
               <Space>
-                <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saving}>
+                <Button
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  htmlType="submit"
+                  icon={<SaveOutlined />}
+                  loading={saving}
+                >
                   Сохранить изменения
                 </Button>
-                <Button onClick={handleCancel}>Отменить</Button>
+                <Button variant="outline" onClick={handleCancel}>
+                  Отменить
+                </Button>
               </Space>
             </Card>
           </Form>
@@ -301,11 +321,11 @@ export default function OrganizationSettingsPage() {
         {isOwner && (
           <Card
             title={
-              <Text type="danger">
+              <Text className="text-rose-400">
                 <ExclamationCircleOutlined /> Опасная зона
               </Text>
             }
-            style={{ borderColor: '#ff4d4f' }}
+            className="border-rose-400/30"
           >
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>

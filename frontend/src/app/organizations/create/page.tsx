@@ -76,7 +76,11 @@ export default function CreateOrganizationPage() {
         <Row justify="space-between" align="middle">
           <Col>
             <Space>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/organizations')}>
+              <Button
+                variant="outline"
+                icon={<ArrowLeftOutlined />}
+                onClick={() => router.push('/organizations')}
+              >
                 Назад
               </Button>
               <Title level={2} style={{ margin: 0 }}>
@@ -156,7 +160,12 @@ export default function CreateOrganizationPage() {
                   >
                     Создать организацию
                   </Button>
-                  <Button size="large" block onClick={() => router.push('/organizations')}>
+                  <Button
+                    variant="outline"
+                    size="large"
+                    block
+                    onClick={() => router.push('/organizations')}
+                  >
                     Отмена
                   </Button>
                 </Space>

@@ -272,7 +272,7 @@ export default function ScheduledReportsPage() {
         <Space size="small">
           <Button
             size="small"
-            type="primary"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             icon={<PlayCircleOutlined />}
             onClick={() => handleRunNow(record.id)}
           >
@@ -320,7 +320,11 @@ export default function ScheduledReportsPage() {
             </Title>
             <Text type="secondary">Автоматическая генерация отчётов по расписанию</Text>
           </div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+          <Button
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            icon={<PlusOutlined />}
+            onClick={handleCreate}
+          >
             Создать расписание
           </Button>
         </div>

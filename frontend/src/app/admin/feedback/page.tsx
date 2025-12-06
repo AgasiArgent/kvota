@@ -139,7 +139,7 @@ export default function FeedbackPage() {
       render: (status: string) => (
         <Tag
           icon={status === 'open' ? <ClockCircleOutlined /> : <CheckCircleOutlined />}
-          color={status === 'open' ? 'blue' : 'green'}
+          color={status === 'open' ? 'default' : 'green'}
         >
           {status === 'open' ? 'Открыто' : 'Решено'}
         </Tag>
@@ -269,7 +269,7 @@ export default function FeedbackPage() {
                     <CheckCircleOutlined />
                   )
                 }
-                color={selectedFeedback.status === 'open' ? 'blue' : 'green'}
+                color={selectedFeedback.status === 'open' ? 'default' : 'green'}
               >
                 {selectedFeedback.status === 'open' ? 'Открыто' : 'Решено'}
               </Tag>

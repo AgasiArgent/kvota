@@ -1819,9 +1819,7 @@ export default function EditQuotePage() {
                             <strong>{totals.total_cost.toFixed(2)}</strong>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={13}>
-                            <strong style={{ color: '#1890ff' }}>
-                              {totals.sale_price.toFixed(2)}
-                            </strong>
+                            <strong>{totals.sale_price.toFixed(2)}</strong>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={14}>
                             <strong style={{ color: totals.margin > 0 ? 'green' : 'red' }}>
@@ -1930,11 +1928,7 @@ export default function EditQuotePage() {
                       key: 'sale_price',
                       width: 110,
                       render: (val: any) =>
-                        typeof val === 'number' ? (
-                          <strong style={{ color: '#1890ff' }}>{val.toFixed(2)}</strong>
-                        ) : (
-                          val
-                        ),
+                        typeof val === 'number' ? <strong>{val.toFixed(2)}</strong> : val,
                     },
                     {
                       title: 'Маржа',

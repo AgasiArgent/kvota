@@ -24,7 +24,7 @@ export default function OnboardingPage() {
       <div
         style={{
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: '#141414',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -43,7 +43,7 @@ export default function OnboardingPage() {
     <div
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: '#141414',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -62,7 +62,7 @@ export default function OnboardingPage() {
               {/* Header */}
               <div style={{ textAlign: 'center' }}>
                 <RocketOutlined
-                  style={{ fontSize: '64px', color: '#1890ff', marginBottom: '16px' }}
+                  style={{ fontSize: '64px', color: '#999999', marginBottom: '16px' }}
                 />
                 <Title level={2} style={{ marginBottom: '8px' }}>
                   Добро пожаловать!
@@ -77,7 +77,7 @@ export default function OnboardingPage() {
               {/* Create Organization Option */}
               <Card
                 hoverable
-                style={{ border: '2px solid #1890ff' }}
+                style={{ border: '2px solid #f59e0b' }}
                 onClick={() => router.push('/organizations/create')}
               >
                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -89,7 +89,7 @@ export default function OnboardingPage() {
                     }}
                   >
                     <Space>
-                      <PlusOutlined style={{ fontSize: '32px', color: '#1890ff' }} />
+                      <PlusOutlined style={{ fontSize: '32px', color: '#f59e0b' }} />
                       <div>
                         <Title level={4} style={{ margin: 0 }}>
                           Создать организацию
@@ -160,7 +160,7 @@ export default function OnboardingPage() {
                   У вас уже есть доступ к организациям?{' '}
                   <a
                     onClick={() => router.push('/organizations')}
-                    style={{ color: '#1890ff', cursor: 'pointer' }}
+                    style={{ color: '#999999', cursor: 'pointer' }}
                   >
                     Перейти к списку организаций
                   </a>

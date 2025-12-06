@@ -45,26 +45,26 @@ export default function OrganizationsPage() {
   const getRoleBadge = (roleName: string, isOwner: boolean) => {
     if (isOwner) {
       return (
-        <Tag icon={<CrownOutlined />} color="gold">
+        <Tag icon={<CrownOutlined />} className="bg-secondary text-muted-foreground border-border">
           Владелец
         </Tag>
       );
     }
 
     // Map role names to Russian labels
-    const roleMap: Record<string, { label: string; color: string }> = {
-      admin: { label: 'Администратор', color: 'red' },
-      'financial-admin': { label: 'Финансовый администратор', color: 'purple' },
-      'sales-manager': { label: 'Менеджер по продажам', color: 'blue' },
-      'procurement-manager': { label: 'Менеджер по закупкам', color: 'cyan' },
-      'logistics-manager': { label: 'Менеджер по логистике', color: 'green' },
+    const roleMap: Record<string, string> = {
+      admin: 'Администратор',
+      'financial-admin': 'Финансовый администратор',
+      'sales-manager': 'Менеджер по продажам',
+      'procurement-manager': 'Менеджер по закупкам',
+      'logistics-manager': 'Менеджер по логистике',
     };
 
-    const role = roleMap[roleName] || { label: roleName, color: 'default' };
+    const label = roleMap[roleName] || roleName;
 
     return (
-      <Tag icon={<UserOutlined />} color={role.color}>
-        {role.label}
+      <Tag icon={<UserOutlined />} className="bg-secondary text-muted-foreground border-border">
+        {label}
       </Tag>
     );
   };
@@ -152,20 +152,22 @@ export default function OrganizationsPage() {
                   actions={[
                     <Button
                       key="view"
-                      type="link"
+                      type="text"
                       icon={<TeamOutlined />}
                       onClick={() => router.push(`/organizations/${org.organization_id}/team`)}
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       Команда
                     </Button>,
                     canManageOrganization(org.role_slug, org.is_owner) ? (
                       <Button
                         key="settings"
-                        type="link"
+                        type="text"
                         icon={<SettingOutlined />}
                         onClick={() =>
                           router.push(`/organizations/${org.organization_id}/settings`)
                         }
+                        className="text-muted-foreground hover:text-foreground"
                       >
                         Настройки
                       </Button>

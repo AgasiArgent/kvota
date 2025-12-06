@@ -144,7 +144,7 @@ export default function LeadsPage() {
   const getStageTag = (stageName?: string, stageColor?: string) => {
     if (!stageName) return <Tag>—</Tag>;
     return (
-      <Tag color={stageColor || '#1890ff'} style={{ borderRadius: 4 }}>
+      <Tag color={stageColor || '#999999'} style={{ borderRadius: 4 }}>
         {stageName}
       </Tag>
     );
@@ -271,7 +271,7 @@ export default function LeadsPage() {
                   okText="Да"
                   cancelText="Нет"
                 >
-                  <Button type="text" icon={<CheckCircleOutlined />} style={{ color: '#52c41a' }} />
+                  <Button type="text" icon={<CheckCircleOutlined />} className="text-emerald-400" />
                 </Popconfirm>
               </Tooltip>
             )}
@@ -326,29 +326,17 @@ export default function LeadsPage() {
           </Col>
           <Col span={6}>
             <Card>
-              <Statistic
-                title="Новые"
-                value={statsData.newLeads}
-                valueStyle={{ color: '#1890ff' }}
-              />
+              <Statistic title="Новые" value={statsData.newLeads} />
             </Card>
           </Col>
           <Col span={6}>
             <Card>
-              <Statistic
-                title="Квалифицированы"
-                value={statsData.qualified}
-                valueStyle={{ color: '#52c41a' }}
-              />
+              <Statistic title="Квалифицированы" value={statsData.qualified} />
             </Card>
           </Col>
           <Col span={6}>
             <Card>
-              <Statistic
-                title="Не назначены"
-                value={statsData.unassigned}
-                valueStyle={{ color: '#fa8c16' }}
-              />
+              <Statistic title="Не назначены" value={statsData.unassigned} />
             </Card>
           </Col>
         </Row>

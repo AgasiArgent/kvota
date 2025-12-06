@@ -411,8 +411,8 @@ export default function QuoteDetailPage() {
       revision_needed: { color: 'purple', text: 'Требуется доработка' },
       rejected_internal: { color: 'red', text: 'Отклонено (внутр.)' },
       ready_to_send: { color: 'cyan', text: 'Готово к отправке' },
-      sent: { color: 'blue', text: 'Отправлено' },
-      viewed: { color: 'geekblue', text: 'Просмотрено' },
+      sent: { color: 'default', text: 'Отправлено' },
+      viewed: { color: 'default', text: 'Просмотрено' },
       accepted: { color: 'green', text: 'Принято' },
       rejected: { color: 'red', text: 'Отклонено' },
       expired: { color: 'default', text: 'Истекло' },
@@ -486,7 +486,7 @@ export default function QuoteDetailPage() {
         const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
         return Number(params.value).toFixed(2) + ' ' + symbol;
       },
-      cellStyle: { fontWeight: 'bold', color: '#1890ff' },
+      cellStyle: { fontWeight: 'bold' },
     },
     {
       field: 'country_of_origin',
@@ -516,7 +516,7 @@ export default function QuoteDetailPage() {
         const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
         return Number(params.value).toFixed(2) + ' ' + symbol;
       },
-      cellStyle: { fontWeight: 'bold', color: '#52c41a' },
+      cellStyle: { fontWeight: 'bold' },
     },
   ];
 
@@ -749,7 +749,7 @@ export default function QuoteDetailPage() {
                           {quote.currency || 'RUB'}
                         </Descriptions.Item>
                         <Descriptions.Item label="Общая сумма">
-                          <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                          <Text strong style={{ fontSize: '16px' }}>
                             {formatCurrency(quote.total_amount, quote.currency)}
                           </Text>
                         </Descriptions.Item>
