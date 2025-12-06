@@ -149,7 +149,7 @@ class TestMapVariables:
             "offer_incoterms": "EXW",
             "currency_of_base_price": "USD",
             "currency_of_quote": "RUB",
-            "exchange_rate_base_price_to_quote": "95.5",
+            "exchange_rate_base_price_to_quote": "95.5",  # Ignored - uses CBR rate
             "markup": "0.20",  # 20% as decimal
             "supplier_country": "Турция",  # Quote default
             "customs_code": "9999999999"   # Quote default
@@ -168,8 +168,10 @@ class TestMapVariables:
         assert result.product.customs_code == "1234567890"
         assert result.product.weight_in_kg == Decimal("25.5")
 
-        # Quote-level values
-        assert result.financial.exchange_rate_base_price_to_quote == Decimal("95.5")
+        # Note: exchange_rate_base_price_to_quote comes from CBR service, not frontend
+        # For USD->USD, rate is 1 (same currency)
+        # Frontend-provided exchange_rate_base_price_to_quote is ignored (see lines 419-421 in quotes_calc.py)
+        assert result.financial.exchange_rate_base_price_to_quote == Decimal("1")
         # Note: currency_of_quote is always USD for internal calculations
         assert result.financial.currency_of_quote.value == "USD"
 
