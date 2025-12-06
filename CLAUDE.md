@@ -2,7 +2,7 @@
 
 Russian B2B quotation platform for cross-border trade (import/export).
 
-**Tech Stack:** Next.js 15.5 + React 19 + Ant Design + ag-Grid | FastAPI + Supabase PostgreSQL
+**Tech Stack:** Next.js 15.5 + React 19 + shadcn/ui + Tailwind + ag-Grid | FastAPI + Supabase PostgreSQL
 
 ---
 
@@ -125,11 +125,18 @@ When user requests a feature:
    - RLS testing, common mistakes
    - See: `.claude/skills/database-verification/SKILL.md`
 
+5. **frontend-design** - UI/UX design principles for distinctive interfaces
+   - "Warm Linear" dark theme: color palette, typography, spacing
+   - Avoid generic "AI slop" aesthetics
+   - Bold choices, intentional design, shadcn/ui patterns
+   - See: `.claude/skills/frontend-design/SKILL.md`
+
 **When to reference skills:**
 - Frontend work → Load frontend-dev-guidelines
 - Backend work → Load backend-dev-guidelines
 - Calculation changes → Load calculation-engine-guidelines
 - Database changes → Load database-verification (guardrail)
+- UI redesign/styling → Load frontend-design
 
 ---
 
