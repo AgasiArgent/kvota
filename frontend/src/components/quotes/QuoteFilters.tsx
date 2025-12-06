@@ -93,7 +93,7 @@ export default function QuoteFilters({
       {/* Author filter */}
       <Select
         value={authorFilter || ''}
-        onValueChange={(v) => onAuthorChange(v || undefined)}
+        onValueChange={(v: string) => onAuthorChange(v || undefined)}
         disabled={loadingMembers}
       >
         <SelectTrigger className="w-[180px]">
