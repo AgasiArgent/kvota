@@ -136,6 +136,11 @@
   position: relative;
 }
 
+/* Hide default ::after for unchecked state */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper::after {
+  display: none;
+}
+
 /* Unchecked checkbox hover */
 .ag-theme-custom-dark .ag-checkbox-input-wrapper:hover {
   border-color: hsl(0 0% 55%);
@@ -150,6 +155,7 @@
 /* Checkmark for checked state */
 .ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked::after {
   content: '';
+  display: block;
   position: absolute;
   left: 5px;
   top: 2px;

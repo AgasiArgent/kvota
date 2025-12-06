@@ -333,21 +333,21 @@ body {
 }
 
 .dark {
-  /* Warm Linear Dark Theme */
+  /* Warm Linear Dark Theme - matching ag-Grid greys */
   --background: 0 0% 8%; /* #141414 */
-  --foreground: 0 0% 96%; /* #f5f5f5 */
+  --foreground: 0 0% 85%; /* #d9d9d9 - main content grey */
   --card: 0 0% 12%; /* #1f1f1f */
-  --card-foreground: 0 0% 96%; /* #f5f5f5 */
+  --card-foreground: 0 0% 85%; /* #d9d9d9 */
   --popover: 0 0% 12%; /* #1f1f1f */
-  --popover-foreground: 0 0% 96%; /* #f5f5f5 */
+  --popover-foreground: 0 0% 85%; /* #d9d9d9 */
   --primary: 217 91% 60%; /* #3b82f6 blue-500 - unified accent */
   --primary-foreground: 0 0% 98%; /* white */
   --secondary: 0 0% 16%; /* #292929 */
-  --secondary-foreground: 0 0% 96%;
+  --secondary-foreground: 0 0% 85%; /* #d9d9d9 */
   --muted: 0 0% 16%; /* #292929 */
-  --muted-foreground: 0 0% 64%; /* #a3a3a3 */
+  --muted-foreground: 0 0% 60%; /* #999999 - labels/headers grey */
   --accent: 0 0% 16%; /* #292929 */
-  --accent-foreground: 0 0% 96%;
+  --accent-foreground: 0 0% 85%; /* #d9d9d9 */
   --destructive: 0 84% 60%; /* #ef4444 */
   --destructive-foreground: 0 0% 98%;
   --border: 0 0% 18%; /* #2e2e2e */

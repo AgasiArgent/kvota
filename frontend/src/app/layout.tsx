@@ -35,8 +35,8 @@ const antdTheme = {
     colorBgContainer: '#1f1f1f', // Match --card
     colorBgElevated: '#1f1f1f',
     colorBgLayout: '#141414', // Match --background
-    colorText: '#f5f5f5', // Match --foreground
-    colorTextSecondary: '#a3a3a3', // Match --muted-foreground
+    colorText: '#d9d9d9', // hsl(0 0% 85%) - main content grey
+    colorTextSecondary: '#999999', // hsl(0 0% 60%) - labels/headers grey
     borderRadius: 6,
     wireframe: false,
     fontSize: 14,
