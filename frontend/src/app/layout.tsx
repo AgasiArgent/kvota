@@ -4,6 +4,7 @@ import { AntdRegistry } from '@ant-design/nextjs-registry';
 import { App, ConfigProvider } from 'antd';
 import ruRU from 'antd/lib/locale/ru_RU';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
+import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
 const geistSans = Geist({
@@ -66,12 +67,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="ru" className="dark" suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <AntdRegistry>
           <ConfigProvider locale={ruRU} theme={antdTheme}>
             <App>
-              <AuthProvider>{children}</AuthProvider>
+              <AuthProvider>
+                {children}
+                <Toaster />
+              </AuthProvider>
             </App>
           </ConfigProvider>
         </AntdRegistry>
