@@ -307,13 +307,17 @@ export default function QuotesPage() {
   };
 
   // ag-Grid column definitions
+  // Column definitions with consistent alignment:
+  // - Text columns: left-aligned (header + data)
+  // - Number columns: right-aligned (header + data)
+  // - Center: status badges only
   const columnDefs: ColDef[] = [
     {
       field: 'quote_number',
       headerName: '№ КП',
       width: 130,
       cellRenderer: (params: ICellRendererParams) => (
-        <span className="font-medium text-primary cursor-pointer hover:underline">
+        <span className="font-medium text-foreground/90 cursor-pointer hover:text-foreground">
           {params.value}
         </span>
       ),
@@ -323,11 +327,13 @@ export default function QuotesPage() {
       headerName: 'Клиент',
       flex: 1,
       minWidth: 180,
+      cellClass: 'text-foreground/90',
     },
     {
       field: 'created_by_name',
       headerName: 'Автор',
       width: 150,
+      cellClass: 'text-foreground/55',
       valueFormatter: (params) => params.value || '—',
     },
     {
@@ -335,21 +341,21 @@ export default function QuotesPage() {
       headerName: 'Сумма',
       width: 140,
       type: 'rightAligned',
-      cellClass: 'font-mono-numbers',
+      cellClass: 'font-mono-numbers text-foreground/90',
       valueFormatter: (params) =>
         params.value ? formatCurrency(params.value, params.data.currency) : '—',
     },
     {
       field: 'total_profit_usd',
       headerName: 'Прибыль',
-      width: 130,
+      width: 120,
       type: 'rightAligned',
       cellClass: 'font-mono-numbers',
       cellRenderer: (params: ICellRendererParams) => {
-        if (!params.value) return '—';
+        if (!params.value) return <span className="text-foreground/40">—</span>;
         const isPositive = params.value >= 0;
         return (
-          <span className={isPositive ? 'text-green-500' : 'text-red-500'}>
+          <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
             ${params.value.toLocaleString('ru-RU', { minimumFractionDigits: 0 })}
           </span>
         );
@@ -358,7 +364,8 @@ export default function QuotesPage() {
     {
       field: 'workflow_state',
       headerName: 'Статус',
-      width: 160,
+      width: 140,
+      cellStyle: { display: 'flex', alignItems: 'center' },
       cellRenderer: (params: ICellRendererParams) => (
         <StatusBadge status={params.value || 'draft'} />
       ),
@@ -367,6 +374,7 @@ export default function QuotesPage() {
       field: 'quote_date',
       headerName: 'Дата',
       width: 110,
+      cellClass: 'text-foreground/55',
       valueFormatter: (params) => (params.value ? formatDate(params.value) : '—'),
     },
     {
@@ -491,6 +499,7 @@ export default function QuotesPage() {
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
+              suppressCellFocus={true}
               pagination
               paginationPageSize={pageSize}
               domLayout="normal"

@@ -185,8 +185,17 @@
     background-color: hsl(var(--primary) / 0.1);
   }
 
+  .text-foreground\/90 {
+    color: hsl(var(--foreground) / 0.9);
+  }
+  .text-foreground\/85 {
+    color: hsl(var(--foreground) / 0.85);
+  }
   .text-foreground\/60 {
     color: hsl(var(--foreground) / 0.6);
+  }
+  .text-foreground\/55 {
+    color: hsl(var(--foreground) / 0.55);
   }
   .text-foreground\/50 {
     color: hsl(var(--foreground) / 0.5);
@@ -331,7 +340,7 @@ body {
   --card-foreground: 0 0% 96%; /* #f5f5f5 */
   --popover: 0 0% 12%; /* #1f1f1f */
   --popover-foreground: 0 0% 96%; /* #f5f5f5 */
-  --primary: 239 84% 67%; /* #6366f1 indigo */
+  --primary: 217 91% 60%; /* #3b82f6 blue-500 - unified accent */
   --primary-foreground: 0 0% 98%; /* white */
   --secondary: 0 0% 16%; /* #292929 */
   --secondary-foreground: 0 0% 96%;
@@ -343,7 +352,7 @@ body {
   --destructive-foreground: 0 0% 98%;
   --border: 0 0% 18%; /* #2e2e2e */
   --input: 0 0% 18%; /* #2e2e2e */
-  --ring: 239 84% 67%; /* #6366f1 */
+  --ring: 217 91% 60%; /* #3b82f6 blue-500 */
   --radius: 0.5rem;
 
   /* Custom semantic colors */
