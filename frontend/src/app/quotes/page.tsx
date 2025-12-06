@@ -505,6 +505,8 @@ export default function QuotesPage() {
               domLayout="normal"
               getRowId={(params) => params.data.id}
               onRowClicked={(e) => {
+                // Skip navigation when clicking on checkbox column
+                if (e.column?.getColId() === 'ag-Grid-SelectionColumn') return;
                 if (e.data?.id) {
                   router.push(`/quotes/${e.data.id}`);
                 }

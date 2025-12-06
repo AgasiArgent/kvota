@@ -42,6 +42,13 @@
   /* Misc */
   --ag-border-radius: 0;
   --ag-wrapper-border-radius: 8px;
+
+  /* Checkbox - proper styling for dark theme */
+  --ag-checkbox-background-color: transparent;
+  --ag-checkbox-border-radius: 3px;
+  --ag-checkbox-checked-color: hsl(217 91% 60%);
+  --ag-checkbox-unchecked-color: hsl(0 0% 40%);
+  --ag-checkbox-indeterminate-color: hsl(217 91% 60%);
 }
 
 /* Header styling - better hierarchy and centered text */
@@ -118,35 +125,65 @@
   align-items: center;
 }
 
-/* Custom checkbox styling - show native checkbox */
+/* Checkbox styling - explicit styling for dark theme */
 .ag-theme-custom-dark .ag-checkbox-input-wrapper {
+  cursor: pointer;
   width: 16px;
   height: 16px;
-  cursor: pointer;
-  background: transparent !important;
-  border: none !important;
+  border: 1px solid hsl(0 0% 40%);
+  border-radius: 3px;
+  background-color: transparent;
+  position: relative;
 }
 
-.ag-theme-custom-dark .ag-checkbox-input-wrapper input {
-  cursor: pointer;
-  opacity: 1 !important;
-  appearance: auto !important;
-  -webkit-appearance: checkbox !important;
-  width: 16px !important;
-  height: 16px !important;
-  accent-color: hsl(217 91% 60%);
+/* Unchecked checkbox hover */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper:hover {
+  border-color: hsl(0 0% 55%);
 }
 
-/* Hide ag-Grid's custom checkbox visual (use native instead) */
-.ag-theme-custom-dark .ag-checkbox-input-wrapper::after {
-  display: none !important;
+/* Checked checkbox */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked {
+  background-color: hsl(217 91% 60%);
+  border-color: hsl(217 91% 60%);
 }
 
-/* Remove focus ring from checkbox wrapper */
+/* Checkmark for checked state */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Indeterminate state (partial selection) */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate {
+  background-color: hsl(217 91% 60%);
+  border-color: hsl(217 91% 60%);
+}
+
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 8px;
+  height: 2px;
+  background-color: white;
+  transform: none;
+  border: none;
+}
+
+/* Remove blue focus ring from checkbox when checked/focused */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate,
 .ag-theme-custom-dark .ag-checkbox-input-wrapper:focus,
-.ag-theme-custom-dark .ag-checkbox-input-wrapper:focus-within,
-.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked:focus,
-.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked:focus-within {
+.ag-theme-custom-dark .ag-checkbox-input-wrapper:focus-within {
   box-shadow: none !important;
   outline: none !important;
 }
