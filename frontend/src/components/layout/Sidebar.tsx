@@ -103,12 +103,12 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
       <Link
         href={item.href}
         className={cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-          'hover:bg-accent hover:text-accent-foreground',
-          isActive ? 'bg-accent text-accent-foreground font-medium' : 'text-muted-foreground'
+          'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150',
+          'hover:bg-foreground/5 hover:text-foreground',
+          isActive ? 'bg-primary/10 text-primary font-medium' : 'text-foreground/60'
         )}
       >
-        <Icon className="h-4 w-4 shrink-0" />
+        <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary')} />
         {!collapsed && <span className="truncate">{item.label}</span>}
       </Link>
     );
@@ -163,15 +163,15 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
           {/* Admin sections */}
           {adminNavGroups.length > 0 && (
             <>
-              <Separator className="my-4" />
+              <Separator className="my-4 bg-border/50" />
               {adminNavGroups.map((group, idx) => (
-                <div key={idx} className="mb-4">
+                <div key={idx} className="mb-5">
                   {!collapsed && group.label && (
-                    <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <h4 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-foreground/40">
                       {group.label}
                     </h4>
                   )}
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {group.items.map((item) => (
                       <NavLink key={item.href} item={item} />
                     ))}
