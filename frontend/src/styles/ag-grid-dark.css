@@ -13,16 +13,16 @@
   /* Rows - subtle alternating pattern */
   --ag-odd-row-background-color: hsl(0 0% 10%);
   --ag-row-hover-color: hsl(0 0% 14%);
-  --ag-selected-row-background-color: hsl(217 91% 60% / 0.12);
+  --ag-selected-row-background-color: hsl(38 92% 50% / 0.12);
 
   /* Cells */
   --ag-cell-horizontal-border: solid hsl(0 0% 16%);
   --ag-range-selection-border-color: transparent;
   --ag-range-selection-background-color: transparent;
 
-  /* Input - consistent blue */
-  --ag-input-focus-border-color: hsl(217 91% 60%);
-  --ag-input-focus-box-shadow: 0 0 0 1px hsl(217 91% 60%);
+  /* Input - consistent amber */
+  --ag-input-focus-border-color: hsl(38 92% 50%);
+  --ag-input-focus-box-shadow: 0 0 0 1px hsl(38 92% 50%);
 
   /* Sizing - slightly taller rows for readability */
   --ag-grid-size: 6px;
@@ -46,9 +46,9 @@
   /* Checkbox - proper styling for dark theme */
   --ag-checkbox-background-color: transparent;
   --ag-checkbox-border-radius: 3px;
-  --ag-checkbox-checked-color: hsl(217 91% 60%);
+  --ag-checkbox-checked-color: hsl(38 92% 50%);
   --ag-checkbox-unchecked-color: hsl(0 0% 40%);
-  --ag-checkbox-indeterminate-color: hsl(217 91% 60%);
+  --ag-checkbox-indeterminate-color: hsl(38 92% 50%);
 }
 
 /* Header styling - better hierarchy and centered text */
@@ -83,9 +83,9 @@
   background-color: hsl(0 0% 15%) !important;
 }
 
-/* Selected row - consistent blue */
+/* Selected row - consistent amber */
 .ag-theme-custom-dark .ag-row-selected {
-  background-color: hsl(217 91% 60% / 0.1) !important;
+  background-color: hsl(38 92% 50% / 0.1) !important;
 }
 
 /* Cell styling */
@@ -148,8 +148,8 @@
 
 /* Checked checkbox */
 .ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked {
-  background-color: hsl(217 91% 60%);
-  border-color: hsl(217 91% 60%);
+  background-color: hsl(38 92% 50%);
+  border-color: hsl(38 92% 50%);
 }
 
 /* Checkmark for checked state */
@@ -161,15 +161,15 @@
   top: 2px;
   width: 4px;
   height: 8px;
-  border: solid white;
+  border: solid hsl(0 0% 9%);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
 
 /* Indeterminate state (partial selection) */
 .ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate {
-  background-color: hsl(217 91% 60%);
-  border-color: hsl(217 91% 60%);
+  background-color: hsl(38 92% 50%);
+  border-color: hsl(38 92% 50%);
 }
 
 .ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate::after {
@@ -179,7 +179,7 @@
   top: 6px;
   width: 8px;
   height: 2px;
-  background-color: white;
+  background-color: hsl(0 0% 9%);
   transform: none;
   border: none;
 }

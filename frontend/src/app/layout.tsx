@@ -27,16 +27,18 @@ export const metadata: Metadata = {
 const antdTheme = {
   algorithm: theme.darkAlgorithm,
   token: {
-    colorPrimary: '#3b82f6', // Blue-500 to match shadcn
+    colorPrimary: '#f59e0b', // Amber-500 - warm accent
     colorSuccess: '#22c55e',
     colorWarning: '#f59e0b',
     colorError: '#ef4444',
-    colorInfo: '#3b82f6',
+    colorInfo: '#f59e0b',
     colorBgContainer: '#1f1f1f', // Match --card
     colorBgElevated: '#1f1f1f',
     colorBgLayout: '#141414', // Match --background
     colorText: '#d9d9d9', // hsl(0 0% 85%) - main content grey
     colorTextSecondary: '#999999', // hsl(0 0% 60%) - labels/headers grey
+    colorLink: '#d9d9d9', // Links inherit text color, not primary
+    colorLinkHover: '#ffffff', // Slightly brighter on hover
     borderRadius: 6,
     wireframe: false,
     fontSize: 14,

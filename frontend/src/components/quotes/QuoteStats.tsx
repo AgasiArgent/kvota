@@ -29,12 +29,12 @@ export default function QuoteStats({
   return (
     <div className={cn('grid grid-cols-2 gap-4 lg:grid-cols-4', className)}>
       <StatCard label="Всего КП" value={totalQuotes} />
-      <StatCard label="Утверждено" value={approvedQuotes} valueClassName="text-emerald-400" />
-      <StatCard label="На утверждении" value={pendingQuotes} valueClassName="text-amber-400" />
+      <StatCard label="Утверждено" value={approvedQuotes} valueClassName="text-foreground" />
+      <StatCard label="На утверждении" value={pendingQuotes} valueClassName="text-foreground" />
       <StatCard
         label="Прибыль"
         value={formatCurrency(totalProfitUsd)}
-        valueClassName={totalProfitUsd >= 0 ? 'text-emerald-400' : 'text-red-400'}
+        valueClassName={totalProfitUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'}
       />
     </div>
   );

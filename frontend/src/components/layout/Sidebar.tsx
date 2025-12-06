@@ -105,10 +105,10 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
         className={cn(
           'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150',
           'hover:bg-foreground/5 hover:text-foreground',
-          isActive ? 'bg-primary/10 text-primary font-medium' : 'text-foreground/60'
+          isActive ? 'bg-foreground/5 text-foreground font-medium' : 'text-foreground/60'
         )}
       >
-        <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary')} />
+        <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-foreground')} />
         {!collapsed && <span className="truncate">{item.label}</span>}
       </Link>
     );
@@ -138,7 +138,7 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
         {/* Logo / Org Switcher */}
         <div className="flex h-14 items-center border-b border-border px-3">
           {collapsed ? (
-            <span className="mx-auto text-lg font-bold text-primary">К</span>
+            <span className="mx-auto text-lg font-bold text-foreground">К</span>
           ) : (
             <OrganizationSwitcher darkMode />
           )}
