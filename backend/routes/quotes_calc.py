@@ -347,12 +347,13 @@ def get_converted_monetary_value(
     return safe_decimal(raw_value, default)
 
 
-def get_rates_snapshot_to_usd(quote_date: date, supabase: Client) -> Dict[str, Any]:
+def get_rates_snapshot_to_usd(quote_date: date, supabase: Optional[Client] = None) -> Dict[str, Any]:
     """
     Get snapshot of all exchange rates to USD for audit trail.
 
     Args:
         quote_date: Date for rate lookup (CBR rates are date-specific)
+        supabase: Optional Supabase client (uses in-memory cache if None)
 
     Returns:
         Dict with currency pair rates and metadata
