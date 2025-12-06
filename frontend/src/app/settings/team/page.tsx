@@ -39,7 +39,6 @@ import {
   TeamMember,
   Role,
   AddMemberResponse,
-  getRoleBadgeColor,
   getRoleDisplayName,
   canModifyMember,
 } from '@/lib/api/team-service';
@@ -199,7 +198,12 @@ export default function TeamManagementPage() {
             <UserOutlined />
             <Text strong>{record.user_full_name || 'Без имени'}</Text>
             {record.is_owner && (
-              <Tag color="red" style={{ fontSize: '10px' }}>
+              <Tag
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '10px' }}
+              >
+                <span
+                  style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#f59e0b' }}
+                />
                 Владелец
               </Tag>
             )}
@@ -217,11 +221,25 @@ export default function TeamManagementPage() {
       key: 'role',
       width: 180,
       render: (roleSlug: string, record: TeamMember) => {
-        const color = getRoleBadgeColor(roleSlug);
         const displayName = getRoleDisplayName(roleSlug, record.role_name);
+        // Grey tag with dot indicator based on role
+        const dotColorMap: Record<string, string> = {
+          owner: '#f59e0b', // Amber
+          admin: '#a78bfa', // Purple
+          manager: '#60a5fa', // Blue
+          member: '#9ca3af', // Grey
+        };
+        const dotColor = dotColorMap[roleSlug] || '#9ca3af';
 
         if (!canManageTeam || !canModifyMember(currentUserId, record, currentUserRole)) {
-          return <Tag color={color}>{displayName}</Tag>;
+          return (
+            <Tag style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span
+                style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dotColor }}
+              />
+              {displayName}
+            </Tag>
+          );
         }
 
         return (
@@ -255,14 +273,21 @@ export default function TeamManagementPage() {
       width: 100,
       render: (status: string) => {
         const statusMap = {
-          active: { color: 'green', text: 'Активен' },
-          left: { color: 'default', text: 'Покинул' },
+          active: { dotColor: '#34d399', text: 'Активен' }, // Emerald
+          left: { dotColor: '#666666', text: 'Покинул' }, // Grey
         };
         const config = statusMap[status as keyof typeof statusMap] || {
-          color: 'default',
+          dotColor: '#666666',
           text: status,
         };
-        return <Tag color={config.color}>{config.text}</Tag>;
+        return (
+          <Tag style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span
+              style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: config.dotColor }}
+            />
+            {config.text}
+          </Tag>
+        );
       },
     },
     {
@@ -406,21 +431,38 @@ export default function TeamManagementPage() {
               <Select
                 placeholder="Выберите роль"
                 size="large"
-                options={assignableRoles.map((role) => ({
-                  label: (
-                    <Space>
-                      <Tag color={getRoleBadgeColor(role.slug)}>
-                        {getRoleDisplayName(role.slug, role.name)}
-                      </Tag>
-                      {role.description && (
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          {role.description}
-                        </Text>
-                      )}
-                    </Space>
-                  ),
-                  value: role.id,
-                }))}
+                options={assignableRoles.map((role) => {
+                  const dotColorMap: Record<string, string> = {
+                    owner: '#f59e0b',
+                    admin: '#a78bfa',
+                    manager: '#60a5fa',
+                    member: '#9ca3af',
+                  };
+                  const dotColor = dotColorMap[role.slug] || '#9ca3af';
+                  return {
+                    label: (
+                      <Space>
+                        <Tag style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              backgroundColor: dotColor,
+                            }}
+                          />
+                          {getRoleDisplayName(role.slug, role.name)}
+                        </Tag>
+                        {role.description && (
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            {role.description}
+                          </Text>
+                        )}
+                      </Space>
+                    ),
+                    value: role.id,
+                  };
+                })}
               />
             </Form.Item>
 
