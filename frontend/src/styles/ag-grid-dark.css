@@ -2,33 +2,33 @@
 .ag-theme-custom-dark {
   /* Core colors - slightly warmer dark */
   --ag-background-color: hsl(0 0% 10%);
-  --ag-foreground-color: hsl(0 0% 92%);
-  --ag-border-color: hsl(0 0% 16%);
+  --ag-foreground-color: hsl(0 0% 85%);
+  --ag-border-color: hsl(0 0% 18%);
 
-  /* Header - more contrast, better readability */
-  --ag-header-background-color: hsl(0 0% 8%);
-  --ag-header-foreground-color: hsl(0 0% 55%);
-  --ag-header-cell-hover-background-color: hsl(0 0% 12%);
+  /* Header - better readability with higher contrast */
+  --ag-header-background-color: hsl(0 0% 12%);
+  --ag-header-foreground-color: hsl(0 0% 60%);
+  --ag-header-cell-hover-background-color: hsl(0 0% 15%);
 
   /* Rows - subtle alternating pattern */
   --ag-odd-row-background-color: hsl(0 0% 10%);
   --ag-row-hover-color: hsl(0 0% 14%);
-  --ag-selected-row-background-color: hsl(239 84% 67% / 0.12);
+  --ag-selected-row-background-color: hsl(217 91% 60% / 0.12);
 
   /* Cells */
-  --ag-cell-horizontal-border: solid hsl(0 0% 14%);
-  --ag-range-selection-border-color: hsl(239 84% 67%);
-  --ag-range-selection-background-color: hsl(239 84% 67% / 0.1);
+  --ag-cell-horizontal-border: solid hsl(0 0% 16%);
+  --ag-range-selection-border-color: transparent;
+  --ag-range-selection-background-color: transparent;
 
-  /* Input */
-  --ag-input-focus-border-color: hsl(239 84% 67%);
-  --ag-input-focus-box-shadow: 0 0 0 1px hsl(239 84% 67%);
+  /* Input - consistent blue */
+  --ag-input-focus-border-color: hsl(217 91% 60%);
+  --ag-input-focus-box-shadow: 0 0 0 1px hsl(217 91% 60%);
 
   /* Sizing - slightly taller rows for readability */
   --ag-grid-size: 6px;
   --ag-list-item-height: 32px;
   --ag-row-height: 52px;
-  --ag-header-height: 48px;
+  --ag-header-height: 44px;
 
   /* Typography */
   --ag-font-family: inherit;
@@ -36,7 +36,7 @@
 
   /* Borders - subtler */
   --ag-row-border-width: 1px;
-  --ag-row-border-color: hsl(0 0% 14%);
+  --ag-row-border-color: hsl(0 0% 16%);
   --ag-cell-horizontal-padding: 16px;
 
   /* Misc */
@@ -44,22 +44,22 @@
   --ag-wrapper-border-radius: 8px;
 }
 
-/* Header styling - better hierarchy */
+/* Header styling - better hierarchy and centered text */
 .ag-theme-custom-dark .ag-header {
-  border-bottom: 2px solid hsl(0 0% 18%);
-  background: linear-gradient(180deg, hsl(0 0% 10%) 0%, hsl(0 0% 8%) 100%);
+  border-bottom: 1px solid hsl(0 0% 20%);
+  background: hsl(0 0% 12%);
 }
 
 .ag-theme-custom-dark .ag-header-cell {
-  font-weight: 600;
-  font-size: 11px;
+  font-weight: 500;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: hsl(0 0% 50%);
+  letter-spacing: 0.05em;
+  color: hsl(0 0% 55%);
 }
 
 .ag-theme-custom-dark .ag-header-cell:hover {
-  color: hsl(0 0% 70%);
+  color: hsl(0 0% 75%);
 }
 
 /* Row styling - alternating for scanability */
@@ -76,20 +76,120 @@
   background-color: hsl(0 0% 15%) !important;
 }
 
-/* Selected row */
+/* Selected row - consistent blue */
 .ag-theme-custom-dark .ag-row-selected {
-  background-color: hsl(239 84% 67% / 0.1) !important;
+  background-color: hsl(217 91% 60% / 0.1) !important;
 }
 
 /* Cell styling */
 .ag-theme-custom-dark .ag-cell {
   border-bottom: 1px solid hsl(0 0% 14%);
   line-height: 1.5;
+  display: flex;
+  align-items: center;
 }
 
-/* Cell focus */
-.ag-theme-custom-dark .ag-cell-focus {
-  border-color: hsl(239 84% 67%) !important;
+/* Cell focus - remove ALL focus borders completely */
+.ag-theme-custom-dark .ag-cell-focus,
+.ag-theme-custom-dark .ag-cell-focus:focus,
+.ag-theme-custom-dark .ag-cell.ag-cell-focus,
+.ag-theme-custom-dark .ag-cell-range-selected,
+.ag-theme-custom-dark .ag-cell-range-single-cell {
+  border: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background-color: inherit !important;
+}
+
+/* Range selection - disable blue borders */
+.ag-theme-custom-dark .ag-cell-range-selected:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-1:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-2:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-3:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-4:not(.ag-cell-focus) {
+  border: none !important;
+  background-color: inherit !important;
+}
+
+/* Checkbox cell styling */
+.ag-theme-custom-dark .ag-cell-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+/* Custom checkbox styling - show native checkbox */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  background: transparent !important;
+  border: none !important;
+}
+
+.ag-theme-custom-dark .ag-checkbox-input-wrapper input {
+  cursor: pointer;
+  opacity: 1 !important;
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  width: 16px !important;
+  height: 16px !important;
+  accent-color: hsl(217 91% 60%);
+}
+
+/* Hide ag-Grid's custom checkbox visual (use native instead) */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper::after {
+  display: none !important;
+}
+
+/* Remove focus ring from checkbox wrapper */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper:focus,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper:focus-within,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked:focus,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked:focus-within {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Selection checkbox column - remove ALL focus indicators */
+.ag-theme-custom-dark .ag-selection-checkbox {
+  outline: none !important;
+}
+
+.ag-theme-custom-dark .ag-cell:focus-within {
+  outline: none !important;
+  border-color: transparent !important;
+}
+
+/* Kill the blue focus rectangle on checkbox cells */
+.ag-theme-custom-dark .ag-cell[col-id='checkbox'],
+.ag-theme-custom-dark .ag-cell[col-id='0'],
+.ag-theme-custom-dark .ag-header-cell[col-id='checkbox'],
+.ag-theme-custom-dark .ag-header-cell[col-id='0'] {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Target the selection column specifically */
+.ag-theme-custom-dark [role='gridcell']:first-child {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Override ANY border on focused cells */
+.ag-theme-custom-dark .ag-cell-focus,
+.ag-theme-custom-dark .ag-cell:focus,
+.ag-theme-custom-dark .ag-cell:focus-visible,
+.ag-theme-custom-dark .ag-row .ag-cell:first-child {
+  border: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: 1px solid hsl(0 0% 14%) !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* Pagination - unified styling */
