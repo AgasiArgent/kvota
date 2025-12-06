@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
-import { App, ConfigProvider } from 'antd';
+import { App, ConfigProvider, theme } from 'antd';
 import ruRU from 'antd/lib/locale/ru_RU';
 import { AuthProvider } from '@/lib/auth/AuthProvider';
 import { Toaster } from '@/components/ui/sonner';
@@ -23,14 +23,20 @@ export const metadata: Metadata = {
   keywords: 'quotation, B2B, Russian business, VAT, approval workflow, INN, KPP, OGRN',
 };
 
-// Russian B2B theme configuration
+// Russian B2B theme configuration - Dark mode
 const antdTheme = {
+  algorithm: theme.darkAlgorithm,
   token: {
-    colorPrimary: '#1890ff',
-    colorSuccess: '#52c41a',
-    colorWarning: '#faad14',
-    colorError: '#ff4d4f',
-    colorInfo: '#1890ff',
+    colorPrimary: '#3b82f6', // Blue-500 to match shadcn
+    colorSuccess: '#22c55e',
+    colorWarning: '#f59e0b',
+    colorError: '#ef4444',
+    colorInfo: '#3b82f6',
+    colorBgContainer: '#1f1f1f', // Match --card
+    colorBgElevated: '#1f1f1f',
+    colorBgLayout: '#141414', // Match --background
+    colorText: '#f5f5f5', // Match --foreground
+    colorTextSecondary: '#a3a3a3', // Match --muted-foreground
     borderRadius: 6,
     wireframe: false,
     fontSize: 14,
@@ -56,7 +62,7 @@ const antdTheme = {
     },
     Table: {
       borderRadius: 8,
-      headerBg: '#fafafa',
+      headerBg: '#1f1f1f', // Dark header
     },
   },
 };
