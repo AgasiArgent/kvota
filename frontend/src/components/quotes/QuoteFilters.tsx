@@ -64,21 +64,26 @@ export default function QuoteFilters({
   };
 
   return (
-    <div className={cn('flex flex-wrap items-center gap-3', className)}>
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-3 rounded-lg border border-border/50 bg-card/30 p-4',
+        className
+      )}
+    >
       {/* Search */}
-      <div className="relative flex-1 min-w-[200px] max-w-[300px]">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
         <Input
           placeholder="Поиск по номеру, клиенту..."
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9"
+          className="pl-9 bg-background/50 border-border/50 placeholder:text-foreground/30"
         />
       </div>
 
       {/* Status filter */}
       <Select value={statusFilter} onValueChange={onStatusChange}>
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
           <SelectValue placeholder="Статус" />
         </SelectTrigger>
         <SelectContent>
@@ -96,7 +101,7 @@ export default function QuoteFilters({
         onValueChange={(v: string) => onAuthorChange(v || undefined)}
         disabled={loadingMembers}
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
           <SelectValue placeholder="Автор" />
         </SelectTrigger>
         <SelectContent>
@@ -114,9 +119,9 @@ export default function QuoteFilters({
           variant="ghost"
           size="sm"
           onClick={clearFilters}
-          className="h-9 px-2 text-muted-foreground"
+          className="h-9 px-3 text-foreground/50 hover:text-foreground hover:bg-background/50"
         >
-          <X className="mr-1 h-4 w-4" />
+          <X className="mr-1.5 h-4 w-4" />
           Сбросить
         </Button>
       )}

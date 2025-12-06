@@ -1,22 +1,22 @@
-/* Custom Dark Theme for ag-Grid */
+/* Custom Dark Theme for ag-Grid - Unified Linear-style Design */
 .ag-theme-custom-dark {
-  /* Core colors */
-  --ag-background-color: hsl(0 0% 12%);
-  --ag-foreground-color: hsl(0 0% 96%);
-  --ag-border-color: hsl(0 0% 18%);
+  /* Core colors - slightly warmer dark */
+  --ag-background-color: hsl(0 0% 10%);
+  --ag-foreground-color: hsl(0 0% 92%);
+  --ag-border-color: hsl(0 0% 16%);
 
-  /* Header */
+  /* Header - more contrast, better readability */
   --ag-header-background-color: hsl(0 0% 8%);
-  --ag-header-foreground-color: hsl(0 0% 64%);
-  --ag-header-cell-hover-background-color: hsl(0 0% 16%);
+  --ag-header-foreground-color: hsl(0 0% 55%);
+  --ag-header-cell-hover-background-color: hsl(0 0% 12%);
 
-  /* Rows */
-  --ag-odd-row-background-color: hsl(0 0% 12%);
-  --ag-row-hover-color: hsl(0 0% 16%);
-  --ag-selected-row-background-color: hsl(239 84% 67% / 0.15);
+  /* Rows - subtle alternating pattern */
+  --ag-odd-row-background-color: hsl(0 0% 10%);
+  --ag-row-hover-color: hsl(0 0% 14%);
+  --ag-selected-row-background-color: hsl(239 84% 67% / 0.12);
 
   /* Cells */
-  --ag-cell-horizontal-border: solid hsl(0 0% 18%);
+  --ag-cell-horizontal-border: solid hsl(0 0% 14%);
   --ag-range-selection-border-color: hsl(239 84% 67%);
   --ag-range-selection-background-color: hsl(239 84% 67% / 0.1);
 
@@ -24,19 +24,19 @@
   --ag-input-focus-border-color: hsl(239 84% 67%);
   --ag-input-focus-box-shadow: 0 0 0 1px hsl(239 84% 67%);
 
-  /* Sizing */
+  /* Sizing - slightly taller rows for readability */
   --ag-grid-size: 6px;
   --ag-list-item-height: 32px;
-  --ag-row-height: 48px;
-  --ag-header-height: 44px;
+  --ag-row-height: 52px;
+  --ag-header-height: 48px;
 
   /* Typography */
   --ag-font-family: inherit;
   --ag-font-size: 14px;
 
-  /* Borders */
+  /* Borders - subtler */
   --ag-row-border-width: 1px;
-  --ag-row-border-color: hsl(0 0% 18%);
+  --ag-row-border-color: hsl(0 0% 14%);
   --ag-cell-horizontal-padding: 16px;
 
   /* Misc */
@@ -44,21 +44,36 @@
   --ag-wrapper-border-radius: 8px;
 }
 
-/* Header styling */
+/* Header styling - better hierarchy */
 .ag-theme-custom-dark .ag-header {
-  border-bottom: 1px solid hsl(0 0% 18%);
+  border-bottom: 2px solid hsl(0 0% 18%);
+  background: linear-gradient(180deg, hsl(0 0% 10%) 0%, hsl(0 0% 8%) 100%);
 }
 
 .ag-theme-custom-dark .ag-header-cell {
-  font-weight: 500;
-  font-size: 12px;
+  font-weight: 600;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  color: hsl(0 0% 50%);
 }
 
-/* Row hover effect */
+.ag-theme-custom-dark .ag-header-cell:hover {
+  color: hsl(0 0% 70%);
+}
+
+/* Row styling - alternating for scanability */
+.ag-theme-custom-dark .ag-row-even {
+  background-color: hsl(0 0% 10%);
+}
+
+.ag-theme-custom-dark .ag-row-odd {
+  background-color: hsl(0 0% 11.5%);
+}
+
+/* Row hover effect - more visible */
 .ag-theme-custom-dark .ag-row:hover {
-  background-color: hsl(0 0% 16%);
+  background-color: hsl(0 0% 15%) !important;
 }
 
 /* Selected row */
@@ -66,30 +81,46 @@
   background-color: hsl(239 84% 67% / 0.1) !important;
 }
 
+/* Cell styling */
+.ag-theme-custom-dark .ag-cell {
+  border-bottom: 1px solid hsl(0 0% 14%);
+  line-height: 1.5;
+}
+
 /* Cell focus */
 .ag-theme-custom-dark .ag-cell-focus {
   border-color: hsl(239 84% 67%) !important;
 }
 
-/* Pagination */
+/* Pagination - unified styling */
 .ag-theme-custom-dark .ag-paging-panel {
-  border-top: 1px solid hsl(0 0% 18%);
-  color: hsl(0 0% 64%);
+  border-top: 1px solid hsl(0 0% 16%);
+  background-color: hsl(0 0% 9%);
+  color: hsl(0 0% 55%);
+  font-size: 13px;
+}
+
+.ag-theme-custom-dark .ag-paging-button {
+  color: hsl(0 0% 55%);
+}
+
+.ag-theme-custom-dark .ag-paging-button:hover {
+  color: hsl(0 0% 80%);
 }
 
 /* Loading overlay */
 .ag-theme-custom-dark .ag-overlay-loading-center {
-  background-color: hsl(0 0% 12%);
-  color: hsl(0 0% 96%);
+  background-color: hsl(0 0% 10%);
+  color: hsl(0 0% 92%);
 }
 
 /* No rows overlay */
 .ag-theme-custom-dark .ag-overlay-no-rows-center {
-  background-color: hsl(0 0% 12%);
-  color: hsl(0 0% 64%);
+  background-color: hsl(0 0% 10%);
+  color: hsl(0 0% 55%);
 }
 
-/* Scrollbar */
+/* Scrollbar - subtle */
 .ag-theme-custom-dark ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -100,21 +131,30 @@
 }
 
 .ag-theme-custom-dark ::-webkit-scrollbar-thumb {
-  background: hsl(0 0% 24%);
+  background: hsl(0 0% 22%);
   border-radius: 4px;
 }
 
 .ag-theme-custom-dark ::-webkit-scrollbar-thumb:hover {
-  background: hsl(0 0% 32%);
+  background: hsl(0 0% 30%);
 }
 
 /* Pinned columns */
 .ag-theme-custom-dark .ag-pinned-left-header,
 .ag-theme-custom-dark .ag-pinned-left-cols-container {
-  border-right: 1px solid hsl(0 0% 24%);
+  border-right: 1px solid hsl(0 0% 20%);
 }
 
 .ag-theme-custom-dark .ag-pinned-right-header,
 .ag-theme-custom-dark .ag-pinned-right-cols-container {
-  border-left: 1px solid hsl(0 0% 24%);
+  border-left: 1px solid hsl(0 0% 20%);
+}
+
+/* Sort icons */
+.ag-theme-custom-dark .ag-sort-indicator-icon {
+  color: hsl(0 0% 45%);
+}
+
+.ag-theme-custom-dark .ag-header-cell:hover .ag-sort-indicator-icon {
+  color: hsl(0 0% 65%);
 }
