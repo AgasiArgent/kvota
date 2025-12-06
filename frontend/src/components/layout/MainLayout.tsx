@@ -34,7 +34,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
     <div className="min-h-screen bg-background">
       <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
 
-      <div className={cn('transition-all duration-300', sidebarCollapsed ? 'ml-16' : 'ml-60')}>
+      <div
+        className="transition-all duration-300"
+        style={{ marginLeft: sidebarCollapsed ? '4rem' : '15rem' }}
+      >
         <TopBar onCommandPaletteOpen={() => setCommandPaletteOpen(true)} />
 
         <main className="p-6">{children}</main>

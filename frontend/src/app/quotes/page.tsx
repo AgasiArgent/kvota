@@ -3,8 +3,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, ICellRendererParams } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
+import {
+  ColDef,
+  ICellRendererParams,
+  ModuleRegistry,
+  AllCommunityModule,
+  themeQuartz,
+} from 'ag-grid-community';
+
+// Register AG Grid modules (required for v34+)
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+// AG Grid v34+ dark theme
+const agGridDarkTheme = themeQuartz.withParams({
+  backgroundColor: '#1f1f1f',
+  foregroundColor: '#f5f5f5',
+  borderColor: '#2e2e2e',
+  headerBackgroundColor: '#141414',
+  headerTextColor: '#a3a3a3',
+  rowHoverColor: '#292929',
+  selectedRowBackgroundColor: '#292929',
+  accentColor: '#6366f1',
+});
 import { Download, Upload, MoreHorizontal, Send, FileDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -484,6 +504,7 @@ export default function QuotesPage() {
           ) : (
             <AgGridReact
               ref={gridRef}
+              theme={agGridDarkTheme}
               rowData={quotes}
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
