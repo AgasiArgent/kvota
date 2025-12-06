@@ -1,38 +1,46 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button, Modal, Form, Input, message, Tooltip } from 'antd';
-import { BugOutlined } from '@ant-design/icons';
+import { Bug } from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { FeedbackService } from '@/lib/api/feedback-service';
 
-const { TextArea } = Input;
-
 export default function FeedbackButton() {
-  const [visible, setVisible] = useState(false);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm();
+  const [description, setDescription] = useState('');
   const [isScrollingDown, setIsScrollingDown] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   // Handle scroll to show/hide button
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
     const handleScroll = () => {
-      // Clear previous timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
 
-      // Debounce scroll event
       timeoutId = setTimeout(() => {
         const currentScrollY = window.scrollY;
 
         if (currentScrollY > lastScrollY && currentScrollY > 100) {
-          // Scrolling down - hide button
           setIsScrollingDown(true);
         } else {
-          // Scrolling up or near top - show button
           setIsScrollingDown(false);
         }
 
@@ -50,20 +58,31 @@ export default function FeedbackButton() {
     };
   }, [lastScrollY]);
 
-  const handleOpenModal = () => {
-    setVisible(true);
+  const handleCancel = () => {
+    setOpen(false);
+    setDescription('');
+    setError(null);
   };
 
-  const handleCancel = () => {
-    setVisible(false);
-    form.resetFields();
+  const validateForm = () => {
+    if (!description.trim()) {
+      setError('Пожалуйста, опишите проблему');
+      return false;
+    }
+    if (description.trim().length < 10) {
+      setError('Описание должно содержать минимум 10 символов');
+      return false;
+    }
+    setError(null);
+    return true;
   };
 
   const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields();
-      setLoading(true);
+    if (!validateForm()) return;
 
+    setLoading(true);
+
+    try {
       // Auto-capture browser info
       const browserInfo = {
         userAgent: navigator.userAgent,
@@ -80,18 +99,19 @@ export default function FeedbackButton() {
       // Submit feedback
       await FeedbackService.submit({
         page_url: pageUrl,
-        description: values.description,
+        description: description.trim(),
         browser_info: browserInfo,
       });
 
-      message.success('Спасибо за обратную связь! Мы рассмотрим вашу заявку.');
-      setVisible(false);
-      form.resetFields();
-    } catch (error) {
-      if (error instanceof Error) {
-        message.error(`Ошибка: ${error.message}`);
+      toast.success('Спасибо за обратную связь! Мы рассмотрим вашу заявку.');
+      setOpen(false);
+      setDescription('');
+      setError(null);
+    } catch (err) {
+      if (err instanceof Error) {
+        toast.error(`Ошибка: ${err.message}`);
       } else {
-        message.error('Не удалось отправить обратную связь');
+        toast.error('Не удалось отправить обратную связь');
       }
     } finally {
       setLoading(false);
@@ -101,68 +121,76 @@ export default function FeedbackButton() {
   return (
     <>
       {/* Floating Button */}
-      <Tooltip title="Сообщить об ошибке" placement="left">
-        <Button
-          type="primary"
-          shape="circle"
-          size="large"
-          icon={<BugOutlined />}
-          onClick={handleOpenModal}
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            right: 20,
-            zIndex: 1000,
-            width: 56,
-            height: 56,
-            fontSize: 24,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            transition: 'all 0.3s ease',
-            transform: isScrollingDown ? 'translateY(100px)' : 'translateY(0)',
-            opacity: isScrollingDown ? 0 : 1,
-          }}
-        />
-      </Tooltip>
+      <TooltipProvider>
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button
+              size="lg"
+              className={cn(
+                'fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full p-0 shadow-lg transition-all duration-300 hover:scale-105',
+                'bg-primary text-primary-foreground hover:bg-primary/90',
+                isScrollingDown && 'translate-y-24 opacity-0'
+              )}
+              onClick={() => setOpen(true)}
+            >
+              <Bug className="h-6 w-6" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p>Сообщить об ошибке</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
-      {/* Feedback Modal */}
-      <Modal
-        title="Сообщить об ошибке"
-        open={visible}
-        onCancel={handleCancel}
-        onOk={handleSubmit}
-        confirmLoading={loading}
-        okText="Отправить"
-        cancelText="Отмена"
-        width={600}
-      >
-        <Form form={form} layout="vertical" autoComplete="off">
-          <Form.Item
-            label="Описание проблемы"
-            name="description"
-            rules={[
-              { required: true, message: 'Пожалуйста, опишите проблему' },
-              { min: 10, message: 'Описание должно содержать минимум 10 символов' },
-            ]}
-            extra="Опишите подробно, что произошло и какое поведение вы ожидали"
-          >
-            <TextArea
-              rows={6}
-              placeholder="Например: При создании КП кнопка 'Сохранить' не реагирует на клик..."
-              showCount
-              maxLength={1000}
-            />
-          </Form.Item>
+      {/* Feedback Dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Сообщить об ошибке</DialogTitle>
+            <DialogDescription>
+              Опишите подробно, что произошло и какое поведение вы ожидали
+            </DialogDescription>
+          </DialogHeader>
 
-          <div style={{ fontSize: 12, color: '#999', marginTop: -8 }}>
-            <p style={{ margin: 0 }}>Автоматически будет записана следующая информация:</p>
-            <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
-              <li>URL текущей страницы</li>
-              <li>Информация о браузере</li>
-              <li>Разрешение экрана</li>
-            </ul>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Описание проблемы</Label>
+              <Textarea
+                id="description"
+                placeholder="Например: При создании КП кнопка 'Сохранить' не реагирует на клик..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onBlur={validateForm}
+                rows={6}
+                maxLength={1000}
+                className={cn(error && 'border-destructive focus-visible:ring-destructive')}
+              />
+              <div className="flex items-center justify-between">
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <p className="ml-auto text-sm text-muted-foreground">{description.length}/1000</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+              <p className="mb-1 font-medium">Автоматически будет записана следующая информация:</p>
+              <ul className="ml-4 list-disc space-y-0.5">
+                <li>URL текущей страницы</li>
+                <li>Информация о браузере</li>
+                <li>Разрешение экрана</li>
+              </ul>
+            </div>
           </div>
-        </Form>
-      </Modal>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel} disabled={loading}>
+              Отмена
+            </Button>
+            <Button onClick={handleSubmit} disabled={loading}>
+              {loading ? 'Отправка...' : 'Отправить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
