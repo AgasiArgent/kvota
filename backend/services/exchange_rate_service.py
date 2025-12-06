@@ -178,14 +178,11 @@ class ExchangeRateService:
                     "fetched_at": fetched_at.isoformat()
                 })
 
-            # Upsert rates - update if exists, insert if not
-            # Using upsert to handle potential duplicates gracefully
+            # Insert new rates - each batch has unique fetched_at timestamp
+            # This creates historical records for audit purposes
             result = supabase.table("exchange_rates")\
-                .upsert(
-                    records,
-                    on_conflict="from_currency,to_currency,fetched_at",
-                    ignore_duplicates=False
-                ).execute()
+                .insert(records)\
+                .execute()
 
             logger.info(f"Stored/updated {len(rates)} exchange rates in database")
 

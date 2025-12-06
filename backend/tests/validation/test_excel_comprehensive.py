@@ -149,8 +149,8 @@ def build_calculation_input(product: Dict, quote_vars: Dict) -> QuoteCalculation
         ),
         system=SystemConfig(
             rate_fin_comm=Decimal("2"),
-            # Excel uses 25% annual / 365 days = 0.0006849315...
-            rate_loan_interest_daily=Decimal("0.25") / 365,
+            # Excel uses 25% annual rate
+            rate_loan_interest_annual=Decimal("0.25"),
             rate_insurance=Decimal("0.00047"),
             customs_logistics_pmt_due=10,
         ),

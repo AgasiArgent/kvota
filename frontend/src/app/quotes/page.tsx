@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Table,
   Button,
@@ -15,11 +15,10 @@ import {
   Statistic,
   DatePicker,
   Dropdown,
-  Upload,
   Popover,
   App,
 } from 'antd';
-import type { MenuProps, UploadProps } from 'antd';
+import type { MenuProps } from 'antd';
 import {
   SearchOutlined,
   FileTextOutlined,
@@ -55,6 +54,7 @@ interface QuoteListItem {
   workflow_state?: string;
   total_amount?: number;
   total_with_vat_quote?: number;
+  total_with_vat_usd?: number;
   total_usd?: number;
   total?: number; // Backend uses 'total' instead of 'total_amount'
   total_profit_usd?: number;
@@ -76,7 +76,13 @@ export default function QuotesPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [authorFilter, setAuthorFilter] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
+
+  // Team members for author filter
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [authorFilterInitialized, setAuthorFilterInitialized] = useState(false);
 
   // Submit modal state
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
@@ -86,17 +92,73 @@ export default function QuotesPage() {
   // Create quote modal state
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const quoteService = new QuoteService();
 
+  // Fetch team members for author filter on load
+  useEffect(() => {
+    if (profile?.organization_id && !loadingMembers && teamMembers.length === 0) {
+      fetchTeamMembers();
+    }
+  }, [profile?.organization_id]);
+
+  // Pre-select current user once team members are loaded
+  useEffect(() => {
+    if (teamMembers.length > 0 && profile?.id && !authorFilterInitialized) {
+      // Pre-select current user in author filter
+      setAuthorFilter(profile.id);
+      setAuthorFilterInitialized(true);
+    }
+  }, [teamMembers, profile?.id, authorFilterInitialized]);
+
   useEffect(() => {
     console.log('[useEffect] Triggered - profile:', profile?.organization_id, 'page:', currentPage);
-    if (profile?.organization_id) {
+    if (profile?.organization_id && authorFilterInitialized) {
       fetchQuotes();
     } else {
-      console.log('[useEffect] BLOCKED - no organization_id');
+      console.log('[useEffect] BLOCKED - no organization_id or author filter not initialized');
     }
-  }, [currentPage, pageSize, searchTerm, statusFilter, dateRange, profile]);
+  }, [
+    currentPage,
+    pageSize,
+    searchTerm,
+    statusFilter,
+    authorFilter,
+    dateRange,
+    profile,
+    authorFilterInitialized,
+  ]);
+
+  const fetchTeamMembers = async () => {
+    if (!profile?.organization_id) return;
+    setLoadingMembers(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(
+        `${config.apiUrl}/api/organizations/${profile.organization_id}/members`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Map to simpler format for dropdown
+        const members = data.map((m: any) => ({
+          id: m.user_id,
+          name: m.user_full_name || m.user_email,
+        }));
+        setTeamMembers(members);
+      }
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
 
   const fetchQuotes = async () => {
     console.log(
@@ -118,6 +180,9 @@ export default function QuotesPage() {
       if (dateRange) {
         filters.date_from = dateRange[0].format('YYYY-MM-DD');
         filters.date_to = dateRange[1].format('YYYY-MM-DD');
+      }
+      if (authorFilter) {
+        filters.created_by = authorFilter;
       }
 
       const organizationId = profile?.organization_id || '';
@@ -223,17 +288,19 @@ export default function QuotesPage() {
     }
   };
 
-  // File selection handler for Create Quote flow
-  const uploadProps: UploadProps = {
-    name: 'file',
-    accept: '.xlsx,.xls,.xlsm',
-    showUploadList: false,
-    beforeUpload: (file) => {
-      // Capture file and open modal instead of uploading
+  // File selection handler for Create Quote flow (native input for React 19 compatibility)
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
       setSelectedFile(file);
       setCreateModalOpen(true);
-      return false; // Prevent automatic upload
-    },
+    }
+    // Reset the input so the same file can be selected again
+    event.target.value = '';
+  };
+
+  const handleCreateQuoteClick = () => {
+    fileInputRef.current?.click();
   };
 
   // Handle successful quote creation
@@ -542,22 +609,25 @@ export default function QuotesPage() {
       align: 'right' as const,
       render: (_: any, record: QuoteListItem) => {
         // Use total_with_vat_quote (AL16) - final price with VAT in quote currency
-        const amount = record.total_with_vat_quote || record.total_amount || record.total || 0;
-        return formatCurrency(amount, record.currency || 'USD');
+        // Show '—' if not calculated yet (consistent with other columns)
+        if (!record.total_with_vat_quote) return '—';
+        return formatCurrency(record.total_with_vat_quote, record.currency || 'USD');
       },
     },
     {
       title: 'Сумма USD',
-      dataIndex: 'total_usd',
-      key: 'total_usd',
+      dataIndex: 'total_with_vat_usd',
+      key: 'total_with_vat_usd',
       width: 130,
       align: 'right' as const,
-      render: (totalUsd: number | null | undefined) => {
-        if (totalUsd === undefined || totalUsd === null) return '—';
+      render: (_: any, record: QuoteListItem) => {
+        // Use total_with_vat_usd (AL16 sum) - final price with VAT in USD
+        // Show '—' if not calculated yet
+        if (!record.total_with_vat_usd) return '—';
         return (
           <span>
             $
-            {totalUsd.toLocaleString('ru-RU', {
+            {record.total_with_vat_usd.toLocaleString('ru-RU', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -664,11 +734,22 @@ export default function QuotesPage() {
               <Button icon={<DownloadOutlined />} size="large" onClick={handleDownloadTemplate}>
                 Скачать шаблон
               </Button>
-              <Upload {...uploadProps}>
-                <Button type="primary" icon={<UploadOutlined />} size="large">
-                  Создать КП
-                </Button>
-              </Upload>
+              {/* Hidden file input for React 19 compatibility */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept=".xlsx,.xls,.xlsm"
+                style={{ display: 'none' }}
+              />
+              <Button
+                type="primary"
+                icon={<UploadOutlined />}
+                size="large"
+                onClick={handleCreateQuoteClick}
+              >
+                Создать КП
+              </Button>
             </Space>
           </Col>
         </Row>
@@ -736,7 +817,7 @@ export default function QuotesPage() {
         {/* Filters */}
         <Card>
           <Row gutter={[16, 16]}>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={6}>
               <Search
                 placeholder="Поиск по номеру, клиенту..."
                 allowClear
@@ -754,7 +835,7 @@ export default function QuotesPage() {
                 }}
               />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={6}>
               <Select
                 placeholder="Статус"
                 allowClear
@@ -779,7 +860,25 @@ export default function QuotesPage() {
                 ]}
               />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} md={6}>
+              <Select
+                placeholder="Автор"
+                allowClear
+                size="large"
+                style={{ width: '100%' }}
+                value={authorFilter}
+                loading={loadingMembers}
+                onChange={(value) => {
+                  setAuthorFilter(value);
+                  setCurrentPage(1);
+                }}
+                options={teamMembers.map((m) => ({
+                  label: m.name,
+                  value: m.id,
+                }))}
+              />
+            </Col>
+            <Col xs={24} md={6}>
               <RangePicker
                 size="large"
                 style={{ width: '100%' }}

@@ -477,7 +477,7 @@ def phase7_financing_costs(
     BH4: Decimal,
     advance_from_client: Decimal,
     delivery_time: int,
-    offer_post_pmt_due: int,
+    customs_logistics_pmt_due: int,
     rate_loan_interest_daily: Decimal,
     additional_payment_milestones: Decimal = Decimal("0")
 ) -> Dict[str, Decimal]:
@@ -490,10 +490,14 @@ def phase7_financing_costs(
 
     Updated 2025-11-27:
     - BI7 = BH7 × (1 + rate_loan_interest_daily × D9) (simple interest, delivery time)
-    - BI10 = BH10 × (1 + rate_loan_interest_daily × K9) (simple interest, post-payment due)
     - BH9: Excel formula depends on payment terms type (pmt_1, pmt_2, pmt_3)
       For pmt_3 (most common): BH9 = SUM(J6:J8) * BH2 where J6:J8 are additional milestones
       Default to 0 when no additional milestones specified
+
+    Updated 2025-12-05:
+    - BI10 = BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
+      Uses customs_logistics_pmt_due (helpsheet E27, fixed 10 days) NOT offer_post_pmt_due (K9)
+      Excel formula: =BH10+BH10*rate_loan_interest_daily*customs_logistics_pmt_due
     """
     # Final-17: BH3 = BH2 * (J5 / 100)
     BH3 = round_decimal(BH2 * (advance_from_client / Decimal("100")))
@@ -531,10 +535,10 @@ def phase7_financing_costs(
     # Final-14: BJ7 = BI7 - BH7
     BJ7 = round_decimal(BI7 - BH7)
 
-    # Final-25: BI10 = BH10 × (1 + rate_loan_interest_daily × K9)
-    # Updated 2025-11-27: Uses offer_post_pmt_due (K9) instead of customs_logistics_pmt_due
-    K9 = offer_post_pmt_due
-    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(K9)))
+    # Final-25: BI10 = BH10 × (1 + rate_loan_interest_daily × customs_logistics_pmt_due)
+    # Updated 2025-12-05: Uses customs_logistics_pmt_due (helpsheet E27, fixed ~10 days)
+    # NOT offer_post_pmt_due (K9) - Excel formula: =BH10+BH10*rate_loan_interest_daily*customs_logistics_pmt_due
+    BI10 = round_decimal(BH10 * (Decimal("1") + rate_loan_interest_daily * Decimal(customs_logistics_pmt_due)))
 
     # Final-14: BJ10 = BI10 - BH10
     BJ10 = round_decimal(BI10 - BH10)
@@ -1012,7 +1016,7 @@ def calculate_multiproduct_quote(products: List[QuoteCalculationInput]) -> List[
         phase5_results["BH4"],
         shared.payment.advance_from_client,
         shared.logistics.delivery_time,
-        shared.payment.time_to_advance_on_receiving,  # K9: offer_post_pmt_due
+        shared.system.customs_logistics_pmt_due,  # helpsheet E27: fixed ~10 days
         shared.system.rate_loan_interest_daily
     )
 
@@ -1275,7 +1279,7 @@ def calculate_single_product_quote(inputs: QuoteCalculationInput) -> ProductCalc
         phase5_results["BH4"],
         inputs.payment.advance_from_client,
         inputs.logistics.delivery_time,
-        inputs.payment.time_to_advance_on_receiving,  # K9: offer_post_pmt_due
+        inputs.system.customs_logistics_pmt_due,  # helpsheet E27: fixed ~10 days
         inputs.system.rate_loan_interest_daily
     )
     

@@ -130,6 +130,7 @@ async def list_quotes(
     quote_status: Optional[str] = Query(None, description="Filter by quote status (deprecated, use workflow_state)"),
     workflow_state: Optional[str] = Query(None, description="Filter by workflow state"),
     customer_id: Optional[UUID] = Query(None, description="Filter by customer"),
+    created_by: Optional[UUID] = Query(None, description="Filter by quote author (created_by user ID)"),
     date_from: Optional[date] = Query(None, description="Filter quotes from date"),
     date_to: Optional[date] = Query(None, description="Filter quotes to date"),
     currency: Optional[str] = Query(None, description="Filter by currency"),
@@ -151,7 +152,7 @@ async def list_quotes(
         query = supabase.table("quotes").select(
             "id, quote_number, customer_id, created_by, title, description, status, workflow_state, "
             "quote_date, valid_until, currency, "
-            "subtotal, tax_rate, tax_amount, total_amount, total_with_vat_quote, total_usd, "
+            "subtotal, tax_rate, tax_amount, total_amount, total_with_vat_quote, total_with_vat_usd, total_usd,"
             "total_profit_usd, total_vat_on_import_usd, total_vat_payable_usd, "
             "notes, terms_conditions, created_at, updated_at, deleted_at, "
             "customers(name)",
@@ -167,6 +168,8 @@ async def list_quotes(
             query = query.eq("status", quote_status)
         if customer_id:
             query = query.eq("customer_id", str(customer_id))
+        if created_by:
+            query = query.eq("created_by", str(created_by))
         if date_from:
             query = query.gte("quote_date", date_from.isoformat())
         if date_to:
@@ -251,6 +254,7 @@ async def list_quotes(
                 "workflow_state": quote.get("workflow_state", "draft"),
                 "total_amount": quote.get("total_amount", 0),
                 "total_with_vat_quote": quote.get("total_with_vat_quote"),
+                "total_with_vat_usd": quote.get("total_with_vat_usd"),
                 "total_usd": quote.get("total_usd"),
                 "total_profit_usd": quote.get("total_profit_usd"),
                 "currency": quote.get("currency", "USD"),
