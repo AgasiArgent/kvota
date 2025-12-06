@@ -36,10 +36,11 @@
 - ~~Fix rate_loan_interest_daily precision~~ ✅ (Session 65)
 - ~~Fix BI10 to use customs_logistics_pmt_due~~ ✅ (Session 65)
 - ~~Fix EUR quote USD totals showing 90x too large~~ ✅ (Session 66)
+- ~~Add author filter to quotes list~~ ✅ (Session 66)
 
 ---
 
-## Session 66 (2025-12-05) - Fix EUR Quote USD Totals Conversion
+## Session 66 (2025-12-05) - Fix EUR Quote USD Totals + Author Filter
 
 ### Goal
 Fix incorrect `total_with_vat_usd` values for EUR quotes uploaded via Excel (showing ~90x too large).
@@ -72,8 +73,31 @@ Expected: `90.59 / 77.95 = 1.16` (correct EUR→USD rate)
 ### Fix
 `backend/routes/quotes_upload.py:191` - Added `all_currencies.add("USD")` to always fetch USD/RUB rate.
 
-### Commit
+### Commits
 - `cace805` - fix: always fetch USD rate for EUR quote totals conversion
+- `b09cae3` - feat: add author filter to quotes list with current user pre-selection
+
+---
+
+### Author Filter Feature (Session 66, Part 2)
+
+**User Request:** Users complained that after creating a quote via "Создать КП" button, they don't see it in the quotes list. Also requested author filter column pre-selected to current user.
+
+**Investigation:** The auto-refresh was already working (`handleCreateQuoteSuccess` calls `fetchQuotes()`).
+
+**Implementation:**
+1. **Backend** (`quotes.py`): Added `created_by` query parameter to filter by author
+2. **Frontend API** (`quote-service.ts`): Added `created_by` to query params
+3. **Frontend UI** (`quotes/page.tsx`):
+   - Added "Автор" dropdown filter in filters Card
+   - Fetches team members from `/api/organizations/{org_id}/members`
+   - Pre-selects current user on page load
+   - Changed grid from 3 columns (md=8) to 4 columns (md=6)
+
+**Files Modified:**
+- `backend/routes/quotes.py` (+3 lines)
+- `frontend/src/lib/api/quote-service.ts` (+1 line)
+- `frontend/src/app/quotes/page.tsx` (+86 lines, -6 lines)
 
 ---
 
