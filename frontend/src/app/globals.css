@@ -340,8 +340,8 @@ body {
   --card-foreground: 0 0% 85%; /* #d9d9d9 */
   --popover: 0 0% 12%; /* #1f1f1f */
   --popover-foreground: 0 0% 85%; /* #d9d9d9 */
-  --primary: 217 91% 60%; /* #3b82f6 blue-500 - unified accent */
-  --primary-foreground: 0 0% 98%; /* white */
+  --primary: 38 92% 50%; /* #f59e0b amber-500 - warm accent */
+  --primary-foreground: 0 0% 9%; /* dark text on amber */
   --secondary: 0 0% 16%; /* #292929 */
   --secondary-foreground: 0 0% 85%; /* #d9d9d9 */
   --muted: 0 0% 16%; /* #292929 */
@@ -352,7 +352,7 @@ body {
   --destructive-foreground: 0 0% 98%;
   --border: 0 0% 18%; /* #2e2e2e */
   --input: 0 0% 18%; /* #2e2e2e */
-  --ring: 217 91% 60%; /* #3b82f6 blue-500 */
+  --ring: 38 92% 50%; /* #f59e0b amber-500 */
   --radius: 0.5rem;
 
   /* Custom semantic colors */
@@ -360,8 +360,8 @@ body {
   --success-foreground: 0 0% 98%;
   --warning: 38 92% 50%; /* #f59e0b */
   --warning-foreground: 0 0% 9%;
-  --info: 217 91% 60%; /* #3b82f6 */
-  --info-foreground: 0 0% 98%;
+  --info: 38 92% 50%; /* #f59e0b amber */
+  --info-foreground: 0 0% 9%;
 }
 
 @layer base {
