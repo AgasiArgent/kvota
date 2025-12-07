@@ -15,6 +15,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import QuoteStats from '@/components/quotes/QuoteStats';
 import QuoteFilters from '@/components/quotes/QuoteFilters';
 import StatusBadge from '@/components/shared/StatusBadge';
+import CreateQuoteModal from '@/components/quotes/CreateQuoteModal';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -85,6 +86,10 @@ export default function QuotesPage() {
   const [submitQuoteNumber, setSubmitQuoteNumber] = useState('');
   const [submitComment, setSubmitComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Create quote modal
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const quoteService = new QuoteService();
 
@@ -215,10 +220,22 @@ export default function QuotesPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // TODO: Open create quote modal with file
-      toast.info('Создание КП из файла...');
+      setSelectedFile(file);
+      setCreateModalOpen(true);
     }
     e.target.value = '';
+  };
+
+  const handleCreateModalSuccess = (quoteId: string, _quoteNumber: string) => {
+    setCreateModalOpen(false);
+    setSelectedFile(null);
+    // Navigate to the new quote or refresh the list
+    router.push(`/quotes/${quoteId}`);
+  };
+
+  const handleCreateModalCancel = () => {
+    setCreateModalOpen(false);
+    setSelectedFile(null);
   };
 
   const handleSubmitForApproval = async () => {
@@ -543,6 +560,14 @@ export default function QuotesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Create Quote Modal */}
+      <CreateQuoteModal
+        open={createModalOpen}
+        onCancel={handleCreateModalCancel}
+        onSuccess={handleCreateModalSuccess}
+        selectedFile={selectedFile}
+      />
     </MainLayout>
   );
 }
