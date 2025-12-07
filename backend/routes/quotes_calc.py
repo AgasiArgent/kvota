@@ -837,7 +837,8 @@ async def upload_products_file(
 
 @router.get("/variable-templates", response_model=List[VariableTemplate])
 async def list_variable_templates(
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """List all variable templates for the user's organization"""
 
@@ -881,7 +882,8 @@ async def list_variable_templates(
 @router.post("/variable-templates", response_model=VariableTemplate, status_code=status.HTTP_201_CREATED)
 async def create_variable_template(
     template: VariableTemplateCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """Create a new variable template"""
 
@@ -936,7 +938,8 @@ async def create_variable_template(
 @router.get("/variable-templates/{template_id}", response_model=VariableTemplate)
 async def get_variable_template(
     template_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """Get a specific variable template"""
 
