@@ -90,8 +90,8 @@ export default function CreateOrganizationPage() {
       } else {
         toast.error(result.error || 'Ошибка создания организации');
       }
-    } catch (error: any) {
-      toast.error(`Ошибка: ${error.message}`);
+    } catch (error) {
+      toast.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     } finally {
       setLoading(false);
     }
