@@ -60,6 +60,7 @@ import {
   completeActivity,
   type ActivityWithDetails,
   type ActivityCreate,
+  type ActivityType,
 } from '@/lib/api/activity-service';
 import {
   listLeadContacts,
@@ -92,7 +93,12 @@ export default function LeadDetailPage() {
   });
 
   // Activity form state
-  const [activityForm, setActivityForm] = useState({
+  const [activityForm, setActivityForm] = useState<{
+    type: ActivityType;
+    title: string;
+    notes: string;
+    duration_minutes: number;
+  }>({
     type: 'meeting',
     title: '',
     notes: '',
@@ -223,7 +229,10 @@ export default function LeadDetailPage() {
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold">{lead.company_name}</h1>
-                  <LeadStageBadge stage={lead.stage_name} color={lead.stage_color} />
+                  <LeadStageBadge
+                    stage={lead.stage_name || 'new'}
+                    color={lead.stage_color || 'gray'}
+                  />
                 </div>
               </div>
             </div>
@@ -320,7 +329,10 @@ export default function LeadDetailPage() {
                   <div className="space-y-2">
                     <Label>Этап</Label>
                     <div className="text-sm">
-                      <LeadStageBadge stage={lead.stage_name} color={lead.stage_color} />
+                      <LeadStageBadge
+                        stage={lead.stage_name || 'new'}
+                        color={lead.stage_color || 'gray'}
+                      />
                     </div>
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -579,7 +591,9 @@ export default function LeadDetailPage() {
                   <Label htmlFor="type">Тип *</Label>
                   <Select
                     value={activityForm.type}
-                    onValueChange={(value) => setActivityForm({ ...activityForm, type: value })}
+                    onValueChange={(value: string) =>
+                      setActivityForm({ ...activityForm, type: value as ActivityType })
+                    }
                   >
                     <SelectTrigger id="type">
                       <SelectValue />

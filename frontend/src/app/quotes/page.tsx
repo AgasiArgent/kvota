@@ -506,7 +506,8 @@ export default function QuotesPage() {
               getRowId={(params) => params.data.id}
               onRowClicked={(e) => {
                 // Skip navigation when clicking on checkbox column
-                if (e.column?.getColId() === 'ag-Grid-SelectionColumn') return;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if ((e as any).column?.getColId() === 'ag-Grid-SelectionColumn') return;
                 if (e.data?.id) {
                   router.push(`/quotes/${e.data.id}`);
                 }

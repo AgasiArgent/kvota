@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, FileSearch, Download, Filter, X, Eye } from 'lucide-react';
-import { DatePicker } from 'antd';
-import dayjs, { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -11,6 +10,8 @@ import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -34,8 +35,6 @@ import {
   ActivityLogFilters,
 } from '@/lib/api/activity-log-service';
 
-const { RangePicker } = DatePicker;
-
 export default function ActivityLogPage() {
   // ============================================================================
   // STATE
@@ -47,11 +46,11 @@ export default function ActivityLogPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
 
-  // Filter state
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(7, 'days'),
-    dayjs(),
-  ]);
+  // Filter state - using native date strings (YYYY-MM-DD format)
+  const [dateFrom, setDateFrom] = useState<string>(
+    dayjs().subtract(7, 'days').format('YYYY-MM-DD')
+  );
+  const [dateTo, setDateTo] = useState<string>(dayjs().format('YYYY-MM-DD'));
   const [userFilter, setUserFilter] = useState<string | undefined>(undefined);
   const [entityTypeFilter, setEntityTypeFilter] = useState<string | undefined>(undefined);
   const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
@@ -76,8 +75,8 @@ export default function ActivityLogPage() {
 
     try {
       const filters: ActivityLogFilters = {
-        date_from: dateRange[0].format('YYYY-MM-DD'),
-        date_to: dateRange[1].format('YYYY-MM-DD'),
+        date_from: dateFrom,
+        date_to: dateTo,
         user_id: userFilter,
         entity_type: entityTypeFilter,
         action: actionFilter,
@@ -102,7 +101,7 @@ export default function ActivityLogPage() {
     } finally {
       setLoading(false);
     }
-  }, [dateRange, userFilter, entityTypeFilter, actionFilter, pagination]);
+  }, [dateFrom, dateTo, userFilter, entityTypeFilter, actionFilter, pagination]);
 
   const fetchUsers = async () => {
     const response = await activityLogService.getUsers();
@@ -133,7 +132,8 @@ export default function ActivityLogPage() {
   };
 
   const handleResetFilters = () => {
-    setDateRange([dayjs().subtract(7, 'days'), dayjs()]);
+    setDateFrom(dayjs().subtract(7, 'days').format('YYYY-MM-DD'));
+    setDateTo(dayjs().format('YYYY-MM-DD'));
     setUserFilter(undefined);
     setEntityTypeFilter(undefined);
     setActionFilter(undefined);
@@ -219,8 +219,8 @@ export default function ActivityLogPage() {
     userFilter ||
     entityTypeFilter ||
     actionFilter ||
-    dateRange[0].isBefore(dayjs().subtract(7, 'days')) ||
-    dateRange[1].isAfter(dayjs());
+    dateFrom !== dayjs().subtract(7, 'days').format('YYYY-MM-DD') ||
+    dateTo !== dayjs().format('YYYY-MM-DD');
 
   // ============================================================================
   // STATS CALCULATIONS
@@ -230,6 +230,32 @@ export default function ActivityLogPage() {
   const uniqueUsers = new Set(logs.map((log) => log.user_id)).size;
   const createdActions = logs.filter((log) => log.action === 'created').length;
   const updatedActions = logs.filter((log) => log.action === 'updated').length;
+
+  // ============================================================================
+  // DATE PRESETS
+  // ============================================================================
+
+  const applyDatePreset = (preset: 'today' | '7days' | '30days' | 'thisMonth') => {
+    const today = dayjs();
+    switch (preset) {
+      case 'today':
+        setDateFrom(today.format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+      case '7days':
+        setDateFrom(today.subtract(7, 'days').format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+      case '30days':
+        setDateFrom(today.subtract(30, 'days').format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+      case 'thisMonth':
+        setDateFrom(today.startOf('month').format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+    }
+  };
 
   // ============================================================================
   // RENDER
@@ -250,97 +276,134 @@ export default function ActivityLogPage() {
         </div>
 
         {/* Filters Card */}
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/50 bg-card/30 p-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-foreground/60">Период:</span>
-            <RangePicker
-              value={dateRange}
-              onChange={(dates) => {
-                if (dates && dates[0] && dates[1]) {
-                  setDateRange([dates[0], dates[1]]);
-                }
-              }}
-              format="DD.MM.YYYY"
-              presets={[
-                { label: 'Сегодня', value: [dayjs(), dayjs()] },
-                { label: 'Последние 7 дней', value: [dayjs().subtract(7, 'days'), dayjs()] },
-                { label: 'Последние 30 дней', value: [dayjs().subtract(30, 'days'), dayjs()] },
-                { label: 'Этот месяц', value: [dayjs().startOf('month'), dayjs()] },
-              ]}
-              style={{ width: 300 }}
-            />
-          </div>
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4 space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            {/* Date Range Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Период:</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-[150px] bg-background/50 border-border/50"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-[150px] bg-background/50 border-border/50"
+                />
+              </div>
+            </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-foreground/60">Пользователь:</span>
-            <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="w-[200px] bg-background/50 border-border/50">
-                <SelectValue placeholder="Все пользователи" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableUsers.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name || user.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* User Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Пользователь:</Label>
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-[200px] bg-background/50 border-border/50">
+                  <SelectValue placeholder="Все пользователи" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name || user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-foreground/60">Тип сущности:</span>
-            <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
-              <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
-                <SelectValue placeholder="Все" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="quote">Котировка</SelectItem>
-                <SelectItem value="customer">Клиент</SelectItem>
-                <SelectItem value="contact">Контакт</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Entity Type Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Тип сущности:</Label>
+              <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+                <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
+                  <SelectValue placeholder="Все" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quote">Котировка</SelectItem>
+                  <SelectItem value="customer">Клиент</SelectItem>
+                  <SelectItem value="contact">Контакт</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-foreground/60">Действие:</span>
-            <Select value={actionFilter} onValueChange={setActionFilter}>
-              <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
-                <SelectValue placeholder="Все" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="created">Создано</SelectItem>
-                <SelectItem value="updated">Обновлено</SelectItem>
-                <SelectItem value="deleted">Удалено</SelectItem>
-                <SelectItem value="restored">Восстановлено</SelectItem>
-                <SelectItem value="exported">Экспортировано</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Action Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Действие:</Label>
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
+                  <SelectValue placeholder="Все" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="created">Создано</SelectItem>
+                  <SelectItem value="updated">Обновлено</SelectItem>
+                  <SelectItem value="deleted">Удалено</SelectItem>
+                  <SelectItem value="restored">Восстановлено</SelectItem>
+                  <SelectItem value="exported">Экспортировано</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="flex items-end gap-2 ml-auto">
-            <Button onClick={handleApplyFilters} variant="default">
-              <Filter className="mr-2 h-4 w-4" />
-              Применить фильтры
-            </Button>
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleResetFilters}
-                className="h-9 px-3 text-foreground/50 hover:text-foreground hover:bg-background/50"
-              >
-                <X className="mr-1.5 h-4 w-4" />
-                Сбросить
+            {/* Action Buttons */}
+            <div className="flex items-end gap-2 ml-auto">
+              <Button onClick={handleApplyFilters} variant="default">
+                <Filter className="mr-2 h-4 w-4" />
+                Применить фильтры
               </Button>
-            )}
-            <Button variant="outline" onClick={fetchLogs}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Обновить
-            </Button>
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="mr-2 h-4 w-4" />
-              Экспорт CSV
-            </Button>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetFilters}
+                  className="h-9 px-3 text-foreground/50 hover:text-foreground hover:bg-background/50"
+                >
+                  <X className="mr-1.5 h-4 w-4" />
+                  Сбросить
+                </Button>
+              )}
+              <Button variant="outline" onClick={fetchLogs}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Обновить
+              </Button>
+              <Button variant="outline" onClick={handleExportCSV}>
+                <Download className="mr-2 h-4 w-4" />
+                Экспорт CSV
+              </Button>
+            </div>
+          </div>
+
+          {/* Date Presets */}
+          <div className="flex gap-2">
+            <span className="text-xs text-foreground/50">Быстрый выбор:</span>
+            <button
+              onClick={() => applyDatePreset('today')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Сегодня
+            </button>
+            <span className="text-foreground/30">•</span>
+            <button
+              onClick={() => applyDatePreset('7days')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Последние 7 дней
+            </button>
+            <span className="text-foreground/30">•</span>
+            <button
+              onClick={() => applyDatePreset('30days')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Последние 30 дней
+            </button>
+            <span className="text-foreground/30">•</span>
+            <button
+              onClick={() => applyDatePreset('thisMonth')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Этот месяц
+            </button>
           </div>
         </div>
 

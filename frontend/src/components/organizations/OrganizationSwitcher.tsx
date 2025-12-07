@@ -1,9 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button, Dropdown, Space, Typography, message } from 'antd';
-import { CheckOutlined, ApartmentOutlined } from '@ant-design/icons';
-import type { MenuProps } from 'antd';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Check, Building2, ChevronDown, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { organizationService } from '@/lib/api/organization-service';
 import { UserOrganization } from '@/lib/types/organization';
@@ -14,8 +20,8 @@ import {
   setOrganizationCache,
   updateCurrentOrgId,
 } from '@/lib/cache/organization-cache';
-
-const { Text } = Typography;
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface OrganizationSwitcherProps {
   onSwitch?: () => void;
@@ -40,7 +46,7 @@ export default function OrganizationSwitcher({ onSwitch, darkMode }: Organizatio
     // Try cache first
     const cached = getOrganizationCache();
     if (cached) {
-      console.log('📦 Using cached organizations (TTL: 5 min)');
+      console.log('Using cached organizations (TTL: 5 min)');
       setOrganizations(cached.organizations);
 
       // Set current org from cache
@@ -57,7 +63,7 @@ export default function OrganizationSwitcher({ onSwitch, darkMode }: Organizatio
     }
 
     // Cache miss or expired - fetch from API
-    console.log('🌐 Fetching organizations from API...');
+    console.log('Fetching organizations from API...');
     setLoading(true);
     try {
       const [orgsResult, profileResult] = await Promise.all([
@@ -93,7 +99,7 @@ export default function OrganizationSwitcher({ onSwitch, darkMode }: Organizatio
       } else {
         console.error('Failed to fetch organizations:', orgsResult.error);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching organizations:', error);
     } finally {
       setLoading(false);
@@ -119,7 +125,7 @@ export default function OrganizationSwitcher({ onSwitch, darkMode }: Organizatio
           // Update cache with new current org
           updateCurrentOrgId(organizationId);
 
-          message.success(`Переключено на ${newOrg.organization_name}`);
+          toast.success(`Переключено на ${newOrg.organization_name}`);
 
           // Callback to parent (e.g., to refresh data)
           if (onSwitch) {
@@ -130,70 +136,74 @@ export default function OrganizationSwitcher({ onSwitch, darkMode }: Organizatio
           window.location.reload();
         }
       } else {
-        message.error(result.error || 'Ошибка переключения организации');
+        toast.error(result.error || 'Ошибка переключения организации');
       }
-    } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      toast.error(`Ошибка: ${errorMessage}`);
     } finally {
       setSwitching(false);
     }
   };
 
-  const menuItems: MenuProps['items'] = [
-    ...organizations.map((org) => ({
-      key: org.organization_id,
-      label: (
-        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Space direction="vertical" size={0}>
-            <Text strong>{org.organization_name}</Text>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {org.role_name}
-            </Text>
-          </Space>
-          {currentOrg?.organization_id === org.organization_id && (
-            <CheckOutlined style={{ color: '#52c41a' }} />
-          )}
-        </Space>
-      ),
-      onClick: () => handleSwitch(org.organization_id),
-    })),
-    {
-      type: 'divider',
-    },
-    {
-      key: 'all-orgs',
-      label: (
-        <Space>
-          <ApartmentOutlined />
-          <Text>Все организации</Text>
-        </Space>
-      ),
-      onClick: () => router.push('/organizations'),
-    },
-  ];
-
   if (organizations.length === 0 && !loading) {
     return (
-      <Button icon={<ApartmentOutlined />} onClick={() => router.push('/organizations')}>
+      <Button
+        variant="outline"
+        onClick={() => router.push('/organizations')}
+        className={cn(darkMode && 'bg-white/10 border-white/20 text-white hover:bg-white/20')}
+      >
+        <Building2 className="h-4 w-4 mr-2" />
         Организации
       </Button>
     );
   }
 
-  const buttonStyle = darkMode
-    ? {
-        background: 'rgba(255, 255, 255, 0.1)',
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        color: 'white',
-        width: '100%',
-      }
-    : {};
-
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['click']} disabled={switching || loading}>
-      <Button loading={loading || switching} style={buttonStyle}>
-        {currentOrg ? currentOrg.organization_name : 'Выберите организацию'}
-      </Button>
-    </Dropdown>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          disabled={switching || loading}
+          className={cn(
+            'w-full justify-between',
+            darkMode && 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+          )}
+        >
+          {loading || switching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <span className="truncate">
+                {currentOrg ? currentOrg.organization_name : 'Выберите организацию'}
+              </span>
+              <ChevronDown className="h-4 w-4 ml-2 shrink-0" />
+            </>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[280px]">
+        {organizations.map((org) => (
+          <DropdownMenuItem
+            key={org.organization_id}
+            onClick={() => handleSwitch(org.organization_id)}
+            className="flex items-center justify-between cursor-pointer"
+          >
+            <div className="flex flex-col">
+              <span className="font-medium">{org.organization_name}</span>
+              <span className="text-xs text-muted-foreground">{org.role_name}</span>
+            </div>
+            {currentOrg?.organization_id === org.organization_id && (
+              <Check className="h-4 w-4 text-green-500" />
+            )}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => router.push('/organizations')} className="cursor-pointer">
+          <Building2 className="h-4 w-4 mr-2" />
+          Все организации
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

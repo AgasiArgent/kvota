@@ -2,25 +2,35 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, Row, Col, Statistic, Table, Button, Skeleton, Alert, Badge, Typography } from 'antd';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
-  FileTextOutlined,
-  EditOutlined,
-  SendOutlined,
-  CheckCircleOutlined,
-  PlusCircleOutlined,
-  UnorderedListOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
-} from '@ant-design/icons';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  FileText,
+  Edit,
+  Send,
+  CheckCircle,
+  PlusCircle,
+  List,
+  TrendingUp,
+  TrendingDown,
+  AlertCircle,
+} from 'lucide-react';
 import {
   DashboardService,
   type DashboardStats,
   type RecentQuote,
 } from '@/lib/api/dashboard-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
-
-const { Title, Text } = Typography;
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -50,28 +60,20 @@ const calculatePercentage = (part: number, total: number): string => {
 /**
  * Get status badge configuration
  */
-const getStatusBadge = (status: string): { text: string; color: string } => {
-  const config: Record<string, { text: string; color: string }> = {
-    draft: { text: 'Черновик', color: 'default' },
-    sent: { text: 'Отправлено', color: 'processing' },
-    accepted: { text: 'Утверждено', color: 'success' },
-    rejected: { text: 'Отклонено', color: 'error' },
-    expired: { text: 'Истек срок', color: 'warning' },
+const getStatusBadge = (
+  status: string
+): { text: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } => {
+  const config: Record<
+    string,
+    { text: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+  > = {
+    draft: { text: 'Черновик', variant: 'secondary' },
+    sent: { text: 'Отправлено', variant: 'default' },
+    accepted: { text: 'Утверждено', variant: 'default' },
+    rejected: { text: 'Отклонено', variant: 'destructive' },
+    expired: { text: 'Истек срок', variant: 'outline' },
   };
-  return config[status] || { text: status, color: 'default' };
-};
-
-/**
- * Format trend indicator
- */
-const formatTrend = (trend: number) => {
-  const icon = trend >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />;
-  const color = trend >= 0 ? '#3f8600' : '#cf1322';
-  return (
-    <span style={{ color, fontSize: '14px', marginLeft: '8px' }}>
-      {icon} {Math.abs(trend).toFixed(1)}%
-    </span>
-  );
+  return config[status] || { text: status, variant: 'secondary' };
 };
 
 /**
@@ -83,6 +85,41 @@ const formatDate = (dateString: string): string => {
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   return `${day}.${month}`;
 };
+
+// ============================================================================
+// STATISTIC CARD COMPONENT
+// ============================================================================
+
+interface StatCardProps {
+  title: string;
+  value: number | string;
+  icon: React.ReactNode;
+  color: string;
+  percentage?: string;
+}
+
+function StatCard({ title, value, icon, color, percentage }: StatCardProps) {
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">{title}</p>
+            <div className="flex items-baseline gap-2 mt-1">
+              <p className="text-2xl font-semibold" style={{ color }}>
+                {value}
+              </p>
+              {percentage && <span className="text-sm text-muted-foreground">({percentage}%)</span>}
+            </div>
+          </div>
+          <div className="p-2 rounded-lg bg-muted/50" style={{ color }}>
+            {icon}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // ============================================================================
 // DASHBOARD PAGE COMPONENT
@@ -122,42 +159,40 @@ export default function DashboardPage() {
   // Show loading spinner while checking auth
   if (authLoading || loading) {
     return (
-      <div style={{ padding: '24px' }}>
-        <Title level={2}>Панель управления</Title>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Skeleton active paragraph={{ rows: 2 }} />
+      <div className="p-6">
+        <h2 className="text-2xl font-semibold mb-6">Панель управления</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="bg-card border-border">
+              <CardContent className="pt-6">
+                <Skeleton className="h-4 w-24 mb-2" />
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
             </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Skeleton active paragraph={{ rows: 2 }} />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4">
+          <div className="lg:col-span-3">
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle>Последние котировки</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-40 w-full" />
+              </CardContent>
             </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Skeleton active paragraph={{ rows: 2 }} />
+          </div>
+          <div className="lg:col-span-2">
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle>Быстрые действия</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
             </Card>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Skeleton active paragraph={{ rows: 2 }} />
-            </Card>
-          </Col>
-        </Row>
-        <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
-          <Col xs={24} lg={14}>
-            <Card title="Последние котировки">
-              <Skeleton active paragraph={{ rows: 5 }} />
-            </Card>
-          </Col>
-          <Col xs={24} lg={10}>
-            <Card title="Быстрые действия">
-              <Skeleton active paragraph={{ rows: 3 }} />
-            </Card>
-          </Col>
-        </Row>
+          </div>
+        </div>
       </div>
     );
   }
@@ -165,192 +200,184 @@ export default function DashboardPage() {
   // Show error state
   if (error) {
     return (
-      <div style={{ padding: '24px' }}>
-        <Title level={2}>Панель управления</Title>
-        <Alert
-          message="Ошибка загрузки"
-          description={error}
-          type="error"
-          showIcon
-          action={
-            <Button size="small" onClick={loadDashboardStats}>
-              Повторить
-            </Button>
-          }
-        />
+      <div className="p-6">
+        <h2 className="text-2xl font-semibold mb-6">Панель управления</h2>
+        <Card className="bg-card border-border border-destructive/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <div className="flex-1">
+                <p className="font-medium text-destructive">Ошибка загрузки</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadDashboardStats}>
+                Повторить
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (!stats) return null;
 
-  // Table columns for recent quotes
-  const columns = [
-    {
-      title: 'Номер',
-      dataIndex: 'quote_number',
-      key: 'quote_number',
-      render: (text: string, record: RecentQuote) => (
-        <a onClick={() => router.push(`/quotes/${record.id}`)}>{text}</a>
-      ),
-    },
-    {
-      title: 'Клиент',
-      dataIndex: 'customer_name',
-      key: 'customer_name',
-      ellipsis: true,
-    },
-    {
-      title: 'Сумма',
-      dataIndex: 'total_amount',
-      key: 'total_amount',
-      render: (amount: string) => formatCurrency(amount),
-      align: 'right' as const,
-    },
-    {
-      title: 'Статус',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const badge = getStatusBadge(status);
-        return <Badge status={badge.color as any} text={badge.text} />;
-      },
-    },
-    {
-      title: 'Дата',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date: string) => formatDate(date),
-      align: 'center' as const,
-    },
-  ];
-
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2}>Панель управления</Title>
+    <div className="p-6">
+      <h2 className="text-2xl font-semibold mb-6">Панель управления</h2>
 
       {/* Row 1: Statistics Cards */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Всего котировок"
-              value={stats.total_quotes}
-              prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Черновики"
-              value={stats.draft_quotes}
-              prefix={<EditOutlined />}
-              suffix={
-                stats.total_quotes > 0 ? (
-                  <span style={{ fontSize: '14px', color: '#999' }}>
-                    ({calculatePercentage(stats.draft_quotes, stats.total_quotes)}%)
-                  </span>
-                ) : null
-              }
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Отправлено"
-              value={stats.sent_quotes}
-              prefix={<SendOutlined />}
-              suffix={
-                stats.total_quotes > 0 ? (
-                  <span style={{ fontSize: '14px', color: '#999' }}>
-                    ({calculatePercentage(stats.sent_quotes, stats.total_quotes)}%)
-                  </span>
-                ) : null
-              }
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Утверждено"
-              value={stats.accepted_quotes}
-              prefix={<CheckCircleOutlined />}
-              suffix={
-                stats.total_quotes > 0 ? (
-                  <span style={{ fontSize: '14px', color: '#999' }}>
-                    ({calculatePercentage(stats.accepted_quotes, stats.total_quotes)}%)
-                  </span>
-                ) : null
-              }
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          title="Всего котировок"
+          value={stats.total_quotes}
+          icon={<FileText className="h-5 w-5" />}
+          color="#3b82f6"
+        />
+        <StatCard
+          title="Черновики"
+          value={stats.draft_quotes}
+          icon={<Edit className="h-5 w-5" />}
+          color="#f59e0b"
+          percentage={
+            stats.total_quotes > 0
+              ? calculatePercentage(stats.draft_quotes, stats.total_quotes)
+              : undefined
+          }
+        />
+        <StatCard
+          title="Отправлено"
+          value={stats.sent_quotes}
+          icon={<Send className="h-5 w-5" />}
+          color="#3b82f6"
+          percentage={
+            stats.total_quotes > 0
+              ? calculatePercentage(stats.sent_quotes, stats.total_quotes)
+              : undefined
+          }
+        />
+        <StatCard
+          title="Утверждено"
+          value={stats.accepted_quotes}
+          icon={<CheckCircle className="h-5 w-5" />}
+          color="#22c55e"
+          percentage={
+            stats.total_quotes > 0
+              ? calculatePercentage(stats.accepted_quotes, stats.total_quotes)
+              : undefined
+          }
+        />
+      </div>
 
       {/* Row 2: Revenue and Recent Quotes */}
-      <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
-        <Col xs={24} lg={14}>
-          <Card
-            title="Последние котировки"
-            extra={
-              <Button type="link" onClick={() => router.push('/quotes')}>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4">
+        <div className="lg:col-span-3">
+          <Card className="bg-card border-border">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-medium">Последние котировки</CardTitle>
+              <Button
+                variant="link"
+                className="text-primary p-0 h-auto"
+                onClick={() => router.push('/quotes')}
+              >
                 Все КП
               </Button>
-            }
-          >
-            <Table
-              dataSource={stats.recent_quotes}
-              columns={columns}
-              rowKey="id"
-              pagination={false}
-              size="small"
-              onRow={(record) => ({
-                onClick: () => router.push(`/quotes/${record.id}`),
-                style: { cursor: 'pointer' },
-              })}
-            />
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Номер</TableHead>
+                    <TableHead>Клиент</TableHead>
+                    <TableHead className="text-right">Сумма</TableHead>
+                    <TableHead>Статус</TableHead>
+                    <TableHead className="text-center">Дата</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stats.recent_quotes.map((quote: RecentQuote) => {
+                    const badge = getStatusBadge(quote.status);
+                    return (
+                      <TableRow
+                        key={quote.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => router.push(`/quotes/${quote.id}`)}
+                      >
+                        <TableCell className="font-medium text-primary">
+                          {quote.quote_number}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate">
+                          {quote.customer_name}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(quote.total_amount)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={badge.variant}>{badge.text}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {formatDate(quote.created_at)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
           </Card>
-        </Col>
-        <Col xs={24} lg={10}>
-          <Card title="Выручка за месяц" style={{ marginBottom: '16px' }}>
-            <Statistic
-              value={formatCurrency(stats.revenue_this_month)}
-              valueStyle={{ fontSize: '32px', color: '#1890ff' }}
-            />
-            <div style={{ marginTop: '16px' }}>
-              <Text type="secondary">vs предыдущий месяц</Text>
-              {formatTrend(stats.revenue_trend)}
-            </div>
+        </div>
+
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-base font-medium">Выручка за месяц</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-semibold text-primary">
+                {formatCurrency(stats.revenue_this_month)}
+              </p>
+              <div className="flex items-center gap-2 mt-3">
+                <span className="text-sm text-muted-foreground">vs предыдущий месяц</span>
+                <span
+                  className={`flex items-center gap-1 text-sm font-medium ${
+                    stats.revenue_trend >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                  }`}
+                >
+                  {stats.revenue_trend >= 0 ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4" />
+                  )}
+                  {Math.abs(stats.revenue_trend).toFixed(1)}%
+                </span>
+              </div>
+            </CardContent>
           </Card>
-          <Card title="Быстрые действия">
-            <Button
-              type="primary"
-              size="large"
-              icon={<PlusCircleOutlined />}
-              onClick={() => router.push('/quotes/create')}
-              block
-              style={{ marginBottom: '12px' }}
-            >
-              Создать КП
-            </Button>
-            <Button
-              size="large"
-              icon={<UnorderedListOutlined />}
-              onClick={() => router.push('/quotes')}
-              block
-            >
-              Все КП
-            </Button>
+
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="text-base font-medium">Быстрые действия</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                className="w-full justify-start gap-2"
+                onClick={() => router.push('/quotes/create')}
+              >
+                <PlusCircle className="h-4 w-4" />
+                Создать КП
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => router.push('/quotes')}
+              >
+                <List className="h-4 w-4" />
+                Все КП
+              </Button>
+            </CardContent>
           </Card>
-        </Col>
-      </Row>
+        </div>
+      </div>
     </div>
   );
 }

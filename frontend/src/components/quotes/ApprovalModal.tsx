@@ -1,11 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Modal, Radio, Input, Space, message } from 'antd';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2 } from 'lucide-react';
 import { getAuthToken } from '@/lib/auth/auth-helper';
 import { config } from '@/lib/config';
-
-const { TextArea } = Input;
+import { toast } from 'sonner';
 
 interface ApprovalModalProps {
   open: boolean;
@@ -29,7 +39,7 @@ export default function ApprovalModal({
   const handleSubmit = async () => {
     // Validation for required comments
     if ((action === 'reject' || action === 'revision') && !comment.trim()) {
-      message.error('Комментарий обязателен при отклонении или отправке на доработку');
+      toast.error('Комментарий обязателен при отклонении или отправке на доработку');
       return;
     }
 
@@ -38,7 +48,7 @@ export default function ApprovalModal({
     try {
       const token = await getAuthToken();
       if (!token) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
@@ -66,15 +76,13 @@ export default function ApprovalModal({
         throw new Error(error.detail || 'Ошибка обработки решения');
       }
 
-      const result = await response.json();
-
       // Show success message
       if (action === 'approve') {
-        message.success('КП успешно утверждено');
+        toast.success('КП успешно утверждено');
       } else if (action === 'reject') {
-        message.success('КП отклонено');
+        toast.success('КП отклонено');
       } else {
-        message.success('КП отправлено на доработку');
+        toast.success('КП отправлено на доработку');
       }
 
       // Reset and close
@@ -82,63 +90,103 @@ export default function ApprovalModal({
       setAction('approve');
       onSuccess();
       onCancel();
-    } catch (error: any) {
-      message.error(error.message || 'Ошибка при обработке решения');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Ошибка при обработке решения';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <Modal
-      title={`Решение по КП ${quoteNumber}`}
-      open={open}
-      onOk={handleSubmit}
-      onCancel={onCancel}
-      okText="Подтвердить"
-      cancelText="Отмена"
-      confirmLoading={loading}
-      width={600}
-    >
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div>
-          <div style={{ marginBottom: 8 }}>
-            <strong>Выберите действие:</strong>
-          </div>
-          <Radio.Group value={action} onChange={(e) => setAction(e.target.value)}>
-            <Space direction="vertical">
-              <Radio value="approve">Утвердить финансово</Radio>
-              <Radio value="reject">Отклонить</Radio>
-              <Radio value="revision">Отправить на доработку</Radio>
-            </Space>
-          </Radio.Group>
-        </div>
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      onCancel();
+    }
+  };
 
-        <div>
-          <div style={{ marginBottom: 8 }}>
-            <strong>
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Решение по КП {quoteNumber}</DialogTitle>
+          <DialogDescription>
+            Выберите действие и добавьте комментарий при необходимости
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <Label className="font-semibold">Выберите действие:</Label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="action"
+                  value="approve"
+                  checked={action === 'approve'}
+                  onChange={() => setAction('approve')}
+                  className="h-4 w-4 text-primary"
+                />
+                <span>Утвердить финансово</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="action"
+                  value="reject"
+                  checked={action === 'reject'}
+                  onChange={() => setAction('reject')}
+                  className="h-4 w-4 text-primary"
+                />
+                <span>Отклонить</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="action"
+                  value="revision"
+                  checked={action === 'revision'}
+                  onChange={() => setAction('revision')}
+                  className="h-4 w-4 text-primary"
+                />
+                <span>Отправить на доработку</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="font-semibold">
               Комментарий
               {(action === 'reject' || action === 'revision') && (
-                <span style={{ color: 'red' }}> *</span>
+                <span className="text-destructive"> *</span>
               )}
               :
-            </strong>
+            </Label>
+            <Textarea
+              rows={4}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder={
+                action === 'approve'
+                  ? 'Необязательный комментарий при утверждении'
+                  : action === 'reject'
+                    ? 'Укажите причину отклонения (обязательно)'
+                    : 'Укажите, что требует доработки (обязательно)'
+              }
+            />
           </div>
-          <TextArea
-            rows={4}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder={
-              action === 'approve'
-                ? 'Необязательный комментарий при утверждении'
-                : action === 'reject'
-                  ? 'Укажите причину отклонения (обязательно)'
-                  : 'Укажите, что требует доработки (обязательно)'
-            }
-            required={action !== 'approve'}
-          />
         </div>
-      </Space>
-    </Modal>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Отмена
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Подтвердить
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -2,13 +2,36 @@
 
 import { useState, useEffect } from 'react';
 import { config } from '@/lib/config';
-import { Table, Button, Modal, Form, Input, Checkbox, message, Space, Card } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Plus, Pencil, Trash2, ArrowLeft, Loader2, Users } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
 import { createClient } from '@/lib/supabase/client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { toast } from 'sonner';
 
 interface Contact {
   id: string;
@@ -20,6 +43,24 @@ interface Contact {
   notes?: string;
 }
 
+interface FormData {
+  name: string;
+  phone: string;
+  email: string;
+  position: string;
+  is_primary: boolean;
+  notes: string;
+}
+
+const initialFormData: FormData = {
+  name: '',
+  phone: '',
+  email: '',
+  position: '',
+  is_primary: false,
+  notes: '',
+};
+
 export default function CustomerContactsPage() {
   const params = useParams();
   const router = useRouter();
@@ -28,8 +69,11 @@ export default function CustomerContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<string | null>(null);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
-  const [form] = Form.useForm();
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [saving, setSaving] = useState(false);
 
   const fetchContacts = async () => {
     setLoading(true);
@@ -40,7 +84,7 @@ export default function CustomerContactsPage() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
@@ -58,7 +102,7 @@ export default function CustomerContactsPage() {
       const data = await response.json();
       setContacts(data.contacts);
     } catch (error) {
-      message.error('Не удалось загрузить контакты');
+      toast.error('Не удалось загрузить контакты');
       console.error(error);
     } finally {
       setLoading(false);
@@ -69,7 +113,13 @@ export default function CustomerContactsPage() {
     fetchContacts();
   }, [customerId]);
 
-  const handleSave = async (values: any) => {
+  const handleSave = async () => {
+    if (!formData.name.trim()) {
+      toast.error('Введите имя контакта');
+      return;
+    }
+
+    setSaving(true);
     try {
       const supabase = createClient();
       const {
@@ -77,7 +127,7 @@ export default function CustomerContactsPage() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
@@ -93,227 +143,291 @@ export default function CustomerContactsPage() {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
         throw new Error('Ошибка сохранения');
       }
 
-      message.success(editingContact ? 'Контакт обновлен' : 'Контакт создан');
+      toast.success(editingContact ? 'Контакт обновлен' : 'Контакт создан');
       setModalOpen(false);
-      form.resetFields();
+      setFormData(initialFormData);
       setEditingContact(null);
       fetchContacts();
     } catch (error) {
-      message.error('Ошибка сохранения');
+      toast.error('Ошибка сохранения');
       console.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDelete = async (contactId: string) => {
-    Modal.confirm({
-      title: 'Удалить контакт?',
-      content: 'Это действие нельзя отменить',
-      okText: 'Удалить',
-      cancelText: 'Отмена',
-      okType: 'danger',
-      onOk: async () => {
-        try {
-          const supabase = createClient();
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
+  const handleDelete = async () => {
+    if (!contactToDelete) return;
 
-          if (!session) {
-            message.error('Не авторизован');
-            return;
-          }
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-          const response = await fetch(
-            `${config.apiUrl}/api/customers/${customerId}/contacts/${contactId}`,
-            {
-              method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
+      if (!session) {
+        toast.error('Не авторизован');
+        return;
+      }
 
-          if (!response.ok) {
-            throw new Error('Ошибка удаления');
-          }
-
-          message.success('Контакт удален');
-          fetchContacts();
-        } catch (error) {
-          message.error('Ошибка удаления');
-          console.error(error);
+      const response = await fetch(
+        `${config.apiUrl}/api/customers/${customerId}/contacts/${contactToDelete}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
         }
-      },
-    });
+      );
+
+      if (!response.ok) {
+        throw new Error('Ошибка удаления');
+      }
+
+      toast.success('Контакт удален');
+      fetchContacts();
+    } catch (error) {
+      toast.error('Ошибка удаления');
+      console.error(error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setContactToDelete(null);
+    }
   };
 
-  const columns = [
-    {
-      title: 'Имя',
-      dataIndex: 'name',
-      key: 'name',
-      width: 200,
-    },
-    {
-      title: 'Телефон',
-      dataIndex: 'phone',
-      key: 'phone',
-      width: 150,
-    },
-    {
-      title: 'Email',
-      dataIndex: 'email',
-      key: 'email',
-      width: 200,
-    },
-    {
-      title: 'Должность',
-      dataIndex: 'position',
-      key: 'position',
-      width: 150,
-    },
-    {
-      title: 'Основной',
-      dataIndex: 'is_primary',
-      key: 'is_primary',
-      width: 100,
-      render: (isPrimary: boolean) => (isPrimary ? '✓' : ''),
-    },
-    {
-      title: 'Примечания',
-      dataIndex: 'notes',
-      key: 'notes',
-      ellipsis: true,
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 120,
-      fixed: 'right' as const,
-      render: (_: any, record: Contact) => (
-        <Space>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setEditingContact(record);
-              form.setFieldsValue(record);
-              setModalOpen(true);
-            }}
-          />
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
-          />
-        </Space>
-      ),
-    },
-  ];
+  const openEditModal = (contact: Contact) => {
+    setEditingContact(contact);
+    setFormData({
+      name: contact.name,
+      phone: contact.phone || '',
+      email: contact.email || '',
+      position: contact.position || '',
+      is_primary: contact.is_primary,
+      notes: contact.notes || '',
+    });
+    setModalOpen(true);
+  };
+
+  const openCreateModal = () => {
+    setEditingContact(null);
+    setFormData(initialFormData);
+    setModalOpen(true);
+  };
 
   return (
     <MainLayout>
-      <div style={{ padding: 24 }}>
+      <div className="p-6 space-y-6">
         <Card>
-          <div style={{ marginBottom: 16 }}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => router.back()}
-              style={{ marginBottom: 16 }}
-            >
-              Назад
-            </Button>
-          </div>
+          <CardContent className="pt-6">
+            <div className="mb-4">
+              <Button variant="outline" onClick={() => router.back()}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Назад
+              </Button>
+            </div>
 
-          <div
-            style={{
-              marginBottom: 16,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <h2 style={{ margin: 0 }}>Контакты клиента</h2>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditingContact(null);
-                form.resetFields();
-                setModalOpen(true);
-              }}
-            >
-              Добавить контакт
-            </Button>
-          </div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Контакты клиента</h2>
+              <Button onClick={openCreateModal}>
+                <Plus className="h-4 w-4 mr-2" />
+                Добавить контакт
+              </Button>
+            </div>
 
-          <Table
-            columns={columns}
-            dataSource={contacts}
-            loading={loading}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 1000 }}
-          />
-
-          <Modal
-            title={editingContact ? 'Редактировать контакт' : 'Новый контакт'}
-            open={modalOpen}
-            onCancel={() => {
-              setModalOpen(false);
-              form.resetFields();
-              setEditingContact(null);
-            }}
-            onOk={() => form.submit()}
-            okText="Сохранить"
-            cancelText="Отмена"
-            width={600}
-          >
-            <Form form={form} layout="vertical" onFinish={handleSave}>
-              <Form.Item
-                name="name"
-                label="Имя"
-                rules={[{ required: true, message: 'Введите имя' }]}
-              >
-                <Input placeholder="Иван Иванов" />
-              </Form.Item>
-
-              <Form.Item name="phone" label="Телефон">
-                <Input placeholder="+7 (999) 123-45-67" />
-              </Form.Item>
-
-              <Form.Item
-                name="email"
-                label="Email"
-                rules={[{ type: 'email', message: 'Введите корректный email' }]}
-              >
-                <Input placeholder="ivan@example.com" />
-              </Form.Item>
-
-              <Form.Item name="position" label="Должность">
-                <Input placeholder="Менеджер по закупкам" />
-              </Form.Item>
-
-              <Form.Item name="is_primary" valuePropName="checked">
-                <Checkbox>Основной контакт</Checkbox>
-              </Form.Item>
-
-              <Form.Item name="notes" label="Примечания">
-                <Input.TextArea rows={3} placeholder="Дополнительная информация" />
-              </Form.Item>
-            </Form>
-          </Modal>
+            {loading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : contacts.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Нет контактов</p>
+                <Button onClick={openCreateModal} className="mt-4">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Добавить первый контакт
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 font-medium">Имя</th>
+                      <th className="text-left py-3 px-4 font-medium">Телефон</th>
+                      <th className="text-left py-3 px-4 font-medium">Email</th>
+                      <th className="text-left py-3 px-4 font-medium">Должность</th>
+                      <th className="text-left py-3 px-4 font-medium">Основной</th>
+                      <th className="text-left py-3 px-4 font-medium">Примечания</th>
+                      <th className="text-center py-3 px-4 font-medium">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contacts.map((contact) => (
+                      <tr key={contact.id} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-4">{contact.name}</td>
+                        <td className="py-3 px-4">{contact.phone || '—'}</td>
+                        <td className="py-3 px-4">{contact.email || '—'}</td>
+                        <td className="py-3 px-4">{contact.position || '—'}</td>
+                        <td className="py-3 px-4">{contact.is_primary ? '✓' : ''}</td>
+                        <td className="py-3 px-4 max-w-[200px] truncate">{contact.notes || '—'}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditModal(contact)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                setContactToDelete(contact.id);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
         </Card>
       </div>
+
+      {/* Create/Edit Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{editingContact ? 'Редактировать контакт' : 'Новый контакт'}</DialogTitle>
+            <DialogDescription>
+              {editingContact
+                ? 'Измените информацию о контакте'
+                : 'Заполните информацию о новом контакте'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Имя *</Label>
+              <Input
+                id="name"
+                placeholder="Иван Иванов"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Телефон</Label>
+              <Input
+                id="phone"
+                placeholder="+7 (999) 123-45-67"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="ivan@example.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="position">Должность</Label>
+              <Input
+                id="position"
+                placeholder="Менеджер по закупкам"
+                value={formData.position}
+                onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="is_primary"
+                checked={formData.is_primary}
+                onCheckedChange={(checked: boolean) =>
+                  setFormData({ ...formData, is_primary: checked as boolean })
+                }
+              />
+              <Label htmlFor="is_primary" className="cursor-pointer">
+                Основной контакт
+              </Label>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Примечания</Label>
+              <Textarea
+                id="notes"
+                rows={3}
+                placeholder="Дополнительная информация"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setModalOpen(false);
+                setFormData(initialFormData);
+                setEditingContact(null);
+              }}
+            >
+              Отмена
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить контакт?</AlertDialogTitle>
+            <AlertDialogDescription>Это действие нельзя отменить</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

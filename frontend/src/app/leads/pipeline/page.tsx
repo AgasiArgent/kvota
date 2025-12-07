@@ -267,7 +267,7 @@ export default function LeadsPipelinePage() {
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [assignedFilter, setAssignedFilter] = useState<string>('');
+  const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -327,7 +327,7 @@ export default function LeadsPipelinePage() {
         page: 1,
         limit: 100, // Backend max limit
         search: debouncedSearchTerm || undefined, // Use debounced value
-        assigned_to: assignedFilter || undefined,
+        assigned_to: assignedFilter && assignedFilter !== 'all' ? assignedFilter : undefined,
       });
       setLeads(response.data || []);
     } catch (error: any) {
@@ -424,12 +424,12 @@ export default function LeadsPipelinePage() {
                   onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
-              <Select value={assignedFilter || ''} onValueChange={setAssignedFilter}>
+              <Select value={assignedFilter} onValueChange={setAssignedFilter}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Ответственный" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Все</SelectItem>
+                  <SelectItem value="all">Все</SelectItem>
                   <SelectItem value="me">Мои лиды</SelectItem>
                   <SelectItem value="unassigned">Не назначены</SelectItem>
                 </SelectContent>
