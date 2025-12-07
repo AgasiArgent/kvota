@@ -2,7 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Edit, CheckCircle, User, Phone, Mail, Plus, Calendar, Clock } from 'lucide-react';
+import {
+  ArrowLeft,
+  Edit,
+  CheckCircle,
+  User,
+  Phone,
+  Mail,
+  Plus,
+  Calendar,
+  Clock,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import MainLayout from '@/components/layout/MainLayout';
@@ -94,6 +104,7 @@ export default function LeadDetailPage() {
       fetchLead();
       fetchActivities();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
   const fetchLead = async () => {
@@ -101,8 +112,10 @@ export default function LeadDetailPage() {
     try {
       const data = await getLead(leadId);
       setLead(data);
-    } catch (error: any) {
-      toast.error(`Ошибка загрузки лида: ${error.message}`);
+    } catch (error) {
+      toast.error(
+        `Ошибка загрузки лида: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
       router.push('/leads');
     } finally {
       setLoading(false);
@@ -113,8 +126,10 @@ export default function LeadDetailPage() {
     try {
       const response = await listActivities({ lead_id: leadId, limit: 100 });
       setActivities(response.data || []);
-    } catch (error: any) {
-      toast.error(`Ошибка загрузки активностей: ${error.message}`);
+    } catch (error) {
+      toast.error(
+        `Ошибка загрузки активностей: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
     }
   };
 
@@ -124,8 +139,10 @@ export default function LeadDetailPage() {
       const response = await qualifyLead(leadId);
       toast.success(`Лид квалифицирован. Создан клиент "${response.customer_name}"`);
       router.push(`/customers/${response.customer_id}`);
-    } catch (error: any) {
-      toast.error(`Ошибка квалификации: ${error.message}`);
+    } catch (error) {
+      toast.error(
+        `Ошибка квалификации: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
     }
   };
 
@@ -137,8 +154,10 @@ export default function LeadDetailPage() {
       setContactForm({ full_name: '', position: '', phone: '', email: '' });
       setContactModalOpen(false);
       fetchLead(); // Refresh to get updated contacts
-    } catch (error: any) {
-      toast.error(`Ошибка добавления контакта: ${error.message}`);
+    } catch (error) {
+      toast.error(
+        `Ошибка добавления контакта: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
     }
   };
 
@@ -157,8 +176,10 @@ export default function LeadDetailPage() {
       setActivityForm({ type: 'meeting', title: '', notes: '', duration_minutes: 15 });
       setActivityModalOpen(false);
       fetchActivities(); // Refresh
-    } catch (error: any) {
-      toast.error(`Ошибка добавления активности: ${error.message}`);
+    } catch (error) {
+      toast.error(
+        `Ошибка добавления активности: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
     }
   };
 
@@ -167,8 +188,8 @@ export default function LeadDetailPage() {
       await completeActivity(activityId);
       toast.success('Активность завершена');
       fetchActivities(); // Refresh
-    } catch (error: any) {
-      toast.error(`Ошибка: ${error.message}`);
+    } catch (error) {
+      toast.error(`Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
     }
   };
 
@@ -195,11 +216,7 @@ export default function LeadDetailPage() {
         <div className="mb-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push('/leads')}
-              >
+              <Button variant="outline" size="sm" onClick={() => router.push('/leads')}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Назад
               </Button>
@@ -211,10 +228,7 @@ export default function LeadDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/leads/${leadId}/edit`)}
-              >
+              <Button variant="outline" onClick={() => router.push(`/leads/${leadId}/edit`)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Редактировать
               </Button>
@@ -230,7 +244,7 @@ export default function LeadDetailPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Квалифицировать лид?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Создать клиента из лида "{lead.company_name}"?
+                        Создать клиента из лида &ldquo;{lead.company_name}&rdquo;?
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -248,9 +262,7 @@ export default function LeadDetailPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="details">Детали</TabsTrigger>
-            <TabsTrigger value="activities">
-              Активности ({activities.length})
-            </TabsTrigger>
+            <TabsTrigger value="activities">Активности ({activities.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details" className="space-y-6">
@@ -273,7 +285,10 @@ export default function LeadDetailPage() {
                     <Label>Email</Label>
                     <div className="text-sm">
                       {lead.email ? (
-                        <a href={`mailto:${lead.email}`} className="flex items-center gap-2 text-primary hover:underline">
+                        <a
+                          href={`mailto:${lead.email}`}
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
                           <Mail className="h-4 w-4" />
                           {lead.email}
                         </a>
@@ -286,7 +301,10 @@ export default function LeadDetailPage() {
                     <Label>Телефон</Label>
                     <div className="text-sm">
                       {lead.primary_phone ? (
-                        <a href={`tel:${lead.primary_phone}`} className="flex items-center gap-2 text-primary hover:underline">
+                        <a
+                          href={`tel:${lead.primary_phone}`}
+                          className="flex items-center gap-2 text-primary hover:underline"
+                        >
                           <Phone className="h-4 w-4" />
                           {lead.primary_phone}
                         </a>
@@ -309,7 +327,10 @@ export default function LeadDetailPage() {
                     <Label>Ответственный</Label>
                     <div className="text-sm">
                       {lead.assigned_to_name || (
-                        <Badge variant="outline" className="bg-amber-400/15 text-amber-400 border-amber-400/30">
+                        <Badge
+                          variant="outline"
+                          className="bg-amber-400/15 text-amber-400 border-amber-400/30"
+                        >
                           Не назначен
                         </Badge>
                       )}
@@ -330,10 +351,7 @@ export default function LeadDetailPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Контактные лица (ЛПР)</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() => setContactModalOpen(true)}
-                  >
+                  <Button size="sm" onClick={() => setContactModalOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
                     Добавить контакт
                   </Button>
@@ -343,7 +361,10 @@ export default function LeadDetailPage() {
                 {lead.contacts && lead.contacts.length > 0 ? (
                   <div className="space-y-4">
                     {lead.contacts.map((contact, idx) => (
-                      <div key={idx} className="flex items-start gap-4 p-4 rounded-lg border bg-card">
+                      <div
+                        key={idx}
+                        className="flex items-start gap-4 p-4 rounded-lg border bg-card"
+                      >
                         <Avatar>
                           <AvatarFallback>
                             <User className="h-4 w-4" />
@@ -386,9 +407,7 @@ export default function LeadDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Нет контактов
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">Нет контактов</div>
                 )}
               </CardContent>
             </Card>
@@ -399,10 +418,7 @@ export default function LeadDetailPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Активности</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() => setActivityModalOpen(true)}
-                  >
+                  <Button size="sm" onClick={() => setActivityModalOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
                     Добавить активность
                   </Button>
@@ -432,11 +448,12 @@ export default function LeadDetailPage() {
                         <div className="flex-1 pb-6">
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline">
-                                {getActivityTypeLabel(activity.type)}
-                              </Badge>
+                              <Badge variant="outline">{getActivityTypeLabel(activity.type)}</Badge>
                               {activity.completed && (
-                                <Badge variant="outline" className="bg-emerald-400/15 text-emerald-400 border-emerald-400/30">
+                                <Badge
+                                  variant="outline"
+                                  className="bg-emerald-400/15 text-emerald-400 border-emerald-400/30"
+                                >
                                   Завершено
                                 </Badge>
                               )}
@@ -487,9 +504,7 @@ export default function LeadDetailPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Нет активностей
-                  </div>
+                  <div className="text-center py-8 text-muted-foreground">Нет активностей</div>
                 )}
               </CardContent>
             </Card>
@@ -501,9 +516,7 @@ export default function LeadDetailPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Добавить контакт</DialogTitle>
-              <DialogDescription>
-                Добавление нового контактного лица для лида
-              </DialogDescription>
+              <DialogDescription>Добавление нового контактного лица для лида</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddContact}>
               <div className="space-y-4">
@@ -512,9 +525,7 @@ export default function LeadDetailPage() {
                   <Input
                     id="full_name"
                     value={contactForm.full_name}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, full_name: e.target.value })
-                    }
+                    onChange={(e) => setContactForm({ ...contactForm, full_name: e.target.value })}
                     required
                   />
                 </div>
@@ -523,9 +534,7 @@ export default function LeadDetailPage() {
                   <Input
                     id="position"
                     value={contactForm.position}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, position: e.target.value })
-                    }
+                    onChange={(e) => setContactForm({ ...contactForm, position: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -534,9 +543,7 @@ export default function LeadDetailPage() {
                     id="phone"
                     type="tel"
                     value={contactForm.phone}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, phone: e.target.value })
-                    }
+                    onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -545,18 +552,12 @@ export default function LeadDetailPage() {
                     id="email"
                     type="email"
                     value={contactForm.email}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, email: e.target.value })
-                    }
+                    onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
                   />
                 </div>
               </div>
               <DialogFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setContactModalOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setContactModalOpen(false)}>
                   Отмена
                 </Button>
                 <Button type="submit">Добавить</Button>
@@ -570,9 +571,7 @@ export default function LeadDetailPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Добавить активность</DialogTitle>
-              <DialogDescription>
-                Создание новой активности для лида
-              </DialogDescription>
+              <DialogDescription>Создание новой активности для лида</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddActivity}>
               <div className="space-y-4">
@@ -580,9 +579,7 @@ export default function LeadDetailPage() {
                   <Label htmlFor="type">Тип *</Label>
                   <Select
                     value={activityForm.type}
-                    onValueChange={(value) =>
-                      setActivityForm({ ...activityForm, type: value })
-                    }
+                    onValueChange={(value) => setActivityForm({ ...activityForm, type: value })}
                   >
                     <SelectTrigger id="type">
                       <SelectValue />
@@ -600,9 +597,7 @@ export default function LeadDetailPage() {
                   <Input
                     id="title"
                     value={activityForm.title}
-                    onChange={(e) =>
-                      setActivityForm({ ...activityForm, title: e.target.value })
-                    }
+                    onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
                     placeholder="Например: Обсуждение коммерческого предложения"
                   />
                 </div>
@@ -612,9 +607,7 @@ export default function LeadDetailPage() {
                     id="notes"
                     rows={3}
                     value={activityForm.notes}
-                    onChange={(e) =>
-                      setActivityForm({ ...activityForm, notes: e.target.value })
-                    }
+                    onChange={(e) => setActivityForm({ ...activityForm, notes: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -633,11 +626,7 @@ export default function LeadDetailPage() {
                 </div>
               </div>
               <DialogFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setActivityModalOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setActivityModalOpen(false)}>
                   Отмена
                 </Button>
                 <Button type="submit">Добавить</Button>
