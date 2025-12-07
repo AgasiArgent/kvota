@@ -11,10 +11,10 @@
 - Likely cause: Frontend cache or backend JWT token not refreshing properly
 - Files to check: `OrganizationSwitcher.tsx`, `organization-cache.ts`, `auth.py`
 
-### 3. Infrastructure Migration to Russia (Performance Critical)
-- **Problem:** API latency 2-4 seconds (Railway US → Russian users)
-- **Solution:** Migrate backend + database to Beget VPS (Russia)
-- **Expected improvement:** 150-300ms (3-5x faster)
+### 3. Test VPS Latency from Russia
+- Use Russian VPN to test actual latency improvement
+- Compare api.kvotaflow.ru (VPS Russia) vs previous Railway US
+- Expected: 150-300ms (vs 2-4s from US)
 
 ### Completed
 - ~~Fix currency_of_quote None handling~~ ✅ (Session 64)
@@ -24,6 +24,85 @@
 - ~~Add author filter to quotes list~~ ✅ (Session 66)
 - ~~Complete shadcn/ui migration and testing~~ ✅ (Session 67)
 - ~~Fix templates endpoint missing supabase dependency~~ ✅ (Session 68)
+- ~~VPS Migration + CreateQuoteModal Fix~~ ✅ (Session 69)
+
+---
+
+## Session 69 (2025-12-07) - VPS Migration & CreateQuoteModal Fix
+
+### Goal
+1. Fix "Создать КП" button not working
+2. Set up GitHub Actions auto-deploy to VPS
+
+### Status: COMPLETE ✅
+
+**Time:** ~45 minutes
+
+---
+
+### Infrastructure Migration (Previous Session)
+VPS migration from Railway US + Supabase Cloud → Russian VPS completed:
+- **Backend:** api.kvotaflow.ru (VPS Russia, Docker)
+- **Database:** db.kvotaflow.ru (Self-hosted Supabase on VPS)
+- **Frontend:** kvotaflow.ru (Vercel, pointing to VPS)
+
+### Fix 1: CreateQuoteModal Button
+
+**Problem:**
+"Создать КП" button triggered file picker but nothing happened after file selection - no client dialog, no file download.
+
+**Root Cause:**
+`handleFileSelect` only showed a toast with "TODO: Open create quote modal with file" - CreateQuoteModal component existed but wasn't connected.
+
+**Fix:**
+- Added CreateQuoteModal import
+- Added state for `selectedFile` and `createModalOpen`
+- Updated `handleFileSelect` to store file and open modal
+- Added CreateQuoteModal component to JSX
+
+### Fix 2: GitHub Actions Auto-Deploy
+
+**Problem:**
+User needed automatic deployment on push to main (like Railway had).
+
+**Solution:**
+Created `.github/workflows/deploy-vps.yml`:
+- Triggers on push to main (only for backend/** changes)
+- Uses SSH with password authentication
+- Runs `docker compose build` and `docker compose up -d`
+- Manual trigger button available in GitHub UI
+
+**GitHub Secrets Added:**
+- `VPS_HOST` = 217.26.25.207
+- `VPS_USER` = root
+- `VPS_PASSWORD` = (SSH password)
+
+### Files Modified
+- `frontend/src/app/quotes/page.tsx` - Added CreateQuoteModal integration
+- `.github/workflows/deploy-vps.yml` - New file for auto-deployment
+
+### Environment Configuration
+**Vercel (Production):**
+```
+NEXT_PUBLIC_SUPABASE_URL=https://db.kvotaflow.ru
+NEXT_PUBLIC_API_URL=https://api.kvotaflow.ru
+```
+
+### Final Architecture
+```
+┌─────────────────┐     ┌─────────────────────────────────────┐
+│  Vercel (Edge)  │────▶│  VPS Russia (217.26.25.207)        │
+│  kvotaflow.ru   │     │  ┌─────────────────────────────────┐│
+│  (Frontend)     │     │  │ api.kvotaflow.ru (Backend)     ││
+└─────────────────┘     │  │ FastAPI + Docker               ││
+                        │  ├─────────────────────────────────┤│
+                        │  │ db.kvotaflow.ru (Database)     ││
+                        │  │ Self-hosted Supabase           ││
+                        │  ├─────────────────────────────────┤│
+                        │  │ Caddy (Reverse Proxy + HTTPS)  ││
+                        │  └─────────────────────────────────┘│
+                        └─────────────────────────────────────┘
+```
 
 ---
 
