@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import MainLayout from '@/components/layout/MainLayout';
 import PageHeader from '@/components/shared/PageHeader';
+import StatCard from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -20,12 +21,12 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
   activityLogService,
@@ -222,6 +223,15 @@ export default function ActivityLogPage() {
     dateRange[1].isAfter(dayjs());
 
   // ============================================================================
+  // STATS CALCULATIONS
+  // ============================================================================
+
+  const totalActions = logs.length;
+  const uniqueUsers = new Set(logs.map((log) => log.user_id)).size;
+  const createdActions = logs.filter((log) => log.action === 'created').length;
+  const updatedActions = logs.filter((log) => log.action === 'updated').length;
+
+  // ============================================================================
   // RENDER
   // ============================================================================
 
@@ -230,6 +240,14 @@ export default function ActivityLogPage() {
       <div className="space-y-6">
         {/* Header */}
         <PageHeader title="История действий" description="Журнал всех операций в системе" />
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Всего действий" value={totalActions} />
+          <StatCard label="Активных пользователей" value={uniqueUsers} />
+          <StatCard label="Создано" value={createdActions} valueClassName="text-emerald-400" />
+          <StatCard label="Обновлено" value={updatedActions} valueClassName="text-amber-400" />
+        </div>
 
         {/* Filters Card */}
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/50 bg-card/30 p-4">
@@ -446,13 +464,13 @@ export default function ActivityLogPage() {
         </div>
       </div>
 
-      {/* Metadata Drawer */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent className="w-[600px] sm:max-w-[600px]">
-          <SheetHeader>
-            <SheetTitle>Детали действия</SheetTitle>
-            <SheetDescription>Подробная информация о записи в журнале</SheetDescription>
-          </SheetHeader>
+      {/* Metadata Dialog */}
+      <Dialog open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Детали действия</DialogTitle>
+            <DialogDescription>Подробная информация о записи в журнале</DialogDescription>
+          </DialogHeader>
 
           {selectedLog && (
             <div className="mt-6 space-y-6">
@@ -504,8 +522,8 @@ export default function ActivityLogPage() {
               )}
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

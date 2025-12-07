@@ -130,7 +130,8 @@ export default function ProfilePage() {
           <div className="space-y-1">
             <p className="text-sm font-medium text-blue-400">Информация</p>
             <p className="text-sm text-foreground/70">
-              Эти данные будут отображаться в экспортированных коммерческих предложениях (PDF, Excel) как контактная информация менеджера.
+              Эти данные будут отображаться в экспортированных коммерческих предложениях (PDF,
+              Excel) как контактная информация менеджера.
             </p>
           </div>
         </div>

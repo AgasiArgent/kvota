@@ -2,14 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  useDraggable,
-  useDroppable,
-  closestCenter,
-} from '@dnd-kit/core';
+import { DndContext, DragEndEvent, useDraggable, useDroppable, closestCenter } from '@dnd-kit/core';
 import {
   Plus,
   User,
@@ -76,9 +69,7 @@ function DraggableLeadCard({ lead, onLeadClick }: LeadCardProps) {
       >
         <CardContent className="p-3 space-y-2">
           {/* Company Name */}
-          <div className="font-semibold text-sm break-words leading-tight">
-            {lead.company_name}
-          </div>
+          <div className="font-semibold text-sm break-words leading-tight">{lead.company_name}</div>
 
           {/* Segment */}
           {lead.segment && (
@@ -228,16 +219,10 @@ function DroppableColumn({
       }}
     >
       {/* Column Header */}
-      <div
-        className={cn('cursor-pointer', !collapsed && 'mb-4')}
-        onClick={onToggleCollapse}
-      >
+      <div className={cn('cursor-pointer', !collapsed && 'mb-4')} onClick={onToggleCollapse}>
         {collapsed ? (
           <div className="flex flex-col items-center" style={{ writingMode: 'vertical-rl' }}>
-            <Badge
-              className="m-0 rounded font-medium"
-              style={{ backgroundColor: stage.color }}
-            >
+            <Badge className="m-0 rounded font-medium" style={{ backgroundColor: stage.color }}>
               {stage.name.slice(0, 3)}
             </Badge>
             <div className="mt-2 text-xs">{count}</div>
@@ -245,10 +230,7 @@ function DroppableColumn({
         ) : (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <Badge
-                className="m-0 rounded font-medium"
-                style={{ backgroundColor: stage.color }}
-              >
+              <Badge className="m-0 rounded font-medium" style={{ backgroundColor: stage.color }}>
                 {stage.name}
               </Badge>
               <Badge variant="secondary">{count}</Badge>
