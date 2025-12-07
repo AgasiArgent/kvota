@@ -1,12 +1,13 @@
 'use client';
 
-import { Button, message, Popconfirm, Input, Space } from 'antd';
-import { CheckOutlined, CloseOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Check, X, Download, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { config } from '@/lib/config';
 import { getAuthToken } from '@/lib/auth/auth-helper';
-
-const { TextArea } = Input;
+import { toast } from 'sonner';
 
 interface Props {
   quoteId: string;
@@ -28,13 +29,14 @@ export default function FinancialApprovalActions({
   const [approveComment, setApproveComment] = useState('');
   const [rejectComment, setRejectComment] = useState('');
   const [sendBackComment, setSendBackComment] = useState('');
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [sendBackOpen, setSendBackOpen] = useState(false);
 
   const handleAction = async (action: 'approve' | 'sendback' | 'reject', comments?: string) => {
     // Validate comments for reject and send back
     if ((action === 'sendback' || action === 'reject') && !comments?.trim()) {
-      message.error(
-        action === 'reject' ? 'Укажите причину отклонения' : 'Укажите причину возврата'
-      );
+      toast.error(action === 'reject' ? 'Укажите причину отклонения' : 'Укажите причину возврата');
       return;
     }
 
@@ -66,18 +68,19 @@ export default function FinancialApprovalActions({
         throw new Error(error.message || error.detail || 'Действие не выполнено');
       }
 
-      const result = await response.json();
-
       let successMessage = '';
       if (action === 'approve') {
         successMessage = 'КП финансово утверждено!';
+        setApproveOpen(false);
       } else if (action === 'reject') {
         successMessage = 'КП отклонено';
+        setRejectOpen(false);
       } else {
         successMessage = 'КП отправлено на доработку';
+        setSendBackOpen(false);
       }
 
-      message.success(successMessage);
+      toast.success(successMessage);
 
       // Clear comments
       setApproveComment('');
@@ -89,7 +92,7 @@ export default function FinancialApprovalActions({
       else if (action === 'reject' && onReject) onReject();
       else if (action === 'sendback') onSendBack();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка выполнения действия');
+      toast.error(error instanceof Error ? error.message : 'Ошибка выполнения действия');
     } finally {
       setLoading(false);
     }
@@ -119,98 +122,165 @@ export default function FinancialApprovalActions({
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      message.success('Файл успешно скачан');
+      toast.success('Файл успешно скачан');
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка скачивания файла');
+      toast.error(error instanceof Error ? error.message : 'Ошибка скачивания файла');
     } finally {
       setDownloading(false);
     }
   };
 
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+    <div className="flex items-center gap-2 flex-wrap">
       {/* Download Financial Review Button */}
-      <Button icon={<DownloadOutlined />} onClick={handleDownloadExcel} loading={downloading}>
+      <Button variant="outline" onClick={handleDownloadExcel} disabled={downloading}>
+        {downloading ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4 mr-2" />
+        )}
         Скачать финансовый анализ
       </Button>
 
-      {/* Approve Button - With optional comment input */}
-      <Popconfirm
-        title="Утверждение КП"
-        description={
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <span>Утвердить КП {quoteNumber}?</span>
-            <TextArea
+      {/* Approve Button */}
+      <Popover open={approveOpen} onOpenChange={setApproveOpen}>
+        <PopoverTrigger asChild>
+          <Button>
+            <Check className="h-4 w-4 mr-2" />
+            Утвердить
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          <div className="space-y-4">
+            <div>
+              <p className="font-medium mb-2">Утверждение КП</p>
+              <p className="text-sm text-muted-foreground">Утвердить КП {quoteNumber}?</p>
+            </div>
+            <Textarea
               placeholder="Комментарий (необязательно)"
               value={approveComment}
               onChange={(e) => setApproveComment(e.target.value)}
               rows={3}
               maxLength={500}
             />
-          </Space>
-        }
-        onConfirm={() => handleAction('approve', approveComment)}
-        onCancel={() => setApproveComment('')}
-        okText="Утвердить"
-        cancelText="Отмена"
-        okButtonProps={{ loading }}
-      >
-        <Button type="primary" icon={<CheckOutlined />}>
-          Утвердить
-        </Button>
-      </Popconfirm>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setApproveOpen(false);
+                  setApproveComment('');
+                }}
+              >
+                Отмена
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleAction('approve', approveComment)}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Утвердить
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
 
-      {/* Reject Button - With comment input */}
-      <Popconfirm
-        title="Отклонение КП"
-        description={
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <span>Укажите причину отклонения КП {quoteNumber}:</span>
-            <TextArea
+      {/* Reject Button */}
+      <Popover open={rejectOpen} onOpenChange={setRejectOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="destructive">
+            <X className="h-4 w-4 mr-2" />
+            Отклонить
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          <div className="space-y-4">
+            <div>
+              <p className="font-medium mb-2">Отклонение КП</p>
+              <p className="text-sm text-muted-foreground">
+                Укажите причину отклонения КП {quoteNumber}:
+              </p>
+            </div>
+            <Textarea
               placeholder="Причина отклонения (обязательно)"
               value={rejectComment}
               onChange={(e) => setRejectComment(e.target.value)}
               rows={3}
               maxLength={500}
             />
-          </Space>
-        }
-        onConfirm={() => handleAction('reject', rejectComment)}
-        onCancel={() => setRejectComment('')}
-        okText="Отклонить"
-        cancelText="Отмена"
-        okButtonProps={{ loading, danger: true }}
-        icon={<CloseOutlined style={{ color: 'red' }} />}
-      >
-        <Button danger icon={<CloseOutlined />}>
-          Отклонить
-        </Button>
-      </Popconfirm>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setRejectOpen(false);
+                  setRejectComment('');
+                }}
+              >
+                Отмена
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleAction('reject', rejectComment)}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Отклонить
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
 
-      {/* Send Back Button - With comment input */}
-      <Popconfirm
-        title="Возврат на доработку"
-        description={
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <span>Укажите, что нужно исправить в КП {quoteNumber}:</span>
-            <TextArea
+      {/* Send Back Button */}
+      <Popover open={sendBackOpen} onOpenChange={setSendBackOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline">
+            <X className="h-4 w-4 mr-2" />
+            На доработку
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          <div className="space-y-4">
+            <div>
+              <p className="font-medium mb-2">Возврат на доработку</p>
+              <p className="text-sm text-muted-foreground">
+                Укажите, что нужно исправить в КП {quoteNumber}:
+              </p>
+            </div>
+            <Textarea
               placeholder="Что нужно исправить (обязательно)"
               value={sendBackComment}
               onChange={(e) => setSendBackComment(e.target.value)}
               rows={3}
               maxLength={500}
             />
-          </Space>
-        }
-        onConfirm={() => handleAction('sendback', sendBackComment)}
-        onCancel={() => setSendBackComment('')}
-        okText="Вернуть"
-        cancelText="Отмена"
-        okButtonProps={{ loading }}
-        icon={<CloseOutlined style={{ color: 'orange' }} />}
-      >
-        <Button icon={<CloseOutlined />}>На доработку</Button>
-      </Popconfirm>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSendBackOpen(false);
+                  setSendBackComment('');
+                }}
+              >
+                Отмена
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleAction('sendback', sendBackComment)}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Вернуть
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

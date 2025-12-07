@@ -1,28 +1,43 @@
 'use client';
 
 import React, { useState, Suspense } from 'react';
-import { Card, Form, Input, Button, Typography, Space, Divider, Alert, Row, Col, Spin } from 'antd';
-import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth/AuthProvider';
 import Link from 'next/link';
-
-const { Title, Text, Paragraph } = Typography;
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Mail, Lock, AlertCircle, Loader2, X } from 'lucide-react';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
 function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { signIn } = useAuth();
-  const _router = useRouter(); // Reserved for future navigation
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/onboarding';
 
-  const handleSubmit = async (values: { email: string; password: string }) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!email || !password) {
+      setError('Пожалуйста, заполните все поля');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Пароль должен содержать минимум 6 символов');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const { error } = await signIn(values.email, values.password);
+      const { error } = await signIn(email, password);
 
       if (error) {
         setError(error.message);
@@ -30,8 +45,6 @@ function LoginForm() {
         return;
       }
 
-      // Refresh the page to trigger middleware check
-      // Middleware will redirect authenticated users from /auth/* to appropriate page
       window.location.href = redirectTo;
     } catch {
       setError('Произошла неожиданная ошибка');
@@ -40,135 +53,113 @@ function LoginForm() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-      }}
-    >
-      <Row justify="center" style={{ width: '100%', maxWidth: '1200px' }}>
-        <Col xs={24} sm={20} md={16} lg={12} xl={8}>
-          <Card
-            style={{
-              borderRadius: '12px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {/* Header */}
-              <div style={{ textAlign: 'center' }}>
-                <Title level={2} style={{ marginBottom: '8px', color: '#1890ff' }}>
-                  Коммерческие предложения
-                </Title>
-                <Paragraph style={{ color: '#666', marginBottom: 0 }}>
-                  Система управления КП для российского B2B
-                </Paragraph>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-5">
+      <div className="w-full max-w-md">
+        <Card className="bg-card border-border shadow-2xl">
+          <CardContent className="pt-6 space-y-6">
+            {/* Header */}
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold text-primary mb-2">Коммерческие предложения</h2>
+              <p className="text-muted-foreground">Система управления КП для российского B2B</p>
+            </div>
 
-              <Divider />
+            <Separator />
 
-              {/* Error Alert */}
-              {error && (
-                <Alert
-                  message="Ошибка входа"
-                  description={error}
-                  type="error"
-                  showIcon
-                  closable
-                  onClose={() => setError(null)}
-                />
-              )}
-
-              {/* Login Form */}
-              <Form
-                name="login"
-                onFinish={handleSubmit}
-                layout="vertical"
-                size="large"
-                autoComplete="off"
-              >
-                <Form.Item
-                  label="Email"
-                  name="email"
-                  rules={[
-                    { required: true, message: 'Пожалуйста, введите email' },
-                    { type: 'email', message: 'Введите корректный email' },
-                  ]}
-                >
-                  <Input
-                    prefix={<MailOutlined />}
-                    placeholder="your@email.com"
-                    autoComplete="email"
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  label="Пароль"
-                  name="password"
-                  rules={[
-                    { required: true, message: 'Пожалуйста, введите пароль' },
-                    { min: 6, message: 'Пароль должен содержать минимум 6 символов' },
-                  ]}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined />}
-                    placeholder="Ваш пароль"
-                    autoComplete="current-password"
-                  />
-                </Form.Item>
-
-                <div style={{ marginBottom: '24px', textAlign: 'right' }}>
-                  <Link href="/auth/forgot-password" style={{ color: '#1890ff' }}>
-                    Забыли пароль?
-                  </Link>
+            {/* Error Alert */}
+            {error && (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+                <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-destructive">Ошибка входа</p>
+                  <p className="text-sm text-destructive/80">{error}</p>
                 </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-destructive/60 hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
 
-                <Form.Item style={{ marginBottom: '16px' }}>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={loading}
-                    block
-                    style={{ height: '48px', fontSize: '16px' }}
-                  >
-                    Войти в систему
-                  </Button>
-                </Form.Item>
-              </Form>
-
-              <Divider />
-
-              {/* Registration Link */}
-              <div style={{ textAlign: 'center' }}>
-                <Text>
-                  Нет аккаунта?{' '}
-                  <Link href="/auth/register" style={{ color: '#1890ff' }}>
-                    Зарегистрироваться
-                  </Link>
-                </Text>
+            {/* Login Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
               </div>
 
-              {/* Features */}
-              <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '8px' }}>
-                <Title level={5} style={{ marginBottom: '12px' }}>
-                  Возможности системы:
-                </Title>
-                <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                  <li>Создание и управление коммерческими предложениями</li>
-                  <li>Многоуровневое утверждение (менеджер → финансы → директор)</li>
-                  <li>Валидация российских реквизитов (ИНН, КПП, ОГРН)</li>
-                  <li>Поддержка валют: RUB, CNY, USD, EUR</li>
-                  <li>Автоматический расчет НДС (20%, 10%, 0%)</li>
-                </ul>
+              <div className="space-y-2">
+                <Label htmlFor="password">Пароль</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Ваш пароль"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
               </div>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
+
+              <div className="text-right">
+                <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
+                  Забыли пароль?
+                </Link>
+              </div>
+
+              <Button type="submit" disabled={loading} className="w-full h-12 text-base">
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Вход...
+                  </>
+                ) : (
+                  'Войти в систему'
+                )}
+              </Button>
+            </form>
+
+            <Separator />
+
+            {/* Registration Link */}
+            <div className="text-center text-sm">
+              <span className="text-muted-foreground">Нет аккаунта? </span>
+              <Link href="/auth/register" className="text-primary hover:underline">
+                Зарегистрироваться
+              </Link>
+            </div>
+
+            {/* Features */}
+            <div className="bg-muted/30 p-4 rounded-lg">
+              <h5 className="font-medium mb-3">Возможности системы:</h5>
+              <ul className="text-sm text-muted-foreground space-y-1.5 list-disc list-inside">
+                <li>Создание и управление коммерческими предложениями</li>
+                <li>Многоуровневое утверждение (менеджер - финансы - директор)</li>
+                <li>Валидация российских реквизитов (ИНН, КПП, ОГРН)</li>
+                <li>Поддержка валют: RUB, CNY, USD, EUR</li>
+                <li>Автоматический расчет НДС (20%, 10%, 0%)</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -177,16 +168,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Spin size="large" />
+        <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-white" />
         </div>
       }
     >

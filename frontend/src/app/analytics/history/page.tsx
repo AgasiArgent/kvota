@@ -1,61 +1,58 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Card,
-  Table,
-  Button,
-  Space,
-  message,
-  Tag,
-  Typography,
-  Badge,
-  Descriptions,
-  Modal,
-  DatePicker,
-  Select,
-  Spin,
-} from 'antd';
-import {
-  DownloadOutlined,
-  HistoryOutlined,
-  EyeOutlined,
-  FileExcelOutlined,
-  FilePdfOutlined,
-  FileTextOutlined,
-} from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
-import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+import { toast } from 'sonner';
+import {
+  Download,
+  History,
+  Eye,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
 
-dayjs.extend(isSameOrAfter);
-dayjs.extend(isSameOrBefore);
-
+import MainLayout from '@/components/layout/MainLayout';
+import PageHeader from '@/components/shared/PageHeader';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   getExecutionHistory,
   downloadExecutionFile,
   type ReportExecution,
   type PaginatedResponse,
 } from '@/lib/api/analytics-service';
-import MainLayout from '@/components/layout/MainLayout';
-
-const { Title, Text } = Typography;
-const { RangePicker } = DatePicker;
 
 // File format icons
-const FORMAT_ICONS: Record<string, React.ReactNode> = {
-  xlsx: <FileExcelOutlined style={{ color: '#107C41' }} />,
-  csv: <FileTextOutlined style={{ color: '#666' }} />,
-  pdf: <FilePdfOutlined style={{ color: '#D83B01' }} />,
-  json: <FileTextOutlined style={{ color: '#0078D4' }} />,
-};
-
-// Execution type colors (using grey for all)
-const TYPE_COLORS: Record<string, string> = {
-  manual: 'default',
-  scheduled: 'default',
-  api: 'default',
+const FormatIcon = ({ format }: { format: string }) => {
+  switch (format) {
+    case 'xlsx':
+      return <FileSpreadsheet className="h-4 w-4 text-emerald-500" />;
+    case 'csv':
+    case 'json':
+      return <FileText className="h-4 w-4 text-muted-foreground" />;
+    default:
+      return <FileText className="h-4 w-4" />;
+  }
 };
 
 export default function ExecutionHistoryPage() {
@@ -69,18 +66,12 @@ export default function ExecutionHistoryPage() {
   });
 
   // Filters
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
-  const [executionTypeFilter, setExecutionTypeFilter] = useState<string | null>(null);
-  const [appliedFilters, setAppliedFilters] = useState<{
-    dateRange: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null;
-    executionType: string | null;
-  }>({
-    dateRange: null,
-    executionType: null,
-  });
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [executionTypeFilter, setExecutionTypeFilter] = useState<string>('');
 
   // Detail modal
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedExecution, setSelectedExecution] = useState<ReportExecution | null>(null);
 
   // Load executions
@@ -93,26 +84,17 @@ export default function ExecutionHistoryPage() {
         // Apply client-side filters
         let filtered = data.items;
 
-        if (
-          appliedFilters.dateRange &&
-          appliedFilters.dateRange[0] &&
-          appliedFilters.dateRange[1]
-        ) {
+        if (dateFrom && dateTo) {
           filtered = filtered.filter((exec) => {
             const execDate = dayjs(exec.executed_at);
-            const startOfDay = appliedFilters.dateRange![0]!.startOf('day');
-            const endOfDay = appliedFilters.dateRange![1]!.endOf('day');
-            return (
-              (execDate.isAfter(startOfDay) || execDate.isSame(startOfDay)) &&
-              (execDate.isBefore(endOfDay) || execDate.isSame(endOfDay))
-            );
+            const start = dayjs(dateFrom).startOf('day');
+            const end = dayjs(dateTo).endOf('day');
+            return execDate.isAfter(start) && execDate.isBefore(end);
           });
         }
 
-        if (appliedFilters.executionType) {
-          filtered = filtered.filter(
-            (exec) => exec.execution_type === appliedFilters.executionType
-          );
+        if (executionTypeFilter) {
+          filtered = filtered.filter((exec) => exec.execution_type === executionTypeFilter);
         }
 
         setExecutions(filtered);
@@ -122,32 +104,25 @@ export default function ExecutionHistoryPage() {
           total: filtered.length,
         });
       } catch (error) {
-        message.error(error instanceof Error ? error.message : 'Ошибка загрузки истории');
+        toast.error(error instanceof Error ? error.message : 'Ошибка загрузки истории');
       } finally {
         setLoading(false);
         setPageLoading(false);
       }
     },
-    [appliedFilters]
+    [dateFrom, dateTo, executionTypeFilter]
   );
 
   // Apply filters
   const handleApplyFilters = useCallback(() => {
-    setAppliedFilters({
-      dateRange,
-      executionType: executionTypeFilter,
-    });
     loadExecutions(1, pagination.pageSize);
-  }, [dateRange, executionTypeFilter, loadExecutions, pagination.pageSize]);
+  }, [loadExecutions, pagination.pageSize]);
 
   // Reset filters
   const handleResetFilters = useCallback(() => {
-    setDateRange(null);
-    setExecutionTypeFilter(null);
-    setAppliedFilters({
-      dateRange: null,
-      executionType: null,
-    });
+    setDateFrom('');
+    setDateTo('');
+    setExecutionTypeFilter('');
     loadExecutions(1, pagination.pageSize);
   }, [loadExecutions, pagination.pageSize]);
 
@@ -158,7 +133,7 @@ export default function ExecutionHistoryPage() {
   // Download file
   const handleDownload = useCallback(async (execution: ReportExecution) => {
     if (!execution.export_file_url) {
-      message.warning('Файл недоступен');
+      toast.warning('Файл недоступен');
       return;
     }
 
@@ -168,7 +143,6 @@ export default function ExecutionHistoryPage() {
       const link = document.createElement('a');
       link.href = url;
 
-      // Generate filename with timestamp format: analytics_YYYYMMDD_HHMMSS_history.xlsx
       const timestamp = dayjs(execution.executed_at).format('YYYYMMDD_HHmmss');
       const format = execution.export_format || 'xlsx';
       link.download = `analytics_${timestamp}_history.${format}`;
@@ -177,16 +151,16 @@ export default function ExecutionHistoryPage() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      message.success('Файл скачан');
+      toast.success('Файл скачан');
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка скачивания');
+      toast.error(error instanceof Error ? error.message : 'Ошибка скачивания');
     }
   }, []);
 
   // Show detail
   const handleShowDetail = useCallback((execution: ReportExecution) => {
     setSelectedExecution(execution);
-    setDetailModalVisible(true);
+    setDetailModalOpen(true);
   }, []);
 
   // Check if file is expired
@@ -203,144 +177,24 @@ export default function ExecutionHistoryPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }, []);
 
-  // Table columns
-  const columns: ColumnsType<ReportExecution> = [
-    {
-      title: 'Дата и время',
-      dataIndex: 'executed_at',
-      key: 'executed_at',
-      width: 160,
-      sorter: (a, b) => dayjs(a.executed_at).unix() - dayjs(b.executed_at).unix(),
-      render: (date) => (
-        <div>
-          <div>{dayjs(date).format('DD.MM.YYYY')}</div>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {dayjs(date).format('HH:mm:ss')}
-          </Text>
-        </div>
-      ),
-    },
-    {
-      title: 'Отчёт',
-      dataIndex: 'report_name',
-      key: 'report_name',
-      render: (text, record) => (
-        <div>
-          <div>{text || 'Разовый запрос'}</div>
-          {record.saved_report_id && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              ID: {record.saved_report_id.slice(0, 8)}...
-            </Text>
-          )}
-        </div>
-      ),
-    },
-    {
-      title: 'Тип',
-      dataIndex: 'execution_type',
-      key: 'execution_type',
-      width: 120,
-      filters: [
-        { text: 'Вручную', value: 'manual' },
-        { text: 'По расписанию', value: 'scheduled' },
-        { text: 'API', value: 'api' },
-      ],
-      onFilter: (value, record) => record.execution_type === value,
-      render: (type) => (
-        <Tag color={TYPE_COLORS[type]}>
-          {type === 'manual' ? 'Вручную' : type === 'scheduled' ? 'Расписание' : 'API'}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Записей',
-      dataIndex: 'quote_count',
-      key: 'quote_count',
-      width: 100,
-      align: 'right',
-      sorter: (a, b) => a.quote_count - b.quote_count,
-      render: (count) => count.toLocaleString('ru-RU'),
-    },
-    {
-      title: 'Файл',
-      key: 'file',
-      width: 150,
-      render: (_, record) => {
-        if (!record.export_file_url) return '-';
-
-        const expired = isFileExpired(record);
-
-        return (
-          <div>
-            <div>
-              {FORMAT_ICONS[record.export_format || 'xlsx']} {record.export_format?.toUpperCase()}
-            </div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {formatFileSize(record.file_size_bytes)}
-            </Text>
-            {expired && (
-              <div>
-                <Badge status="error" text="Истёк" />
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      title: 'Время выполнения',
-      dataIndex: 'execution_time_ms',
-      key: 'execution_time_ms',
-      width: 120,
-      sorter: (a, b) => (a.execution_time_ms || 0) - (b.execution_time_ms || 0),
-      render: (ms) => {
-        if (!ms) return '-';
-        if (ms < 1000) return `${ms} мс`;
-        return `${(ms / 1000).toFixed(2)} сек`;
-      },
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 150,
-      render: (_, record) => (
-        <Space size="small">
-          <Button size="small" icon={<EyeOutlined />} onClick={() => handleShowDetail(record)}>
-            Детали
-          </Button>
-          {record.export_file_url && !isFileExpired(record) && (
-            <Button
-              size="small"
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              icon={<DownloadOutlined />}
-              onClick={() => handleDownload(record)}
-            />
-          )}
-        </Space>
-      ),
-    },
-  ];
-
-  // Handle table change
-  const handleTableChange = useCallback(
-    (pagination: any) => {
-      loadExecutions(pagination.current, pagination.pageSize);
-    },
-    [loadExecutions]
-  );
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'manual':
+        return 'Вручную';
+      case 'scheduled':
+        return 'Расписание';
+      case 'api':
+        return 'API';
+      default:
+        return type;
+    }
+  };
 
   if (pageLoading) {
     return (
       <MainLayout>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '80vh',
-          }}
-        >
-          <Spin size="large" tip="Загрузка истории..." />
+        <div className="flex justify-center items-center h-[80vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </MainLayout>
     );
@@ -348,157 +202,322 @@ export default function ExecutionHistoryPage() {
 
   return (
     <MainLayout>
-      <Card>
-        <div style={{ marginBottom: 16 }}>
-          <Title level={2}>
-            <HistoryOutlined /> История выполнений
-          </Title>
-          <Text type="secondary">Журнал всех выполненных запросов и отчётов</Text>
-        </div>
+      <div className="space-y-6">
+        <PageHeader
+          icon={<History className="h-6 w-6" />}
+          title="История выполнений"
+          description="Журнал всех выполненных запросов и отчётов"
+        />
 
         {/* Filters */}
-        <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
-          <RangePicker
-            style={{ width: 300 }}
-            format="DD.MM.YYYY"
-            placeholder={['Дата от', 'Дата до']}
-            value={dateRange}
-            onChange={setDateRange}
-          />
-          <Select
-            placeholder="Тип выполнения"
-            allowClear
-            style={{ width: 200 }}
-            value={executionTypeFilter}
-            onChange={setExecutionTypeFilter}
-            options={[
-              { value: 'manual', label: 'Вручную' },
-              { value: 'scheduled', label: 'По расписанию' },
-              { value: 'api', label: 'API' },
-            ]}
-          />
-          <Button
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={handleApplyFilters}
-          >
-            Применить фильтры
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Дата от</Label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-[150px]"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Дата до</Label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-[150px]"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Тип выполнения</Label>
+            <Select value={executionTypeFilter} onValueChange={setExecutionTypeFilter}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Все" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">Вручную</SelectItem>
+                <SelectItem value="scheduled">По расписанию</SelectItem>
+                <SelectItem value="api">API</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleApplyFilters}>Применить</Button>
+          <Button variant="outline" onClick={handleResetFilters}>
+            Сбросить
           </Button>
-          <Button onClick={handleResetFilters}>Сбросить</Button>
         </div>
 
         {/* Table */}
-        <Table
-          loading={loading}
-          columns={columns}
-          dataSource={executions}
-          rowKey="id"
-          pagination={{
-            ...pagination,
-            showSizeChanger: true,
-            showTotal: (total) => `Всего: ${total}`,
-            pageSizeOptions: ['20', '50', '100'],
-          }}
-          onChange={handleTableChange}
-        />
-      </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : executions.length === 0 ? (
+              <div className="p-8 text-center">
+                <History className="mx-auto h-12 w-12 text-foreground/20 mb-4" />
+                <p className="text-foreground/40">Нет записей</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-secondary/30 border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Дата и время
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Отчёт
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Тип
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Записей
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Файл
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Время
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Действия
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {executions.map((exec) => {
+                      const expired = isFileExpired(exec);
+
+                      return (
+                        <tr key={exec.id} className="hover:bg-foreground/5 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="text-sm">
+                              {dayjs(exec.executed_at).format('DD.MM.YYYY')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {dayjs(exec.executed_at).format('HH:mm:ss')}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm">{exec.report_name || 'Разовый запрос'}</div>
+                            {exec.saved_report_id && (
+                              <div className="text-xs text-muted-foreground">
+                                ID: {exec.saved_report_id.slice(0, 8)}...
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant="secondary">{getTypeLabel(exec.execution_type)}</Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm">
+                            {exec.quote_count.toLocaleString('ru-RU')}
+                          </td>
+                          <td className="px-4 py-3">
+                            {exec.export_file_url ? (
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <FormatIcon format={exec.export_format || 'xlsx'} />
+                                  <span className="text-sm">
+                                    {exec.export_format?.toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {formatFileSize(exec.file_size_bytes)}
+                                </div>
+                                {expired && (
+                                  <Badge variant="destructive" className="mt-1">
+                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                    Истёк
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground/70">
+                            {exec.execution_time_ms
+                              ? exec.execution_time_ms < 1000
+                                ? `${exec.execution_time_ms} мс`
+                                : `${(exec.execution_time_ms / 1000).toFixed(2)} сек`
+                              : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleShowDetail(exec)}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Детали
+                              </Button>
+                              {exec.export_file_url && !expired && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleDownload(exec)}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && pagination.total > 0 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                <div className="text-sm text-muted-foreground">
+                  Всего: {pagination.total} записей
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pagination.current === 1}
+                    onClick={() => loadExecutions(pagination.current - 1, pagination.pageSize)}
+                  >
+                    Назад
+                  </Button>
+                  <span className="text-sm text-muted-foreground">Стр. {pagination.current}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pagination.current * pagination.pageSize >= pagination.total}
+                    onClick={() => loadExecutions(pagination.current + 1, pagination.pageSize)}
+                  >
+                    Далее
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Detail Modal */}
-      <Modal
-        title="Детали выполнения"
-        open={detailModalVisible}
-        onCancel={() => {
-          setDetailModalVisible(false);
-          setSelectedExecution(null);
-        }}
-        footer={[
-          <Button key="close" onClick={() => setDetailModalVisible(false)}>
-            Закрыть
-          </Button>,
-          selectedExecution?.export_file_url && !isFileExpired(selectedExecution) && (
-            <Button
-              key="download"
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              icon={<DownloadOutlined />}
-              onClick={() => selectedExecution && handleDownload(selectedExecution)}
-            >
-              Скачать файл
-            </Button>
-          ),
-        ]}
-        width={800}
-      >
-        {selectedExecution && (
-          <div>
-            <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="ID" span={2}>
-                {selectedExecution.id}
-              </Descriptions.Item>
-              <Descriptions.Item label="Тип выполнения">
-                <Tag color={TYPE_COLORS[selectedExecution.execution_type]}>
-                  {selectedExecution.execution_type === 'manual'
-                    ? 'Вручную'
-                    : selectedExecution.execution_type === 'scheduled'
-                      ? 'По расписанию'
-                      : 'API'}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Дата и время">
-                {dayjs(selectedExecution.executed_at).format('DD.MM.YYYY HH:mm:ss')}
-              </Descriptions.Item>
-              <Descriptions.Item label="Записей найдено">
-                {selectedExecution.quote_count.toLocaleString('ru-RU')}
-              </Descriptions.Item>
-              <Descriptions.Item label="Время выполнения">
-                {selectedExecution.execution_time_ms
-                  ? selectedExecution.execution_time_ms < 1000
-                    ? `${selectedExecution.execution_time_ms} мс`
-                    : `${(selectedExecution.execution_time_ms / 1000).toFixed(2)} сек`
-                  : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Формат файла">
-                {selectedExecution.export_format?.toUpperCase() || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Размер файла">
-                {formatFileSize(selectedExecution.file_size_bytes)}
-              </Descriptions.Item>
-            </Descriptions>
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Детали выполнения</DialogTitle>
+          </DialogHeader>
 
-            {/* Result Summary */}
-            {Object.keys(selectedExecution.result_summary).length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <Title level={5}>Результаты агрегации</Title>
-                <Descriptions bordered column={2} size="small">
-                  {Object.entries(selectedExecution.result_summary).map(([key, value]) => (
-                    <Descriptions.Item key={key} label={key}>
-                      {typeof value === 'number' ? value.toLocaleString('ru-RU') : String(value)}
-                    </Descriptions.Item>
+          {selectedExecution && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-muted-foreground">ID</Label>
+                  <p className="text-sm font-mono">{selectedExecution.id}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Тип выполнения</Label>
+                  <p className="text-sm">
+                    <Badge variant="secondary">
+                      {getTypeLabel(selectedExecution.execution_type)}
+                    </Badge>
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Дата и время</Label>
+                  <p className="text-sm">
+                    {dayjs(selectedExecution.executed_at).format('DD.MM.YYYY HH:mm:ss')}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Записей найдено</Label>
+                  <p className="text-sm">{selectedExecution.quote_count.toLocaleString('ru-RU')}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Время выполнения</Label>
+                  <p className="text-sm">
+                    {selectedExecution.execution_time_ms
+                      ? selectedExecution.execution_time_ms < 1000
+                        ? `${selectedExecution.execution_time_ms} мс`
+                        : `${(selectedExecution.execution_time_ms / 1000).toFixed(2)} сек`
+                      : '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Формат файла</Label>
+                  <p className="text-sm">{selectedExecution.export_format?.toUpperCase() || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Размер файла</Label>
+                  <p className="text-sm">{formatFileSize(selectedExecution.file_size_bytes)}</p>
+                </div>
+              </div>
+
+              {/* Result Summary */}
+              {Object.keys(selectedExecution.result_summary).length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Результаты агрегации</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2 p-3 bg-secondary/30 rounded-lg">
+                    {Object.entries(selectedExecution.result_summary).map(([key, value]) => (
+                      <div key={key}>
+                        <span className="text-xs text-muted-foreground">{key}: </span>
+                        <span className="text-sm">
+                          {typeof value === 'number'
+                            ? value.toLocaleString('ru-RU')
+                            : String(value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Filters Used */}
+              {Object.keys(selectedExecution.filters).length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Применённые фильтры</Label>
+                  <pre className="mt-2 text-xs bg-secondary/30 p-3 rounded-lg overflow-auto">
+                    {JSON.stringify(selectedExecution.filters, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {/* Selected Fields */}
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  Выбранные поля ({selectedExecution.selected_fields.length})
+                </Label>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {selectedExecution.selected_fields.map((field) => (
+                    <Badge key={field} variant="outline">
+                      {field}
+                    </Badge>
                   ))}
-                </Descriptions>
+                </div>
               </div>
-            )}
-
-            {/* Filters Used */}
-            {Object.keys(selectedExecution.filters).length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <Title level={5}>Примененные фильтры</Title>
-                <pre style={{ background: '#f5f5f5', padding: 12, borderRadius: 4 }}>
-                  {JSON.stringify(selectedExecution.filters, null, 2)}
-                </pre>
-              </div>
-            )}
-
-            {/* Selected Fields */}
-            <div style={{ marginTop: 16 }}>
-              <Title level={5}>Выбранные поля ({selectedExecution.selected_fields.length})</Title>
-              <Space wrap>
-                {selectedExecution.selected_fields.map((field) => (
-                  <Tag key={field}>{field}</Tag>
-                ))}
-              </Space>
             </div>
-          </div>
-        )}
-      </Modal>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailModalOpen(false)}>
+              Закрыть
+            </Button>
+            {selectedExecution?.export_file_url && !isFileExpired(selectedExecution) && (
+              <Button onClick={() => selectedExecution && handleDownload(selectedExecution)}>
+                <Download className="h-4 w-4 mr-2" />
+                Скачать файл
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

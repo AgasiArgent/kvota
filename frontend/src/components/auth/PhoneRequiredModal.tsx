@@ -1,10 +1,18 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Modal, Form, Input, Typography, App } from 'antd';
-import { PhoneOutlined } from '@ant-design/icons';
-
-const { Text, Title } = Typography;
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Phone, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface PhoneRequiredModalProps {
   open: boolean;
@@ -17,84 +25,86 @@ interface PhoneRequiredModalProps {
  * Cannot be dismissed - user must provide phone to continue.
  */
 export function PhoneRequiredModal({ open, onSubmit }: PhoneRequiredModalProps) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm();
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = async (values: { phone: string }) => {
+  const validatePhone = (value: string): boolean => {
+    if (!value.trim()) {
+      setError('Введите номер телефона');
+      return false;
+    }
+    if (!/^[\d\s\-+()]{7,20}$/.test(value)) {
+      setError('Некорректный формат номера');
+      return false;
+    }
+    setError('');
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validatePhone(phone)) {
+      return;
+    }
+
     setLoading(true);
     try {
-      await onSubmit(values.phone);
-      message.success('Номер телефона сохранен');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка сохранения');
+      await onSubmit(phone);
+      toast.success('Номер телефона сохранен');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка сохранения');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal
-      title={
-        <span>
-          <PhoneOutlined style={{ marginRight: 8 }} />
-          Укажите номер телефона
-        </span>
-      }
-      open={open}
-      closable={false}
-      maskClosable={false}
-      keyboard={false}
-      footer={null}
-      width={450}
-    >
-      <div style={{ marginBottom: 16 }}>
-        <Text type="secondary">
-          Номер телефона необходим для генерации коммерческих предложений. Он будет указан в
-          контактной информации КП.
-        </Text>
-      </div>
+    <Dialog open={open}>
+      <DialogContent
+        className="sm:max-w-[450px]"
+        onPointerDownOutside={(e: Event) => e.preventDefault()}
+        onEscapeKeyDown={(e: KeyboardEvent) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Phone className="h-5 w-5" />
+            Укажите номер телефона
+          </DialogTitle>
+          <DialogDescription>
+            Номер телефона необходим для генерации коммерческих предложений. Он будет указан в
+            контактной информации КП.
+          </DialogDescription>
+        </DialogHeader>
 
-      <Form form={form} layout="vertical" onFinish={handleSubmit}>
-        <Form.Item
-          label="Номер телефона"
-          name="phone"
-          rules={[
-            { required: true, message: 'Введите номер телефона' },
-            {
-              pattern: /^[\d\s\-+()]{7,20}$/,
-              message: 'Некорректный формат номера',
-            },
-          ]}
-        >
-          <Input
-            prefix={<PhoneOutlined />}
-            placeholder="+7 (999) 123-45-67"
-            size="large"
-            autoFocus
-          />
-        </Form.Item>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="phone">Номер телефона</Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+7 (999) 123-45-67"
+                className="pl-10"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (error) validatePhone(e.target.value);
+                }}
+                autoFocus
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
 
-        <Form.Item style={{ marginBottom: 0, marginTop: 24 }}>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              height: 40,
-              backgroundColor: '#1890ff',
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: 16,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {loading ? 'Сохранение...' : 'Сохранить и продолжить'}
-          </button>
-        </Form.Item>
-      </Form>
-    </Modal>
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

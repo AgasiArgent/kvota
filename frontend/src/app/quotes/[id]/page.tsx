@@ -3,38 +3,50 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
-  Alert,
-  Card,
-  Descriptions,
-  Button,
-  Space,
-  Tag,
-  Typography,
-  Spin,
-  message,
-  Popconfirm,
-  Row,
-  Col,
-  Dropdown,
-  Tabs,
-  App,
-} from 'antd';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
-  ArrowLeftOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  CheckCircleOutlined,
-} from '@ant-design/icons';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  ArrowLeft,
+  Pencil,
+  Trash2,
+  Download,
+  CheckCircle,
+  Loader2,
+  Info,
+  AlertTriangle,
+  XCircle,
+  ChevronDown,
+} from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import MainLayout from '@/components/layout/MainLayout';
 import { QuoteService } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { getAuthToken } from '@/lib/auth/auth-helper';
+import { toast } from 'sonner';
 import type { ColDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
-import { WorkflowStatusCard, WorkflowStateBadge } from '@/components/workflow';
+import { WorkflowStatusCard } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
 import FinancialApprovalActions from '@/components/quotes/FinancialApprovalActions';
 import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
@@ -51,12 +63,15 @@ const AgGridReact = dynamic(
     return AgGridReact;
   },
   {
-    loading: () => <Spin size="large" tip="Загрузка таблицы..." />,
+    loading: () => (
+      <div className="flex items-center justify-center h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Загрузка таблицы...</span>
+      </div>
+    ),
     ssr: false,
   }
 );
-
-const { Title, Text } = Typography;
 
 // TypeScript interfaces matching backend response
 interface QuoteItem {
@@ -87,14 +102,14 @@ interface QuoteDetail {
   id: string;
   quote_number: string;
   customer_id?: string;
-  customer?: Customer; // Backend returns customer object, not customer_name string
+  customer?: Customer;
   title?: string;
   status: string;
-  workflow_state?: string; // For financial approval workflow
-  submission_comment?: string; // Comment from manager when submitting for approval
-  last_sendback_reason?: string; // Comment from financial manager when sent back
-  last_financial_comment?: string; // Comment from financial manager when rejected
-  last_approval_comment?: string; // Comment from financial manager when approved
+  workflow_state?: string;
+  submission_comment?: string;
+  last_sendback_reason?: string;
+  last_financial_comment?: string;
+  last_approval_comment?: string;
   quote_date?: string;
   valid_until?: string;
   currency?: string;
@@ -147,7 +162,7 @@ export default function QuoteDetailPage() {
     try {
       const organizationId = profile?.organization_id || '';
       if (!organizationId) {
-        message.error('Не удалось определить организацию');
+        toast.error('Не удалось определить организацию');
         return;
       }
 
@@ -155,36 +170,36 @@ export default function QuoteDetailPage() {
       console.log('[QuoteDetail] API response:', response);
 
       if (response.success && response.data) {
-        // Backend returns quote data at top level with items as property
-        const quoteData = response.data as any;
-        const items = quoteData.items || [];
+        const quoteData = response.data as unknown as Record<string, unknown>;
+        const items = (quoteData.items || []) as QuoteItem[];
 
         setQuote({
-          id: quoteData.id,
-          quote_number: quoteData.quote_number,
-          customer_id: quoteData.customer_id,
-          customer: quoteData.customer, // Store customer object (contains name)
-          title: quoteData.title,
-          status: quoteData.status,
-          workflow_state: quoteData.workflow_state, // CRITICAL: Required for financial approval component
-          submission_comment: quoteData.submission_comment, // Comment from manager when submitting
-          last_sendback_reason: quoteData.last_sendback_reason, // Comment when sent back for revision
-          last_financial_comment: quoteData.last_financial_comment, // Comment when rejected by finance
-          last_approval_comment: quoteData.last_approval_comment, // Comment when approved by finance
-          quote_date: quoteData.quote_date,
-          valid_until: quoteData.valid_until,
-          currency: quoteData.currency_of_quote || quoteData.currency || 'RUB',
-          total_amount: quoteData.total_amount,
-          created_at: quoteData.created_at,
+          id: quoteData.id as string,
+          quote_number: quoteData.quote_number as string,
+          customer_id: quoteData.customer_id as string | undefined,
+          customer: quoteData.customer as Customer | undefined,
+          title: quoteData.title as string | undefined,
+          status: quoteData.status as string,
+          workflow_state: quoteData.workflow_state as string | undefined,
+          submission_comment: quoteData.submission_comment as string | undefined,
+          last_sendback_reason: quoteData.last_sendback_reason as string | undefined,
+          last_financial_comment: quoteData.last_financial_comment as string | undefined,
+          last_approval_comment: quoteData.last_approval_comment as string | undefined,
+          quote_date: quoteData.quote_date as string | undefined,
+          valid_until: quoteData.valid_until as string | undefined,
+          currency: (quoteData.currency_of_quote || quoteData.currency || 'RUB') as string,
+          total_amount: quoteData.total_amount as number | undefined,
+          created_at: quoteData.created_at as string,
           items: items,
         });
       } else {
-        message.error(response.error || 'Ошибка загрузки КП');
+        toast.error(response.error || 'Ошибка загрузки КП');
         router.push('/quotes');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[QuoteDetail] Error:', error);
-      message.error('Ошибка загрузки: ' + error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      toast.error('Ошибка загрузки: ' + errorMessage);
       router.push('/quotes');
     } finally {
       setLoading(false);
@@ -195,19 +210,20 @@ export default function QuoteDetailPage() {
     try {
       const organizationId = profile?.organization_id || '';
       if (!organizationId) {
-        message.error('Не удалось определить организацию');
+        toast.error('Не удалось определить организацию');
         return;
       }
 
       const response = await quoteService.deleteQuote(quoteId, organizationId);
       if (response.success) {
-        message.success('КП перемещено в корзину');
+        toast.success('КП перемещено в корзину');
         router.push('/quotes');
       } else {
-        message.error(response.error || 'Ошибка удаления');
+        toast.error(response.error || 'Ошибка удаления');
       }
-    } catch (error: any) {
-      message.error('Ошибка удаления: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+      toast.error('Ошибка удаления: ' + errorMessage);
     }
   };
 
@@ -215,7 +231,7 @@ export default function QuoteDetailPage() {
     try {
       const token = await getAuthToken();
       if (!token) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
@@ -237,27 +253,26 @@ export default function QuoteDetailPage() {
       }
 
       setSubmitModalOpen(false);
-      // Refresh quote data to show new status
       await fetchQuoteDetails();
       await loadWorkflowStatus();
-      message.success('КП отправлено на финансовое утверждение');
-    } catch (error: any) {
-      message.error(error.message || 'Ошибка отправки на утверждение');
+      toast.success('КП отправлено на финансовое утверждение');
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Ошибка отправки на утверждение';
+      toast.error(errorMessage);
       throw error;
     }
   };
 
   const handleExport = useCallback(
     async (format: string, type: 'pdf' | 'excel') => {
-      // Prevent concurrent exports
       if (exportLoading) {
-        message.warning('Экспорт уже выполняется. Пожалуйста, подождите.');
+        toast.warning('Экспорт уже выполняется. Пожалуйста, подождите.');
         return;
       }
 
-      // Check if quote has calculation results
       if (!quote?.items || quote.items.length === 0) {
-        message.warning('Котировка пустая. Добавьте товары для экспорта.');
+        toast.warning('Котировка пустая. Добавьте товары для экспорта.');
         return;
       }
 
@@ -281,32 +296,25 @@ export default function QuoteDetailPage() {
           throw new Error(errorData.message || errorData.detail || 'Export failed');
         }
 
-        // Get filename from Content-Disposition header or generate
         const contentDisposition = response.headers.get('content-disposition');
         let filename = `quote_${quoteId}_${format}.${type === 'pdf' ? 'pdf' : 'xlsx'}`;
 
         if (contentDisposition) {
           console.log('[Export] Content-Disposition:', contentDisposition);
-
-          // Try filename*= format first (RFC 5987)
           let filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;\n]*)/i);
           if (filenameMatch && filenameMatch[1]) {
             filename = decodeURIComponent(filenameMatch[1]);
           } else {
-            // Try standard filename= format (with or without quotes)
             filenameMatch = contentDisposition.match(
               /filename=["']([^"']+)["']|filename=([^;\s]+)/i
             );
             if (filenameMatch) {
-              // Group 1 = quoted filename, Group 2 = unquoted filename
               filename = (filenameMatch[1] || filenameMatch[2]).trim();
             }
           }
-
           console.log('[Export] Extracted filename:', filename);
         }
 
-        // Download file
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -317,10 +325,11 @@ export default function QuoteDetailPage() {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
 
-        message.success('Файл успешно загружен');
-      } catch (error: any) {
+        toast.success('Файл успешно загружен');
+      } catch (error: unknown) {
         console.error('Export error:', error);
-        message.error('Ошибка экспорта: ' + (error.message || 'Попробуйте снова'));
+        const errorMessage = error instanceof Error ? error.message : 'Попробуйте снова';
+        toast.error('Ошибка экспорта: ' + errorMessage);
       } finally {
         setExportLoading(false);
       }
@@ -328,106 +337,31 @@ export default function QuoteDetailPage() {
     [quote?.items, quoteId, exportLoading]
   );
 
-  // Debug export handler for intermediate calculation results
-  const handleDebugExport = useCallback(async () => {
-    if (exportLoading) {
-      message.warning('Экспорт уже выполняется. Пожалуйста, подождите.');
-      return;
-    }
-
-    setExportLoading(true);
-
-    try {
-      const token = await getAuthToken();
-
-      const response = await fetch(`${config.apiUrl}/api/quotes-calc/debug-export/${quoteId}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || errorData.detail || 'Debug export failed');
-      }
-
-      // Get filename from Content-Disposition header or generate
-      const contentDisposition = response.headers.get('content-disposition');
-      let filename = `quote_${quoteId}_debug.csv`;
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename=["']?([^"';\n]+)["']?/i);
-        if (filenameMatch && filenameMatch[1]) {
-          filename = filenameMatch[1].trim();
-        }
-      }
-
-      // Download file
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      message.success('Debug export загружен');
-    } catch (error: any) {
-      console.error('Debug export error:', error);
-      message.error('Ошибка debug export: ' + (error.message || 'Попробуйте снова'));
-    } finally {
-      setExportLoading(false);
-    }
-  }, [quoteId, exportLoading]);
-
-  // Create export menu items (memoized to prevent recreation on state changes)
-  // Must be before early returns to satisfy Rules of Hooks
-  const exportMenuItems = useMemo(
-    () => [
-      {
-        key: 'excel-validation',
-        label: 'Экспорт для проверки',
-        onClick: () => handleExport('validation', 'excel'),
-      },
-      {
-        key: 'pdf-invoice',
-        label: 'Счет (Invoice)',
-        onClick: () => handleExport('invoice', 'pdf'),
-      },
-    ],
-    [handleExport]
-  );
-
-  const getStatusTag = (status: string) => {
-    const statusMap = {
-      // Old status values (for backward compatibility)
-      draft: { color: 'default', text: 'Черновик' },
-      pending_approval: { color: 'orange', text: 'На утверждении' },
-      partially_approved: { color: 'gold', text: 'Частично утверждено' },
-      approved: { color: 'green', text: 'Утверждено' },
-      revision_needed: { color: 'purple', text: 'Требуется доработка' },
-      rejected_internal: { color: 'red', text: 'Отклонено (внутр.)' },
-      ready_to_send: { color: 'cyan', text: 'Готово к отправке' },
-      sent: { color: 'default', text: 'Отправлено' },
-      viewed: { color: 'default', text: 'Просмотрено' },
-      accepted: { color: 'green', text: 'Принято' },
-      rejected: { color: 'red', text: 'Отклонено' },
-      expired: { color: 'default', text: 'Истекло' },
-      cancelled: { color: 'default', text: 'Отменено' },
-      // New workflow state values
-      awaiting_financial_approval: { color: 'orange', text: 'На финансовом утверждении' },
-      financially_approved: { color: 'green', text: 'Финансово утверждено' },
-      rejected_by_finance: { color: 'red', text: 'Отклонено финансовым менеджером' },
-      sent_back_for_revision: { color: 'purple', text: 'На доработке' },
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<
+      string,
+      { variant: 'default' | 'secondary' | 'destructive' | 'outline'; text: string }
+    > = {
+      draft: { variant: 'secondary', text: 'Черновик' },
+      pending_approval: { variant: 'default', text: 'На утверждении' },
+      partially_approved: { variant: 'default', text: 'Частично утверждено' },
+      approved: { variant: 'default', text: 'Утверждено' },
+      revision_needed: { variant: 'outline', text: 'Требуется доработка' },
+      rejected_internal: { variant: 'destructive', text: 'Отклонено (внутр.)' },
+      ready_to_send: { variant: 'default', text: 'Готово к отправке' },
+      sent: { variant: 'secondary', text: 'Отправлено' },
+      viewed: { variant: 'secondary', text: 'Просмотрено' },
+      accepted: { variant: 'default', text: 'Принято' },
+      rejected: { variant: 'destructive', text: 'Отклонено' },
+      expired: { variant: 'secondary', text: 'Истекло' },
+      cancelled: { variant: 'secondary', text: 'Отменено' },
+      awaiting_financial_approval: { variant: 'default', text: 'На финансовом утверждении' },
+      financially_approved: { variant: 'default', text: 'Финансово утверждено' },
+      rejected_by_finance: { variant: 'destructive', text: 'Отклонено финансовым менеджером' },
+      sent_back_for_revision: { variant: 'outline', text: 'На доработке' },
     };
-    const config = statusMap[status as keyof typeof statusMap] || {
-      color: 'default',
-      text: status,
-    };
-    return <Tag color={config.color}>{config.text}</Tag>;
+    const config = statusMap[status] || { variant: 'secondary' as const, text: status };
+    return <Badge variant={config.variant}>{config.text}</Badge>;
   };
 
   const formatCurrency = (amount: number | undefined, currency: string = 'RUB') => {
@@ -445,92 +379,103 @@ export default function QuoteDetailPage() {
   };
 
   // ag-Grid column definitions for products table
-  const columnDefs: ColDef[] = [
-    {
-      field: 'product_code',
-      headerName: 'Артикул',
-      width: 150,
-      pinned: 'left',
-    },
-    {
-      field: 'brand',
-      headerName: 'Бренд',
-      width: 120,
-      pinned: 'left',
-    },
-    {
-      field: 'description',
-      headerName: 'Наименование',
-      width: 300,
-      pinned: 'left',
-    },
-    {
-      field: 'quantity',
-      headerName: 'Кол-во',
-      width: 100,
-      type: 'numericColumn',
-    },
-    {
-      field: 'unit',
-      headerName: 'Ед. изм.',
-      width: 100,
-    },
-    {
-      field: 'final_price',
-      headerName: 'Цена продажи',
-      width: 150,
-      type: 'numericColumn',
-      valueFormatter: (params) => {
-        if (!params.value) return '—';
-        const currency = quote?.currency || 'RUB';
-        const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
-        return Number(params.value).toFixed(2) + ' ' + symbol;
+  const columnDefs: ColDef[] = useMemo(
+    () => [
+      {
+        field: 'product_code',
+        headerName: 'Артикул',
+        width: 150,
+        pinned: 'left',
       },
-      cellStyle: { fontWeight: 'bold' },
-    },
-    {
-      field: 'country_of_origin',
-      headerName: 'Страна',
-      width: 120,
-    },
-    {
-      field: 'weight_in_kg',
-      headerName: 'Вес (кг)',
-      width: 110,
-      type: 'numericColumn',
-      valueFormatter: (params) => (params.value ? Number(params.value).toFixed(2) : '—'),
-    },
-    {
-      field: 'total',
-      headerName: 'Сумма',
-      width: 150,
-      type: 'numericColumn',
-      valueGetter: (params) => {
-        const finalPrice = params.data?.final_price;
-        const quantity = params.data?.quantity;
-        return finalPrice && quantity ? Number(finalPrice) * Number(quantity) : null;
+      {
+        field: 'brand',
+        headerName: 'Бренд',
+        width: 120,
+        pinned: 'left',
       },
-      valueFormatter: (params) => {
-        if (!params.value) return '—';
-        const currency = quote?.currency || 'RUB';
-        const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
-        return Number(params.value).toFixed(2) + ' ' + symbol;
+      {
+        field: 'description',
+        headerName: 'Наименование',
+        width: 300,
+        pinned: 'left',
       },
-      cellStyle: { fontWeight: 'bold' },
-    },
-  ];
+      {
+        field: 'quantity',
+        headerName: 'Кол-во',
+        width: 100,
+        type: 'numericColumn',
+      },
+      {
+        field: 'unit',
+        headerName: 'Ед. изм.',
+        width: 100,
+      },
+      {
+        field: 'final_price',
+        headerName: 'Цена продажи',
+        width: 150,
+        type: 'numericColumn',
+        valueFormatter: (params) => {
+          if (!params.value) return '—';
+          const currency = quote?.currency || 'RUB';
+          const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
+          return Number(params.value).toFixed(2) + ' ' + symbol;
+        },
+        cellStyle: { fontWeight: 'bold' },
+      },
+      {
+        field: 'country_of_origin',
+        headerName: 'Страна',
+        width: 120,
+      },
+      {
+        field: 'weight_in_kg',
+        headerName: 'Вес (кг)',
+        width: 110,
+        type: 'numericColumn',
+        valueFormatter: (params) => (params.value ? Number(params.value).toFixed(2) : '—'),
+      },
+      {
+        field: 'total',
+        headerName: 'Сумма',
+        width: 150,
+        type: 'numericColumn',
+        valueGetter: (params) => {
+          const finalPrice = params.data?.final_price;
+          const quantity = params.data?.quantity;
+          return finalPrice && quantity ? Number(finalPrice) * Number(quantity) : null;
+        },
+        valueFormatter: (params) => {
+          if (!params.value) return '—';
+          const currency = quote?.currency || 'RUB';
+          const symbol = currency === 'EUR' ? '€' : currency === 'USD' ? '$' : '₽';
+          return Number(params.value).toFixed(2) + ' ' + symbol;
+        },
+        cellStyle: { fontWeight: 'bold' },
+      },
+    ],
+    [quote?.currency]
+  );
 
-  const defaultColDef: ColDef = {
-    resizable: true,
-    sortable: true,
-    filter: false, // Read-only, no filters needed
-  };
+  const defaultColDef: ColDef = useMemo(
+    () => ({
+      resizable: true,
+      sortable: true,
+      filter: false,
+    }),
+    []
+  );
 
   if (loading) {
     return (
       <MainLayout>
-        <div style={{ textAlign: 'center', padding: '100px 0' }}>
-          <Spin size="large" tip="Загрузка данных..." />
+        <div className="space-y-6 p-6">
+          <Skeleton className="h-12 w-64" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
+          </div>
+          <Skeleton className="h-96" />
         </div>
       </MainLayout>
     );
@@ -540,7 +485,9 @@ export default function QuoteDetailPage() {
     return (
       <MainLayout>
         <Card>
-          <Text type="danger">КП не найдено</Text>
+          <CardContent className="pt-6">
+            <p className="text-destructive">КП не найдено</p>
+          </CardContent>
         </Card>
       </MainLayout>
     );
@@ -548,249 +495,261 @@ export default function QuoteDetailPage() {
 
   return (
     <MainLayout>
-      <App>
-        <Space direction="vertical" size="large" style={{ width: '100%', padding: '24px' }}>
-          {/* Section 1: Header with Actions */}
-          <Row justify="space-between" align="middle">
-            <Col>
-              <Space>
-                <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
-                  Назад
+      <div className="space-y-6 p-6">
+        {/* Section 1: Header with Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => router.push('/quotes')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Назад
+            </Button>
+            <h1 className="text-2xl font-semibold">{quote.quote_number}</h1>
+            {getStatusBadge(quote.workflow_state || quote.status)}
+          </div>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={exportLoading}>
+                  {exportLoading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Экспорт
+                  <ChevronDown className="h-4 w-4 ml-2" />
                 </Button>
-                <Title level={2} style={{ margin: 0 }}>
-                  {quote.quote_number}
-                </Title>
-                {getStatusTag(quote.workflow_state || quote.status)}
-              </Space>
-            </Col>
-            <Col>
-              <Space>
-                <Dropdown
-                  menu={{ items: exportMenuItems }}
-                  trigger={['click']}
-                  disabled={exportLoading}
-                >
-                  <Button icon={<DownloadOutlined />} loading={exportLoading}>
-                    Экспорт
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleExport('validation', 'excel')}>
+                  Экспорт для проверки
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('invoice', 'pdf')}>
+                  Счет (Invoice)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {quote.workflow_state === 'draft' && (
+              <Button
+                onClick={() => setSubmitModalOpen(true)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Отправить на утверждение
+              </Button>
+            )}
+            {(quote.status === 'draft' || quote.status === 'revision_needed') && (
+              <Button
+                variant="outline"
+                onClick={() => router.push('/quotes/' + quote.id + '/edit')}
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Редактировать
+              </Button>
+            )}
+            {quote.status === 'draft' && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Удалить
                   </Button>
-                </Dropdown>
-                {quote.workflow_state === 'draft' && (
-                  <Button
-                    type="primary"
-                    icon={<CheckCircleOutlined />}
-                    onClick={() => setSubmitModalOpen(true)}
-                    style={{ background: '#52c41a', borderColor: '#52c41a' }}
-                  >
-                    Отправить на утверждение
-                  </Button>
-                )}
-                {(quote.status === 'draft' || quote.status === 'revision_needed') && (
-                  <Button
-                    icon={<EditOutlined />}
-                    onClick={() => router.push('/quotes/' + quote.id + '/edit')}
-                  >
-                    Редактировать
-                  </Button>
-                )}
-                {quote.status === 'draft' && (
-                  <Popconfirm
-                    title="Удалить КП?"
-                    description="КП будет перемещено в корзину"
-                    onConfirm={handleDelete}
-                    okText="Удалить"
-                    cancelText="Отмена"
-                    okButtonProps={{ danger: true }}
-                  >
-                    <Button danger icon={<DeleteOutlined />}>
-                      Удалить
-                    </Button>
-                  </Popconfirm>
-                )}
-              </Space>
-            </Col>
-          </Row>
-
-          {/* Tabs for Details and Plan-Fact */}
-          <Tabs
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            items={[
-              {
-                key: 'details',
-                label: 'Детали',
-                children: (
-                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                    {/* Workflow Section */}
-                    {!workflowLoading && workflow && (
-                      <Row gutter={[16, 16]}>
-                        <Col span={24}>
-                          <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
-                        </Col>
-                      </Row>
-                    )}
-
-                    {/* Submission Comment Alert (for financial managers) */}
-                    {quote.workflow_state === 'awaiting_financial_approval' &&
-                      quote.submission_comment && (
-                        <Alert
-                          type="info"
-                          showIcon
-                          message="Комментарий менеджера при отправке"
-                          description={
-                            <div>
-                              <strong>Менеджер написал:</strong>
-                              <br />
-                              {quote.submission_comment}
-                            </div>
-                          }
-                        />
-                      )}
-
-                    {/* Send-back Reason Alert */}
-                    {quote.workflow_state === 'sent_back_for_revision' &&
-                      quote.last_sendback_reason && (
-                        <Alert
-                          type="warning"
-                          showIcon
-                          message="КП требует доработки"
-                          description={
-                            <div>
-                              <strong>Комментарий от финансового менеджера:</strong>
-                              <br />
-                              {quote.last_sendback_reason}
-                            </div>
-                          }
-                        />
-                      )}
-
-                    {/* Rejection Reason Alert */}
-                    {quote.workflow_state === 'rejected_by_finance' &&
-                      quote.last_financial_comment && (
-                        <Alert
-                          type="error"
-                          showIcon
-                          message="КП отклонено финансовым менеджером"
-                          description={
-                            <div>
-                              <strong>Причина отклонения:</strong>
-                              <br />
-                              {quote.last_financial_comment}
-                            </div>
-                          }
-                        />
-                      )}
-
-                    {/* Approval Comment Alert */}
-                    {(quote.workflow_state === 'financially_approved' ||
-                      quote.workflow_state === 'approved') &&
-                      quote.last_approval_comment && (
-                        <Alert
-                          type="success"
-                          showIcon
-                          message="КП утверждено финансовым менеджером"
-                          description={
-                            <div>
-                              <strong>Комментарий финансового менеджера:</strong>
-                              <br />
-                              {quote.last_approval_comment}
-                            </div>
-                          }
-                        />
-                      )}
-
-                    {/* Financial Approval Actions */}
-                    {quote.workflow_state === 'awaiting_financial_approval' &&
-                      (['financial_manager', 'cfo', 'admin'].includes(
-                        profile?.organizationRole || ''
-                      ) ||
-                        profile?.is_owner) && (
-                        <Card>
-                          <FinancialApprovalActions
-                            quoteId={quote.id}
-                            quoteNumber={quote.quote_number}
-                            onApprove={() => {
-                              fetchQuoteDetails();
-                              loadWorkflowStatus();
-                            }}
-                            onSendBack={() => {
-                              fetchQuoteDetails();
-                              loadWorkflowStatus();
-                            }}
-                            onReject={() => {
-                              fetchQuoteDetails();
-                              loadWorkflowStatus();
-                            }}
-                          />
-                        </Card>
-                      )}
-
-                    {/* Quote Info Card */}
-                    <Card title="Информация о КП" variant="borderless">
-                      <Descriptions column={{ xs: 1, sm: 2, md: 3 }} bordered>
-                        <Descriptions.Item label="Клиент">
-                          {quote.customer?.name || 'Не указан'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Название КП">
-                          {quote.title || '—'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Статус">
-                          {getStatusTag(quote.workflow_state || quote.status)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Дата КП">
-                          {formatDate(quote.quote_date)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Действительно до">
-                          {formatDate(quote.valid_until)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Создано">
-                          {formatDate(quote.created_at)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Валюта">
-                          {quote.currency || 'RUB'}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Общая сумма">
-                          <Text strong style={{ fontSize: '16px' }}>
-                            {formatCurrency(quote.total_amount, quote.currency)}
-                          </Text>
-                        </Descriptions.Item>
-                      </Descriptions>
-                    </Card>
-
-                    {/* Products Table (ag-Grid, read-only) */}
-                    <Card
-                      title={'Товары (' + (quote.items?.length || 0) + ' позиций)'}
-                      variant="borderless"
-                      styles={{ body: { padding: '16px' } }}
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Удалить КП?</AlertDialogTitle>
+                    <AlertDialogDescription>КП будет перемещено в корзину</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Отмена</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
-                      {quote.items && quote.items.length > 0 ? (
-                        <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
-                          <AgGridReact
-                            rowData={quote.items}
-                            columnDefs={columnDefs}
-                            defaultColDef={defaultColDef}
-                            animateRows={true}
-                            suppressHorizontalScroll={false}
-                          />
-                        </div>
-                      ) : (
-                        <Text type="secondary">Нет товаров в этом КП</Text>
-                      )}
-                    </Card>
-                  </Space>
-                ),
-              },
-            ]}
-          />
-        </Space>
+                      Удалить
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+        </div>
 
-        {/* Submit for Approval Modal */}
-        <SubmitForApprovalModal
-          open={submitModalOpen}
-          onCancel={() => setSubmitModalOpen(false)}
-          onSubmit={handleSubmitForApproval}
-          quoteNumber={quote.quote_number}
-        />
-      </App>
+        {/* Tabs for Details and Plan-Fact */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="details">Детали</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="space-y-6">
+            {/* Workflow Section */}
+            {!workflowLoading && workflow && (
+              <WorkflowStatusCard workflow={workflow} workflowMode={'simple'} />
+            )}
+
+            {/* Submission Comment Alert (for financial managers) */}
+            {quote.workflow_state === 'awaiting_financial_approval' && quote.submission_comment && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Комментарий менеджера при отправке</AlertTitle>
+                <AlertDescription>
+                  <strong>Менеджер написал:</strong>
+                  <br />
+                  {quote.submission_comment}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Send-back Reason Alert */}
+            {quote.workflow_state === 'sent_back_for_revision' && quote.last_sendback_reason && (
+              <Alert
+                variant="default"
+                className="border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+              >
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800 dark:text-amber-400">
+                  КП требует доработки
+                </AlertTitle>
+                <AlertDescription>
+                  <strong>Комментарий от финансового менеджера:</strong>
+                  <br />
+                  {quote.last_sendback_reason}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Rejection Reason Alert */}
+            {quote.workflow_state === 'rejected_by_finance' && quote.last_financial_comment && (
+              <Alert variant="destructive">
+                <XCircle className="h-4 w-4" />
+                <AlertTitle>КП отклонено финансовым менеджером</AlertTitle>
+                <AlertDescription>
+                  <strong>Причина отклонения:</strong>
+                  <br />
+                  {quote.last_financial_comment}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Approval Comment Alert */}
+            {(quote.workflow_state === 'financially_approved' ||
+              quote.workflow_state === 'approved') &&
+              quote.last_approval_comment && (
+                <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertTitle className="text-green-800 dark:text-green-400">
+                    КП утверждено финансовым менеджером
+                  </AlertTitle>
+                  <AlertDescription>
+                    <strong>Комментарий финансового менеджера:</strong>
+                    <br />
+                    {quote.last_approval_comment}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+            {/* Financial Approval Actions */}
+            {quote.workflow_state === 'awaiting_financial_approval' &&
+              (['financial_manager', 'cfo', 'admin'].includes(profile?.organizationRole || '') ||
+                profile?.is_owner) && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <FinancialApprovalActions
+                      quoteId={quote.id}
+                      quoteNumber={quote.quote_number}
+                      onApprove={() => {
+                        fetchQuoteDetails();
+                        loadWorkflowStatus();
+                      }}
+                      onSendBack={() => {
+                        fetchQuoteDetails();
+                        loadWorkflowStatus();
+                      }}
+                      onReject={() => {
+                        fetchQuoteDetails();
+                        loadWorkflowStatus();
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+            {/* Quote Info Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Информация о КП</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Клиент</p>
+                    <p className="font-medium">{quote.customer?.name || 'Не указан'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Название КП</p>
+                    <p className="font-medium">{quote.title || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Статус</p>
+                    {getStatusBadge(quote.workflow_state || quote.status)}
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Дата КП</p>
+                    <p className="font-medium">{formatDate(quote.quote_date)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Действительно до</p>
+                    <p className="font-medium">{formatDate(quote.valid_until)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Создано</p>
+                    <p className="font-medium">{formatDate(quote.created_at)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Валюта</p>
+                    <p className="font-medium">{quote.currency || 'RUB'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Общая сумма</p>
+                    <p className="text-lg font-bold">
+                      {formatCurrency(quote.total_amount, quote.currency)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Products Table (ag-Grid, read-only) */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Товары ({quote.items?.length || 0} позиций)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {quote.items && quote.items.length > 0 ? (
+                  <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+                    <AgGridReact
+                      rowData={quote.items}
+                      columnDefs={columnDefs}
+                      defaultColDef={defaultColDef}
+                      animateRows={true}
+                      suppressHorizontalScroll={false}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Нет товаров в этом КП</p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Submit for Approval Modal */}
+      <SubmitForApprovalModal
+        open={submitModalOpen}
+        onCancel={() => setSubmitModalOpen(false)}
+        onSubmit={handleSubmitForApproval}
+        quoteNumber={quote.quote_number}
+      />
     </MainLayout>
   );
 }

@@ -16,10 +16,17 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { InputNumber, Select, Space, Typography, Tooltip } from 'antd';
-import { InfoCircleOutlined } from '@ant-design/icons';
-
-const { Text } = Typography;
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Info } from 'lucide-react';
 
 // Supported currencies - matches backend SUPPORTED_CURRENCIES
 export type Currency = 'USD' | 'EUR' | 'RUB' | 'TRY' | 'CNY';
@@ -91,7 +98,6 @@ interface MonetaryInputProps {
  * MonetaryInput Component
  *
  * A compound input for monetary values with currency selection.
- * Integrates with Ant Design form system.
  */
 export const MonetaryInput: React.FC<MonetaryInputProps> = ({
   value,
@@ -107,7 +113,6 @@ export const MonetaryInput: React.FC<MonetaryInputProps> = ({
   width = '100%',
   showRateTooltip = true,
   min = 0,
-  precision = 2,
 }) => {
   // Internal state for controlled component
   const [internalValue, setInternalValue] = useState<MonetaryValue>({
@@ -124,10 +129,12 @@ export const MonetaryInput: React.FC<MonetaryInputProps> = ({
 
   const currentValue = value || internalValue;
 
-  const handleValueChange = (newValue: number | null) => {
+  const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\s/g, '');
+    const newValue = parseFloat(rawValue) || 0;
     const updated: MonetaryValue = {
       ...currentValue,
-      value: newValue || 0,
+      value: Math.max(min, newValue),
     };
     setInternalValue(updated);
     onChange?.(updated);
@@ -150,64 +157,72 @@ export const MonetaryInput: React.FC<MonetaryInputProps> = ({
   const formatValue = (val: number | undefined): string => {
     if (val === undefined) return '';
     return val.toLocaleString('ru-RU', {
-      minimumFractionDigits: precision,
-      maximumFractionDigits: precision,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
   };
 
-  // Rate info tooltip content
-  const rateTooltipContent =
-    rateUsed && rateSource ? (
-      <div>
-        <div>Курс: {rateUsed.toFixed(6)}</div>
-        <div>
-          Источник:{' '}
-          {rateSource === 'cbr' ? 'ЦБ РФ' : rateSource === 'manual' ? 'Ручной' : rateSource}
-        </div>
-      </div>
-    ) : null;
+  // Format input display value
+  const displayValue = currentValue.value
+    ? currentValue.value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+    : '';
 
   return (
     <div style={{ ...style, width }}>
-      {label && (
-        <div style={{ marginBottom: 4 }}>
-          <Text style={{ fontSize: '14px' }}>{label}</Text>
-        </div>
-      )}
-      <Space.Compact style={{ width: '100%' }}>
-        <InputNumber
-          value={currentValue.value || undefined}
+      {label && <Label className="mb-1.5 block">{label}</Label>}
+      <div className="flex">
+        <Input
+          type="text"
+          inputMode="decimal"
+          value={displayValue}
           onChange={handleValueChange}
           disabled={disabled}
           placeholder={placeholder}
-          style={{ width: '70%' }}
-          min={min}
-          precision={precision}
-          formatter={(val) => `${val}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-          parser={(val) => val?.replace(/\s/g, '') as unknown as number}
+          className="rounded-r-none flex-1"
         />
         <Select
           value={currentValue.currency}
-          onChange={handleCurrencyChange}
+          onValueChange={handleCurrencyChange}
           disabled={disabled}
-          style={{ width: '30%' }}
-          options={CURRENCY_OPTIONS.map((c) => ({
-            value: c.value,
-            label: c.label,
-          }))}
-        />
-      </Space.Compact>
+        >
+          <SelectTrigger className="w-[100px] rounded-l-none border-l-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CURRENCY_OPTIONS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* USD equivalent hint */}
       {showUsdHint && (
-        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            ≈ ${formatValue(usdEquivalent)} USD
-          </Text>
-          {showRateTooltip && rateTooltipContent && (
-            <Tooltip title={rateTooltipContent}>
-              <InfoCircleOutlined style={{ fontSize: '12px', color: '#999' }} />
-            </Tooltip>
+        <div className="mt-1 flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">≈ ${formatValue(usdEquivalent)} USD</span>
+          {showRateTooltip && rateUsed && rateSource && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="text-xs">
+                    <div>Курс: {rateUsed.toFixed(6)}</div>
+                    <div>
+                      Источник:{' '}
+                      {rateSource === 'cbr'
+                        ? 'ЦБ РФ'
+                        : rateSource === 'manual'
+                          ? 'Ручной'
+                          : rateSource}
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       )}

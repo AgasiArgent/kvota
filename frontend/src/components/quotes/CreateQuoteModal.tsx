@@ -1,13 +1,28 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Select, message, Typography } from 'antd';
-import { FileTextOutlined } from '@ant-design/icons';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { FileText, Loader2 } from 'lucide-react';
 import { config } from '@/lib/config';
 import { getAuthToken } from '@/lib/auth/auth-helper';
 import { useAuth } from '@/lib/auth/AuthProvider';
-
-const { Text } = Typography;
+import { toast } from 'sonner';
 
 interface Customer {
   id: string;
@@ -29,7 +44,7 @@ export default function CreateQuoteModal({
   selectedFile,
 }: CreateQuoteModalProps) {
   const { profile } = useAuth();
-  const [form] = Form.useForm();
+  const [customerId, setCustomerId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
@@ -41,12 +56,19 @@ export default function CreateQuoteModal({
     }
   }, [open, profile?.organization_id]);
 
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!open) {
+      setCustomerId('');
+    }
+  }, [open]);
+
   const fetchCustomers = async () => {
     setLoadingCustomers(true);
     try {
       const token = await getAuthToken();
       if (!token) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
@@ -62,8 +84,9 @@ export default function CreateQuoteModal({
 
       const data = await response.json();
       setCustomers(data.customers || data || []);
-    } catch (error: any) {
-      message.error(error.message || 'Ошибка загрузки клиентов');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Ошибка загрузки клиентов';
+      toast.error(errorMessage);
     } finally {
       setLoadingCustomers(false);
     }
@@ -71,24 +94,28 @@ export default function CreateQuoteModal({
 
   const handleSubmit = async () => {
     if (!selectedFile) {
-      message.error('Файл не выбран');
+      toast.error('Файл не выбран');
+      return;
+    }
+
+    if (!customerId) {
+      toast.error('Выберите клиента');
       return;
     }
 
     try {
       setLoading(true);
-      const values = await form.validateFields();
 
       const token = await getAuthToken();
       if (!token) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
       // Create form data with file and customer_id
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('customer_id', values.customer_id);
+      formData.append('customer_id', customerId);
 
       const response = await fetch(`${config.apiUrl}/api/quotes/upload-excel-validation`, {
         method: 'POST',
@@ -120,92 +147,87 @@ export default function CreateQuoteModal({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      // Reset form and close modal
-      form.resetFields();
+      // Reset form
+      setCustomerId('');
 
       if (quoteId && quoteNumber) {
-        message.success(`КП ${quoteNumber} создано и сохранено`);
+        toast.success(`КП ${quoteNumber} создано и сохранено`);
         onSuccess(quoteId, quoteNumber);
       } else {
-        message.success('Расчёт выполнен. Файл скачан.');
+        toast.success('Расчёт выполнен. Файл скачан.');
         onCancel();
       }
-    } catch (error: any) {
-      message.error(error.message || 'Ошибка создания КП');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Ошибка создания КП';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      onCancel();
+    }
+  };
+
   return (
-    <Modal
-      title={
-        <span>
-          <FileTextOutlined style={{ color: '#1890ff', marginRight: 8 }} />
-          Создать коммерческое предложение
-        </span>
-      }
-      open={open}
-      onCancel={onCancel}
-      onOk={handleSubmit}
-      okText="Создать КП"
-      cancelText="Отмена"
-      confirmLoading={loading}
-      width={500}
-    >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item label="Файл">
-          <div
-            style={{
-              padding: '8px 12px',
-              background: '#f5f5f5',
-              borderRadius: '6px',
-              border: '1px solid #d9d9d9',
-            }}
-          >
-            <Text>{selectedFile?.name || 'Не выбран'}</Text>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-primary" />
+            Создать коммерческое предложение
+          </DialogTitle>
+          <DialogDescription>
+            Выберите клиента для создания КП из загруженного файла
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Файл</Label>
+            <div className="px-3 py-2 bg-muted rounded-md border">
+              <span className="text-sm">{selectedFile?.name || 'Не выбран'}</span>
+            </div>
           </div>
-        </Form.Item>
 
-        <Form.Item
-          name="customer_id"
-          label="Клиент"
-          rules={[{ required: true, message: 'Выберите клиента' }]}
-        >
-          <Select
-            placeholder="Выберите клиента"
-            loading={loadingCustomers}
-            showSearch
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-            }
-          >
-            {customers.map((customer) => (
-              <Select.Option key={customer.id} value={customer.id}>
-                {customer.name}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
+          <div className="space-y-2">
+            <Label htmlFor="customer">Клиент *</Label>
+            <Select value={customerId} onValueChange={setCustomerId} disabled={loadingCustomers}>
+              <SelectTrigger>
+                <SelectValue placeholder={loadingCustomers ? 'Загрузка...' : 'Выберите клиента'} />
+              </SelectTrigger>
+              <SelectContent>
+                {customers.map((customer) => (
+                  <SelectItem key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div
-          style={{
-            padding: '12px',
-            background: '#e6f7ff',
-            borderRadius: '6px',
-            marginTop: 16,
-            border: '1px solid #91d5ff',
-          }}
-        >
-          <strong>После создания:</strong>
-          <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-            <li>Файл с расчётом будет скачан</li>
-            <li>КП будет сохранено в базу данных</li>
-            <li>КП появится в списке со статусом &quot;Черновик&quot;</li>
-          </ul>
+          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-md">
+            <p className="font-medium mb-2 text-sm">После создания:</p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li>Файл с расчётом будет скачан</li>
+              <li>КП будет сохранено в базу данных</li>
+              <li>КП появится в списке со статусом &quot;Черновик&quot;</li>
+            </ul>
+          </div>
         </div>
-      </Form>
-    </Modal>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Отмена
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading || !customerId}>
+            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Создать КП
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

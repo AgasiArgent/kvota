@@ -139,8 +139,8 @@ export default function AnalyticsPage() {
   const [sentDateFrom, setSentDateFrom] = useState('');
   const [sentDateTo, setSentDateTo] = useState('');
   const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [saleTypeFilter, setSaleTypeFilter] = useState('');
-  const [sellerCompanyFilter, setSellerCompanyFilter] = useState('');
+  const [saleTypeFilter, setSaleTypeFilter] = useState('all');
+  const [sellerCompanyFilter, setSellerCompanyFilter] = useState('all');
 
   // Selected fields for display
   const [selectedFields, setSelectedFields] = useState<string[]>([
@@ -226,8 +226,9 @@ export default function AnalyticsPage() {
     if (sentDateFrom) filters.quote_date_from = sentDateFrom;
     if (sentDateTo) filters.quote_date_to = sentDateTo;
     if (statusFilters.length > 0) filters.status = statusFilters;
-    if (saleTypeFilter) filters.offer_sale_type = saleTypeFilter;
-    if (sellerCompanyFilter) filters.seller_company = sellerCompanyFilter;
+    if (saleTypeFilter && saleTypeFilter !== 'all') filters.offer_sale_type = saleTypeFilter;
+    if (sellerCompanyFilter && sellerCompanyFilter !== 'all')
+      filters.seller_company = sellerCompanyFilter;
 
     return filters;
   }, [
@@ -649,7 +650,7 @@ export default function AnalyticsPage() {
                       <SelectValue placeholder="Все типы" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Все типы</SelectItem>
+                      <SelectItem value="all">Все типы</SelectItem>
                       {SALE_TYPE_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
@@ -666,7 +667,7 @@ export default function AnalyticsPage() {
                       <SelectValue placeholder="Все компании" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Все компании</SelectItem>
+                      <SelectItem value="all">Все компании</SelectItem>
                       {SELLER_COMPANY_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
@@ -732,7 +733,9 @@ export default function AnalyticsPage() {
                   <div className="flex-1">
                     <Select
                       value={agg.field}
-                      onValueChange={(value) => handleUpdateAggregation(agg.id, 'field', value)}
+                      onValueChange={(value: string) =>
+                        handleUpdateAggregation(agg.id, 'field', value)
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Поле" />
@@ -749,7 +752,9 @@ export default function AnalyticsPage() {
                   <div className="flex-1">
                     <Select
                       value={agg.function}
-                      onValueChange={(value) => handleUpdateAggregation(agg.id, 'function', value)}
+                      onValueChange={(value: string) =>
+                        handleUpdateAggregation(agg.id, 'function', value)
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Функция" />
