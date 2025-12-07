@@ -1,41 +1,24 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  Card,
-  Row,
-  Col,
-  Form,
-  DatePicker,
-  Select,
-  Button,
-  Switch,
-  Space,
-  message,
-  Spin,
-  Typography,
-  Statistic,
-  Divider,
-  Checkbox,
-  Transfer,
-  Input,
-  Tooltip,
-} from 'antd';
-import {
-  SearchOutlined,
-  DownloadOutlined,
-  SaveOutlined,
-  BarChartOutlined,
-  TableOutlined,
-  PlusOutlined,
-  MinusOutlined,
-} from '@ant-design/icons';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef } from 'ag-grid-community';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import dayjs from 'dayjs';
+import {
+  Search,
+  Download,
+  Save,
+  BarChart3,
+  Table as TableIcon,
+  Plus,
+  Minus,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
 // Register AG Grid modules
 if (typeof window !== 'undefined') {
@@ -52,9 +35,24 @@ import {
   type Aggregation,
 } from '@/lib/api/analytics-service';
 import MainLayout from '@/components/layout/MainLayout';
-
-const { Title, Text } = Typography;
-const { RangePicker } = DatePicker;
+import PageHeader from '@/components/shared/PageHeader';
+import StatCard from '@/components/shared/StatCard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 // Available fields grouped by category
 const AVAILABLE_FIELDS = {
@@ -128,13 +126,21 @@ const AGG_FUNCTIONS = [
 ];
 
 export default function AnalyticsPage() {
-  const [form] = Form.useForm();
   const [pageLoading, setPageLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   // View mode: standard (rows) or lightweight (aggregations only)
   const [viewMode, setViewMode] = useState<'standard' | 'lightweight'>('standard');
+
+  // Filter values
+  const [createdDateFrom, setCreatedDateFrom] = useState('');
+  const [createdDateTo, setCreatedDateTo] = useState('');
+  const [sentDateFrom, setSentDateFrom] = useState('');
+  const [sentDateTo, setSentDateTo] = useState('');
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [saleTypeFilter, setSaleTypeFilter] = useState('');
+  const [sellerCompanyFilter, setSellerCompanyFilter] = useState('');
 
   // Selected fields for display
   const [selectedFields, setSelectedFields] = useState<string[]>([
@@ -174,9 +180,16 @@ export default function AnalyticsPage() {
     try {
       const report = JSON.parse(storedReport);
 
-      // Load filters into form
+      // Load filters
       if (report.query_config?.filters) {
-        form.setFieldsValue(report.query_config.filters);
+        const filters = report.query_config.filters;
+        setCreatedDateFrom(filters.created_at_from || '');
+        setCreatedDateTo(filters.created_at_to || '');
+        setSentDateFrom(filters.quote_date_from || '');
+        setSentDateTo(filters.quote_date_to || '');
+        setStatusFilters(filters.status || []);
+        setSaleTypeFilter(filters.offer_sale_type || '');
+        setSellerCompanyFilter(filters.seller_company || '');
       }
 
       // Load selected fields
@@ -193,9 +206,9 @@ export default function AnalyticsPage() {
       console.error('Failed to load saved report:', error);
       localStorage.removeItem('analytics_load_report');
     }
-  }, [form]);
+  }, []);
 
-  // All available fields (flat list for Transfer component)
+  // All available fields (flat list)
   const allFields = useMemo(() => {
     const fields: Array<{ key: string; label: string }> = [];
     Object.values(AVAILABLE_FIELDS).forEach((group) => {
@@ -204,36 +217,28 @@ export default function AnalyticsPage() {
     return fields;
   }, []);
 
-  // Build filters from form values
-  const buildFilters = useCallback((values: any): AnalyticsFilter => {
+  // Build filters from state
+  const buildFilters = useCallback((): AnalyticsFilter => {
     const filters: AnalyticsFilter = {};
 
-    // Filter by created_at range
-    if (values.created_date_range) {
-      filters.created_at_from = values.created_date_range[0]?.format('YYYY-MM-DD');
-      filters.created_at_to = values.created_date_range[1]?.format('YYYY-MM-DD');
-    }
-
-    // Filter by quote_date range
-    if (values.sent_date_range) {
-      filters.quote_date_from = values.sent_date_range[0]?.format('YYYY-MM-DD');
-      filters.quote_date_to = values.sent_date_range[1]?.format('YYYY-MM-DD');
-    }
-
-    if (values.status && values.status.length > 0) {
-      filters.status = values.status;
-    }
-
-    if (values.offer_sale_type) {
-      filters.offer_sale_type = values.offer_sale_type;
-    }
-
-    if (values.seller_company) {
-      filters.seller_company = values.seller_company;
-    }
+    if (createdDateFrom) filters.created_at_from = createdDateFrom;
+    if (createdDateTo) filters.created_at_to = createdDateTo;
+    if (sentDateFrom) filters.quote_date_from = sentDateFrom;
+    if (sentDateTo) filters.quote_date_to = sentDateTo;
+    if (statusFilters.length > 0) filters.status = statusFilters;
+    if (saleTypeFilter) filters.offer_sale_type = saleTypeFilter;
+    if (sellerCompanyFilter) filters.seller_company = sellerCompanyFilter;
 
     return filters;
-  }, []);
+  }, [
+    createdDateFrom,
+    createdDateTo,
+    sentDateFrom,
+    sentDateTo,
+    statusFilters,
+    saleTypeFilter,
+    sellerCompanyFilter,
+  ]);
 
   // Build aggregations object
   const buildAggregationsObject = useCallback((): Record<string, Aggregation> | undefined => {
@@ -254,11 +259,10 @@ export default function AnalyticsPage() {
   const handleExecuteQuery = useCallback(async () => {
     try {
       setLoading(true);
-      const values = form.getFieldsValue();
-      const filters = buildFilters(values);
+      const filters = buildFilters();
 
       if (selectedFields.length === 0) {
-        message.warning('Выберите хотя бы одно поле для отображения');
+        toast.warning('Выберите хотя бы одно поле для отображения');
         return;
       }
 
@@ -268,7 +272,7 @@ export default function AnalyticsPage() {
 
       for (const agg of aggregations) {
         if (textFields.includes(agg.field) && numericFunctions.includes(agg.function)) {
-          message.error(
+          toast.error(
             `Поле "${agg.field}" является текстовым. Используйте функцию "Количество" вместо "${agg.function}"`
           );
           return;
@@ -302,7 +306,7 @@ export default function AnalyticsPage() {
         console.log('[DEBUG] executeAggregate result:', result);
         setAggregationResults(result.aggregations);
         setExecutionTime(result.execution_time_ms);
-        message.success('Агрегация выполнена успешно');
+        toast.success('Агрегация выполнена успешно');
       } else {
         // Standard mode: full rows
         const request: AnalyticsQueryRequest = {
@@ -316,14 +320,14 @@ export default function AnalyticsPage() {
         const result = await executeQuery(request);
         setQueryResults(result.rows);
         setTotalCount(result.total_count || result.count);
-        message.success(`Найдено записей: ${result.count}`);
+        toast.success(`Найдено записей: ${result.count}`);
       }
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка выполнения запроса');
+      toast.error(error instanceof Error ? error.message : 'Ошибка выполнения запроса');
     } finally {
       setLoading(false);
     }
-  }, [form, buildFilters, selectedFields, viewMode, buildAggregationsObject]);
+  }, [buildFilters, selectedFields, viewMode, buildAggregationsObject, aggregations]);
 
   // Auto-execute saved report query after state loaded
   useEffect(() => {
@@ -338,8 +342,7 @@ export default function AnalyticsPage() {
     async (format: 'xlsx' | 'csv') => {
       try {
         setExportLoading(true);
-        const values = form.getFieldsValue();
-        const filters = buildFilters(values);
+        const filters = buildFilters();
 
         const request: AnalyticsQueryRequest = {
           filters,
@@ -359,21 +362,20 @@ export default function AnalyticsPage() {
         link.click();
         document.body.removeChild(link);
 
-        message.success(`Экспорт в ${format.toUpperCase()} завершён`);
+        toast.success(`Экспорт в ${format.toUpperCase()} завершён`);
       } catch (error) {
-        message.error(error instanceof Error ? error.message : 'Ошибка экспорта');
+        toast.error(error instanceof Error ? error.message : 'Ошибка экспорта');
       } finally {
         setExportLoading(false);
       }
     },
-    [form, buildFilters, selectedFields, buildAggregationsObject]
+    [buildFilters, selectedFields, buildAggregationsObject]
   );
 
   // Save as template
   const handleSaveTemplate = useCallback(async () => {
     try {
-      const values = form.getFieldsValue();
-      const filters = buildFilters(values);
+      const filters = buildFilters();
 
       // Prompt for name
       const name = prompt('Введите название отчёта:');
@@ -387,11 +389,11 @@ export default function AnalyticsPage() {
         visibility: 'personal',
       });
 
-      message.success('Отчёт сохранён');
+      toast.success('Отчёт сохранён');
     } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Ошибка сохранения');
+      toast.error(error instanceof Error ? error.message : 'Ошибка сохранения');
     }
-  }, [form, buildFilters, selectedFields, buildAggregationsObject]);
+  }, [buildFilters, selectedFields, buildAggregationsObject]);
 
   // Generate auto label for aggregation
   const generateAggregationLabel = (field: string, func: string): string => {
@@ -485,18 +487,28 @@ export default function AnalyticsPage() {
     });
   }, [selectedFields, allFields]);
 
+  // Toggle field selection
+  const toggleField = (fieldKey: string) => {
+    setSelectedFields((prev) =>
+      prev.includes(fieldKey) ? prev.filter((f) => f !== fieldKey) : [...prev, fieldKey]
+    );
+  };
+
+  // Toggle status filter
+  const toggleStatus = (status: string) => {
+    setStatusFilters((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  };
+
   if (pageLoading) {
     return (
       <MainLayout>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '80vh',
-          }}
-        >
-          <Spin size="large" tip="Загрузка аналитики..." />
+        <div className="flex items-center justify-center" style={{ height: '80vh' }}>
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-sm text-muted-foreground">Загрузка аналитики...</p>
+          </div>
         </div>
       </MainLayout>
     );
@@ -504,229 +516,334 @@ export default function AnalyticsPage() {
 
   return (
     <MainLayout>
-      <Row gutter={[16, 16]}>
+      <div className="space-y-6">
         {/* Header */}
-        <Col span={24}>
-          <Card>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <Title level={2} style={{ margin: 0 }}>
-                  <BarChartOutlined /> Финансовая аналитика
-                </Title>
-                <Text type="secondary">
-                  Запросы, анализ и экспорт данных коммерческих предложений
-                </Text>
-              </div>
-              <Space>
-                <span>Режим отображения:</span>
-                <Tooltip
-                  title={
-                    viewMode === 'standard'
+        <PageHeader
+          title="Финансовая аналитика"
+          description="Запросы, анализ и экспорт данных коммерческих предложений"
+          actions={
+            <TooltipProvider>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">Режим отображения:</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={viewMode === 'standard' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        setViewMode(viewMode === 'standard' ? 'lightweight' : 'standard')
+                      }
+                    >
+                      {viewMode === 'standard' ? (
+                        <>
+                          <TableIcon className="mr-2 h-4 w-4" />
+                          Таблица
+                        </>
+                      ) : (
+                        <>
+                          <BarChart3 className="mr-2 h-4 w-4" />
+                          Агрегация
+                        </>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {viewMode === 'standard'
                       ? 'Стандартный режим: таблица с отдельными котировками'
-                      : 'Облегчённый режим: только итоговые суммы (быстрее для больших отчётов)'
-                  }
-                >
-                  <Switch
-                    checkedChildren={<TableOutlined />}
-                    unCheckedChildren={<BarChartOutlined />}
-                    checked={viewMode === 'standard'}
-                    onChange={(checked) => setViewMode(checked ? 'standard' : 'lightweight')}
-                  />
+                      : 'Облегчённый режим: только итоговые суммы (быстрее для больших отчётов)'}
+                  </TooltipContent>
                 </Tooltip>
-              </Space>
-            </div>
-          </Card>
-        </Col>
+              </div>
+            </TooltipProvider>
+          }
+        />
 
         {/* Filters Panel */}
-        <Col span={24}>
-          <Card
-            title="Фильтры"
-            extra={
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Фильтры</CardTitle>
               <Button
-                type="text"
-                icon={filtersCollapsed ? <PlusOutlined /> : <MinusOutlined />}
+                variant="ghost"
+                size="sm"
                 onClick={() => setFiltersCollapsed(!filtersCollapsed)}
               >
-                {filtersCollapsed ? 'Развернуть' : 'Свернуть'}
+                {filtersCollapsed ? (
+                  <>
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                    Развернуть
+                  </>
+                ) : (
+                  <>
+                    <ChevronUp className="mr-2 h-4 w-4" />
+                    Свернуть
+                  </>
+                )}
               </Button>
-            }
-          >
-            {!filtersCollapsed && (
-              <Form form={form} layout="vertical">
-                <Row gutter={[16, 8]}>
-                  <Col xs={24} md={12} lg={6}>
-                    <Form.Item label="Период (по дате создания)" name="created_date_range">
-                      <RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={6}>
-                    <Form.Item label="Период (по дате отправки)" name="sent_date_range">
-                      <RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={6}>
-                    <Form.Item label="Статус" name="status">
-                      <Select
-                        mode="multiple"
-                        placeholder="Все статусы"
-                        options={STATUS_OPTIONS}
-                        allowClear
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={6}>
-                    <Form.Item label="Тип продажи" name="offer_sale_type">
-                      <Select placeholder="Все типы" options={SALE_TYPE_OPTIONS} allowClear />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} md={12} lg={6}>
-                    <Form.Item label="Компания-продавец" name="seller_company">
-                      <Select
-                        placeholder="Все компании"
-                        options={SELLER_COMPANY_OPTIONS}
-                        allowClear
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Form>
-            )}
-          </Card>
-        </Col>
+            </div>
+          </CardHeader>
+          {!filtersCollapsed && (
+            <CardContent>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Период (по дате создания)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      value={createdDateFrom}
+                      onChange={(e) => setCreatedDateFrom(e.target.value)}
+                      placeholder="От"
+                    />
+                    <Input
+                      type="date"
+                      value={createdDateTo}
+                      onChange={(e) => setCreatedDateTo(e.target.value)}
+                      placeholder="До"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Период (по дате отправки)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      value={sentDateFrom}
+                      onChange={(e) => setSentDateFrom(e.target.value)}
+                      placeholder="От"
+                    />
+                    <Input
+                      type="date"
+                      value={sentDateTo}
+                      onChange={(e) => setSentDateTo(e.target.value)}
+                      placeholder="До"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Статус</Label>
+                  <div className="space-y-2">
+                    {STATUS_OPTIONS.map((option) => (
+                      <div key={option.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`status-${option.value}`}
+                          checked={statusFilters.includes(option.value)}
+                          onCheckedChange={() => toggleStatus(option.value)}
+                        />
+                        <label
+                          htmlFor={`status-${option.value}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {option.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Тип продажи</Label>
+                  <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Все типы" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Все типы</SelectItem>
+                      {SALE_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Компания-продавец</Label>
+                  <Select value={sellerCompanyFilter} onValueChange={setSellerCompanyFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Все компании" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Все компании</SelectItem>
+                      {SELLER_COMPANY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
 
         {/* Field Selection */}
-        <Col span={24}>
-          <Card title="Выбор полей">
-            <Checkbox.Group
-              value={selectedFields}
-              onChange={(values) => setSelectedFields(values as string[])}
-              style={{ width: '100%' }}
-            >
-              <Row gutter={[16, 8]}>
-                {Object.entries(AVAILABLE_FIELDS).map(([category, fields]) => (
-                  <Col span={24} key={category}>
-                    <Text strong>{category}</Text>
-                    <Row gutter={[8, 8]} style={{ marginTop: 8 }}>
-                      {fields.map((field) => (
-                        <Col xs={24} sm={12} md={8} lg={6} key={field.key}>
-                          <Checkbox value={field.key}>{field.label}</Checkbox>
-                        </Col>
-                      ))}
-                    </Row>
-                    <Divider />
-                  </Col>
-                ))}
-              </Row>
-            </Checkbox.Group>
-          </Card>
-        </Col>
+        <Card>
+          <CardHeader>
+            <CardTitle>Выбор полей</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {Object.entries(AVAILABLE_FIELDS).map(([category, fields]) => (
+                <div key={category} className="space-y-3">
+                  <p className="text-sm font-semibold">{category}</p>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {fields.map((field) => (
+                      <div key={field.key} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`field-${field.key}`}
+                          checked={selectedFields.includes(field.key)}
+                          onCheckedChange={() => toggleField(field.key)}
+                        />
+                        <label
+                          htmlFor={`field-${field.key}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {field.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  {category !== Object.keys(AVAILABLE_FIELDS).slice(-1)[0] && <Separator />}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Aggregations */}
-        <Col span={24}>
-          <Card
-            title="Агрегации"
-            extra={
-              <Button icon={<PlusOutlined />} onClick={handleAddAggregation} size="small">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Агрегации</CardTitle>
+              <Button size="sm" onClick={handleAddAggregation}>
+                <Plus className="mr-2 h-4 w-4" />
                 Добавить
               </Button>
-            }
-          >
-            <Space direction="vertical" style={{ width: '100%' }}>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
               {aggregations.map((agg) => (
-                <Row key={agg.id} gutter={8} align="middle">
-                  <Col span={6}>
+                <div key={agg.id} className="flex gap-2">
+                  <div className="flex-1">
                     <Select
                       value={agg.field}
-                      onChange={(value) => handleUpdateAggregation(agg.id, 'field', value)}
-                      placeholder="Поле"
-                      style={{ width: '100%' }}
-                      options={allFields.map((f) => ({ value: f.key, label: f.label }))}
-                    />
-                  </Col>
-                  <Col span={6}>
+                      onValueChange={(value) => handleUpdateAggregation(agg.id, 'field', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Поле" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allFields.map((f) => (
+                          <SelectItem key={f.key} value={f.key}>
+                            {f.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
                     <Select
                       value={agg.function}
-                      onChange={(value) => handleUpdateAggregation(agg.id, 'function', value)}
-                      placeholder="Функция"
-                      style={{ width: '100%' }}
-                      options={AGG_FUNCTIONS}
-                    />
-                  </Col>
-                  <Col span={10}>
+                      onValueChange={(value) => handleUpdateAggregation(agg.id, 'function', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Функция" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AGG_FUNCTIONS.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>
+                            {f.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-[2]">
                     <Input
                       value={agg.label}
                       onChange={(e) => handleUpdateAggregation(agg.id, 'label', e.target.value)}
                       placeholder="Название"
                     />
-                  </Col>
-                  <Col span={2}>
-                    <Button
-                      danger
-                      icon={<MinusOutlined />}
-                      onClick={() => handleRemoveAggregation(agg.id)}
-                    />
-                  </Col>
-                </Row>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => handleRemoveAggregation(agg.id)}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                </div>
               ))}
-              {aggregations.length === 0 && <Text type="secondary">Агрегации не добавлены</Text>}
-            </Space>
-          </Card>
-        </Col>
+              {aggregations.length === 0 && (
+                <p className="text-sm text-muted-foreground">Агрегации не добавлены</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Action Buttons */}
-        <Col span={24}>
-          <Card>
-            <Space wrap>
-              <Button
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-                icon={<SearchOutlined />}
-                onClick={handleExecuteQuery}
-                loading={loading}
-              >
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleExecuteQuery} disabled={loading}>
+                <Search className="mr-2 h-4 w-4" />
                 Выполнить запрос
               </Button>
               <Button
-                icon={<DownloadOutlined />}
+                variant="outline"
                 onClick={() => handleExport('xlsx')}
-                loading={exportLoading}
-                disabled={queryResults.length === 0 && Object.keys(aggregationResults).length === 0}
+                disabled={
+                  exportLoading ||
+                  (queryResults.length === 0 && Object.keys(aggregationResults).length === 0)
+                }
               >
+                <Download className="mr-2 h-4 w-4" />
                 Экспорт Excel
               </Button>
               <Button
-                icon={<DownloadOutlined />}
+                variant="outline"
                 onClick={() => handleExport('csv')}
-                loading={exportLoading}
-                disabled={queryResults.length === 0 && Object.keys(aggregationResults).length === 0}
+                disabled={
+                  exportLoading ||
+                  (queryResults.length === 0 && Object.keys(aggregationResults).length === 0)
+                }
               >
+                <Download className="mr-2 h-4 w-4" />
                 Экспорт CSV
               </Button>
-              <Button icon={<SaveOutlined />} onClick={handleSaveTemplate}>
+              <Button variant="outline" onClick={handleSaveTemplate}>
+                <Save className="mr-2 h-4 w-4" />
                 Сохранить как шаблон
               </Button>
-            </Space>
-          </Card>
-        </Col>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Results */}
+        {/* Loading State */}
         {loading && (
-          <Col span={24}>
-            <Card>
-              <div style={{ textAlign: 'center', padding: 40 }}>
-                <Spin size="large" />
-                <div style={{ marginTop: 16 }}>
-                  <Text>Выполнение запроса...</Text>
-                </div>
+          <Card>
+            <CardContent className="py-20 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="text-sm text-muted-foreground">Выполнение запроса...</p>
               </div>
-            </Card>
-          </Col>
+            </CardContent>
+          </Card>
         )}
 
+        {/* Aggregation Results */}
         {!loading && viewMode === 'lightweight' && Object.keys(aggregationResults).length > 0 && (
-          <Col span={24}>
-            <Card title="Результаты агрегации">
-              <Row gutter={[16, 16]}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Результаты агрегации</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {Object.entries(aggregationResults).map(([key, value]) => {
                   // Try to find label from custom aggregations first
                   const agg = aggregations.find((a) => a.id === key);
@@ -740,36 +857,40 @@ export default function AnalyticsPage() {
                   const label = agg?.label || defaultLabels[key] || key;
 
                   return (
-                    <Col xs={24} sm={12} md={8} lg={6} key={key}>
-                      <Card
-                        hoverable
-                        onClick={() => {
-                          setViewMode('standard');
-                          handleExecuteQuery();
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <Statistic
-                          title={label}
-                          value={typeof value === 'number' ? value.toFixed(2) : value}
-                        />
-                      </Card>
-                    </Col>
+                    <div
+                      key={key}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setViewMode('standard');
+                        handleExecuteQuery();
+                      }}
+                    >
+                      <StatCard
+                        label={label}
+                        value={typeof value === 'number' ? value.toFixed(2) : value}
+                      />
+                    </div>
                   );
                 })}
-              </Row>
+              </div>
               {executionTime && (
-                <div style={{ marginTop: 16, textAlign: 'right' }}>
-                  <Text type="secondary">Время выполнения: {executionTime} мс</Text>
+                <div className="mt-4 text-right">
+                  <p className="text-sm text-muted-foreground">
+                    Время выполнения: {executionTime} мс
+                  </p>
                 </div>
               )}
-            </Card>
-          </Col>
+            </CardContent>
+          </Card>
         )}
 
+        {/* Standard Results */}
         {!loading && viewMode === 'standard' && queryResults.length > 0 && (
-          <Col span={24}>
-            <Card title={`Результаты запроса (${totalCount} записей)`}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Результаты запроса ({totalCount} записей)</CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="ag-theme-alpine" style={{ height: 600, width: '100%' }}>
                 <AgGridReact
                   rowData={queryResults}
@@ -785,10 +906,10 @@ export default function AnalyticsPage() {
                   enableCellTextSelection={true}
                 />
               </div>
-            </Card>
-          </Col>
+            </CardContent>
+          </Card>
         )}
-      </Row>
+      </div>
     </MainLayout>
   );
 }
