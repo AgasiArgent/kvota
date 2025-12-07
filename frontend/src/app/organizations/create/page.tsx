@@ -1,229 +1,248 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Space, Typography, Row, Col, message } from 'antd';
-import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft, Save } from 'lucide-react';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { organizationService } from '@/lib/api/organization-service';
 import { OrganizationCreate } from '@/lib/types/organization';
 
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-
 export default function CreateOrganizationPage() {
   const router = useRouter();
-  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState<OrganizationCreate>({
+    name: '',
+    slug: '',
+    description: '',
+  });
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Auto-generate slug from name
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const name = e.target.value;
+    setFormData({ ...formData, name });
+
     if (name) {
       const slug = organizationService.generateSlug(name);
-      form.setFieldValue('slug', slug);
+      setFormData({ ...formData, name, slug });
     }
   };
 
-  const handleSubmit = async (values: OrganizationCreate) => {
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name?.trim()) {
+      errors.name = 'Введите название организации';
+    } else if (formData.name.length < 3) {
+      errors.name = 'Минимум 3 символа';
+    } else if (formData.name.length > 100) {
+      errors.name = 'Максимум 100 символов';
+    }
+
+    if (!formData.slug?.trim()) {
+      errors.slug = 'Введите уникальный идентификатор';
+    } else {
+      // Check format: lowercase, alphanumeric + hyphens
+      const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+      if (!slugRegex.test(formData.slug)) {
+        errors.slug =
+          'Идентификатор может содержать только строчные латинские буквы, цифры и дефисы';
+      } else if (formData.slug.length < 3) {
+        errors.slug = 'Минимум 3 символа';
+      } else if (formData.slug.length > 50) {
+        errors.slug = 'Максимум 50 символов';
+      }
+    }
+
+    if (formData.description && formData.description.length > 500) {
+      errors.description = 'Максимум 500 символов';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
     try {
-      const result = await organizationService.createOrganization(values);
+      const result = await organizationService.createOrganization(formData);
 
       if (result.success && result.data) {
-        message.success('Организация успешно создана');
+        toast.success('Организация успешно создана');
         router.push('/organizations');
       } else {
-        message.error(result.error || 'Ошибка создания организации');
+        toast.error(result.error || 'Ошибка создания организации');
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Custom validator for slug format
-  const validateSlug = (_: any, value: string) => {
-    if (!value) {
-      return Promise.reject(new Error('Введите уникальный идентификатор'));
-    }
-
-    // Check format: lowercase, alphanumeric + hyphens
-    const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-    if (!slugRegex.test(value)) {
-      return Promise.reject(
-        new Error('Идентификатор может содержать только строчные латинские буквы, цифры и дефисы')
-      );
-    }
-
-    // Check length
-    if (value.length < 3) {
-      return Promise.reject(new Error('Минимум 3 символа'));
-    }
-
-    if (value.length > 50) {
-      return Promise.reject(new Error('Максимум 50 символов'));
-    }
-
-    return Promise.resolve();
-  };
-
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div className="space-y-6">
         {/* Header */}
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Button
-                variant="outline"
-                icon={<ArrowLeftOutlined />}
-                onClick={() => router.push('/organizations')}
-              >
-                Назад
-              </Button>
-              <Title level={2} style={{ margin: 0 }}>
-                Создать организацию
-              </Title>
-            </Space>
-          </Col>
-        </Row>
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" onClick={() => router.push('/organizations')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-semibold tracking-tight">Создать организацию</h1>
+        </div>
 
         {/* Form */}
-        <Row gutter={24}>
-          <Col xs={24} lg={16}>
-            <Form form={form} layout="vertical" onFinish={handleSubmit} requiredMark="optional">
-              <Card title="Информация об организации">
-                <Row gutter={16}>
-                  <Col xs={24}>
-                    <Form.Item
-                      name="name"
-                      label="Название организации"
-                      rules={[
-                        { required: true, message: 'Введите название организации' },
-                        { min: 3, message: 'Минимум 3 символа' },
-                        { max: 100, message: 'Максимум 100 символов' },
-                      ]}
-                    >
-                      <Input
-                        size="large"
-                        placeholder='ООО "Название компании"'
-                        onChange={handleNameChange}
-                      />
-                    </Form.Item>
-                  </Col>
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Content - 2/3 width */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Organization Info */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Информация об организации</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Название организации *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={handleNameChange}
+                      placeholder='ООО "Название компании"'
+                      className={validationErrors.name ? 'border-destructive' : ''}
+                    />
+                    {validationErrors.name && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.name}</p>
+                    )}
+                  </div>
 
-                  <Col xs={24}>
-                    <Form.Item
-                      name="slug"
-                      label="Уникальный идентификатор"
-                      rules={[{ validator: validateSlug }]}
-                      tooltip="Используется в URL. Автоматически генерируется из названия, но вы можете изменить его."
-                      extra={
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          Строчные латинские буквы, цифры и дефисы. Например: moya-kompaniya
-                        </Text>
-                      }
-                    >
-                      <Input size="large" placeholder="moya-kompaniya" />
-                    </Form.Item>
-                  </Col>
+                  <div>
+                    <Label htmlFor="slug">Уникальный идентификатор *</Label>
+                    <Input
+                      id="slug"
+                      value={formData.slug}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                      placeholder="moya-kompaniya"
+                      className={validationErrors.slug ? 'border-destructive' : ''}
+                    />
+                    <p className="text-xs text-foreground/60 mt-1">
+                      Строчные латинские буквы, цифры и дефисы. Например: moya-kompaniya
+                    </p>
+                    {validationErrors.slug && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.slug}</p>
+                    )}
+                  </div>
 
-                  <Col xs={24}>
-                    <Form.Item
-                      name="description"
-                      label="Описание"
-                      rules={[{ max: 500, message: 'Максимум 500 символов' }]}
-                    >
-                      <TextArea
-                        rows={4}
-                        placeholder="Краткое описание организации (необязательно)"
-                        maxLength={500}
-                        showCount
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
+                  <div>
+                    <Label htmlFor="description">Описание</Label>
+                    <Textarea
+                      id="description"
+                      rows={4}
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Краткое описание организации (необязательно)"
+                      maxLength={500}
+                      className={validationErrors.description ? 'border-destructive' : ''}
+                    />
+                    <p className="text-xs text-foreground/60 mt-1">
+                      {formData.description?.length || 0}/500 символов
+                    </p>
+                    {validationErrors.description && (
+                      <p className="text-xs text-destructive mt-1">
+                        {validationErrors.description}
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
               </Card>
 
               {/* Actions */}
-              <Card style={{ marginTop: 24 }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<SaveOutlined />}
-                    size="large"
-                    block
-                    loading={loading}
-                  >
-                    Создать организацию
+              <Card>
+                <CardContent className="pt-6 space-y-3">
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {loading ? 'Создание...' : 'Создать организацию'}
                   </Button>
                   <Button
+                    type="button"
                     variant="outline"
-                    size="large"
-                    block
+                    className="w-full"
                     onClick={() => router.push('/organizations')}
                   >
                     Отмена
                   </Button>
-                </Space>
+                </CardContent>
               </Card>
-            </Form>
-          </Col>
+            </div>
 
-          {/* Info Sidebar */}
-          <Col xs={24} lg={8}>
-            <Card title="Справка">
-              <Space direction="vertical" size="middle">
-                <div>
-                  <Text strong>Название организации</Text>
-                  <br />
-                  <Text type="secondary">Полное название вашей организации или компании</Text>
-                </div>
+            {/* Sidebar - 1/3 width */}
+            <div className="space-y-6">
+              {/* Help Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Справка</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="font-medium text-sm">Название организации</p>
+                    <p className="text-sm text-foreground/60">
+                      Полное название вашей организации или компании
+                    </p>
+                  </div>
 
-                <div>
-                  <Text strong>Уникальный идентификатор</Text>
-                  <br />
-                  <Text type="secondary">
-                    Используется для создания уникального URL организации. Автоматически
-                    генерируется из названия.
-                  </Text>
-                </div>
+                  <div>
+                    <p className="font-medium text-sm">Уникальный идентификатор</p>
+                    <p className="text-sm text-foreground/60">
+                      Используется для создания уникального URL организации. Автоматически
+                      генерируется из названия.
+                    </p>
+                  </div>
 
-                <div>
-                  <Text strong>Описание</Text>
-                  <br />
-                  <Text type="secondary">
-                    Необязательное поле. Краткое описание вашей организации.
-                  </Text>
-                </div>
-              </Space>
-            </Card>
+                  <div>
+                    <p className="font-medium text-sm">Описание</p>
+                    <p className="text-sm text-foreground/60">
+                      Необязательное поле. Краткое описание вашей организации.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card title="Что дальше?" style={{ marginTop: 24 }}>
-              <Space direction="vertical" size="small">
-                <Text>После создания организации вы сможете:</Text>
-                <ul style={{ paddingLeft: 20, margin: '8px 0' }}>
-                  <li>
-                    <Text type="secondary">Пригласить участников команды</Text>
-                  </li>
-                  <li>
-                    <Text type="secondary">Настроить роли и права доступа</Text>
-                  </li>
-                  <li>
-                    <Text type="secondary">Управлять настройками организации</Text>
-                  </li>
-                  <li>
-                    <Text type="secondary">Создавать коммерческие предложения</Text>
-                  </li>
-                </ul>
-              </Space>
-            </Card>
-          </Col>
-        </Row>
-      </Space>
+              {/* What's Next Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Что дальше?</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm mb-3">После создания организации вы сможете:</p>
+                  <ul className="space-y-2 text-sm text-foreground/60">
+                    <li>• Пригласить участников команды</li>
+                    <li>• Настроить роли и права доступа</li>
+                    <li>• Управлять настройками организации</li>
+                    <li>• Создавать коммерческие предложения</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </form>
+      </div>
     </MainLayout>
   );
 }
