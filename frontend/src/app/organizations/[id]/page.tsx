@@ -1,53 +1,50 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  Form,
-  Input,
-  Button,
-  Card,
-  Space,
-  Typography,
-  message,
-  Breadcrumb,
-  Divider,
-  Modal,
-  Descriptions,
-  Tag,
-  Spin,
-  Alert,
-} from 'antd';
-import {
-  SaveOutlined,
-  ArrowLeftOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  ExclamationCircleOutlined,
-  HomeOutlined,
-  SettingOutlined,
-} from '@ant-design/icons';
 import { useRouter, useParams } from 'next/navigation';
+import { ArrowLeft, Save, Edit, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { organizationService } from '@/lib/api/organization-service';
 import { Organization, OrganizationUpdate } from '@/lib/types/organization';
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-const { confirm } = Modal;
 
 export default function OrganizationSettingsPage() {
   const router = useRouter();
   const params = useParams();
   const organizationId = params.id as string;
 
-  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState<Partial<OrganizationUpdate>>({});
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchOrganization();
@@ -60,7 +57,7 @@ export default function OrganizationSettingsPage() {
 
       if (result.success && result.data) {
         setOrganization(result.data);
-        form.setFieldsValue({
+        setFormData({
           name: result.data.name,
           description: result.data.description,
         });
@@ -76,77 +73,81 @@ export default function OrganizationSettingsPage() {
           }
         }
       } else {
-        message.error(result.error || 'Ошибка загрузки организации');
-        router.push('/organizations');
+        throw new Error(result.error || 'Failed to load organization');
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка загрузки организации: ${error.message}`);
       router.push('/organizations');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async (values: OrganizationUpdate) => {
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name?.trim()) {
+      errors.name = 'Введите название';
+    } else if (formData.name.trim().length < 3) {
+      errors.name = 'Минимум 3 символа';
+    } else if (formData.name.trim().length > 100) {
+      errors.name = 'Максимум 100 символов';
+    }
+
+    if (formData.description && formData.description.length > 500) {
+      errors.description = 'Максимум 500 символов';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
     setSaving(true);
     try {
-      const result = await organizationService.updateOrganization(organizationId, values);
+      const result = await organizationService.updateOrganization(organizationId, formData);
 
       if (result.success && result.data) {
         setOrganization(result.data);
         setEditMode(false);
-        message.success('Изменения успешно сохранены');
+        toast.success('Изменения успешно сохранены');
       } else {
-        message.error(result.error || 'Ошибка сохранения изменений');
+        throw new Error(result.error || 'Failed to update organization');
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка сохранения: ${error.message}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = () => {
-    confirm({
-      title: 'Удалить организацию?',
-      icon: <ExclamationCircleOutlined />,
-      content: (
-        <Space direction="vertical">
-          <Text>Вы уверены, что хотите удалить эту организацию?</Text>
-          <Text type="danger">Это действие нельзя отменить.</Text>
-          <Text type="secondary">
-            Организация будет помечена как удалённая и больше не будет доступна.
-          </Text>
-        </Space>
-      ),
-      okText: 'Удалить',
-      okType: 'danger',
-      cancelText: 'Отмена',
-      async onOk() {
-        setDeleting(true);
-        try {
-          const result = await organizationService.deleteOrganization(organizationId);
+  const handleDelete = async () => {
+    try {
+      const result = await organizationService.deleteOrganization(organizationId);
 
-          if (result.success) {
-            message.success('Организация успешно удалена');
-            router.push('/organizations');
-          } else {
-            message.error(result.error || 'Ошибка удаления организации');
-          }
-        } catch (error: any) {
-          message.error(`Ошибка: ${error.message}`);
-        } finally {
-          setDeleting(false);
-        }
-      },
-    });
+      if (result.success) {
+        toast.success('Организация успешно удалена');
+        router.push('/organizations');
+      } else {
+        throw new Error(result.error || 'Failed to delete organization');
+      }
+    } catch (error: any) {
+      toast.error(`Ошибка удаления: ${error.message}`);
+    }
   };
 
   const handleCancel = () => {
-    form.setFieldsValue({
+    setFormData({
       name: organization?.name,
       description: organization?.description,
     });
+    setValidationErrors({});
     setEditMode(false);
   };
 
@@ -160,18 +161,19 @@ export default function OrganizationSettingsPage() {
 
     const s = statusMap[status] || { label: status, dotColor: 'bg-muted-foreground' };
     return (
-      <Tag className="bg-secondary text-muted-foreground border-border gap-1.5">
-        <span className={`h-1.5 w-1.5 rounded-full ${s.dotColor}`} />
+      <Badge variant="secondary" className="gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full', s.dotColor)} />
         {s.label}
-      </Tag>
+      </Badge>
     );
   };
 
   if (loading) {
     return (
       <MainLayout>
-        <div style={{ textAlign: 'center', padding: '50px 0' }}>
-          <Spin size="large" tip="Загрузка организации..." />
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-96 w-full" />
         </div>
       </MainLayout>
     );
@@ -180,169 +182,206 @@ export default function OrganizationSettingsPage() {
   if (!organization) {
     return (
       <MainLayout>
-        <Alert
-          message="Организация не найдена"
-          description="Запрошенная организация не существует или у вас нет прав доступа."
-          type="error"
-          showIcon
-        />
+        <Card className="border-destructive/50">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-semibold text-destructive">Организация не найдена</h3>
+              <p className="text-sm text-foreground/60">
+                Запрошенная организация не существует или у вас нет прав доступа.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </MainLayout>
     );
   }
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* Breadcrumb */}
-        <Breadcrumb
-          items={[
-            {
-              href: '/organizations',
-              title: (
-                <>
-                  <HomeOutlined />
-                  <span>Организации</span>
-                </>
-              ),
-            },
-            {
-              title: organization.name,
-            },
-            {
-              title: (
-                <>
-                  <SettingOutlined />
-                  <span>Настройки</span>
-                </>
-              ),
-            },
-          ]}
-        />
-
+      <div className="space-y-6">
         {/* Header */}
-        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Space>
-            <Button
-              variant="outline"
-              icon={<ArrowLeftOutlined />}
-              onClick={() => router.push('/organizations')}
-            >
-              Назад
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => router.push('/organizations')}>
+              <ArrowLeft className="h-4 w-4" />
             </Button>
-            <Title level={2} style={{ margin: 0 }}>
-              {organization.name}
-            </Title>
-            {getStatusBadge(organization.status)}
-          </Space>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold tracking-tight">{organization.name}</h1>
+              {getStatusBadge(organization.status)}
+            </div>
+          </div>
           {canEdit && !editMode && (
-            <Button
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              icon={<EditOutlined />}
-              onClick={() => setEditMode(true)}
-            >
+            <Button variant="outline" onClick={() => setEditMode(true)}>
+              <Edit className="mr-2 h-4 w-4" />
               Редактировать
             </Button>
           )}
-        </Space>
+        </div>
 
         {/* View Mode */}
         {!editMode && (
-          <Card title="Информация об организации">
-            <Descriptions column={1}>
-              <Descriptions.Item label="Название">{organization.name}</Descriptions.Item>
-              <Descriptions.Item label="Идентификатор">
-                <Text code>@{organization.slug}</Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Описание">
-                {organization.description || <Text type="secondary">Нет описания</Text>}
-              </Descriptions.Item>
-              <Descriptions.Item label="Статус">
-                {getStatusBadge(organization.status)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Дата создания">
-                {new Date(organization.created_at).toLocaleString('ru-RU')}
-              </Descriptions.Item>
-              <Descriptions.Item label="Последнее обновление">
-                {new Date(organization.updated_at).toLocaleString('ru-RU')}
-              </Descriptions.Item>
-            </Descriptions>
+          <Card>
+            <CardHeader>
+              <CardTitle>Информация об организации</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                <div>
+                  <Label className="text-foreground/60">Название</Label>
+                  <p className="text-foreground/90 mt-1">{organization.name}</p>
+                </div>
+
+                <div>
+                  <Label className="text-foreground/60">Идентификатор</Label>
+                  <p className="text-foreground/90 mt-1 font-mono text-sm">@{organization.slug}</p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Label className="text-foreground/60">Описание</Label>
+                  <p className="text-foreground/90 mt-1">
+                    {organization.description || (
+                      <span className="text-foreground/40">Нет описания</span>
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="text-foreground/60">Статус</Label>
+                  <div className="mt-1">{getStatusBadge(organization.status)}</div>
+                </div>
+
+                <div>
+                  <Label className="text-foreground/60">Дата создания</Label>
+                  <p className="text-foreground/90 mt-1">
+                    {new Date(organization.created_at).toLocaleString('ru-RU')}
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="text-foreground/60">Последнее обновление</Label>
+                  <p className="text-foreground/90 mt-1">
+                    {new Date(organization.updated_at).toLocaleString('ru-RU')}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         )}
 
         {/* Edit Mode */}
         {editMode && (
-          <Form form={form} layout="vertical" onFinish={handleSave} requiredMark="optional">
-            <Card title="Редактировать организацию">
-              <Form.Item
-                name="name"
-                label="Название организации"
-                rules={[
-                  { required: true, message: 'Введите название' },
-                  { min: 3, message: 'Минимум 3 символа' },
-                  { max: 100, message: 'Максимум 100 символов' },
-                ]}
-              >
-                <Input size="large" placeholder="Название организации" />
-              </Form.Item>
+          <form onSubmit={handleSave}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Редактировать организацию</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Название организации *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name || ''}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Название организации"
+                    className={validationErrors.name ? 'border-destructive' : ''}
+                  />
+                  {validationErrors.name && (
+                    <p className="text-xs text-destructive mt-1">{validationErrors.name}</p>
+                  )}
+                </div>
 
-              <Form.Item label="Идентификатор">
-                <Input value={organization.slug} disabled size="large" addonBefore="@" />
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Идентификатор нельзя изменить, чтобы не сломать существующие ссылки
-                </Text>
-              </Form.Item>
+                <div>
+                  <Label htmlFor="slug">Идентификатор</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-foreground/60">@</span>
+                    <Input id="slug" value={organization.slug} disabled />
+                  </div>
+                  <p className="text-xs text-foreground/40 mt-1">
+                    Идентификатор нельзя изменить, чтобы не сломать существующие ссылки
+                  </p>
+                </div>
 
-              <Form.Item
-                name="description"
-                label="Описание"
-                rules={[{ max: 500, message: 'Максимум 500 символов' }]}
-              >
-                <TextArea rows={4} placeholder="Описание организации" maxLength={500} showCount />
-              </Form.Item>
+                <div>
+                  <Label htmlFor="description">Описание</Label>
+                  <Textarea
+                    id="description"
+                    rows={4}
+                    value={formData.description || ''}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Описание организации"
+                    maxLength={500}
+                    className={validationErrors.description ? 'border-destructive' : ''}
+                  />
+                  <div className="flex justify-between items-center mt-1">
+                    {validationErrors.description && (
+                      <p className="text-xs text-destructive">{validationErrors.description}</p>
+                    )}
+                    <p className="text-xs text-foreground/40 ml-auto">
+                      {formData.description?.length || 0}/500
+                    </p>
+                  </div>
+                </div>
 
-              <Space>
-                <Button
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                  htmlType="submit"
-                  icon={<SaveOutlined />}
-                  loading={saving}
-                >
-                  Сохранить изменения
-                </Button>
-                <Button variant="outline" onClick={handleCancel}>
-                  Отменить
-                </Button>
-              </Space>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button type="submit" disabled={saving}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {saving ? 'Сохранение...' : 'Сохранить изменения'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={handleCancel}>
+                    Отменить
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
-          </Form>
+          </form>
         )}
 
         {/* Danger Zone (Owner only) */}
         {isOwner && (
-          <Card
-            title={
-              <Text className="text-rose-400">
-                <ExclamationCircleOutlined /> Опасная зона
-              </Text>
-            }
-            className="border-rose-400/30"
-          >
-            <Space direction="vertical" style={{ width: '100%' }}>
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle className="text-destructive">Опасная зона</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <Title level={5}>Удалить организацию</Title>
-                <Text type="secondary">
+                <h3 className="text-sm font-semibold">Удалить организацию</h3>
+                <p className="text-sm text-foreground/60 mt-1">
                   После удаления организация будет помечена как удалённая и станет недоступна. Это
                   действие нельзя отменить.
-                </Text>
+                </p>
               </div>
-              <Divider />
-              <Button danger icon={<DeleteOutlined />} onClick={handleDelete} loading={deleting}>
-                Удалить организацию
-              </Button>
-            </Space>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Удалить организацию
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Удалить организацию?</AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-2">
+                      <p>Вы уверены, что хотите удалить эту организацию?</p>
+                      <p className="text-destructive font-medium">Это действие нельзя отменить.</p>
+                      <p>Организация будет помечена как удалённая и больше не будет доступна.</p>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Отмена</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Удалить
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
           </Card>
         )}
-      </Space>
+      </div>
     </MainLayout>
   );
 }
