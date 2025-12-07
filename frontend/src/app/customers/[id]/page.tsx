@@ -1,40 +1,55 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  Form,
-  Input,
-  Select,
-  Button,
-  Card,
-  Space,
-  Typography,
-  Row,
-  Col,
-  message,
-  Spin,
-  InputNumber,
-  Tabs,
-  Table,
-  Tag,
-  Popconfirm,
-  Modal,
-  Checkbox,
-} from 'antd';
-import { SaveOutlined, ArrowLeftOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Save, Edit, Trash2, Plus, Phone, Mail } from 'lucide-react';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import PageHeader from '@/components/shared/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import {
   customerService,
   Customer,
   CustomerContact,
   ContactCreate,
 } from '@/lib/api/customer-service';
-import { quoteService } from '@/lib/api/quote-service';
 import { validateINN, validateKPP, validateOGRN } from '@/lib/validation/russian-business';
-
-const { Title } = Typography;
-const { TextArea } = Input;
 
 interface Quote {
   id: string;
@@ -52,8 +67,6 @@ export default function CustomerDetailPage() {
   const searchParams = useSearchParams();
   const customerId = params.id as string;
 
-  const [form] = Form.useForm();
-  const [contactForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -63,6 +76,13 @@ export default function CustomerDetailPage() {
   const [companyType, setCompanyType] = useState<string>('organization');
   const [contactModalVisible, setContactModalVisible] = useState(false);
   const [editingContact, setEditingContact] = useState<CustomerContact | null>(null);
+
+  // Form state
+  const [formData, setFormData] = useState<Partial<Customer>>({});
+  const [contactFormData, setContactFormData] = useState<Partial<ContactCreate>>({});
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchCustomer();
@@ -77,12 +97,12 @@ export default function CustomerDetailPage() {
       if (response.success && response.data) {
         setCustomer(response.data);
         setCompanyType(response.data.company_type);
-        form.setFieldsValue(response.data);
+        setFormData(response.data);
       } else {
         throw new Error(response.error || 'Failed to load customer');
       }
     } catch (error: any) {
-      message.error(`Ошибка загрузки клиента: ${error.message}`);
+      toast.error(`Ошибка загрузки клиента: ${error.message}`);
       router.push('/customers');
     } finally {
       setLoading(false);
@@ -111,15 +131,57 @@ export default function CustomerDetailPage() {
     }
   };
 
-  const handleUpdate = async (values: any) => {
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name?.trim()) {
+      errors.name = 'Введите название';
+    }
+
+    if (formData.inn) {
+      const innValidation = validateINN(formData.inn);
+      if (!innValidation.isValid) {
+        errors.inn = innValidation.error || 'Неверный ИНН';
+      }
+    }
+
+    if (formData.kpp) {
+      const kppValidation = validateKPP(formData.kpp);
+      if (!kppValidation.isValid) {
+        errors.kpp = kppValidation.error || 'Неверный КПП';
+      }
+    }
+
+    if (formData.ogrn) {
+      const ogrnValidation = validateOGRN(formData.ogrn);
+      if (!ogrnValidation.isValid) {
+        errors.ogrn = ogrnValidation.error || 'Неверный ОГРН';
+      }
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Неверный формат email';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
     setSaving(true);
     try {
-      await customerService.updateCustomer(customerId, values);
-      message.success('Клиент успешно обновлен');
+      await customerService.updateCustomer(customerId, formData);
+      toast.success('Клиент успешно обновлен');
       setIsEditMode(false);
       fetchCustomer();
     } catch (error: any) {
-      message.error(`Ошибка обновления: ${error.message}`);
+      toast.error(`Ошибка обновления: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -128,209 +190,106 @@ export default function CustomerDetailPage() {
   const handleDelete = async () => {
     try {
       await customerService.deleteCustomer(customerId);
-      message.success('Клиент успешно удален');
+      toast.success('Клиент успешно удален');
       router.push('/customers');
     } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`);
+      toast.error(`Ошибка удаления: ${error.message}`);
     }
   };
 
-  const handleContactSubmit = async (values: ContactCreate) => {
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     try {
       if (editingContact) {
-        await customerService.updateContact(customerId, editingContact.id, values);
-        message.success('Контакт успешно обновлен');
+        await customerService.updateContact(
+          customerId,
+          editingContact.id,
+          contactFormData as ContactCreate
+        );
+        toast.success('Контакт успешно обновлен');
       } else {
-        await customerService.createContact(customerId, values);
-        message.success('Контакт успешно создан');
+        await customerService.createContact(customerId, contactFormData as ContactCreate);
+        toast.success('Контакт успешно создан');
       }
       setContactModalVisible(false);
       setEditingContact(null);
-      contactForm.resetFields();
+      setContactFormData({});
       fetchContacts();
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     }
   };
 
   const handleContactDelete = async (contactId: string) => {
     try {
       await customerService.deleteContact(customerId, contactId);
-      message.success('Контакт успешно удален');
+      toast.success('Контакт успешно удален');
       fetchContacts();
     } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`);
+      toast.error(`Ошибка удаления: ${error.message}`);
     }
   };
 
   const openContactModal = (contact?: CustomerContact) => {
     if (contact) {
       setEditingContact(contact);
-      contactForm.setFieldsValue(contact);
+      setContactFormData(contact);
     } else {
       setEditingContact(null);
-      contactForm.resetFields();
+      setContactFormData({});
     }
     setContactModalVisible(true);
   };
 
-  // Custom validators (same as create page)
-  const validateINNField = (_: any, value: string) => {
-    if (!value) return Promise.resolve();
-    const validation = validateINN(value);
-    if (!validation.isValid) {
-      return Promise.reject(new Error(validation.error));
-    }
-    return Promise.resolve();
-  };
-
-  const validateKPPField = (_: any, value: string) => {
-    if (!value) return Promise.resolve();
-    const validation = validateKPP(value);
-    if (!validation.isValid) {
-      return Promise.reject(new Error(validation.error));
-    }
-    return Promise.resolve();
-  };
-
-  const validateOGRNField = (_: any, value: string) => {
-    if (!value) return Promise.resolve();
-    const validation = validateOGRN(value);
-    if (!validation.isValid) {
-      return Promise.reject(new Error(validation.error));
-    }
-    return Promise.resolve();
-  };
-
-  const getStatusTag = (status: string) => {
-    const statusMap = {
-      active: { color: 'green', text: 'Активный' },
-      inactive: { color: 'default', text: 'Неактивный' },
-      suspended: { color: 'red', text: 'Приостановлен' },
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { dotColor: string; text: string }> = {
+      active: { dotColor: 'bg-emerald-400', text: 'Активный' },
+      inactive: { dotColor: 'bg-zinc-400', text: 'Неактивный' },
+      suspended: { dotColor: 'bg-rose-400', text: 'Приостановлен' },
     };
-    const config = statusMap[status as keyof typeof statusMap] || {
-      color: 'default',
+    const config = statusMap[status] || {
+      dotColor: 'bg-zinc-400',
       text: status,
     };
-    return <Tag color={config.color}>{config.text}</Tag>;
+    return (
+      <Badge variant="secondary" className="gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full', config.dotColor)} />
+        {config.text}
+      </Badge>
+    );
   };
 
-  const getQuoteStatusTag = (status: string) => {
-    const statusMap = {
-      draft: { color: 'default', text: 'Черновик' },
-      pending_approval: { color: 'default', text: 'На утверждении' },
-      approved: { color: 'default', text: 'Утверждено' },
-      sent: { color: 'default', text: 'Отправлено' },
-      accepted: { color: 'default', text: 'Принято' },
-      rejected: { color: 'default', text: 'Отклонено' },
+  const getQuoteStatusBadge = (status: string) => {
+    const statusMap: Record<string, { dotColor: string; text: string }> = {
+      draft: { dotColor: 'bg-zinc-400', text: 'Черновик' },
+      pending_approval: { dotColor: 'bg-amber-400', text: 'На утверждении' },
+      approved: { dotColor: 'bg-emerald-400', text: 'Утверждено' },
+      sent: { dotColor: 'bg-blue-400', text: 'Отправлено' },
+      accepted: { dotColor: 'bg-emerald-400', text: 'Принято' },
+      rejected: { dotColor: 'bg-rose-400', text: 'Отклонено' },
     };
-    return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
+    const config = statusMap[status] || { dotColor: 'bg-zinc-400', text: status };
+    return (
+      <Badge variant="secondary" className="gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full', config.dotColor)} />
+        {config.text}
+      </Badge>
+    );
   };
-
-  const quoteColumns = [
-    {
-      title: 'Номер',
-      dataIndex: 'quote_number',
-      key: 'quote_number',
-      render: (text: string, record: Quote) => (
-        <a onClick={() => router.push(`/quotes/${record.id}`)}>{text}</a>
-      ),
-    },
-    {
-      title: 'Название',
-      dataIndex: 'title',
-      key: 'title',
-    },
-    {
-      title: 'Сумма',
-      dataIndex: 'total_amount',
-      key: 'total_amount',
-      render: (amount: number, record: Quote) =>
-        new Intl.NumberFormat('ru-RU', {
-          style: 'currency',
-          currency: record.currency || 'RUB',
-        }).format(amount),
-    },
-    {
-      title: 'Статус',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const config = getQuoteStatusTag(status);
-        return <Tag color={config.color}>{config.text}</Tag>;
-      },
-    },
-    {
-      title: 'Дата',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
-    },
-  ];
-
-  const contactColumns = [
-    {
-      title: 'Имя',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string, record: CustomerContact) => (
-        <>
-          {text}
-          {record.last_name ? ` ${record.last_name}` : ''}
-          {record.is_primary && <Tag style={{ marginLeft: 8 }}>Основной</Tag>}
-        </>
-      ),
-    },
-    {
-      title: 'Должность',
-      dataIndex: 'position',
-      key: 'position',
-    },
-    {
-      title: 'Телефон',
-      dataIndex: 'phone',
-      key: 'phone',
-    },
-    {
-      title: 'Email',
-      dataIndex: 'email',
-      key: 'email',
-    },
-    {
-      title: 'Примечания',
-      dataIndex: 'notes',
-      key: 'notes',
-      ellipsis: true,
-      width: 200,
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      render: (_: any, record: CustomerContact) => (
-        <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openContactModal(record)}>
-            Изменить
-          </Button>
-          <Popconfirm
-            title="Удалить контакт?"
-            onConfirm={() => handleContactDelete(record.id)}
-            okText="Удалить"
-            cancelText="Отмена"
-          >
-            <Button size="small" danger icon={<DeleteOutlined />}>
-              Удалить
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
 
   if (loading) {
     return (
       <MainLayout>
-        <div style={{ textAlign: 'center', padding: '100px' }}>
-          <Spin size="large" />
+        <div className="space-y-6">
+          <Skeleton className="h-12 w-full" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Skeleton className="h-96 w-full" />
+              <Skeleton className="h-64 w-full" />
+            </div>
+            <Skeleton className="h-96 w-full" />
+          </div>
         </div>
       </MainLayout>
     );
@@ -340,336 +299,677 @@ export default function CustomerDetailPage() {
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div className="space-y-6">
         {/* Header */}
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/customers')}>
-                Назад
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => router.push('/customers')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold tracking-tight">{customer.name}</h1>
+              {getStatusBadge(customer.status)}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isEditMode && (
+              <Button variant="outline" onClick={() => setIsEditMode(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Редактировать
               </Button>
-              <Title level={2} style={{ margin: 0 }}>
-                {customer.name}
-              </Title>
-              {getStatusTag(customer.status)}
-            </Space>
-          </Col>
-          <Col>
-            <Space>
-              {!isEditMode && (
-                <Button icon={<EditOutlined />} onClick={() => setIsEditMode(true)}>
-                  Редактировать
-                </Button>
-              )}
-              <Popconfirm
-                title="Удалить клиента?"
-                description="Это действие нельзя отменить. Все связанные КП останутся, но ссылка на клиента будет удалена."
-                onConfirm={handleDelete}
-                okText="Удалить"
-                cancelText="Отмена"
-                okButtonProps={{ danger: true }}
-              >
-                <Button danger icon={<DeleteOutlined />}>
+            )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
                   Удалить
                 </Button>
-              </Popconfirm>
-            </Space>
-          </Col>
-        </Row>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Удалить клиента?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Это действие нельзя отменить. Все связанные КП останутся, но ссылка на клиента
+                    будет удалена.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Отмена</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Удалить
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
 
-        <Tabs
-          defaultActiveKey="info"
-          items={[
-            {
-              key: 'info',
-              label: 'Информация',
-              children: (
-                <Form form={form} layout="vertical" onFinish={handleUpdate} disabled={!isEditMode}>
-                  <Row gutter={24}>
-                    <Col xs={24} lg={16}>
-                      <Card title="Основная информация">
-                        <Row gutter={16}>
-                          <Col xs={24}>
-                            <Form.Item
-                              name="name"
-                              label="Название"
-                              rules={[{ required: true, message: 'Введите название' }]}
-                            >
-                              <Input size="large" />
-                            </Form.Item>
-                          </Col>
+        {/* Tabs */}
+        <Tabs defaultValue="info" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="info">Информация</TabsTrigger>
+            <TabsTrigger value="quotes">Коммерческие предложения ({quotes.length})</TabsTrigger>
+            <TabsTrigger value="contacts">Контакты ({contacts.length})</TabsTrigger>
+          </TabsList>
 
-                          <Col xs={24} md={12}>
-                            <Form.Item
-                              name="company_type"
-                              label="Тип организации"
-                              rules={[{ required: true }]}
-                            >
-                              <Select
-                                size="large"
-                                onChange={(value) => setCompanyType(value)}
-                                options={[
-                                  { label: 'ООО (Организация)', value: 'organization' },
-                                  { label: 'ИП', value: 'individual_entrepreneur' },
-                                  { label: 'Физическое лицо', value: 'individual' },
-                                  { label: 'Государственный орган', value: 'government' },
-                                ]}
-                              />
-                            </Form.Item>
-                          </Col>
+          {/* Info Tab */}
+          <TabsContent value="info" className="space-y-6">
+            <form onSubmit={handleUpdate}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Main Info */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Основная информация</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="name">Название *</Label>
+                        <Input
+                          id="name"
+                          value={formData.name || ''}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          disabled={!isEditMode}
+                          className={validationErrors.name ? 'border-destructive' : ''}
+                        />
+                        {validationErrors.name && (
+                          <p className="text-xs text-destructive mt-1">{validationErrors.name}</p>
+                        )}
+                      </div>
 
-                          <Col xs={24} md={12}>
-                            <Form.Item name="industry" label="Отрасль">
-                              <Select
-                                size="large"
-                                options={[
-                                  { label: 'Промышленность', value: 'manufacturing' },
-                                  { label: 'Торговля', value: 'trade' },
-                                  { label: 'IT и технологии', value: 'it_tech' },
-                                  { label: 'Строительство', value: 'construction' },
-                                  { label: 'Транспорт', value: 'transport' },
-                                  { label: 'Финансы', value: 'finance' },
-                                  { label: 'Другое', value: 'other' },
-                                ]}
-                              />
-                            </Form.Item>
-                          </Col>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="company_type">Тип организации *</Label>
+                          <Select
+                            value={formData.company_type}
+                            onValueChange={(value: string) => {
+                              setFormData({ ...formData, company_type: value });
+                              setCompanyType(value);
+                            }}
+                            disabled={!isEditMode}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="organization">ООО (Организация)</SelectItem>
+                              <SelectItem value="individual_entrepreneur">ИП</SelectItem>
+                              <SelectItem value="individual">Физическое лицо</SelectItem>
+                              <SelectItem value="government">Государственный орган</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                          <Col xs={24} md={12}>
-                            <Form.Item name="email" label="Email" rules={[{ type: 'email' }]}>
-                              <Input size="large" />
-                            </Form.Item>
-                          </Col>
-
-                          <Col xs={24} md={12}>
-                            <Form.Item name="phone" label="Телефон">
-                              <Input size="large" />
-                            </Form.Item>
-                          </Col>
-
-                          <Col xs={24} md={12}>
-                            <Form.Item name="status" label="Статус" rules={[{ required: true }]}>
-                              <Select
-                                size="large"
-                                options={[
-                                  { label: 'Активный', value: 'active' },
-                                  { label: 'Неактивный', value: 'inactive' },
-                                  { label: 'Приостановлен', value: 'suspended' },
-                                ]}
-                              />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      </Card>
-
-                      <Card title="Адрес" style={{ marginTop: 24 }}>
-                        <Row gutter={16}>
-                          <Col xs={24}>
-                            <Form.Item name="address" label="Адрес">
-                              <TextArea rows={2} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <Form.Item name="city" label="Город">
-                              <Input size="large" />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <Form.Item name="region" label="Регион">
-                              <Input size="large" />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={24} md={8}>
-                            <Form.Item name="postal_code" label="Индекс">
-                              <Input size="large" maxLength={6} />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      </Card>
-
-                      <Card title="Реквизиты" style={{ marginTop: 24 }}>
-                        <Row gutter={16}>
-                          <Col xs={24} md={8}>
-                            <Form.Item
-                              name="inn"
-                              label="ИНН"
-                              rules={[{ validator: validateINNField }]}
-                            >
-                              <Input size="large" maxLength={12} />
-                            </Form.Item>
-                          </Col>
-                          {companyType === 'organization' && (
-                            <Col xs={24} md={8}>
-                              <Form.Item
-                                name="kpp"
-                                label="КПП"
-                                rules={[{ validator: validateKPPField }]}
-                              >
-                                <Input size="large" maxLength={9} />
-                              </Form.Item>
-                            </Col>
-                          )}
-                          <Col xs={24} md={8}>
-                            <Form.Item
-                              name="ogrn"
-                              label={companyType === 'organization' ? 'ОГРН' : 'ОГРНИП'}
-                              rules={[{ validator: validateOGRNField }]}
-                            >
-                              <Input size="large" maxLength={15} />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      </Card>
-                    </Col>
-
-                    <Col xs={24} lg={8}>
-                      <Card title="Финансовые условия">
-                        <Form.Item name="credit_limit" label="Кредитный лимит (₽)">
-                          <InputNumber
-                            size="large"
-                            style={{ width: '100%' }}
-                            min={0}
-                            formatter={(value) =>
-                              `₽ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                        <div>
+                          <Label htmlFor="industry">Отрасль</Label>
+                          <Select
+                            value={formData.industry}
+                            onValueChange={(value: string) =>
+                              setFormData({ ...formData, industry: value })
                             }
-                            parser={(value) => value?.replace(/₽\s?|(\s*)/g, '') as any}
-                          />
-                        </Form.Item>
-                        <Form.Item name="payment_terms" label="Условия оплаты (дней)">
-                          <InputNumber
-                            size="large"
-                            style={{ width: '100%' }}
-                            min={0}
-                            max={365}
-                            addonAfter="дней"
-                          />
-                        </Form.Item>
-                      </Card>
+                            disabled={!isEditMode}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Выберите отрасль" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="manufacturing">Промышленность</SelectItem>
+                              <SelectItem value="trade">Торговля</SelectItem>
+                              <SelectItem value="it_tech">IT и технологии</SelectItem>
+                              <SelectItem value="construction">Строительство</SelectItem>
+                              <SelectItem value="transport">Транспорт</SelectItem>
+                              <SelectItem value="finance">Финансы</SelectItem>
+                              <SelectItem value="other">Другое</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                      <Card title="Примечания" style={{ marginTop: 24 }}>
-                        <Form.Item name="notes">
-                          <TextArea rows={6} />
-                        </Form.Item>
-                      </Card>
+                        <div>
+                          <Label htmlFor="email">Email</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={formData.email || ''}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            disabled={!isEditMode}
+                            className={validationErrors.email ? 'border-destructive' : ''}
+                          />
+                          {validationErrors.email && (
+                            <p className="text-xs text-destructive mt-1">
+                              {validationErrors.email}
+                            </p>
+                          )}
+                        </div>
 
-                      {isEditMode && (
-                        <Card style={{ marginTop: 24 }}>
-                          <Space direction="vertical" style={{ width: '100%' }}>
-                            <Button
-                              type="primary"
-                              htmlType="submit"
-                              icon={<SaveOutlined />}
-                              size="large"
-                              block
-                              loading={saving}
+                        <div>
+                          <Label htmlFor="phone">Телефон</Label>
+                          <Input
+                            id="phone"
+                            value={formData.phone || ''}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="status">Статус *</Label>
+                          <Select
+                            value={formData.status}
+                            onValueChange={(value: string) =>
+                              setFormData({ ...formData, status: value })
+                            }
+                            disabled={!isEditMode}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Активный</SelectItem>
+                              <SelectItem value="inactive">Неактивный</SelectItem>
+                              <SelectItem value="suspended">Приостановлен</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Address */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Адрес</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="address">Адрес</Label>
+                        <Textarea
+                          id="address"
+                          rows={2}
+                          value={formData.address || ''}
+                          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                          disabled={!isEditMode}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor="city">Город</Label>
+                          <Input
+                            id="city"
+                            value={formData.city || ''}
+                            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="region">Регион</Label>
+                          <Input
+                            id="region"
+                            value={formData.region || ''}
+                            onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                            disabled={!isEditMode}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="postal_code">Индекс</Label>
+                          <Input
+                            id="postal_code"
+                            maxLength={6}
+                            value={formData.postal_code || ''}
+                            onChange={(e) =>
+                              setFormData({ ...formData, postal_code: e.target.value })
+                            }
+                            disabled={!isEditMode}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Business Details */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Реквизиты</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor="inn">ИНН</Label>
+                          <Input
+                            id="inn"
+                            maxLength={12}
+                            value={formData.inn || ''}
+                            onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
+                            disabled={!isEditMode}
+                            className={validationErrors.inn ? 'border-destructive' : ''}
+                          />
+                          {validationErrors.inn && (
+                            <p className="text-xs text-destructive mt-1">{validationErrors.inn}</p>
+                          )}
+                        </div>
+
+                        {companyType === 'organization' && (
+                          <div>
+                            <Label htmlFor="kpp">КПП</Label>
+                            <Input
+                              id="kpp"
+                              maxLength={9}
+                              value={formData.kpp || ''}
+                              onChange={(e) => setFormData({ ...formData, kpp: e.target.value })}
+                              disabled={!isEditMode}
+                              className={validationErrors.kpp ? 'border-destructive' : ''}
+                            />
+                            {validationErrors.kpp && (
+                              <p className="text-xs text-destructive mt-1">
+                                {validationErrors.kpp}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        <div>
+                          <Label htmlFor="ogrn">
+                            {companyType === 'organization' ? 'ОГРН' : 'ОГРНИП'}
+                          </Label>
+                          <Input
+                            id="ogrn"
+                            maxLength={15}
+                            value={formData.ogrn || ''}
+                            onChange={(e) => setFormData({ ...formData, ogrn: e.target.value })}
+                            disabled={!isEditMode}
+                            className={validationErrors.ogrn ? 'border-destructive' : ''}
+                          />
+                          {validationErrors.ogrn && (
+                            <p className="text-xs text-destructive mt-1">{validationErrors.ogrn}</p>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Sidebar */}
+                <div className="space-y-6">
+                  {/* Financial Terms */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Финансовые условия</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="credit_limit">Кредитный лимит (₽)</Label>
+                        <Input
+                          id="credit_limit"
+                          type="number"
+                          min={0}
+                          value={formData.credit_limit || ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              credit_limit: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          disabled={!isEditMode}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="payment_terms">Условия оплаты (дней)</Label>
+                        <Input
+                          id="payment_terms"
+                          type="number"
+                          min={0}
+                          max={365}
+                          value={formData.payment_terms || ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              payment_terms: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          disabled={!isEditMode}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Notes */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Примечания</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Textarea
+                        rows={6}
+                        value={formData.notes || ''}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        disabled={!isEditMode}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  {/* Save/Cancel */}
+                  {isEditMode && (
+                    <Card>
+                      <CardContent className="pt-6 space-y-3">
+                        <Button type="submit" className="w-full" disabled={saving}>
+                          <Save className="mr-2 h-4 w-4" />
+                          {saving ? 'Сохранение...' : 'Сохранить изменения'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setIsEditMode(false);
+                            setFormData(customer);
+                            setValidationErrors({});
+                          }}
+                        >
+                          Отмена
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            </form>
+          </TabsContent>
+
+          {/* Quotes Tab */}
+          <TabsContent value="quotes">
+            <Card>
+              <CardContent className="pt-6">
+                {quotes.length === 0 ? (
+                  <div className="py-8 text-center text-foreground/40">
+                    Коммерческие предложения не найдены
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-secondary/30 border-b border-border">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Номер
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Название
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Сумма
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Статус
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Дата
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {quotes.map((quote) => (
+                            <tr
+                              key={quote.id}
+                              onClick={() => router.push(`/quotes/${quote.id}`)}
+                              className="hover:bg-foreground/5 cursor-pointer transition-colors"
                             >
-                              Сохранить изменения
-                            </Button>
-                            <Button
-                              size="large"
-                              block
-                              onClick={() => {
-                                setIsEditMode(false);
-                                form.setFieldsValue(customer);
-                              }}
+                              <td className="px-4 py-3 text-sm text-primary hover:underline">
+                                {quote.quote_number}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70">
+                                {quote.title}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70">
+                                {new Intl.NumberFormat('ru-RU', {
+                                  style: 'currency',
+                                  currency: quote.currency || 'RUB',
+                                }).format(quote.total_amount)}
+                              </td>
+                              <td className="px-4 py-3">{getQuoteStatusBadge(quote.status)}</td>
+                              <td className="px-4 py-3 text-sm text-foreground/70">
+                                {new Date(quote.created_at).toLocaleDateString('ru-RU')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Contacts Tab */}
+          <TabsContent value="contacts">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Контакты</CardTitle>
+                <Button onClick={() => openContactModal()}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Добавить контакт
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {contacts.length === 0 ? (
+                  <div className="py-8 text-center text-foreground/40">Контакты не найдены</div>
+                ) : (
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-secondary/30 border-b border-border">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Имя
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Должность
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Телефон
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Email
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Примечания
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Действия
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {contacts.map((contact) => (
+                            <tr
+                              key={contact.id}
+                              className="hover:bg-foreground/5 transition-colors"
                             >
-                              Отмена
-                            </Button>
-                          </Space>
-                        </Card>
-                      )}
-                    </Col>
-                  </Row>
-                </Form>
-              ),
-            },
-            {
-              key: 'quotes',
-              label: `Коммерческие предложения (${quotes.length})`,
-              children: (
-                <Card>
-                  <Table
-                    columns={quoteColumns}
-                    dataSource={quotes}
-                    rowKey="id"
-                    pagination={{ pageSize: 10 }}
-                  />
-                </Card>
-              ),
-            },
-            {
-              key: 'contacts',
-              label: `Контакты (${contacts.length})`,
-              children: (
-                <Card
-                  extra={
-                    <Button
-                      className="bg-primary text-primary-foreground hover:bg-primary/90"
-                      onClick={() => openContactModal()}
-                    >
-                      Добавить контакт
-                    </Button>
-                  }
-                >
-                  <Table
-                    columns={contactColumns}
-                    dataSource={contacts}
-                    rowKey="id"
-                    pagination={{ pageSize: 10 }}
-                  />
-                </Card>
-              ),
-            },
-          ]}
-        />
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-foreground/90">
+                                    {contact.name}
+                                    {contact.last_name ? ` ${contact.last_name}` : ''}
+                                  </span>
+                                  {contact.is_primary && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Основной
+                                    </Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70">
+                                {contact.position || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70">
+                                {contact.phone || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70">
+                                {contact.email || '—'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70 max-w-xs truncate">
+                                {contact.notes || '—'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openContactModal(contact)}
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="destructive" size="sm">
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Удалить контакт?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Это действие нельзя отменить.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Отмена</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleContactDelete(contact.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Удалить
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Contact Modal */}
-        <Modal
-          title={editingContact ? 'Редактировать контакт' : 'Добавить контакт'}
-          open={contactModalVisible}
-          onCancel={() => {
-            setContactModalVisible(false);
-            setEditingContact(null);
-            contactForm.resetFields();
-          }}
-          onOk={() => contactForm.submit()}
-          okText={editingContact ? 'Сохранить' : 'Добавить'}
-          cancelText="Отмена"
-        >
-          <Form
-            form={contactForm}
-            layout="vertical"
-            onFinish={handleContactSubmit}
-            style={{ marginTop: 20 }}
-          >
-            <Form.Item
-              name="name"
-              label="Имя"
-              rules={[{ required: true, message: 'Введите имя контакта' }]}
-            >
-              <Input />
-            </Form.Item>
-            <Form.Item name="last_name" label="Фамилия">
-              <Input />
-            </Form.Item>
-            <Form.Item name="position" label="Должность">
-              <Input />
-            </Form.Item>
-            <Form.Item name="phone" label="Телефон">
-              <Input />
-            </Form.Item>
-            <Form.Item name="email" label="Email" rules={[{ type: 'email' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="is_primary" valuePropName="checked">
-              <Checkbox>Основной контакт</Checkbox>
-            </Form.Item>
-            <Form.Item name="notes" label="Примечания">
-              <TextArea rows={3} />
-            </Form.Item>
-          </Form>
-        </Modal>
-      </Space>
+        <Dialog open={contactModalVisible} onOpenChange={setContactModalVisible}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editingContact ? 'Редактировать контакт' : 'Добавить контакт'}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleContactSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="contact_name">Имя *</Label>
+                <Input
+                  id="contact_name"
+                  value={contactFormData.name || ''}
+                  onChange={(e) => setContactFormData({ ...contactFormData, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="contact_last_name">Фамилия</Label>
+                <Input
+                  id="contact_last_name"
+                  value={contactFormData.last_name || ''}
+                  onChange={(e) =>
+                    setContactFormData({ ...contactFormData, last_name: e.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="contact_position">Должность</Label>
+                <Input
+                  id="contact_position"
+                  value={contactFormData.position || ''}
+                  onChange={(e) =>
+                    setContactFormData({ ...contactFormData, position: e.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="contact_phone">Телефон</Label>
+                <Input
+                  id="contact_phone"
+                  value={contactFormData.phone || ''}
+                  onChange={(e) =>
+                    setContactFormData({ ...contactFormData, phone: e.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="contact_email">Email</Label>
+                <Input
+                  id="contact_email"
+                  type="email"
+                  value={contactFormData.email || ''}
+                  onChange={(e) =>
+                    setContactFormData({ ...contactFormData, email: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="contact_is_primary"
+                  checked={contactFormData.is_primary || false}
+                  onCheckedChange={(checked: boolean) =>
+                    setContactFormData({ ...contactFormData, is_primary: checked })
+                  }
+                />
+                <Label htmlFor="contact_is_primary" className="cursor-pointer">
+                  Основной контакт
+                </Label>
+              </div>
+
+              <div>
+                <Label htmlFor="contact_notes">Примечания</Label>
+                <Textarea
+                  id="contact_notes"
+                  rows={3}
+                  value={contactFormData.notes || ''}
+                  onChange={(e) =>
+                    setContactFormData({ ...contactFormData, notes: e.target.value })
+                  }
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setContactModalVisible(false);
+                    setEditingContact(null);
+                    setContactFormData({});
+                  }}
+                >
+                  Отмена
+                </Button>
+                <Button type="submit">{editingContact ? 'Сохранить' : 'Добавить'}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
     </MainLayout>
   );
 }
