@@ -15,7 +15,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Notify Telegram - Deployment Started
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="🚀 *Kvota Backend* deployment started...%0A%0ACommit: \`${{ github.sha }}\`%0ABranch: ${{ github.ref_name }}" \
+            -d parse_mode=Markdown
+
       - name: Deploy via SSH
+        id: deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -36,3 +44,19 @@ jobs:
             # Show status
             docker ps | grep kvota
             echo "✅ Deployment complete!"
+
+      - name: Notify Telegram - Success
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="✅ *Kvota Backend* deployed successfully!%0A%0A🔗 https://api.kvotaflow.ru" \
+            -d parse_mode=Markdown
+
+      - name: Notify Telegram - Failure
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="❌ *Kvota Backend* deployment FAILED!%0A%0ACheck: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -d parse_mode=Markdown
