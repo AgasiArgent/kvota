@@ -25,6 +25,90 @@
 - ~~Complete shadcn/ui migration and testing~~ ✅ (Session 67)
 - ~~Fix templates endpoint missing supabase dependency~~ ✅ (Session 68)
 - ~~VPS Migration + CreateQuoteModal Fix~~ ✅ (Session 69)
+- ~~Telegram notifications + Sentry on VPS~~ ✅ (Session 70)
+
+---
+
+## Session 70 (2025-12-07) - Telegram Notifications & Sentry Setup
+
+### Goal
+1. Fix Vercel auth issue (wrong Supabase anon key)
+2. Add Telegram notifications for VPS deployments
+3. Set up Sentry error tracking on VPS backend
+
+### Status: COMPLETE ✅
+
+**Time:** ~30 minutes
+
+---
+
+### Fix 1: Vercel Auth Issue
+
+**Problem:**
+Login on kvotaflow.ru failed with "invalid authentication credentials"
+
+**Root Cause:**
+Frontend was using OLD Supabase Cloud anon key instead of VPS self-hosted key
+
+**Fix:**
+- Updated `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel Production environment
+- Redeployed with "Use existing Build Cache" OFF
+
+---
+
+### Fix 2: Telegram Notifications
+
+**Problem:**
+User wanted deployment notifications like Railway had
+
+**Solution:**
+Updated `.github/workflows/deploy-vps.yml` with Telegram notification steps:
+- Deployment started notification
+- Success notification with API URL
+- Failure notification with Actions link
+
+**GitHub Secrets Added:**
+- `TELEGRAM_BOT_TOKEN` = 8288034487:AAG8vtWgkiCXjWAQafNAwjGLVxxB683JoGA
+- `TELEGRAM_CHAT_ID` = 43379140
+
+**PR:** #15 (open, ready to merge)
+
+---
+
+### Fix 3: Sentry Error Tracking on VPS
+
+**Problem:**
+Sentry was integrated in backend code but not configured on VPS
+
+**Solution:**
+Updated `/root/lisa/docker-compose.override.kvota.yml` on VPS:
+```yaml
+environment:
+  - SENTRY_DSN=https://0198c12578d98e6ff26efa4bd449fc4e@o4510363675197440.ingest.us.sentry.io/4510363732606981
+  - ENVIRONMENT=production
+  - SUPABASE_ANON_KEY=${ANON_KEY}  # Fixed from SUPABASE_KEY
+  - POSTGRES_DIRECT_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres  # Added
+```
+
+**Issues Fixed:**
+1. Wrong service (n8n-ffmpeg) → Correct service (kvota-backend)
+2. `docker restart` doesn't pick up env vars → Use `docker compose up -d --force-recreate`
+3. Missing `SUPABASE_ANON_KEY` → Changed from `SUPABASE_KEY`
+4. Missing `POSTGRES_DIRECT_URL` → Added
+
+**Verification:**
+- API healthy: `{"status":"healthy","database":"connected"}`
+- Sentry initialized: `✅ Sentry error tracking initialized`
+- User received test Telegram notifications
+
+---
+
+### Files Modified
+- `.github/workflows/deploy-vps.yml` - Added Telegram notification steps
+- `/root/lisa/docker-compose.override.kvota.yml` (VPS) - Added Sentry DSN + fixed env vars
+
+### Pending
+- Merge PR #15 to main to activate Telegram notifications
 
 ---
 
