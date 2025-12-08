@@ -35,10 +35,11 @@
 1. Fix Vercel auth issue (wrong Supabase anon key)
 2. Add Telegram notifications for VPS deployments
 3. Set up Sentry error tracking on VPS backend
+4. Fix frontend Sentry DSN
 
 ### Status: COMPLETE ✅
 
-**Time:** ~30 minutes
+**Time:** ~45 minutes
 
 ---
 
@@ -71,7 +72,7 @@ Updated `.github/workflows/deploy-vps.yml` with Telegram notification steps:
 - `TELEGRAM_BOT_TOKEN` = 8288034487:AAG8vtWgkiCXjWAQafNAwjGLVxxB683JoGA
 - `TELEGRAM_CHAT_ID` = 43379140
 
-**PR:** #15 (open, ready to merge)
+**PR:** #15 ✅ MERGED
 
 ---
 
@@ -103,12 +104,34 @@ environment:
 
 ---
 
+### Fix 4: Frontend Sentry DSN
+
+**Problem:**
+Frontend Sentry project (`javascript-nextjs`) showed "Get Started" - no events received
+
+**Root Cause:**
+DSN in code was for a different/old Sentry project
+
+**Fix:**
+Updated all 3 Sentry config files with correct DSN:
+- `frontend/sentry.client.config.ts`
+- `frontend/sentry.server.config.ts`
+- `frontend/sentry.edge.config.ts`
+
+**PR:** #16 ✅ MERGED
+
+---
+
 ### Files Modified
 - `.github/workflows/deploy-vps.yml` - Added Telegram notification steps
-- `/root/lisa/docker-compose.override.kvota.yml` (VPS) - Added Sentry DSN + fixed env vars
+- `/root/lisa/docker-compose.override.kvota.yml` (VPS) - Added Sentry DSN + DATABASE_URL + POSTGRES_DIRECT_URL
+- `frontend/sentry.*.config.ts` - Updated DSN to correct project
 
-### Pending
-- Merge PR #15 to main to activate Telegram notifications
+### PRs Merged
+- **PR #15** - Telegram notifications for VPS deploys
+- **PR #16** - Frontend Sentry DSN fix
+
+**Last Updated:** 2025-12-07 (Session 70)
 
 ---
 
