@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ICellRendererParams, ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -70,7 +70,8 @@ export default function QuotesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
 
-  // Filters
+  // Filters with transition for better INP
+  const [isPending, startTransition] = useTransition();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [authorFilter, setAuthorFilter] = useState<string | undefined>(undefined);
@@ -479,27 +480,36 @@ export default function QuotesPage() {
         {/* Filters */}
         <QuoteFilters
           searchTerm={searchTerm}
-          onSearchChange={(v) => {
-            setSearchTerm(v);
-            setCurrentPage(1);
-          }}
+          onSearchChange={(v) =>
+            startTransition(() => {
+              setSearchTerm(v);
+              setCurrentPage(1);
+            })
+          }
           statusFilter={statusFilter}
-          onStatusChange={(v) => {
-            setStatusFilter(v);
-            setCurrentPage(1);
-          }}
+          onStatusChange={(v) =>
+            startTransition(() => {
+              setStatusFilter(v);
+              setCurrentPage(1);
+            })
+          }
           authorFilter={authorFilter}
-          onAuthorChange={(v) => {
-            setAuthorFilter(v);
-            setCurrentPage(1);
-          }}
+          onAuthorChange={(v) =>
+            startTransition(() => {
+              setAuthorFilter(v);
+              setCurrentPage(1);
+            })
+          }
           teamMembers={teamMembers}
           loadingMembers={loadingMembers}
         />
 
         {/* Table */}
         <div
-          className="ag-theme-custom-dark rounded-lg border border-border overflow-hidden"
+          className={cn(
+            'ag-theme-custom-dark rounded-lg border border-border overflow-hidden',
+            isPending && 'opacity-70 transition-opacity'
+          )}
           style={{ height: 600 }}
         >
           {loading ? (
