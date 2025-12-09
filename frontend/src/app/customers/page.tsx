@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Search as SearchIcon, X, Phone, Mail } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,7 +31,8 @@ export default function CustomersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
 
-  // Filters
+  // Filters with transition for better INP
+  const [isPending, startTransition] = useTransition();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
@@ -156,12 +157,15 @@ export default function CustomersPage() {
             <Input
               placeholder="Поиск по названию, ИНН..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => startTransition(() => setSearchTerm(e.target.value))}
               className="pl-9 bg-background/50 border-border/50 placeholder:text-foreground/30"
             />
           </div>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select
+            value={statusFilter}
+            onValueChange={(v: string) => startTransition(() => setStatusFilter(v))}
+          >
             <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
               <SelectValue placeholder="Статус" />
             </SelectTrigger>
@@ -186,7 +190,12 @@ export default function CustomersPage() {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg border border-border overflow-hidden bg-card">
+        <div
+          className={cn(
+            'rounded-lg border border-border overflow-hidden bg-card',
+            isPending && 'opacity-70 transition-opacity'
+          )}
+        >
           {loading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 10 }).map((_, i) => (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -59,7 +59,8 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
 
-  // Filters
+  // Filters with transition for better INP
+  const [isPending, startTransition] = useTransition();
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('');
   const [assignedFilter, setAssignedFilter] = useState<string>('');
@@ -250,12 +251,15 @@ export default function LeadsPage() {
             <Input
               placeholder="Поиск по названию, email, ИНН"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => startTransition(() => setSearchTerm(e.target.value))}
               className="pl-9 bg-background/50 border-border/50 placeholder:text-foreground/30"
             />
           </div>
 
-          <Select value={stageFilter} onValueChange={setStageFilter}>
+          <Select
+            value={stageFilter}
+            onValueChange={(v: string) => startTransition(() => setStageFilter(v))}
+          >
             <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
               <SelectValue placeholder="Этап" />
             </SelectTrigger>
@@ -268,7 +272,10 @@ export default function LeadsPage() {
             </SelectContent>
           </Select>
 
-          <Select value={assignedFilter} onValueChange={setAssignedFilter}>
+          <Select
+            value={assignedFilter}
+            onValueChange={(v: string) => startTransition(() => setAssignedFilter(v))}
+          >
             <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
               <SelectValue placeholder="Ответственный" />
             </SelectTrigger>
@@ -281,7 +288,7 @@ export default function LeadsPage() {
           <Input
             placeholder="Сегмент"
             value={segmentFilter}
-            onChange={(e) => setSegmentFilter(e.target.value)}
+            onChange={(e) => startTransition(() => setSegmentFilter(e.target.value))}
             className="w-[160px] bg-background/50 border-border/50 placeholder:text-foreground/30"
           />
 
@@ -299,7 +306,12 @@ export default function LeadsPage() {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg border border-border overflow-hidden bg-card">
+        <div
+          className={cn(
+            'rounded-lg border border-border overflow-hidden bg-card',
+            isPending && 'opacity-70 transition-opacity'
+          )}
+        >
           {loading ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 10 }).map((_, i) => (
