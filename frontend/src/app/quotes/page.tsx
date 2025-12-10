@@ -1,6 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useTransition } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useTransition,
+  useMemo,
+  useCallback,
+  memo,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ICellRendererParams, ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
@@ -54,6 +62,86 @@ interface QuoteListItem {
   quote_date?: string;
   valid_until?: string;
 }
+
+// Memoized formatting functions (outside component to avoid recreation)
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
+const getCurrencyFormatter = (currency: string) => {
+  if (!currencyFormatters.has(currency)) {
+    currencyFormatters.set(
+      currency,
+      new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: currency || 'USD',
+        minimumFractionDigits: 0,
+      })
+    );
+  }
+  return currencyFormatters.get(currency)!;
+};
+
+const formatCurrencyStatic = (amount: number, currency: string) => {
+  return getCurrencyFormatter(currency || 'USD').format(amount);
+};
+
+const formatDateStatic = (date: string) => {
+  return new Date(date).toLocaleDateString('ru-RU');
+};
+
+// Memoized cell renderers (defined outside component)
+const QuoteNumberCell = memo(({ value }: { value: string }) => (
+  <span className="font-medium text-foreground/90 cursor-pointer hover:text-foreground">
+    {value}
+  </span>
+));
+QuoteNumberCell.displayName = 'QuoteNumberCell';
+
+const ProfitCell = memo(({ value }: { value: number | null }) => {
+  if (!value) return <span className="text-foreground/40">—</span>;
+  const isPositive = value >= 0;
+  return (
+    <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
+      ${value.toLocaleString('ru-RU', { minimumFractionDigits: 0 })}
+    </span>
+  );
+});
+ProfitCell.displayName = 'ProfitCell';
+
+// Actions menu - memoized with callbacks
+interface ActionsMenuProps {
+  data: QuoteListItem;
+  onSubmitForApproval: (id: string, quoteNumber: string) => void;
+  onExport: (id: string, type: 'validation' | 'invoice') => void;
+}
+
+const ActionsMenu = memo(({ data, onSubmitForApproval, onExport }: ActionsMenuProps) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      {data.workflow_state === 'draft' && (
+        <>
+          <DropdownMenuItem onClick={() => onSubmitForApproval(data.id, data.quote_number)}>
+            <Send className="mr-2 h-4 w-4" />
+            На утверждение
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+      )}
+      <DropdownMenuItem onClick={() => onExport(data.id, 'validation')}>
+        <FileSpreadsheet className="mr-2 h-4 w-4" />
+        Экспорт для проверки
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => onExport(data.id, 'invoice')}>
+        <FileDown className="mr-2 h-4 w-4" />
+        Счёт (Invoice)
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+));
+ActionsMenu.displayName = 'ActionsMenu';
 
 export default function QuotesPage() {
   const router = useRouter();
@@ -178,15 +266,21 @@ export default function QuotesPage() {
     }
   };
 
-  // Calculate stats
-  const approvedQuotes = quotes.filter(
-    (q) =>
-      q.workflow_state === 'financially_approved' || q.workflow_state === 'accepted_by_customer'
-  ).length;
-  const pendingQuotes = quotes.filter(
-    (q) => q.workflow_state === 'awaiting_financial_approval'
-  ).length;
-  const totalProfitUsd = quotes.reduce((sum, q) => sum + (q.total_profit_usd || 0), 0);
+  // Calculate stats - memoized to avoid recalculation on unrelated state changes
+  const { approvedQuotes, pendingQuotes, totalProfitUsd } = useMemo(() => {
+    const approved = quotes.filter(
+      (q: QuoteListItem) =>
+        q.workflow_state === 'financially_approved' || q.workflow_state === 'accepted_by_customer'
+    ).length;
+    const pending = quotes.filter(
+      (q: QuoteListItem) => q.workflow_state === 'awaiting_financial_approval'
+    ).length;
+    const profit = quotes.reduce(
+      (sum: number, q: QuoteListItem) => sum + (q.total_profit_usd || 0),
+      0
+    );
+    return { approvedQuotes: approved, pendingQuotes: pending, totalProfitUsd: profit };
+  }, [quotes]);
 
   // Handlers
   const handleDownloadTemplate = async () => {
@@ -311,131 +405,94 @@ export default function QuotesPage() {
     }
   };
 
-  // Format helpers
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: currency || 'USD',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  // Memoized callbacks for actions menu
+  const handleOpenSubmitModal = useCallback((id: string, quoteNumber: string) => {
+    setSubmitQuoteId(id);
+    setSubmitQuoteNumber(quoteNumber);
+    setSubmitModalOpen(true);
+  }, []);
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('ru-RU');
-  };
+  const handleExportMemo = useCallback((quoteId: string, type: 'validation' | 'invoice') => {
+    handleExport(quoteId, type);
+  }, []);
 
-  // ag-Grid column definitions
+  // ag-Grid column definitions - memoized to prevent recreation on every render
   // Column definitions with consistent alignment:
   // - Text columns: left-aligned (header + data)
   // - Number columns: right-aligned (header + data)
   // - Center: status badges only
-  const columnDefs: ColDef[] = [
-    {
-      field: 'quote_number',
-      headerName: '№ КП',
-      width: 130,
-      cellRenderer: (params: ICellRendererParams) => (
-        <span className="font-medium text-foreground/90 cursor-pointer hover:text-foreground">
-          {params.value}
-        </span>
-      ),
-    },
-    {
-      field: 'customer_name',
-      headerName: 'Клиент',
-      flex: 1,
-      minWidth: 180,
-      cellClass: 'text-foreground/90',
-    },
-    {
-      field: 'created_by_name',
-      headerName: 'Автор',
-      width: 150,
-      cellClass: 'text-foreground/55',
-      valueFormatter: (params) => params.value || '—',
-    },
-    {
-      field: 'total_with_vat_quote',
-      headerName: 'Сумма',
-      width: 140,
-      type: 'rightAligned',
-      cellClass: 'font-mono-numbers text-foreground/90',
-      valueFormatter: (params) =>
-        params.value ? formatCurrency(params.value, params.data.currency) : '—',
-    },
-    {
-      field: 'total_profit_usd',
-      headerName: 'Прибыль',
-      width: 120,
-      type: 'rightAligned',
-      cellClass: 'font-mono-numbers',
-      cellRenderer: (params: ICellRendererParams) => {
-        if (!params.value) return <span className="text-foreground/40">—</span>;
-        const isPositive = params.value >= 0;
-        return (
-          <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
-            ${params.value.toLocaleString('ru-RU', { minimumFractionDigits: 0 })}
-          </span>
-        );
+  const columnDefs: ColDef[] = useMemo(
+    () => [
+      {
+        field: 'quote_number',
+        headerName: '№ КП',
+        width: 130,
+        cellRenderer: (params: ICellRendererParams) => <QuoteNumberCell value={params.value} />,
       },
-    },
-    {
-      field: 'workflow_state',
-      headerName: 'Статус',
-      width: 140,
-      cellStyle: { display: 'flex', alignItems: 'center' },
-      cellRenderer: (params: ICellRendererParams) => (
-        <StatusBadge status={params.value || 'draft'} />
-      ),
-    },
-    {
-      field: 'quote_date',
-      headerName: 'Дата',
-      width: 110,
-      cellClass: 'text-foreground/55',
-      valueFormatter: (params) => (params.value ? formatDate(params.value) : '—'),
-    },
-    {
-      headerName: '',
-      width: 60,
-      sortable: false,
-      filter: false,
-      cellRenderer: (params: ICellRendererParams) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {params.data.workflow_state === 'draft' && (
-              <>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setSubmitQuoteId(params.data.id);
-                    setSubmitQuoteNumber(params.data.quote_number);
-                    setSubmitModalOpen(true);
-                  }}
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  На утверждение
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            )}
-            <DropdownMenuItem onClick={() => handleExport(params.data.id, 'validation')}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Экспорт для проверки
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport(params.data.id, 'invoice')}>
-              <FileDown className="mr-2 h-4 w-4" />
-              Счёт (Invoice)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
-    },
-  ];
+      {
+        field: 'customer_name',
+        headerName: 'Клиент',
+        flex: 1,
+        minWidth: 180,
+        cellClass: 'text-foreground/90',
+      },
+      {
+        field: 'created_by_name',
+        headerName: 'Автор',
+        width: 150,
+        cellClass: 'text-foreground/55',
+        valueFormatter: (params: { value: string }) => params.value || '—',
+      },
+      {
+        field: 'total_with_vat_quote',
+        headerName: 'Сумма',
+        width: 140,
+        type: 'rightAligned',
+        cellClass: 'font-mono-numbers text-foreground/90',
+        valueFormatter: (params: { value: number; data: QuoteListItem }) =>
+          params.value ? formatCurrencyStatic(params.value, params.data.currency || 'USD') : '—',
+      },
+      {
+        field: 'total_profit_usd',
+        headerName: 'Прибыль',
+        width: 120,
+        type: 'rightAligned',
+        cellClass: 'font-mono-numbers',
+        cellRenderer: (params: ICellRendererParams) => <ProfitCell value={params.value} />,
+      },
+      {
+        field: 'workflow_state',
+        headerName: 'Статус',
+        width: 140,
+        cellStyle: { display: 'flex', alignItems: 'center' },
+        cellRenderer: (params: ICellRendererParams) => (
+          <StatusBadge status={params.value || 'draft'} />
+        ),
+      },
+      {
+        field: 'quote_date',
+        headerName: 'Дата',
+        width: 110,
+        cellClass: 'text-foreground/55',
+        valueFormatter: (params: { value: string }) =>
+          params.value ? formatDateStatic(params.value) : '—',
+      },
+      {
+        headerName: '',
+        width: 60,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params: ICellRendererParams) => (
+          <ActionsMenu
+            data={params.data}
+            onSubmitForApproval={handleOpenSubmitModal}
+            onExport={handleExportMemo}
+          />
+        ),
+      },
+    ],
+    [handleOpenSubmitModal, handleExportMemo]
+  );
 
   const defaultColDef: ColDef = {
     sortable: true,
@@ -527,6 +584,9 @@ export default function QuotesPage() {
               defaultColDef={defaultColDef}
               rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
               suppressCellFocus={true}
+              // Disable text selection to prevent InvalidNodeTypeError on detached nodes
+              enableCellTextSelection={false}
+              ensureDomOrder={true}
               pagination
               paginationPageSize={pageSize}
               domLayout="normal"
