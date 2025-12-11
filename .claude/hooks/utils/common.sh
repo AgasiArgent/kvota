@@ -32,10 +32,10 @@ elif [ "$HOOKS_COLOR" = "always" ]; then
   HOOKS_COLOR=1
 fi
 
-# Source colors if enabled
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Source colors if enabled (use _UTILS_DIR to avoid overwriting SCRIPT_DIR from calling script)
+_UTILS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ "$HOOKS_COLOR" = "1" ]; then
-  source "$SCRIPT_DIR/colors.sh"
+  source "$_UTILS_DIR/colors.sh"
 else
   # Define empty color variables
   RED="" GREEN="" YELLOW="" BLUE="" NC="" BOLD="" DIM=""
