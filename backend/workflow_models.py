@@ -87,7 +87,7 @@ class WorkflowTransitionResponse(BaseModel):
 class WorkflowSettings(BaseModel):
     """Organization workflow configuration"""
     organization_id: str
-    workflow_mode: WorkflowMode = WorkflowMode.SIMPLE
+    workflow_mode: WorkflowMode = "simple"
 
     # Thresholds (default: no thresholds - everything auto-approved)
     financial_approval_threshold_usd: Decimal = Decimal("0")
