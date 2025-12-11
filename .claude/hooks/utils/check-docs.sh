@@ -13,7 +13,8 @@ source "$SCRIPT_DIR/common.sh"
 
 # Default configuration
 DEFAULT_THRESHOLD_MINUTES=30
-PROJECT_ROOT="/home/novi/quotation-app-dev"
+# Determine project root dynamically (utils is inside .claude/hooks)
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 # Parse command line arguments
 ARGS=$(parse_args "$@")
