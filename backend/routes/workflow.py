@@ -39,12 +39,12 @@ async def transition_quote_workflow(
     - Current state allows this action
     - Required fields are filled
     """
-    # Get quote
+    # Get quote (use maybe_single to avoid PGRST116 on 0 rows)
     quote_result = supabase.table("quotes")\
         .select("*")\
         .eq("id", str(quote_id))\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
+        .maybe_single()\
         .execute()
 
     if not quote_result.data:
@@ -55,14 +55,24 @@ async def transition_quote_workflow(
 
     quote = quote_result.data
 
-    # Get workflow settings
+    # Get workflow settings (use maybe_single to handle missing settings)
     settings_result = supabase.table("organization_workflow_settings")\
         .select("*")\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
+        .maybe_single()\
         .execute()
 
-    settings = WorkflowSettings(**settings_result.data)
+    if not settings_result.data:
+        # Return default settings if not configured
+        settings = WorkflowSettings(
+            organization_id=str(user.current_organization_id),
+            workflow_mode="simple",
+            thresholds=[],
+            require_procurement_review=False,
+            require_logistics_customs_parallel=False
+        )
+    else:
+        settings = WorkflowSettings(**settings_result.data)
 
     # Validate transition
     validator = WorkflowValidator(settings)
@@ -227,12 +237,12 @@ async def get_quote_workflow_status(
     - Full transition history
     - Senior approval progress
     """
-    # Get quote
+    # Get quote (use maybe_single to avoid PGRST116 on 0 rows)
     quote_result = supabase.table("quotes")\
         .select("*")\
         .eq("id", str(quote_id))\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
+        .maybe_single()\
         .execute()
 
     if not quote_result.data:
@@ -243,14 +253,24 @@ async def get_quote_workflow_status(
 
     quote = quote_result.data
 
-    # Get workflow settings
+    # Get workflow settings (use maybe_single to handle missing settings)
     settings_result = supabase.table("organization_workflow_settings")\
         .select("*")\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
+        .maybe_single()\
         .execute()
 
-    settings = WorkflowSettings(**settings_result.data)
+    if not settings_result.data:
+        # Return default settings if not configured
+        settings = WorkflowSettings(
+            organization_id=str(user.current_organization_id),
+            workflow_mode="simple",
+            thresholds=[],
+            require_procurement_review=False,
+            require_logistics_customs_parallel=False
+        )
+    else:
+        settings = WorkflowSettings(**settings_result.data)
 
     # Get transition history
     history_result = supabase.table("quote_workflow_transitions")\

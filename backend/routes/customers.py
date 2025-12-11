@@ -5,7 +5,6 @@ Full CRUD operations with Russian business validation
 from typing import List, Optional
 from uuid import UUID
 
-import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import JSONResponse
 from supabase import Client
@@ -16,7 +15,6 @@ from models import (
     Customer, CustomerCreate, CustomerUpdate, CustomerListResponse,
     PaginationParams, SuccessResponse, ErrorResponse
 )
-import os
 from services.activity_log_service import log_activity, log_activity_decorator
 
 
@@ -29,29 +27,6 @@ router = APIRouter(
     tags=["customers"],
     dependencies=[Depends(get_current_user)]  # All endpoints require authentication
 )
-
-
-# ============================================================================
-# DATABASE HELPER FUNCTIONS
-# ============================================================================
-
-async def get_db_connection():
-    """Get database connection with proper error handling"""
-    try:
-        return await asyncpg.connect(os.getenv("DATABASE_URL"))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database connection failed: {str(e)}"
-        )
-
-
-async def set_rls_context(conn, user: User):
-    """Set Row Level Security context for database queries"""
-    await conn.execute(
-        "SELECT set_config('request.jwt.claims', $1, true)", 
-        f'{{"sub": "{user.id}", "role": "authenticated"}}'
-    )
 
 
 # ============================================================================
@@ -684,49 +659,73 @@ async def delete_contact(
 
 @router.get("/stats/overview")
 async def get_customer_stats(
-    user: User = Depends(require_permission("customers:read"))
+    user: User = Depends(require_permission("customers:read")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get customer statistics overview
 
     Useful for dashboard and reporting
     """
-    conn = await get_db_connection()
     try:
-        await set_rls_context(conn, user)
+        # Check if user has an organization
+        if not user.current_organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not associated with any organization"
+            )
 
-        stats = await conn.fetchrow("""
-            SELECT
-                COUNT(*) as total_customers,
-                COUNT(*) FILTER (WHERE status = 'active') as active_customers,
-                COUNT(*) FILTER (WHERE status = 'inactive') as inactive_customers,
-                COUNT(*) FILTER (WHERE company_type = 'organization') as organizations,
-                COUNT(*) FILTER (WHERE company_type = 'individual_entrepreneur') as entrepreneurs,
-                COUNT(*) FILTER (WHERE region = 'Москва') as moscow_customers,
-                AVG(credit_limit) as avg_credit_limit,
-                SUM(credit_limit) as total_credit_limit
-            FROM customers
-        """)
+        # Get all customers for the organization
+        result = supabase.table("customers").select("*")\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
 
-        # Get regional breakdown
-        regions = await conn.fetch("""
-            SELECT region, COUNT(*) as count
-            FROM customers
-            WHERE region IS NOT NULL
-            GROUP BY region
-            ORDER BY count DESC
-            LIMIT 10
-        """)
+        customers = result.data
+
+        # Calculate statistics in Python
+        total_customers = len(customers)
+        active_customers = sum(1 for c in customers if c.get('status') == 'active')
+        inactive_customers = sum(1 for c in customers if c.get('status') == 'inactive')
+        organizations = sum(1 for c in customers if c.get('company_type') == 'organization')
+        entrepreneurs = sum(1 for c in customers if c.get('company_type') == 'individual_entrepreneur')
+        moscow_customers = sum(1 for c in customers if c.get('region') == 'Москва')
+
+        # Calculate credit limit averages
+        credit_limits = [float(c.get('credit_limit', 0)) for c in customers if c.get('credit_limit')]
+        avg_credit_limit = sum(credit_limits) / len(credit_limits) if credit_limits else 0
+        total_credit_limit = sum(credit_limits)
+
+        # Calculate regional breakdown
+        region_counts = {}
+        for c in customers:
+            region = c.get('region')
+            if region:
+                region_counts[region] = region_counts.get(region, 0) + 1
+
+        # Sort by count descending and take top 10
+        top_regions = [
+            {"region": region, "count": count}
+            for region, count in sorted(region_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
 
         return {
-            "overview": dict(stats),
-            "top_regions": [dict(row) for row in regions]
+            "overview": {
+                "total_customers": total_customers,
+                "active_customers": active_customers,
+                "inactive_customers": inactive_customers,
+                "organizations": organizations,
+                "entrepreneurs": entrepreneurs,
+                "moscow_customers": moscow_customers,
+                "avg_credit_limit": round(avg_credit_limit, 2),
+                "total_credit_limit": round(total_credit_limit, 2)
+            },
+            "top_regions": top_regions
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve customer statistics: {str(e)}"
         )
-    finally:
-        await conn.close()
