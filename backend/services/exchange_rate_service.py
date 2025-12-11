@@ -1,8 +1,8 @@
 """
 Exchange Rate Service - Central Bank of Russia (CBR) API Integration
 
-CBR publishes rates once daily around 11:30-12:00 Moscow time.
-This service fetches rates once per day at 12:05 MSK and caches them in memory.
+CBR publishes rates once daily around 11:30-13:30 Moscow time (varies).
+This service fetches rates once per day at 14:00 MSK and caches them in memory.
 No database queries needed for rate lookups - pure in-memory cache.
 """
 import os
@@ -37,8 +37,8 @@ class ExchangeRateService:
     """
     Service for fetching and caching exchange rates from CBR API.
 
-    Rates are cached in memory and refreshed once daily at 12:05 MSK
-    (after CBR publishes new rates around 11:30-12:00).
+    Rates are cached in memory and refreshed once daily at 14:00 MSK
+    (after CBR publishes new rates around 11:30-13:30).
     """
 
     def __init__(self):
@@ -359,8 +359,8 @@ class ExchangeRateService:
         """
         Setup daily cron job to fetch exchange rates.
 
-        CBR publishes rates around 11:30-12:00 MSK.
-        We fetch at 12:05 MSK to ensure fresh rates are available.
+        CBR publishes rates around 11:30-13:30 MSK (varies).
+        We fetch at 14:00 MSK to ensure fresh rates are available.
         """
         if self.scheduler is not None:
             logger.warning("Scheduler already running")
@@ -368,10 +368,10 @@ class ExchangeRateService:
 
         self.scheduler = AsyncIOScheduler()
 
-        # Schedule daily at 12:05 PM Moscow time (UTC+3 = 09:05 UTC)
+        # Schedule daily at 14:00 Moscow time (UTC+3 = 11:00 UTC)
         trigger = CronTrigger(
-            hour=9,   # 12:00 MSK = 09:00 UTC
-            minute=5, # 5 minutes after CBR typically publishes
+            hour=11,   # 14:00 MSK = 11:00 UTC
+            minute=0,
             timezone="UTC"
         )
 
@@ -401,7 +401,7 @@ class ExchangeRateService:
         )
 
         self.scheduler.start()
-        logger.info("Exchange rate scheduler started (daily at 12:05 MSK)")
+        logger.info("Exchange rate scheduler started (daily at 14:00 MSK)")
 
     async def _scheduled_fetch(self) -> None:
         """Internal method for scheduled fetching with error handling"""
