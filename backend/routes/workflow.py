@@ -39,30 +39,28 @@ async def transition_quote_workflow(
     - Current state allows this action
     - Required fields are filled
     """
-    # Get quote (use maybe_single to avoid PGRST116 on 0 rows)
+    # Get quote (avoid .single() which throws PGRST116 on 0 rows)
     quote_result = supabase.table("quotes")\
         .select("*")\
         .eq("id", str(quote_id))\
         .eq("organization_id", str(user.current_organization_id))\
-        .maybe_single()\
         .execute()
 
-    if not quote_result.data:
+    if not quote_result.data or len(quote_result.data) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Quote not found"
         )
 
-    quote = quote_result.data
+    quote = quote_result.data[0]
 
-    # Get workflow settings (use maybe_single to handle missing settings)
+    # Get workflow settings (avoid .single() to handle missing settings gracefully)
     settings_result = supabase.table("organization_workflow_settings")\
         .select("*")\
         .eq("organization_id", str(user.current_organization_id))\
-        .maybe_single()\
         .execute()
 
-    if not settings_result.data:
+    if not settings_result.data or len(settings_result.data) == 0:
         # Return default settings if not configured
         settings = WorkflowSettings(
             organization_id=str(user.current_organization_id),
@@ -72,7 +70,7 @@ async def transition_quote_workflow(
             require_logistics_customs_parallel=False
         )
     else:
-        settings = WorkflowSettings(**settings_result.data)
+        settings = WorkflowSettings(**settings_result.data[0])
 
     # Validate transition
     validator = WorkflowValidator(settings)
@@ -237,30 +235,28 @@ async def get_quote_workflow_status(
     - Full transition history
     - Senior approval progress
     """
-    # Get quote (use maybe_single to avoid PGRST116 on 0 rows)
+    # Get quote (avoid .single() which throws PGRST116 on 0 rows)
     quote_result = supabase.table("quotes")\
         .select("*")\
         .eq("id", str(quote_id))\
         .eq("organization_id", str(user.current_organization_id))\
-        .maybe_single()\
         .execute()
 
-    if not quote_result.data:
+    if not quote_result.data or len(quote_result.data) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Quote not found"
         )
 
-    quote = quote_result.data
+    quote = quote_result.data[0]
 
-    # Get workflow settings (use maybe_single to handle missing settings)
+    # Get workflow settings (avoid .single() to handle missing settings gracefully)
     settings_result = supabase.table("organization_workflow_settings")\
         .select("*")\
         .eq("organization_id", str(user.current_organization_id))\
-        .maybe_single()\
         .execute()
 
-    if not settings_result.data:
+    if not settings_result.data or len(settings_result.data) == 0:
         # Return default settings if not configured
         settings = WorkflowSettings(
             organization_id=str(user.current_organization_id),
@@ -270,7 +266,7 @@ async def get_quote_workflow_status(
             require_logistics_customs_parallel=False
         )
     else:
-        settings = WorkflowSettings(**settings_result.data)
+        settings = WorkflowSettings(**settings_result.data[0])
 
     # Get transition history
     history_result = supabase.table("quote_workflow_transitions")\
