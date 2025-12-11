@@ -340,8 +340,9 @@ load_config() {
     source "$config_file"
   fi
 
-  # Also check project-specific config
-  local project_config="/home/novi/quotation-app-dev/.claude/hooks/config.conf"
+  # Also check project-specific config (dynamically find it relative to this script)
+  local common_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local project_config="$common_script_dir/../config.conf"
   if [ -f "$project_config" ]; then
     log_debug "Loading project configuration from $project_config"
     source "$project_config"

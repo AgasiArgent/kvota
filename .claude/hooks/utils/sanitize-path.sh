@@ -2,6 +2,10 @@
 # Path sanitization utility
 # Usage: SAFE_PATH=$(sanitize_path "$USER_INPUT")
 
+# Determine project root dynamically
+SANITIZE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SANITIZE_PROJECT_ROOT="$(cd "$SANITIZE_SCRIPT_DIR/../../.." && pwd)"
+
 sanitize_path() {
     local input="$1"
 
@@ -20,11 +24,11 @@ sanitize_path() {
     # Ensure it's within project directory
     if [[ "$input" != /* ]]; then
         # Relative path - make it absolute within project
-        input="/home/novi/quotation-app-dev/$input"
+        input="$SANITIZE_PROJECT_ROOT/$input"
     fi
 
     # Verify it's within allowed directory
-    if [[ "$input" != /home/novi/quotation-app-dev/* ]]; then
+    if [[ "$input" != "$SANITIZE_PROJECT_ROOT"/* ]]; then
         echo "ERROR: Path must be within project directory" >&2
         return 1
     fi

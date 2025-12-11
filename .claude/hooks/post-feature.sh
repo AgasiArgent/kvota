@@ -95,8 +95,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Setup
-PROJECT_ROOT="/home/novi/quotation-app-dev"
+# Setup - determine project root dynamically
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 START_TIME=$(date +%s)
 setup_error_handling
 
