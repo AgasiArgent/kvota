@@ -1,8 +1,9 @@
 """
 Exchange Rates API Endpoints
 
-CBR rates are fetched once daily at 12:05 MSK (after CBR publishes ~11:30-12:00).
+CBR rates are fetched once daily at 14:00 MSK (after CBR publishes ~11:30-13:30).
 Rates are cached in memory - lookups are instant, no DB queries.
+Admin users can manually trigger a refresh via POST /api/exchange-rates/refresh.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -10,7 +11,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import Optional, Dict
 
-from auth import get_current_user, User
+from auth import get_current_user, User, check_admin_permissions
 from services.exchange_rate_service import get_exchange_rate_service
 
 router = APIRouter(prefix="/api/exchange-rates", tags=["exchange-rates"])
@@ -111,4 +112,50 @@ async def get_exchange_rate(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch exchange rate: {str(e)}"
+        )
+
+
+class RefreshResponse(BaseModel):
+    """Response for manual refresh"""
+    success: bool
+    message: str
+    rates_count: int
+    cbr_date: Optional[str]
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+async def refresh_exchange_rates(user: User = Depends(get_current_user)):
+    """
+    Manually refresh exchange rates from CBR.
+
+    Admin-only endpoint to force-fetch fresh rates from CBR API.
+    Use this when rates appear stale or after system restart.
+
+    Returns:
+        Success status and new rates metadata
+    """
+    # Check admin permissions
+    await check_admin_permissions(user)
+
+    service = get_exchange_rate_service()
+
+    try:
+        # Force fetch from CBR (bypasses cache)
+        await service.fetch_cbr_rates()
+
+        # Get updated cache info
+        cache_info = service.get_cache_info()
+        rates = service.get_all_rates()
+
+        return RefreshResponse(
+            success=True,
+            message="Курсы валют успешно обновлены",
+            rates_count=len(rates),
+            cbr_date=cache_info.get("cbr_date")
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка обновления курсов: {str(e)}"
         )

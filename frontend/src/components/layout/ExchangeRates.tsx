@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 
 interface ExchangeRatesData {
   rates: Record<string, number>;
@@ -15,6 +16,7 @@ const DISPLAY_CURRENCIES = ['USD', 'EUR', 'CNY', 'TRY'];
 export default function ExchangeRates() {
   const [data, setData] = useState<ExchangeRatesData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchRates = async () => {
@@ -29,6 +31,43 @@ export default function ExchangeRates() {
       setError('Ошибка загрузки');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Force refresh from CBR (admin only)
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        setError('Не авторизован');
+        return;
+      }
+
+      const response = await fetch('/api/exchange-rates/refresh', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.message || 'Ошибка обновления');
+      }
+
+      // Fetch updated rates
+      await fetchRates();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка обновления');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -60,11 +99,12 @@ export default function ExchangeRates() {
           Курсы ЦБ РФ
         </span>
         <button
-          onClick={fetchRates}
-          disabled={loading}
+          onClick={handleRefresh}
+          disabled={loading || refreshing}
           className="text-muted-foreground hover:text-foreground transition-colors"
+          title="Обновить курсы с ЦБ РФ"
         >
-          <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
+          <RefreshCw className={cn('h-3 w-3', (loading || refreshing) && 'animate-spin')} />
         </button>
       </div>
 
