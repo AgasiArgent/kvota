@@ -15,7 +15,15 @@ import { ColDef, ICellRendererParams, ModuleRegistry, AllCommunityModule } from 
 
 // Register AG Grid modules (required for v34+)
 ModuleRegistry.registerModules([AllCommunityModule]);
-import { Download, Upload, MoreHorizontal, Send, FileDown, FileSpreadsheet } from 'lucide-react';
+import {
+  Download,
+  Upload,
+  MoreHorizontal,
+  Send,
+  FileDown,
+  FileSpreadsheet,
+  FileText,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import MainLayout from '@/components/layout/MainLayout';
@@ -574,6 +582,16 @@ export default function QuotesPage() {
               {Array.from({ length: 10 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
+            </div>
+          ) : quotes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <FileText className="h-16 w-16 mb-4 opacity-50" />
+              <p className="text-lg font-medium">КП не найдено</p>
+              <p className="text-sm mt-1">
+                {authorFilter
+                  ? 'По выбранному фильтру нет коммерческих предложений'
+                  : 'Создайте первое коммерческое предложение'}
+              </p>
             </div>
           ) : (
             <AgGridReact
