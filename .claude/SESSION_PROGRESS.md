@@ -6,9 +6,7 @@
 
 ## Current TODO
 
-- [ ] Test Dual Currency Storage E2E (verify `*_quote` columns populated)
-- [ ] Investigate Organization Switching Bug (customer goes to wrong org)
-- [ ] Test VPS Latency from Russia
+None - all clear!
 
 ---
 
