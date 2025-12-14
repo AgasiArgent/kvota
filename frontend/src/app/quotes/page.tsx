@@ -465,6 +465,15 @@ export default function QuotesPage() {
           params.value ? formatCurrencyStatic(params.value, params.data.currency || 'USD') : '—',
       },
       {
+        field: 'total_with_vat_usd',
+        headerName: 'Сумма $',
+        width: 130,
+        type: 'rightAligned',
+        cellClass: 'font-mono-numbers text-foreground/70',
+        valueFormatter: (params: { value: number }) =>
+          params.value ? formatCurrencyStatic(params.value, 'USD') : '—',
+      },
+      {
         field: 'total_profit_usd',
         headerName: 'Прибыль',
         width: 120,
