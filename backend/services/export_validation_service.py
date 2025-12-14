@@ -107,6 +107,19 @@ PERCENTAGE_FIELDS = {
     "markup",
 }
 
+# Fields that are monetary values (need USD → quote currency conversion)
+# These are stored in USD internally but Excel expects quote currency
+MONETARY_INPUT_FIELDS = {
+    "logistics_supplier_hub",
+    "logistics_hub_customs",
+    "logistics_customs_client",
+    "brokerage_hub",
+    "brokerage_customs",
+    "warehousing",
+    "documentation",
+    "other_costs",
+}
+
 
 # =============================================================================
 # CELL MAPPINGS - Quote Level Inputs
@@ -304,7 +317,12 @@ class ExportValidationService:
         quote_inputs: Dict[str, Any],
         product_inputs: List[Dict[str, Any]],
     ) -> None:
-        """Create API_Inputs sheet with all uploaded values."""
+        """Create API_Inputs sheet with all uploaded values.
+
+        Monetary values (logistics, brokerage) are stored in USD internally.
+        This sheet adds conversion formulas to convert them to quote currency
+        for the расчет sheet to reference.
+        """
 
         # Create or get sheet
         if "API_Inputs" in wb.sheetnames:
@@ -316,21 +334,40 @@ class ExportValidationService:
         # Header
         ws["A1"] = "API Input Values"
         ws["A1"].font = Font(bold=True, size=14)
-        ws.merge_cells("A1:C1")
+        ws.merge_cells("A1:D1")
+
+        # Exchange rate info (row 2) - used by formulas below
+        # Get rate from quote_inputs (passed from quotes_upload.py)
+        usd_to_quote_rate = quote_inputs.get("_usd_to_quote_rate", 1.0)
+        quote_currency = quote_inputs.get("_quote_currency", "USD")
+
+        ws["A2"] = "Exchange Rate:"
+        ws["B2"] = f"1 USD = {usd_to_quote_rate:.4f} {quote_currency}"
+        ws["B2"].font = Font(bold=True, color="0000FF")
+        ws["E2"] = usd_to_quote_rate  # Rate cell for formulas (E2)
+        ws["E2"].number_format = '0.0000'
+        ws["F2"] = "← Rate cell (E2)"
+        ws["F2"].font = Font(color="888888", italic=True)
+
+        # Store for later use
+        self._usd_to_quote_rate = usd_to_quote_rate
+        self._quote_currency = quote_currency
 
         # Section: Quote Settings
-        row = 3
+        row = 4
         ws[f"A{row}"] = "Quote Settings"
         ws[f"A{row}"].font = Font(bold=True)
         ws[f"A{row}"].fill = HEADER_FILL
         ws[f"B{row}"].fill = HEADER_FILL
         ws[f"C{row}"].fill = HEADER_FILL
+        ws[f"D{row}"].fill = HEADER_FILL
         row += 1
 
         ws[f"A{row}"] = "Cell"
         ws[f"B{row}"] = "Field"
-        ws[f"C{row}"] = "Value"
-        for col in ["A", "B", "C"]:
+        ws[f"C{row}"] = "Value (USD)"
+        ws[f"D{row}"] = f"Value ({quote_currency})"
+        for col in ["A", "B", "C", "D"]:
             ws[f"{col}{row}"].font = Font(bold=True)
             ws[f"{col}{row}"].border = THIN_BORDER
         row += 1
@@ -344,7 +381,19 @@ class ExportValidationService:
             # Use field-aware formatting (percentages, enums)
             ws[f"C{row}"] = self._format_input_value(value, field)
             ws[f"C{row}"].alignment = Alignment(horizontal="right")
-            for col in ["A", "B", "C"]:
+
+            # Column D: For monetary fields, add conversion formula
+            # For non-monetary fields, just reference C (passthrough)
+            if field in MONETARY_INPUT_FIELDS:
+                # Formula: =C{row}*$E$2 (USD value * exchange rate)
+                ws[f"D{row}"] = f"=C{row}*$E$2"
+                ws[f"D{row}"].number_format = '#,##0.00'
+            else:
+                # Non-monetary: passthrough (reference C directly)
+                ws[f"D{row}"] = f"=C{row}"
+
+            ws[f"D{row}"].alignment = Alignment(horizontal="right")
+            for col in ["A", "B", "C", "D"]:
                 ws[f"{col}{row}"].border = THIN_BORDER
             row += 1
 
@@ -373,7 +422,15 @@ class ExportValidationService:
         ws[f"B{row}"] = "Вознаграждение ЛПР"
         ws[f"C{row}"] = formatted_value
         ws[f"C{row}"].alignment = Alignment(horizontal="right")
-        for col in ["A", "B", "C"]:
+        # For fixed DM fee: convert from USD to quote currency (=C*$E$2)
+        # For percentage: passthrough (no conversion needed)
+        if is_percentage:
+            ws[f"D{row}"] = f"=C{row}"  # Percentage - passthrough
+        else:
+            ws[f"D{row}"] = f"=C{row}*$E$2"  # Fixed amount - convert USD to quote currency
+            ws[f"D{row}"].number_format = '#,##0.00'
+        ws[f"D{row}"].alignment = Alignment(horizontal="right")
+        for col in ["A", "B", "C", "D"]:
             ws[f"{col}{row}"].border = THIN_BORDER
 
         # Store for _modify_raschet_references
@@ -429,24 +486,31 @@ class ExportValidationService:
         # Adjust column widths
         ws.column_dimensions["A"].width = 10
         ws.column_dimensions["B"].width = 35
-        ws.column_dimensions["C"].width = 20
-        for col in range(4, col_idx + 1):
+        ws.column_dimensions["C"].width = 18
+        ws.column_dimensions["D"].width = 18
+        for col in range(5, col_idx + 1):
             ws.column_dimensions[get_column_letter(col)].width = 15
 
     def _modify_raschet_references(
         self, wb: openpyxl.Workbook, num_products: int
     ) -> None:
-        """Modify расчет sheet to reference API_Inputs."""
+        """Modify расчет sheet to reference API_Inputs.
+
+        References column D (converted to quote currency) for all values.
+        Column D contains:
+        - For monetary fields: =C*$E$2 (USD * exchange rate)
+        - For non-monetary fields: =C (passthrough)
+        """
 
         ws = wb["расчет"]
         inputs_sheet = "API_Inputs"
 
         # Quote-level inputs - create reference formulas
-        row = 5  # Start row in API_Inputs for quote values
+        # NOTE: Row numbers adjusted for new header layout (row 4 = header, row 5 = column names, row 6+ = data)
+        row = 6  # Start row in API_Inputs for quote values (after header rows)
         for cell_addr, (field, _) in QUOTE_INPUT_MAPPING.items():
-            # Create formula referencing API_Inputs
-            # The value is in column C of API_Inputs
-            ws[cell_addr] = f"='{inputs_sheet}'!C{row}"
+            # Create formula referencing API_Inputs column D (converted values)
+            ws[cell_addr] = f"='{inputs_sheet}'!D{row}"
             row += 1
 
         # D10 - Payment type based on advance_from_client
@@ -456,8 +520,9 @@ class ExportValidationService:
 
         # DM Fee value - placed in AG4 (Фикс) or AG6 (комиссия %)
         # The target cell and row were determined in _create_inputs_sheet
+        # Reference column D (converted value)
         if hasattr(self, '_dm_fee_target_cell') and hasattr(self, '_dm_fee_row'):
-            ws[self._dm_fee_target_cell] = f"='{inputs_sheet}'!C{self._dm_fee_row}"
+            ws[self._dm_fee_target_cell] = f"='{inputs_sheet}'!D{self._dm_fee_row}"
 
         # Product-level inputs
         # Use the stored row from _create_inputs_sheet (row after headers)
@@ -483,7 +548,10 @@ class ExportValidationService:
         api_results: Dict[str, Any],
         product_results: List[Dict[str, Any]],
     ) -> None:
-        """Create API_Results sheet with calculation outputs."""
+        """Create API_Results sheet with calculation outputs.
+
+        API results are in USD. Excel formulas convert to quote currency for comparison.
+        """
 
         # Create or get sheet
         if "API_Results" in wb.sheetnames:
@@ -493,12 +561,25 @@ class ExportValidationService:
             ws = wb.create_sheet("API_Results")
 
         # Header
-        ws["A1"] = "API Calculation Results"
+        ws["A1"] = "API Calculation Results (USD)"
         ws["A1"].font = Font(bold=True, size=14)
-        ws.merge_cells("A1:E1")
+        ws.merge_cells("A1:F1")
+
+        # Exchange rate info (row 2) - used by formulas below
+        # Store rate in G2 for formula reference
+        usd_to_quote_rate = api_results.get("_usd_to_quote_rate", 1.0)
+        quote_currency = api_results.get("_quote_currency", "USD")
+
+        ws["A2"] = "Exchange Rate:"
+        ws["B2"] = f"1 USD = {usd_to_quote_rate:.4f} {quote_currency}"
+        ws["B2"].font = Font(bold=True, color="0000FF")
+        ws["G2"] = usd_to_quote_rate  # Rate cell for formulas
+        ws["G2"].number_format = '0.0000'
+        ws["H2"] = "← Rate cell (G2)"
+        ws["H2"].font = Font(color="888888", italic=True)
 
         # Section: Quote Totals
-        row = 3
+        row = 4
         ws[f"A{row}"] = "Quote Totals"
         ws[f"A{row}"].font = Font(bold=True)
         ws[f"A{row}"].fill = HEADER_FILL
@@ -506,10 +587,11 @@ class ExportValidationService:
 
         ws[f"A{row}"] = "Cell"
         ws[f"B{row}"] = "Field"
-        ws[f"C{row}"] = "API Value"
-        ws[f"D{row}"] = "Excel Value"
-        ws[f"E{row}"] = "Diff %"
-        for col in ["A", "B", "C", "D", "E"]:
+        ws[f"C{row}"] = "API (USD)"
+        ws[f"D{row}"] = f"API ({quote_currency})"
+        ws[f"E{row}"] = f"Excel ({quote_currency})"
+        ws[f"F{row}"] = "Diff %"
+        for col in ["A", "B", "C", "D", "E", "F"]:
             ws[f"{col}{row}"].font = Font(bold=True)
             ws[f"{col}{row}"].border = THIN_BORDER
         row += 1
@@ -520,11 +602,14 @@ class ExportValidationService:
             ws[f"B{row}"] = display_name
             api_value = api_results.get(field)
             ws[f"C{row}"] = self._format_value(api_value)
-            ws[f"D{row}"] = f"=расчет!{cell_addr}"
-            # Diff formula (result as decimal for percentage formatting)
-            ws[f"E{row}"] = f'=IF(D{row}=0,"N/A",ABS(C{row}-D{row})/ABS(D{row}))'
-            ws[f"E{row}"].number_format = '0.00%'
-            for col in ["A", "B", "C", "D", "E"]:
+            # D = C * rate (convert USD to quote currency)
+            ws[f"D{row}"] = f"=C{row}*$G$2"
+            ws[f"D{row}"].number_format = '#,##0.00'
+            ws[f"E{row}"] = f"=расчет!{cell_addr}"
+            # Diff formula: compare D (API in quote currency) vs E (Excel in quote currency)
+            ws[f"F{row}"] = f'=IF(E{row}=0,"N/A",ABS(D{row}-E{row})/ABS(E{row}))'
+            ws[f"F{row}"].number_format = '0.00%'
+            for col in ["A", "B", "C", "D", "E", "F"]:
                 ws[f"{col}{row}"].border = THIN_BORDER
             row += 1
 
@@ -540,16 +625,18 @@ class ExportValidationService:
             ws[f"B{row}"] = display_name
             api_value = api_results.get(field)
             ws[f"C{row}"] = self._format_value(api_value)
-            ws[f"D{row}"] = f"=расчет!{cell_addr}"
-            ws[f"E{row}"] = f'=IF(D{row}=0,"N/A",ABS(C{row}-D{row})/ABS(D{row}))'
-            ws[f"E{row}"].number_format = '0.00%'
-            for col in ["A", "B", "C", "D", "E"]:
+            ws[f"D{row}"] = f"=C{row}*$G$2"
+            ws[f"D{row}"].number_format = '#,##0.00'
+            ws[f"E{row}"] = f"=расчет!{cell_addr}"
+            ws[f"F{row}"] = f'=IF(E{row}=0,"N/A",ABS(D{row}-E{row})/ABS(E{row}))'
+            ws[f"F{row}"].number_format = '0.00%'
+            for col in ["A", "B", "C", "D", "E", "F"]:
                 ws[f"{col}{row}"].border = THIN_BORDER
             row += 1
 
         # Section: Product Results
         row += 2
-        ws[f"A{row}"] = "Product Results"
+        ws[f"A{row}"] = "Product Results (USD)"
         ws[f"A{row}"].font = Font(bold=True)
         ws[f"A{row}"].fill = HEADER_FILL
         row += 1
@@ -593,9 +680,10 @@ class ExportValidationService:
         # Adjust column widths
         ws.column_dimensions["A"].width = 8
         ws.column_dimensions["B"].width = 30
-        ws.column_dimensions["C"].width = 18
-        ws.column_dimensions["D"].width = 18
-        ws.column_dimensions["E"].width = 10
+        ws.column_dimensions["C"].width = 15
+        ws.column_dimensions["D"].width = 15
+        ws.column_dimensions["E"].width = 15
+        ws.column_dimensions["F"].width = 10
 
     def _add_comparison_formatting(
         self, wb: openpyxl.Workbook, num_products: int
@@ -604,14 +692,15 @@ class ExportValidationService:
 
         ws = wb["API_Results"]
 
-        # Highlight E column (Diff %) where value > 0.01
+        # Highlight F column (Diff %) where value > 0.01%
+        # Sheet structure: C=API(USD), D=API(Quote), E=Excel(Quote), F=Diff%
         diff_rule = FormulaRule(
-            formula=["E5>0.01"],
+            formula=["F5>0.0001"],  # 0.01% = 0.0001 (F column contains decimal, not percent)
             fill=DIFF_FILL,
         )
 
         # Apply to diff column range
-        ws.conditional_formatting.add("E5:E100", diff_rule)
+        ws.conditional_formatting.add("F5:F100", diff_rule)
 
         # Also add comparison sheet for detailed product analysis
         self._create_comparison_sheet(wb, num_products)
@@ -619,7 +708,11 @@ class ExportValidationService:
     def _create_comparison_sheet(
         self, wb: openpyxl.Workbook, num_products: int
     ) -> None:
-        """Create detailed comparison sheet for products."""
+        """Create detailed comparison sheet for products.
+
+        API results are in USD, Excel (расчет) values are in quote currency.
+        We convert API values to quote currency using the rate from API_Results!G2.
+        """
 
         if "Comparison" in wb.sheetnames:
             ws = wb["Comparison"]
@@ -629,21 +722,30 @@ class ExportValidationService:
 
         ws["A1"] = "Detailed Comparison (Cells with >0.01% difference highlighted)"
         ws["A1"].font = Font(bold=True, size=12)
-        ws.merge_cells("A1:F1")
+        ws.merge_cells("A1:G1")
 
-        row = 3
+        # Exchange rate reference note
+        ws["A2"] = "Rate from API_Results!G2"
+        ws["A2"].font = Font(color="888888", italic=True)
+
+        row = 4
         ws[f"A{row}"] = "Product"
         ws[f"B{row}"] = "Cell"
         ws[f"C{row}"] = "Field"
-        ws[f"D{row}"] = "API Value"
-        ws[f"E{row}"] = "Excel Value"
-        ws[f"F{row}"] = "Diff %"
-        for col in ["A", "B", "C", "D", "E", "F"]:
+        ws[f"D{row}"] = "API (USD)"
+        ws[f"E{row}"] = "API (Quote)"
+        ws[f"F{row}"] = "Excel"
+        ws[f"G{row}"] = "Diff %"
+        for col in ["A", "B", "C", "D", "E", "F", "G"]:
             ws[f"{col}{row}"].font = Font(bold=True)
             ws[f"{col}{row}"].fill = HEADER_FILL
             ws[f"{col}{row}"].font = HEADER_FONT
             ws[f"{col}{row}"].border = THIN_BORDER
         row += 1
+
+        # Fields that are in BASE currency (not USD) - should NOT be converted
+        # N16 and P16 are the original purchase prices in supplier's currency
+        BASE_CURRENCY_FIELDS = {"purchase_price_no_vat", "purchase_price_after_discount"}
 
         # For each product and each output column
         for prod_idx in range(num_products):
@@ -655,35 +757,48 @@ class ExportValidationService:
                 ws[f"B{row}"] = f"{col_letter}{raschet_row}"
                 ws[f"C{row}"] = display_name
 
-                # API value from API_Results
+                # Column D: API value from API_Results
                 api_col = list(PRODUCT_OUTPUT_COLUMNS.keys()).index(col_letter) + 2
                 ws[f"D{row}"] = f"=API_Results!{get_column_letter(api_col)}{api_results_row}"
 
-                # Excel value from расчет
-                ws[f"E{row}"] = f"=расчет!{col_letter}{raschet_row}"
+                # Column E: API value for comparison
+                # N16 and P16 are in BASE currency (same as Excel) - no conversion needed
+                # All other fields are in USD - need conversion to quote currency
+                if field in BASE_CURRENCY_FIELDS:
+                    # Base currency fields: direct comparison (both in same currency)
+                    ws[f"E{row}"] = f"=D{row}"
+                else:
+                    # USD fields: convert to quote currency (D * rate)
+                    ws[f"E{row}"] = f"=D{row}*API_Results!$G$2"
+                ws[f"E{row}"].number_format = '#,##0.00'
 
-                # Diff percentage (as decimal for percentage formatting)
-                ws[f"F{row}"] = f'=IF(E{row}=0,"N/A",ABS(D{row}-E{row})/ABS(E{row}))'
-                ws[f"F{row}"].number_format = '0.00%'
+                # Column F: Excel value from расчет
+                ws[f"F{row}"] = f"=расчет!{col_letter}{raschet_row}"
 
-                for col in ["A", "B", "C", "D", "E", "F"]:
+                # Column G: Diff percentage - compare E (API, possibly converted) vs F (Excel)
+                ws[f"G{row}"] = f'=IF(F{row}=0,"N/A",ABS(E{row}-F{row})/ABS(F{row}))'
+                ws[f"G{row}"].number_format = '0.00%'
+
+                for col in ["A", "B", "C", "D", "E", "F", "G"]:
                     ws[f"{col}{row}"].border = THIN_BORDER
                 row += 1
 
         # Conditional formatting for diff > 0.01%
+        # G column contains diff as decimal (0.01% = 0.0001)
         diff_rule = FormulaRule(
-            formula=["$F4>0.01"],
+            formula=["$G5>0.0001"],  # G column, starting at row 5 (after headers)
             fill=DIFF_FILL,
         )
-        ws.conditional_formatting.add(f"A4:F{row}", diff_rule)
+        ws.conditional_formatting.add(f"A5:G{row}", diff_rule)
 
         # Adjust column widths
         ws.column_dimensions["A"].width = 10
         ws.column_dimensions["B"].width = 10
         ws.column_dimensions["C"].width = 30
-        ws.column_dimensions["D"].width = 18
-        ws.column_dimensions["E"].width = 18
-        ws.column_dimensions["F"].width = 12
+        ws.column_dimensions["D"].width = 15
+        ws.column_dimensions["E"].width = 15
+        ws.column_dimensions["F"].width = 15
+        ws.column_dimensions["G"].width = 10
 
     def _format_value(self, value: Any) -> Any:
         """Format value for Excel cell."""
