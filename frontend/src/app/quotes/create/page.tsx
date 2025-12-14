@@ -272,6 +272,9 @@ export default function CreateQuotePage() {
   const [supplierCountries, setSupplierCountries] = useState<
     Array<{ label: string; value: string }>
   >([]);
+  const [sellerCompanies, setSellerCompanies] = useState<
+    Array<{ id: string; name: string; supplier_code: string; country: string | null }>
+  >([]);
 
   // Calculate delivery_date from quote_date + delivery_time
   const deliveryDate = useMemo(() => {
@@ -291,6 +294,7 @@ export default function CreateQuotePage() {
     loadTemplates();
     loadAdminSettings();
     loadSupplierCountries();
+    loadSellerCompanies();
 
     // Set default values from quotesCalcService
     const defaultVars = quotesCalcService.getDefaultVariables();
@@ -455,6 +459,32 @@ export default function CreateQuotePage() {
     } catch (error) {
       console.error('Failed to load supplier countries:', error);
       setSupplierCountries([]);
+    }
+  };
+
+  const loadSellerCompanies = async () => {
+    try {
+      const apiUrl = config.apiUrl;
+      const supabase = (await import('@/lib/supabase/client')).createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) return;
+
+      const response = await fetch(`${apiUrl}/api/seller-companies/`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSellerCompanies(data);
+      }
+    } catch (error) {
+      console.error('Failed to load seller companies:', error);
+      setSellerCompanies([]);
     }
   };
 
@@ -1265,11 +1295,12 @@ export default function CreateQuotePage() {
                       <SelectValue placeholder="Выберите компанию" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="МАСТЕР БЭРИНГ ООО">МАСТЕР БЭРИНГ ООО (Россия)</SelectItem>
-                      <SelectItem value="TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ">
-                        TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ (Турция)
-                      </SelectItem>
-                      <SelectItem value="UPDOOR Limited">UPDOOR Limited (Китай)</SelectItem>
+                      {sellerCompanies.map((company) => (
+                        <SelectItem key={company.id} value={company.name}>
+                          {company.name}
+                          {company.country && ` (${company.country})`}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
