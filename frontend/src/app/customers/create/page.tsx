@@ -296,6 +296,77 @@ export default function CreateCustomerPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
+          {/* INN Lookup - Primary Entry Point */}
+          <Card className="mb-6 border-primary/20 bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-primary" />
+                Быстрый поиск по ИНН
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <div className="flex gap-2">
+                    <Input
+                      id="inn-lookup"
+                      maxLength={12}
+                      value={formData.inn || ''}
+                      onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
+                      onBlur={(e) => {
+                        const inn = e.target.value.replace(/\D/g, '');
+                        if (inn.length === 10 || inn.length === 12) {
+                          fetchCompanyByINN(inn);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const inn = formData.inn?.replace(/\D/g, '') || '';
+                          if (inn.length === 10 || inn.length === 12) {
+                            fetchCompanyByINN(inn);
+                          }
+                        }
+                      }}
+                      placeholder="Введите ИНН (10 или 12 цифр)"
+                      className={`text-lg ${validationErrors.inn ? 'border-destructive' : ''}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="default"
+                      disabled={lookupLoading || !formData.inn}
+                      onClick={() => formData.inn && fetchCompanyByINN(formData.inn)}
+                    >
+                      {lookupLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Search className="h-4 w-4 mr-2" />
+                      )}
+                      Найти
+                    </Button>
+                  </div>
+                  {validationErrors.inn && (
+                    <p className="text-xs text-destructive mt-1">{validationErrors.inn}</p>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Введите ИНН и нажмите «Найти» — реквизиты заполнятся автоматически из ЕГРЮЛ
+              </p>
+
+              {/* Director info from DaData */}
+              {directorInfo && (
+                <div className="mt-4 p-3 bg-background rounded-lg border">
+                  <p className="text-sm font-medium text-foreground/80">Руководитель</p>
+                  <p className="text-sm text-foreground mt-1">{directorInfo.name}</p>
+                  {directorInfo.position && (
+                    <p className="text-xs text-muted-foreground">{directorInfo.position}</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Main Content - 2/3 width */}
             <div className="lg:col-span-2 space-y-6">
@@ -485,93 +556,32 @@ export default function CreateCustomerPage() {
                 </CardContent>
               </Card>
 
-              {/* Business Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Реквизиты (ИНН, КПП, ОГРН)</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-sm text-foreground/60">
-                    {companyType === 'organization' && (
-                      <>
-                        <strong>ИНН организации:</strong> 10 цифр, <strong>КПП:</strong> 9 цифр,{' '}
-                        <strong>ОГРН:</strong> 13 цифр
-                      </>
-                    )}
-                    {companyType === 'individual_entrepreneur' && (
-                      <>
-                        <strong>ИНН ИП:</strong> 12 цифр (не 10!), <strong>ОГРНИП:</strong> 15 цифр
-                      </>
-                    )}
-                    {companyType === 'individual' && (
-                      <>
-                        <strong>ИНН физ. лица:</strong> 12 цифр (необязательно)
-                      </>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="inn">ИНН *</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="inn"
-                          maxLength={12}
-                          value={formData.inn || ''}
-                          onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
-                          onBlur={(e) => {
-                            const inn = e.target.value.replace(/\D/g, '');
-                            if (inn.length === 10 || inn.length === 12) {
-                              fetchCompanyByINN(inn);
-                            }
-                          }}
-                          placeholder={
-                            companyType === 'organization' ? '7701234567' : '770123456789'
-                          }
-                          className={validationErrors.inn ? 'border-destructive' : ''}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={lookupLoading || !formData.inn}
-                          onClick={() => formData.inn && fetchCompanyByINN(formData.inn)}
-                          title="Найти по ИНН"
-                        >
-                          {lookupLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Search className="h-4 w-4" />
+              {/* Business Details - KPP and OGRN only (INN is at top) */}
+              {(companyType === 'organization' || companyType === 'individual_entrepreneur') && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Дополнительные реквизиты</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {companyType === 'organization' && (
+                        <div>
+                          <Label htmlFor="kpp">КПП</Label>
+                          <Input
+                            id="kpp"
+                            maxLength={9}
+                            value={formData.kpp || ''}
+                            onChange={(e) => setFormData({ ...formData, kpp: e.target.value })}
+                            placeholder="770101001"
+                            className={validationErrors.kpp ? 'border-destructive' : ''}
+                          />
+                          {validationErrors.kpp && (
+                            <p className="text-xs text-destructive mt-1">{validationErrors.kpp}</p>
                           )}
-                        </Button>
-                      </div>
-                      {validationErrors.inn && (
-                        <p className="text-xs text-destructive mt-1">{validationErrors.inn}</p>
+                          <p className="text-xs text-muted-foreground mt-1">9 цифр</p>
+                        </div>
                       )}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Введите ИНН и нажмите поиск для автозаполнения
-                      </p>
-                    </div>
 
-                    {companyType === 'organization' && (
-                      <div>
-                        <Label htmlFor="kpp">КПП</Label>
-                        <Input
-                          id="kpp"
-                          maxLength={9}
-                          value={formData.kpp || ''}
-                          onChange={(e) => setFormData({ ...formData, kpp: e.target.value })}
-                          placeholder="770101001"
-                          className={validationErrors.kpp ? 'border-destructive' : ''}
-                        />
-                        {validationErrors.kpp && (
-                          <p className="text-xs text-destructive mt-1">{validationErrors.kpp}</p>
-                        )}
-                      </div>
-                    )}
-
-                    {(companyType === 'organization' ||
-                      companyType === 'individual_entrepreneur') && (
                       <div>
                         <Label htmlFor="ogrn">
                           {companyType === 'organization' ? 'ОГРН' : 'ОГРНИП'}
@@ -589,22 +599,14 @@ export default function CreateCustomerPage() {
                         {validationErrors.ogrn && (
                           <p className="text-xs text-destructive mt-1">{validationErrors.ogrn}</p>
                         )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {companyType === 'organization' ? '13 цифр' : '15 цифр'}
+                        </p>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Director info from DaData */}
-                  {directorInfo && (
-                    <div className="mt-4 p-3 bg-muted/50 rounded-lg border border-border/50">
-                      <p className="text-sm font-medium text-foreground/80">Руководитель</p>
-                      <p className="text-sm text-foreground mt-1">{directorInfo.name}</p>
-                      {directorInfo.position && (
-                        <p className="text-xs text-muted-foreground">{directorInfo.position}</p>
-                      )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Sidebar - 1/3 width */}
