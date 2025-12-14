@@ -33,13 +33,20 @@ jobs:
             echo "🚀 Starting deployment..."
             cd /root/lisa
 
-            # Pull latest code
+            # Update kvota-backend submodule to latest main
+            echo "📦 Updating kvota-backend submodule..."
+            cd kvota-backend
             git fetch origin main
-            git reset --hard origin/main
+            git checkout main
+            git pull origin main
+            cd ..
 
-            # Rebuild and restart container
-            docker compose build kvota-backend --no-cache
-            docker compose up -d kvota-backend
+            # Rebuild and restart container (using override file)
+            echo "🔨 Building container..."
+            docker compose -f docker-compose.yml -f docker-compose.override.kvota.yml build kvota-backend --no-cache
+
+            echo "🔄 Restarting container..."
+            docker compose -f docker-compose.yml -f docker-compose.override.kvota.yml up -d kvota-backend --no-deps
 
             # Show status
             docker ps | grep kvota
