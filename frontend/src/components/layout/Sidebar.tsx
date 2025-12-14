@@ -20,6 +20,7 @@ import {
   MessageSquare,
   FileSpreadsheet,
   Kanban,
+  Newspaper,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,7 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
     { href: '/quotes', label: 'Коммерческие предложения', icon: FileText },
     { href: '/customers', label: 'Клиенты', icon: Users },
     { href: '/profile', label: 'Профиль', icon: User },
+    { href: '/news', label: 'Новости', icon: Newspaper },
   ];
 
   const adminNavGroups: NavGroup[] = isAdmin
