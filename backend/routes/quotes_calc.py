@@ -65,12 +65,12 @@ router = APIRouter(
 # HELPER FUNCTIONS
 # ============================================================================
 
-def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
+def generate_idn_quote(supabase_client: Client, organization_id: str) -> str:
     """
     Generate next sequential quote number for organization.
     Format: КП{YY}-{NNNN} (e.g., КП25-0001)
 
-    Uses MAX(quote_number) approach to avoid race conditions.
+    Uses MAX(idn_quote) approach to avoid race conditions.
     Filters by current year to reset numbering each year.
 
     Args:
@@ -84,18 +84,18 @@ def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
     year_short = str(current_year)[-2:]  # Last 2 digits (2025 → 25)
     year_prefix = f"КП{year_short}-"
 
-    # Query for maximum quote_number starting with this year's prefix
+    # Query for maximum idn_quote starting with this year's prefix
     quotes_response = supabase_client.table("quotes")\
-        .select("quote_number")\
+        .select("idn_quote")\
         .eq("organization_id", str(organization_id))\
-        .like("quote_number", f"{year_prefix}%")\
-        .order("quote_number", desc=True)\
+        .like("idn_quote", f"{year_prefix}%")\
+        .order("idn_quote", desc=True)\
         .limit(1)\
         .execute()
 
     if quotes_response.data and len(quotes_response.data) > 0:
         # Extract numeric part from last quote number (e.g., "КП25-0042" → 42)
-        last_quote = quotes_response.data[0]["quote_number"]
+        last_quote = quotes_response.data[0]["idn_quote"]
         match = re.search(r'-(\d+)$', last_quote)
         if match:
             last_number = int(match.group(1))
@@ -108,8 +108,8 @@ def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
         next_number = 1
 
     # Format: КП25-0001
-    quote_number = f"{year_prefix}{str(next_number).zfill(4)}"
-    return quote_number
+    idn_quote = f"{year_prefix}{str(next_number).zfill(4)}"
+    return idn_quote
 
 
 # ============================================================================
@@ -183,7 +183,7 @@ class QuoteCalculationRequest(BaseModel):
 class QuoteCalculationResult(BaseModel):
     """Result of quote calculation"""
     quote_id: str
-    quote_number: str
+    idn_quote: str
     customer_id: str
     title: str
     items: List[Dict[str, Any]]  # List of products with all calculation results
@@ -1329,14 +1329,14 @@ async def calculate_quote(
     for attempt in range(max_retries):
         try:
             # Generate quote number with current year (format: КП25-0001)
-            quote_number = generate_quote_number(supabase, str(user.current_organization_id))
+            idn_quote = generate_idn_quote(supabase, str(user.current_organization_id))
 
             # 1. Create quote record
             quote_data = {
                 "organization_id": str(user.current_organization_id),
                 "customer_id": request.customer_id,
                 "contact_id": request.contact_id,  # Customer contact person
-                "quote_number": quote_number,
+                "idn_quote": idn_quote,
                 "title": request.title,
                 "description": request.description,
                 "status": "draft",
@@ -1666,7 +1666,7 @@ async def calculate_quote(
         # 9. Return complete result
         return QuoteCalculationResult(
             quote_id=quote_id,
-            quote_number=quote_number,
+            idn_quote=idn_quote,
             customer_id=request.customer_id,
             title=request.title,
             items=calculation_results,
@@ -1909,10 +1909,10 @@ async def export_calculation_debug(
 
         # Return as downloadable CSV
         # Use ASCII-safe filename to avoid encoding issues
-        quote_number = quote.get('quote_number', quote_id)
+        idn_quote = quote.get('idn_quote', quote_id)
         # Remove any non-ASCII characters for the filename
-        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
-        filename = f"debug_calc_{safe_quote_number}.csv"
+        safe_idn_quote = ''.join(c if ord(c) < 128 else '_' for c in str(idn_quote))
+        filename = f"debug_calc_{safe_idn_quote}.csv"
 
         return StreamingResponse(
             iter([output.getvalue()]),
@@ -2161,9 +2161,9 @@ async def export_validation_data(
         df.to_csv(output, index=False)
         output.seek(0)
 
-        quote_number = quote.get('quote_number', quote_id)
-        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
-        filename = f"validation_{safe_quote_number}.csv"
+        idn_quote = quote.get('idn_quote', quote_id)
+        safe_idn_quote = ''.join(c if ord(c) < 128 else '_' for c in str(idn_quote))
+        filename = f"validation_{safe_idn_quote}.csv"
 
         return StreamingResponse(
             iter([output.getvalue()]),

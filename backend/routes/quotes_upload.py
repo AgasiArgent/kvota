@@ -54,7 +54,7 @@ from fastapi.responses import StreamingResponse
 
 # Import helper functions from quotes_calc
 from routes.quotes_calc import (
-    generate_quote_number,
+    generate_idn_quote,
     aggregate_product_results_to_summary,
     get_rates_snapshot_to_usd,
     convert_decimals_to_float,
@@ -830,12 +830,12 @@ async def upload_excel_with_validation_export(
         # SAVE TO DATABASE (if customer_id provided)
         # ================================================================
         quote_id = None
-        quote_number = None
+        idn_quote = None
 
         if customer_id and user.current_organization_id:
             try:
                 # Generate quote number
-                quote_number = generate_quote_number(supabase, str(user.current_organization_id))
+                idn_quote = generate_idn_quote(supabase, str(user.current_organization_id))
 
                 # Get exchange rates snapshot for audit
                 rates_snapshot = get_rates_snapshot_to_usd(date.today(), supabase)
@@ -862,7 +862,7 @@ async def upload_excel_with_validation_export(
                 quote_data = {
                     "organization_id": str(user.current_organization_id),
                     "customer_id": customer_id,
-                    "quote_number": quote_number,
+                    "idn_quote": idn_quote,
                     "title": f"КП от {date.today().strftime('%d.%m.%Y')}",
                     "status": "draft",
                     "created_by": str(user.id),
@@ -979,7 +979,7 @@ async def upload_excel_with_validation_export(
                 quote_summary["quote_id"] = quote_id
                 supabase.table("quote_calculation_summaries").upsert(quote_summary).execute()
 
-                logger.info(f"Quote {quote_number} (ID: {quote_id}) saved to database for customer {customer_id}")
+                logger.info(f"Quote {idn_quote} (ID: {quote_id}) saved to database for customer {customer_id}")
 
             except Exception as e:
                 logger.exception(f"Error saving quote to database: {e}")
@@ -1011,8 +1011,8 @@ async def upload_excel_with_validation_export(
         # Add quote info headers if saved to DB
         if quote_id:
             response_headers["X-Quote-Id"] = str(quote_id)
-            # URL-encode quote_number for HTTP header (contains Cyrillic "КП")
-            response_headers["X-Quote-Number"] = url_quote(quote_number, safe='')
+            # URL-encode idn_quote for HTTP header (contains Cyrillic "КП")
+            response_headers["X-Quote-Number"] = url_quote(idn_quote, safe='')
             # Expose custom headers to frontend
             response_headers["Access-Control-Expose-Headers"] = "X-Quote-Id, X-Quote-Number"
 
@@ -1368,10 +1368,10 @@ async def export_quote_as_template_endpoint(
         )
 
         # Build filename
-        quote_number = quote.get("quote_number", quote_id)
-        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
-        filename = f"validation_{safe_quote_number}.xlsm"
-        filename_encoded = url_quote(f"validation_{quote_number}.xlsm", safe='')
+        idn_quote = quote.get("idn_quote", quote_id)
+        safe_idn_quote = ''.join(c if ord(c) < 128 else '_' for c in str(idn_quote))
+        filename = f"validation_{safe_idn_quote}.xlsm"
+        filename_encoded = url_quote(f"validation_{idn_quote}.xlsm", safe='')
 
         return StreamingResponse(
             io.BytesIO(excel_bytes),

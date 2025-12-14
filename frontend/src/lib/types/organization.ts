@@ -25,6 +25,7 @@ export interface Organization {
   status: OrganizationStatus;
   owner_id: string;
   settings?: Record<string, any>;
+  supplier_code?: string; // 3-letter code for IDN (e.g., MBR, CMT)
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +45,7 @@ export interface OrganizationUpdate {
   logo_url?: string;
   status?: OrganizationStatus;
   settings?: Record<string, any>;
+  supplier_code?: string; // 3-letter code for IDN (e.g., MBR, CMT)
 }
 
 export interface UserOrganization {

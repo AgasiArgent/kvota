@@ -100,7 +100,10 @@ export default function CreateCustomerPage() {
       errors.name = 'Минимум 2 символа';
     }
 
-    if (formData.inn) {
+    // INN is required for all clients (needed for IDN generation)
+    if (!formData.inn?.trim()) {
+      errors.inn = 'ИНН обязателен для создания КП';
+    } else {
       const innValidation = validateINN(formData.inn);
       if (!innValidation.isValid) {
         errors.inn = innValidation.error || 'Неверный ИНН';
@@ -403,9 +406,7 @@ export default function CreateCustomerPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor="inn">
-                        {companyType === 'individual' ? 'ИНН (необязательно)' : 'ИНН'}
-                      </Label>
+                      <Label htmlFor="inn">ИНН *</Label>
                       <Input
                         id="inn"
                         maxLength={12}
