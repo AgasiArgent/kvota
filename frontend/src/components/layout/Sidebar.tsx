@@ -83,6 +83,7 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
             { href: '/settings/team', label: 'Команда', icon: UsersRound },
             { href: '/settings/calculation', label: 'Расчёт', icon: Calculator },
             { href: '/settings/exchange-rates', label: 'Курсы валют', icon: DollarSign },
+            { href: '/settings/seller-companies', label: 'Продавцы', icon: Building2 },
           ],
         },
         {
