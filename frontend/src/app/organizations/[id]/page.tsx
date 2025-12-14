@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Save, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Edit, Trash2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 import MainLayout from '@/components/layout/MainLayout';
@@ -60,6 +60,7 @@ export default function OrganizationSettingsPage() {
         setFormData({
           name: result.data.name,
           description: result.data.description,
+          supplier_code: result.data.supplier_code,
         });
 
         // Check user's role
@@ -96,6 +97,15 @@ export default function OrganizationSettingsPage() {
 
     if (formData.description && formData.description.length > 500) {
       errors.description = 'Максимум 500 символов';
+    }
+
+    // Validate supplier_code: must be exactly 3 uppercase letters
+    if (formData.supplier_code) {
+      const supplierCodeRegex = /^[A-Z]{3}$/;
+      if (!supplierCodeRegex.test(formData.supplier_code)) {
+        errors.supplier_code =
+          'Код поставщика должен содержать ровно 3 заглавные буквы (например, MBR, CMT)';
+      }
     }
 
     setValidationErrors(errors);
@@ -146,6 +156,7 @@ export default function OrganizationSettingsPage() {
     setFormData({
       name: organization?.name,
       description: organization?.description,
+      supplier_code: organization?.supplier_code,
     });
     setValidationErrors({});
     setEditMode(false);
@@ -236,6 +247,18 @@ export default function OrganizationSettingsPage() {
                   <p className="text-foreground/90 mt-1 font-mono text-sm">@{organization.slug}</p>
                 </div>
 
+                <div>
+                  <Label className="text-foreground/60">Код поставщика (IDN)</Label>
+                  <p className="text-foreground/90 mt-1 font-mono text-sm">
+                    {organization.supplier_code || <span className="text-amber-500">Не задан</span>}
+                  </p>
+                  {!organization.supplier_code && canEdit && (
+                    <p className="text-xs text-amber-500/80 mt-1">
+                      Для генерации IDN необходимо задать код поставщика
+                    </p>
+                  )}
+                </div>
+
                 <div className="md:col-span-2">
                   <Label className="text-foreground/60">Описание</Label>
                   <p className="text-foreground/90 mt-1">
@@ -319,6 +342,53 @@ export default function OrganizationSettingsPage() {
                     <p className="text-xs text-foreground/40 ml-auto">
                       {formData.description?.length || 0}/500
                     </p>
+                  </div>
+                </div>
+
+                {/* Supplier Code for IDN */}
+                <div className="border-t pt-4">
+                  <Label htmlFor="supplier_code">Код поставщика для IDN</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input
+                      id="supplier_code"
+                      value={formData.supplier_code || ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          supplier_code: e.target.value.toUpperCase().slice(0, 3),
+                        })
+                      }
+                      placeholder="MBR"
+                      maxLength={3}
+                      className={cn(
+                        'w-24 font-mono uppercase',
+                        validationErrors.supplier_code ? 'border-destructive' : ''
+                      )}
+                    />
+                    <span className="text-sm text-foreground/60">
+                      3 заглавные буквы (например: MBR, CMT, RAR)
+                    </span>
+                  </div>
+                  {validationErrors.supplier_code && (
+                    <p className="text-xs text-destructive mt-1">
+                      {validationErrors.supplier_code}
+                    </p>
+                  )}
+                  <div className="flex items-start gap-2 mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                    <Info className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-foreground/80 space-y-1">
+                      <p>
+                        <strong>Код поставщика</strong> используется для формирования уникального
+                        идентификатора (IDN) КП в формате:
+                      </p>
+                      <p className="font-mono text-blue-400">
+                        {formData.supplier_code || 'XXX'}-1234567890-2025-1
+                      </p>
+                      <p className="text-foreground/60">
+                        После установки код лучше не менять, чтобы сохранить преемственность
+                        номеров.
+                      </p>
+                    </div>
                   </div>
                 </div>
 

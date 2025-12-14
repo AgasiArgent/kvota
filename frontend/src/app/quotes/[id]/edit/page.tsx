@@ -238,7 +238,8 @@ export default function EditQuotePage() {
         const quote = quoteFields;
 
         setSelectedCustomer(quote.customer_id || undefined);
-        setQuoteNumber(quote.quote_number || '');
+        // Support both idn_quote (new) and quote_number (legacy)
+        setQuoteNumber(quote.idn_quote || quote.quote_number || '');
         setQuoteTitle(quote.title || '');
 
         const products: Product[] = items.map((item: any) => ({
@@ -546,7 +547,9 @@ export default function EditQuotePage() {
 
       if (result.success && result.data) {
         setCalculationResults(result.data);
-        toast.success(`Котировка пересчитана! Котировка №${result.data.quote_number}`);
+        toast.success(
+          `Котировка пересчитана! ${result.data.idn_quote || result.data.quote_number}`
+        );
 
         setTimeout(() => {
           router.push(`/quotes/${quoteId}`);
@@ -1690,7 +1693,7 @@ export default function EditQuotePage() {
           <Card>
             <CardHeader className="py-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">
-                Результаты - Котировка №{calculationResults.quote_number}
+                Результаты - {calculationResults.idn_quote || calculationResults.quote_number}
               </CardTitle>
               <Badge variant="default">Итого: ₽{calculationResults.total_amount?.toFixed(2)}</Badge>
             </CardHeader>

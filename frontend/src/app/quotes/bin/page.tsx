@@ -40,7 +40,7 @@ dayjs.locale('ru');
 
 interface QuoteListItem {
   id: string;
-  quote_number: string;
+  idn_quote: string; // Renamed from quote_number
   customer_name: string;
   title: string;
   status: string;
@@ -352,7 +352,7 @@ export default function QuotesBinPage() {
                     <tbody>
                       {quotes.map((quote) => (
                         <tr key={quote.id} className="border-b hover:bg-muted/50">
-                          <td className="py-3 px-4 font-medium">{quote.quote_number}</td>
+                          <td className="py-3 px-4 font-medium font-mono">{quote.idn_quote}</td>
                           <td className="py-3 px-4 max-w-[200px] truncate">
                             {quote.customer_name}
                           </td>

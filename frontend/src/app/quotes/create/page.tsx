@@ -788,12 +788,13 @@ export default function CreateQuotePage() {
       if (result.success && result.data) {
         setCalculationResults(result.data);
         const quoteId = result.data.quote_id;
-        const quoteNumber = result.data.quote_number;
+        // Support both idn_quote (new) and quote_number (legacy)
+        const quoteIdnOrNumber = result.data.idn_quote || result.data.quote_number;
 
-        console.log('✅ Quote created successfully:', quoteNumber);
+        console.log('✅ Quote created successfully:', quoteIdnOrNumber);
         console.log('✅ Quote ID for redirect:', quoteId);
 
-        toast.success(`Котировка №${quoteNumber} создана!`);
+        toast.success(`Котировка ${quoteIdnOrNumber} создана!`);
 
         if (quoteId) {
           console.log('Redirecting to view page:', `/quotes/${quoteId}`);
@@ -2042,7 +2043,7 @@ export default function CreateQuotePage() {
           <Card>
             <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
               <CardTitle className="text-base">
-                📊 Результаты - Котировка №{calculationResults.quote_number}
+                📊 Результаты - {calculationResults.idn_quote || calculationResults.quote_number}
               </CardTitle>
               <Badge variant="default" className="text-sm">
                 Итого: ₽{calculationResults.total_amount?.toFixed(2)}

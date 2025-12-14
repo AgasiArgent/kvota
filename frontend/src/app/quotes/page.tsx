@@ -59,7 +59,8 @@ import { cn } from '@/lib/utils';
 
 interface QuoteListItem {
   id: string;
-  quote_number: string;
+  idn_quote?: string; // New IDN format (optional for backward compatibility)
+  quote_number?: string; // Legacy field (optional for backward compatibility)
   customer_name?: string;
   created_by_name?: string;
   workflow_state?: string;
@@ -117,7 +118,7 @@ ProfitCell.displayName = 'ProfitCell';
 // Actions menu - memoized with callbacks
 interface ActionsMenuProps {
   data: QuoteListItem;
-  onSubmitForApproval: (id: string, quoteNumber: string) => void;
+  onSubmitForApproval: (id: string, idnQuote: string) => void;
   onExport: (id: string, type: 'validation' | 'invoice') => void;
 }
 
@@ -131,7 +132,9 @@ const ActionsMenu = memo(({ data, onSubmitForApproval, onExport }: ActionsMenuPr
     <DropdownMenuContent align="end">
       {data.workflow_state === 'draft' && (
         <>
-          <DropdownMenuItem onClick={() => onSubmitForApproval(data.id, data.quote_number)}>
+          <DropdownMenuItem
+            onClick={() => onSubmitForApproval(data.id, data.idn_quote || data.quote_number || '')}
+          >
             <Send className="mr-2 h-4 w-4" />
             На утверждение
           </DropdownMenuItem>
@@ -432,9 +435,10 @@ export default function QuotesPage() {
   const columnDefs: ColDef[] = useMemo(
     () => [
       {
-        field: 'quote_number',
-        headerName: '№ КП',
-        width: 130,
+        field: 'idn_quote',
+        headerName: 'IDN КП',
+        width: 220,
+        valueGetter: (params) => params.data?.idn_quote || params.data?.quote_number || '',
         cellRenderer: (params: ICellRendererParams) => <QuoteNumberCell value={params.value} />,
       },
       {

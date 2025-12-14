@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 
 interface Quote {
   id: string;
-  quote_number: string;
+  idn_quote: string; // Renamed from quote_number
   customer_name: string;
   title: string;
   total_amount: number;
@@ -98,8 +98,8 @@ export default function QuoteApprovalPage() {
 
       toast.success(
         approvalAction === 'approve'
-          ? `КП ${selectedQuote.quote_number} утверждено`
-          : `КП ${selectedQuote.quote_number} отклонено`
+          ? `КП ${selectedQuote.idn_quote} утверждено`
+          : `КП ${selectedQuote.idn_quote} отклонено`
       );
 
       setApprovalModalVisible(false);
@@ -219,7 +219,7 @@ export default function QuoteApprovalPage() {
                               onClick={() => router.push(`/quotes/${quote.id}`)}
                               className="font-medium text-primary hover:underline"
                             >
-                              {quote.quote_number}
+                              {quote.idn_quote}
                             </button>
                           </td>
                           <td className="py-3 px-4 max-w-[200px] truncate">
@@ -300,8 +300,8 @@ export default function QuoteApprovalPage() {
           <DialogHeader>
             <DialogTitle>
               {approvalAction === 'approve'
-                ? `Утвердить КП ${selectedQuote?.quote_number}`
-                : `Отклонить КП ${selectedQuote?.quote_number}`}
+                ? `Утвердить КП ${selectedQuote?.idn_quote}`
+                : `Отклонить КП ${selectedQuote?.idn_quote}`}
             </DialogTitle>
             <DialogDescription>
               {approvalAction === 'approve'

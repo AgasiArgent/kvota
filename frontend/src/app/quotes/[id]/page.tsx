@@ -100,7 +100,7 @@ interface Customer {
 
 interface QuoteDetail {
   id: string;
-  quote_number: string;
+  idn_quote: string; // Renamed from quote_number
   customer_id?: string;
   customer?: Customer;
   title?: string;
@@ -175,7 +175,7 @@ export default function QuoteDetailPage() {
 
         setQuote({
           id: quoteData.id as string,
-          quote_number: quoteData.quote_number as string,
+          idn_quote: (quoteData.idn_quote || quoteData.quote_number) as string, // Support both old and new field name
           customer_id: quoteData.customer_id as string | undefined,
           customer: quoteData.customer as Customer | undefined,
           title: quoteData.title as string | undefined,
@@ -503,7 +503,7 @@ export default function QuoteDetailPage() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Назад
             </Button>
-            <h1 className="text-2xl font-semibold">{quote.quote_number}</h1>
+            <h1 className="text-2xl font-semibold font-mono">{quote.idn_quote}</h1>
             {getStatusBadge(quote.workflow_state || quote.status)}
           </div>
           <div className="flex items-center gap-2">
@@ -655,7 +655,7 @@ export default function QuoteDetailPage() {
                   <CardContent className="pt-6">
                     <FinancialApprovalActions
                       quoteId={quote.id}
-                      quoteNumber={quote.quote_number}
+                      quoteNumber={quote.idn_quote}
                       onApprove={() => {
                         fetchQuoteDetails();
                         loadWorkflowStatus();
@@ -748,7 +748,7 @@ export default function QuoteDetailPage() {
         open={submitModalOpen}
         onCancel={() => setSubmitModalOpen(false)}
         onSubmit={handleSubmitForApproval}
-        quoteNumber={quote.quote_number}
+        quoteNumber={quote.idn_quote}
       />
     </MainLayout>
   );

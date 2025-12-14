@@ -170,6 +170,7 @@ export interface ExtendedUser {
 export interface Quote {
   id: string;
   quote_number: string;
+  idn_quote?: string; // New IDN format: SUPPLIER-INN-YEAR-SEQ
   organization_id: string;
   customer_id: string;
   created_by: string;
