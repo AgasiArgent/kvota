@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 import MainLayout from '@/components/layout/MainLayout';
@@ -21,6 +21,26 @@ import {
 import { customerService } from '@/lib/api/customer-service';
 import { organizationService } from '@/lib/api/organization-service';
 import { validateINN, validateKPP, validateOGRN } from '@/lib/validation/russian-business';
+import { createClient } from '@/lib/supabase/client';
+
+// DaData company info response type
+interface DaDataCompanyInfo {
+  name: string;
+  full_name?: string;
+  inn: string;
+  kpp?: string;
+  ogrn?: string;
+  address?: string;
+  postal_code?: string;
+  city?: string;
+  region?: string;
+  director_name?: string;
+  director_position?: string;
+  company_type: string;
+  opf?: string;
+  status: string;
+  okved?: string;
+}
 
 interface CustomerFormData {
   name: string;
@@ -59,6 +79,13 @@ export default function CreateCustomerPage() {
   });
   const [companyType, setCompanyType] = useState<string>('organization');
 
+  // DaData auto-fill state
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [directorInfo, setDirectorInfo] = useState<{
+    name?: string;
+    position?: string;
+  } | null>(null);
+
   // Validation errors
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
@@ -90,6 +117,85 @@ export default function CreateCustomerPage() {
 
     fetchOrganization();
   }, [router]);
+
+  // Fetch company info from DaData by INN
+  const fetchCompanyByINN = async (inn: string) => {
+    // Clean INN and validate length
+    const innClean = inn.replace(/\D/g, '');
+    if (innClean.length !== 10 && innClean.length !== 12) {
+      return; // Invalid INN length, skip lookup
+    }
+
+    setLookupLoading(true);
+    setDirectorInfo(null);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.error('No session for DaData lookup');
+        return;
+      }
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/dadata/company/${innClean}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 404) {
+        toast.info('Компания не найдена в ЕГРЮЛ/ЕГРИП');
+        return;
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка поиска компании');
+      }
+
+      const company: DaDataCompanyInfo = await response.json();
+
+      // Auto-fill form fields
+      setFormData((prev) => ({
+        ...prev,
+        name: company.name || prev.name,
+        address: company.address || prev.address,
+        city: company.city || prev.city,
+        region: company.region || prev.region,
+        postal_code: company.postal_code || prev.postal_code,
+        kpp: company.kpp || prev.kpp,
+        ogrn: company.ogrn || prev.ogrn,
+        // Set company type based on DaData response
+        company_type:
+          company.company_type === 'INDIVIDUAL' ? 'individual_entrepreneur' : prev.company_type,
+      }));
+
+      // Update company type state for UI
+      if (company.company_type === 'INDIVIDUAL') {
+        setCompanyType('individual_entrepreneur');
+      }
+
+      // Store director info for display
+      if (company.director_name) {
+        setDirectorInfo({
+          name: company.director_name,
+          position: company.director_position,
+        });
+      }
+
+      toast.success('Реквизиты загружены из ЕГРЮЛ');
+    } catch (error: any) {
+      console.error('DaData lookup error:', error);
+      // Don't show error toast for network issues - user can fill manually
+    } finally {
+      setLookupLoading(false);
+    }
+  };
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -407,17 +513,44 @@ export default function CreateCustomerPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="inn">ИНН *</Label>
-                      <Input
-                        id="inn"
-                        maxLength={12}
-                        value={formData.inn || ''}
-                        onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
-                        placeholder={companyType === 'organization' ? '7701234567' : '770123456789'}
-                        className={validationErrors.inn ? 'border-destructive' : ''}
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          id="inn"
+                          maxLength={12}
+                          value={formData.inn || ''}
+                          onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
+                          onBlur={(e) => {
+                            const inn = e.target.value.replace(/\D/g, '');
+                            if (inn.length === 10 || inn.length === 12) {
+                              fetchCompanyByINN(inn);
+                            }
+                          }}
+                          placeholder={
+                            companyType === 'organization' ? '7701234567' : '770123456789'
+                          }
+                          className={validationErrors.inn ? 'border-destructive' : ''}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={lookupLoading || !formData.inn}
+                          onClick={() => formData.inn && fetchCompanyByINN(formData.inn)}
+                          title="Найти по ИНН"
+                        >
+                          {lookupLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Search className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                       {validationErrors.inn && (
                         <p className="text-xs text-destructive mt-1">{validationErrors.inn}</p>
                       )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Введите ИНН и нажмите поиск для автозаполнения
+                      </p>
                     </div>
 
                     {companyType === 'organization' && (
@@ -459,6 +592,17 @@ export default function CreateCustomerPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Director info from DaData */}
+                  {directorInfo && (
+                    <div className="mt-4 p-3 bg-muted/50 rounded-lg border border-border/50">
+                      <p className="text-sm font-medium text-foreground/80">Руководитель</p>
+                      <p className="text-sm text-foreground mt-1">{directorInfo.name}</p>
+                      {directorInfo.position && (
+                        <p className="text-xs text-muted-foreground">{directorInfo.position}</p>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
