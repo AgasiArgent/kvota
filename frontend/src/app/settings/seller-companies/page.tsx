@@ -395,7 +395,9 @@ export default function SellerCompaniesPage() {
             <div className="flex items-center gap-3">
               <Switch
                 checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                onCheckedChange={(checked: boolean) =>
+                  setFormData({ ...formData, is_active: checked })
+                }
                 id="is-active"
               />
               <Label htmlFor="is-active">Активна</Label>
