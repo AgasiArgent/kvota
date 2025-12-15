@@ -12,7 +12,7 @@ Updated: 2025-12-01 - Added save-to-DB functionality
 import io
 import os
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional, List
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
