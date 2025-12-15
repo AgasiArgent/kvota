@@ -81,6 +81,9 @@ export default function SpecificationExportModal({
   const [signatoryPosition, setSignatoryPosition] = useState('Руководитель');
   const [newWarehouseAddress, setNewWarehouseAddress] = useState('');
   const [isAddingWarehouse, setIsAddingWarehouse] = useState(false);
+  const [isAddingSignatory, setIsAddingSignatory] = useState(false);
+  const [newSignatoryName, setNewSignatoryName] = useState('');
+  const [newSignatoryPosition, setNewSignatoryPosition] = useState('Руководитель');
 
   // Customer data for suggestions
   const [customerData, setCustomerData] = useState<CustomerData>({});
@@ -98,6 +101,9 @@ export default function SpecificationExportModal({
       setAdditionalConditions('');
       setIsAddingWarehouse(false);
       setNewWarehouseAddress('');
+      setIsAddingSignatory(false);
+      setNewSignatoryName('');
+      setNewSignatoryPosition('Руководитель');
     }
   }, [open, customerId]);
 
@@ -141,16 +147,13 @@ export default function SpecificationExportModal({
         // Pre-fill from existing customer data
         if (customer.general_director_name) {
           setSignatoryName(customer.general_director_name);
+          setSignatoryPosition(customer.general_director_position || 'Руководитель');
         } else {
           missing.signatory_name = true;
-        }
-
-        if (customer.general_director_position) {
-          setSignatoryPosition(customer.general_director_position);
-        } else {
-          // Default to Руководитель if not set
           setSignatoryPosition('Руководитель');
         }
+        // Always start with dropdown, let user click "Add new" if needed
+        setIsAddingSignatory(false);
 
         // Parse warehouse addresses - handle both old format and new format
         let addresses: string[] = [];
@@ -167,9 +170,11 @@ export default function SpecificationExportModal({
 
         if (addresses.length === 0) {
           missing.warehouse_address = true;
-          setIsAddingWarehouse(true);
+          // Don't auto-show input - let user click "Add new" in dropdown
+          setIsAddingWarehouse(false);
         } else {
           setWarehouseAddresses(addresses);
+          setIsAddingWarehouse(false);
         }
 
         setMissingData(missing);
@@ -183,12 +188,19 @@ export default function SpecificationExportModal({
     try {
       const updates: any = {};
 
-      // Always save signatory info if different from stored
-      if (signatoryName && signatoryName !== customerData.general_director_name) {
-        updates.general_director_name = signatoryName;
+      // Determine actual signatory values (from dropdown selection or new input)
+      const actualSignatoryName = isAddingSignatory ? newSignatoryName : signatoryName;
+      const actualSignatoryPosition = isAddingSignatory ? newSignatoryPosition : signatoryPosition;
+
+      // Save signatory info if different from stored (or if adding new)
+      if (actualSignatoryName && actualSignatoryName !== customerData.general_director_name) {
+        updates.general_director_name = actualSignatoryName;
       }
-      if (signatoryPosition && signatoryPosition !== customerData.general_director_position) {
-        updates.general_director_position = signatoryPosition;
+      if (
+        actualSignatoryPosition &&
+        actualSignatoryPosition !== customerData.general_director_position
+      ) {
+        updates.general_director_position = actualSignatoryPosition;
       }
 
       // Save new warehouse if adding
@@ -232,14 +244,19 @@ export default function SpecificationExportModal({
         return;
       }
 
-      // Validate signatory name
-      if (!signatoryName.trim()) {
+      // Validate signatory name (check both existing and new)
+      const actualSignatoryName = isAddingSignatory ? newSignatoryName : signatoryName;
+      if (!actualSignatoryName.trim()) {
         toast.error('Укажите ФИО подписанта');
         return;
       }
 
-      // Validate warehouse
+      // Validate warehouse (check both existing and new)
       if (warehouseAddresses.length === 0 && !newWarehouseAddress.trim()) {
+        toast.error('Укажите адрес склада');
+        return;
+      }
+      if (isAddingWarehouse && !newWarehouseAddress.trim()) {
         toast.error('Укажите адрес склада');
         return;
       }
@@ -247,6 +264,13 @@ export default function SpecificationExportModal({
       // Save data if needed
       const saved = await saveMissingData();
       if (!saved) return;
+
+      // Update local signatory state if we added a new one
+      if (isAddingSignatory && newSignatoryName) {
+        setSignatoryName(newSignatoryName);
+        setSignatoryPosition(newSignatoryPosition);
+        setIsAddingSignatory(false);
+      }
 
       setStep('warehouse');
     } else if (step === 'warehouse') {
@@ -389,38 +413,69 @@ export default function SpecificationExportModal({
                     <div className="space-y-3">
                       <p className="text-sm font-medium">Подписант клиента</p>
 
-                      <div className="space-y-1">
-                        <Label htmlFor="signatory-name">
+                      <div className="space-y-2">
+                        <Label>
                           ФИО подписанта <span className="text-destructive">*</span>
                         </Label>
-                        <Input
-                          id="signatory-name"
-                          value={signatoryName}
-                          onChange={(e) => setSignatoryName(e.target.value)}
-                          placeholder="Иванов Иван Иванович"
-                        />
-                        {customerData.general_director_name &&
-                          customerData.general_director_name !== signatoryName && (
-                            <button
-                              type="button"
-                              className="text-xs text-primary hover:underline"
-                              onClick={() =>
-                                setSignatoryName(customerData.general_director_name || '')
-                              }
-                            >
-                              Использовать из профиля: {customerData.general_director_name}
-                            </button>
-                          )}
-                      </div>
 
-                      <div className="space-y-1">
-                        <Label htmlFor="signatory-position">Должность подписанта</Label>
-                        <Input
-                          id="signatory-position"
-                          value={signatoryPosition}
-                          onChange={(e) => setSignatoryPosition(e.target.value)}
-                          placeholder="Руководитель"
-                        />
+                        {!isAddingSignatory ? (
+                          <Select
+                            value={customerData.general_director_name ? 'existing' : 'add_new'}
+                            onValueChange={(val: string) => {
+                              if (val === 'add_new') {
+                                setIsAddingSignatory(true);
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue>
+                                {customerData.general_director_name
+                                  ? `${signatoryName}, ${signatoryPosition}`
+                                  : 'Выберите или добавьте подписанта'}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {customerData.general_director_name && (
+                                <SelectItem value="existing">
+                                  {customerData.general_director_name},{' '}
+                                  {customerData.general_director_position || 'Руководитель'}
+                                </SelectItem>
+                              )}
+                              <SelectItem value="add_new">
+                                <span className="flex items-center">
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Добавить нового подписанта
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="space-y-2">
+                            <Input
+                              placeholder="ФИО подписанта (например: Иванов Иван Иванович)"
+                              value={newSignatoryName}
+                              onChange={(e) => setNewSignatoryName(e.target.value)}
+                            />
+                            <Input
+                              placeholder="Должность (например: Руководитель)"
+                              value={newSignatoryPosition}
+                              onChange={(e) => setNewSignatoryPosition(e.target.value)}
+                            />
+                            {customerData.general_director_name && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setIsAddingSignatory(false);
+                                  setNewSignatoryName('');
+                                  setNewSignatoryPosition('Руководитель');
+                                }}
+                              >
+                                Отмена
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -428,63 +483,72 @@ export default function SpecificationExportModal({
 
                     {/* Warehouse Section */}
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Адрес склада клиента</p>
-                        {warehouseAddresses.length > 0 && !isAddingWarehouse && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setIsAddingWarehouse(true)}
-                            className="text-xs h-7"
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Добавить
-                          </Button>
-                        )}
-                      </div>
+                      <p className="text-sm font-medium">Адрес склада клиента</p>
 
-                      {warehouseAddresses.length > 0 && !isAddingWarehouse ? (
-                        <Select
-                          value={selectedWarehouseIndex.toString()}
-                          onValueChange={(val: string) => setSelectedWarehouseIndex(parseInt(val))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {warehouseAddresses.map((address, index) => (
-                              <SelectItem key={index} value={index.toString()}>
-                                {address}
+                      <div className="space-y-2">
+                        {!isAddingWarehouse ? (
+                          <Select
+                            value={
+                              warehouseAddresses.length > 0
+                                ? selectedWarehouseIndex.toString()
+                                : 'add_new'
+                            }
+                            onValueChange={(val: string) => {
+                              if (val === 'add_new') {
+                                setIsAddingWarehouse(true);
+                              } else {
+                                setSelectedWarehouseIndex(parseInt(val));
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue>
+                                {warehouseAddresses.length > 0
+                                  ? warehouseAddresses[selectedWarehouseIndex]
+                                  : 'Выберите или добавьте адрес'}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {warehouseAddresses.map((address, index) => (
+                                <SelectItem key={index} value={index.toString()}>
+                                  {address}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value="add_new">
+                                <span className="flex items-center">
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Добавить новый адрес
+                                </span>
                               </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="space-y-2">
-                          <Input
-                            placeholder="Адрес склада (например: г. Москва, ул. Ленина, д. 1)"
-                            value={newWarehouseAddress}
-                            onChange={(e) => setNewWarehouseAddress(e.target.value)}
-                          />
-                          {warehouseAddresses.length > 0 && (
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="space-y-2">
+                            <Input
+                              placeholder="Адрес склада (например: г. Москва, ул. Ленина, д. 1)"
+                              value={newWarehouseAddress}
+                              onChange={(e) => setNewWarehouseAddress(e.target.value)}
+                            />
                             <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setIsAddingWarehouse(false);
-                                  setNewWarehouseAddress('');
-                                }}
-                              >
-                                Отмена
-                              </Button>
+                              {warehouseAddresses.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setIsAddingWarehouse(false);
+                                    setNewWarehouseAddress('');
+                                  }}
+                                >
+                                  Отмена
+                                </Button>
+                              )}
                               <Button size="sm" onClick={handleAddWarehouse}>
                                 Сохранить
                               </Button>
                             </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
