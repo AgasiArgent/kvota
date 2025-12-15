@@ -394,8 +394,9 @@ def format_payment_terms(variables: Dict[str, Any]) -> str:
         advance = 100.0
 
     # Handle decimal format (0-1) vs percentage format (0-100)
-    # If value is between 0 and 1 (exclusive), convert to percentage
-    if 0 < advance < 1:
+    # If value is between 0 and 1 (inclusive), convert to percentage
+    # Note: 1.0 represents 100%, so we include it with <= 1
+    if 0 < advance <= 1:
         advance = advance * 100
 
     # Round to avoid floating point issues

@@ -332,11 +332,12 @@ export default function QuotesPage() {
     e.target.value = '';
   };
 
-  const handleCreateModalSuccess = (quoteId: string, _quoteNumber: string) => {
+  const handleCreateModalSuccess = (_quoteId: string, quoteNumber: string) => {
     setCreateModalOpen(false);
     setSelectedFile(null);
-    // Navigate to the new quote or refresh the list
-    router.push(`/quotes/${quoteId}`);
+    // Refresh the quotes list to show the new quote
+    fetchQuotes();
+    toast.success(`КП ${quoteNumber} добавлено в список`);
   };
 
   const handleCreateModalCancel = () => {

@@ -54,11 +54,13 @@ from fastapi.responses import StreamingResponse
 
 # Import helper functions from quotes_calc
 from routes.quotes_calc import (
-    generate_idn_quote,
     aggregate_product_results_to_summary,
     get_rates_snapshot_to_usd,
     convert_decimals_to_float,
 )
+
+# Import IDN service for proper quote IDN generation
+from services.idn_service import get_idn_service, IDNValidationError, IDNGenerationError
 
 # Supabase client is now injected via dependency injection (see get_supabase)
 
@@ -834,8 +836,32 @@ async def upload_excel_with_validation_export(
 
         if customer_id and user.current_organization_id:
             try:
-                # Generate quote number
-                idn_quote = generate_idn_quote(supabase, str(user.current_organization_id))
+                # Get customer INN for IDN generation
+                customer_result = supabase.table("customers").select("inn")\
+                    .eq("id", customer_id)\
+                    .eq("organization_id", str(user.current_organization_id))\
+                    .execute()
+
+                customer_inn = None
+                if customer_result.data and len(customer_result.data) > 0:
+                    customer_inn = customer_result.data[0].get("inn")
+
+                # Generate IDN using proper IDN service (format: SUPPLIER-INN-YEAR-SEQ)
+                if customer_inn:
+                    try:
+                        idn_service = get_idn_service()
+                        idn_quote = await idn_service.generate_quote_idn(
+                            organization_id=user.current_organization_id,
+                            customer_inn=customer_inn
+                        )
+                    except (IDNValidationError, IDNGenerationError) as e:
+                        # Fall back to simple format if IDN service fails
+                        # (org may not have supplier_code configured yet)
+                        logger.warning(f"IDN generation skipped: {e}")
+                        idn_quote = f"КП-{date.today().strftime('%Y%m%d')}-{customer_id[:8]}"
+                else:
+                    # No INN - use fallback format
+                    idn_quote = f"КП-{date.today().strftime('%Y%m%d')}-{customer_id[:8]}"
 
                 # Get exchange rates snapshot for audit
                 rates_snapshot = get_rates_snapshot_to_usd(date.today(), supabase)
