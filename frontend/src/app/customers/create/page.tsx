@@ -274,7 +274,14 @@ export default function CreateCustomerPage() {
       }
 
       toast.success('Клиент успешно создан');
-      router.push('/customers');
+      // Redirect to the newly created customer's page
+      const customerId = response.data?.id;
+      if (customerId) {
+        router.push(`/customers/${customerId}`);
+      } else {
+        // Fallback to customers list if no ID returned
+        router.push('/customers');
+      }
     } catch (error: any) {
       console.error('Exception caught:', error);
       toast.error(`Ошибка создания клиента: ${error.message}`);
