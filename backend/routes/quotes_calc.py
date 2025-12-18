@@ -618,8 +618,8 @@ def validate_calculation_input(
 
     # Get product identifier for error messages
     product_id = product.product_name
-    if product.sku:
-        product_id = f"{product.sku} ({product.product_name})"
+    if product.product_code:
+        product_id = f"{product.product_code} ({product.product_name})"
 
     # Required fields validation
     if not product.base_price_vat or product.base_price_vat <= 0:
