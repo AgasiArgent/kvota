@@ -12,7 +12,7 @@ from datetime import datetime
 # Configuration
 API_URL = "http://localhost:8000"
 SUPABASE_URL = "https://wstwwmiihkzlgvlymlfd.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzdHd3bWlpaGt6bGd2bHltbGZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MTU2NjgzNCwiZXhwIjoyMDY3MTQyODM0fQ.***REMOVED***"
+SUPABASE_KEY = "<SUPABASE_SERVICE_ROLE_KEY>"  # Get from .env or Supabase dashboard
 
 # Color codes
 GREEN = "\033[92m"

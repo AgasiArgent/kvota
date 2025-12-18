@@ -34,7 +34,7 @@ Key discovery: Calculation engine already currency-agnostic!
 ## Architecture
 
 ```
-Vercel (kvotaflow.ru) → VPS Russia (***REMOVED***)
+Vercel (kvotaflow.ru) → VPS Russia (<VPS_IP>)
                         ├─ api.kvotaflow.ru (FastAPI)
                         ├─ db.kvotaflow.ru (Supabase)
                         └─ Caddy (HTTPS)

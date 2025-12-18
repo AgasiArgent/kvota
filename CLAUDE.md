@@ -708,8 +708,8 @@ This sample task demonstrates:
   - Never use puppeteer (removed from project)
 - ✅ **postgres** - Database queries and schema inspection
 - ❌ **github** - Not functional (use curl with GitHub API)
-  - Token: `***REMOVED***`
-  - Example: `curl -H "Authorization: token TOKEN" https://api.github.com/repos/AgasiArgent/kvota`
+  - Token: Store in environment variable `GITHUB_TOKEN`
+  - Example: `curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/AgasiArgent/kvota`
 
 **Configuration:** `.mcp.json` (server definitions) + `.claude/settings.json` (enable servers + permissions)
 

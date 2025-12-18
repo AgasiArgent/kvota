@@ -26,7 +26,8 @@
 cd /home/novi/quotation-app/backend
 
 # Execute migration using direct connection (not pooler)
-PGPASSWORD='***REMOVED***' psql \
+# Get DB password from Supabase Dashboard > Settings > Database
+PGPASSWORD='<DB_PASSWORD>' psql \
   -h db.wstwwmiihkzlgvlymlfd.supabase.co \
   -p 5432 \
   -U postgres \
