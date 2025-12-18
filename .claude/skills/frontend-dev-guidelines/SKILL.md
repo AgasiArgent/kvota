@@ -32,7 +32,7 @@ This skill **auto-activates** when:
 
 ### Core Resource Files
 
-This skill contains **5 detailed resource files** (3,210 total lines) covering every frontend pattern:
+This skill contains **7 detailed resource files** (3,600+ total lines) covering every frontend pattern:
 
 #### 1. **[react-patterns.md](./resources/react-patterns.md)** (250 lines)
 Component structure, hooks, Suspense, Error Boundaries, Server vs Client components
@@ -129,6 +129,28 @@ Complete workflows for common frontend development tasks.
 5. **Integration testing** - Chrome DevTools MCP setup → snapshot → interact → verify
 
 **When to reference:** Starting any new feature, connecting frontend to backend, testing UI changes
+
+---
+
+#### 7. **[modal-guidelines.md](./resources/modal-guidelines.md)** (350 lines) ✨ NEW
+
+UX patterns for modals to ensure consistent, frustration-free user experience.
+
+**Key patterns:**
+1. **Loading states** - Every submit button shows spinner + disabled during async
+2. **Close on success** - Modal closes after successful save, shows toast
+3. **Inline add forms** - Must have explicit "Сохранить" and "Отмена" buttons
+4. **Refresh parent data** - Parent refetches data in `onSuccess` callback
+5. **State reset on open** - Reset form state via `useEffect([open])`
+
+**Checklist for new modals:**
+- [ ] Submit button shows `Loader2` spinner when saving
+- [ ] Submit button is `disabled={saving}` during save
+- [ ] Modal calls `onSuccess()` after successful save
+- [ ] Parent refetches data in `onSuccess` callback
+- [ ] Inline "Add new" forms have Save button
+
+**When to reference:** Creating new modals, fixing modal UX issues, adding inline create forms
 
 ---
 

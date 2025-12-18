@@ -95,7 +95,7 @@ class QuoteEmailService:
 
             <div class="quote-details{% if quote.priority == 'urgent' %} urgent{% endif %}">
                 <h3>Детали коммерческого предложения</h3>
-                <p><strong>Номер КП:</strong> {{ quote.quote_number }}</p>
+                <p><strong>Номер КП:</strong> {{ quote.idn_quote }}</p>
                 <p><strong>Клиент:</strong> {{ quote.customer_name }}</p>
                 {% if quote.customer_inn %}<p><strong>ИНН клиента:</strong> {{ quote.customer_inn }}</p>{% endif %}
                 <p><strong>Общая сумма:</strong> {{ quote.total_amount | ru_currency }}</p>
@@ -168,7 +168,7 @@ class QuoteEmailService:
             <p>Уважаемый {{ manager_name }},</p>
 
             <div class="success quote-details">
-                <p>Ваше коммерческое предложение <strong>{{ quote.quote_number }}</strong> успешно согласовано!</p>
+                <p>Ваше коммерческое предложение <strong>{{ quote.idn_quote }}</strong> успешно согласовано!</p>
 
                 <p><strong>Согласовал:</strong> {{ approver_name }}</p>
                 <p><strong>Дата согласования:</strong> {{ approval_date | ru_date }}</p>
@@ -233,7 +233,7 @@ class QuoteEmailService:
             <p>Уважаемый {{ manager_name }},</p>
 
             <div class="warning quote-details">
-                <p>Ваше коммерческое предложение <strong>{{ quote.quote_number }}</strong> отклонено.</p>
+                <p>Ваше коммерческое предложение <strong>{{ quote.idn_quote }}</strong> отклонено.</p>
 
                 <p><strong>Отклонил:</strong> {{ approver_name }}</p>
                 <p><strong>Дата отклонения:</strong> {{ rejection_date | ru_date }}</p>
@@ -274,7 +274,7 @@ class QuoteEmailService:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Коммерческое предложение {{ quote.quote_number }}</title>
+    <title>Коммерческое предложение {{ quote.idn_quote }}</title>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
         .container { max-width: 600px; margin: 0 auto; }
@@ -289,7 +289,7 @@ class QuoteEmailService:
     <div class="container">
         <div class="header">
             <h1>{{ company_name }}</h1>
-            <h2>Коммерческое предложение № {{ quote.quote_number }}</h2>
+            <h2>Коммерческое предложение № {{ quote.idn_quote }}</h2>
         </div>
 
         <div class="content">
@@ -299,7 +299,7 @@ class QuoteEmailService:
 
             <div class="quote-details">
                 <h3>Детали предложения</h3>
-                <p><strong>Номер КП:</strong> {{ quote.quote_number }}</p>
+                <p><strong>Номер КП:</strong> {{ quote.idn_quote }}</p>
                 <p><strong>Дата:</strong> {{ quote.created_at | ru_date }}</p>
                 {% if quote.valid_until %}<p><strong>Действительно до:</strong> {{ quote.valid_until | ru_date }}</p>{% endif %}
                 <p><strong>Общая сумма:</strong> {{ quote.total_amount | ru_currency }}</p>
@@ -398,7 +398,7 @@ class QuoteEmailService:
             params = {
                 "from": self.from_email,
                 "to": [approver_email],
-                "subject": f"Согласование КП {quote_data.get('quote_number')} от {quote_data.get('customer_name')}",
+                "subject": f"Согласование КП {quote_data.get('idn_quote')} от {quote_data.get('customer_name')}",
                 "html": html_content
             }
 
@@ -442,7 +442,7 @@ class QuoteEmailService:
             params = {
                 "from": self.from_email,
                 "to": [manager_email],
-                "subject": f"✅ КП {quote_data.get('quote_number')} согласовано",
+                "subject": f"✅ КП {quote_data.get('idn_quote')} согласовано",
                 "html": html_content
             }
 
@@ -484,7 +484,7 @@ class QuoteEmailService:
             params = {
                 "from": self.from_email,
                 "to": [manager_email],
-                "subject": f"❌ КП {quote_data.get('quote_number')} отклонено",
+                "subject": f"❌ КП {quote_data.get('idn_quote')} отклонено",
                 "html": html_content
             }
 
@@ -531,7 +531,7 @@ class QuoteEmailService:
             params = {
                 "from": self.from_email,
                 "to": [customer_email],
-                "subject": f"Коммерческое предложение {quote_data.get('quote_number')} от {self.company_name}",
+                "subject": f"Коммерческое предложение {quote_data.get('idn_quote')} от {self.company_name}",
                 "html": html_content
             }
 
@@ -540,7 +540,7 @@ class QuoteEmailService:
                 import base64
                 params["attachments"] = [
                     {
-                        "filename": f"quote_{quote_data.get('quote_number')}.pdf",
+                        "filename": f"quote_{quote_data.get('idn_quote')}.pdf",
                         "content": base64.b64encode(quote_pdf_attachment).decode(),
                         "content_type": "application/pdf"
                     }

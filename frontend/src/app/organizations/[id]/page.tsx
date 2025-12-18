@@ -61,6 +61,11 @@ export default function OrganizationSettingsPage() {
           name: result.data.name,
           description: result.data.description,
           supplier_code: result.data.supplier_code,
+          // Director fields for specification export
+          general_director_position: result.data.general_director_position,
+          general_director_last_name: result.data.general_director_last_name,
+          general_director_first_name: result.data.general_director_first_name,
+          general_director_patronymic: result.data.general_director_patronymic,
         });
 
         // Check user's role
@@ -157,6 +162,11 @@ export default function OrganizationSettingsPage() {
       name: organization?.name,
       description: organization?.description,
       supplier_code: organization?.supplier_code,
+      // Director fields for specification export
+      general_director_position: organization?.general_director_position,
+      general_director_last_name: organization?.general_director_last_name,
+      general_director_first_name: organization?.general_director_first_name,
+      general_director_patronymic: organization?.general_director_patronymic,
     });
     setValidationErrors({});
     setEditMode(false);
@@ -286,6 +296,31 @@ export default function OrganizationSettingsPage() {
                     {new Date(organization.updated_at).toLocaleString('ru-RU')}
                   </p>
                 </div>
+
+                {/* Director Information */}
+                <div className="md:col-span-2 border-t pt-4 mt-2">
+                  <Label className="text-foreground/60">Генеральный директор</Label>
+                  {organization.general_director_last_name ||
+                  organization.general_director_first_name ? (
+                    <p className="text-foreground/90 mt-1">
+                      {organization.general_director_last_name || ''}
+                      {organization.general_director_first_name &&
+                        ` ${organization.general_director_first_name[0]}.`}
+                      {organization.general_director_patronymic &&
+                        ` ${organization.general_director_patronymic[0]}.`}
+                      {organization.general_director_position &&
+                        `, ${organization.general_director_position}`}
+                    </p>
+                  ) : organization.general_director_name ? (
+                    <p className="text-foreground/90 mt-1">
+                      {organization.general_director_name}
+                      {organization.general_director_position &&
+                        `, ${organization.general_director_position}`}
+                    </p>
+                  ) : (
+                    <p className="text-foreground/40 mt-1">Не указан</p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -390,6 +425,77 @@ export default function OrganizationSettingsPage() {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* Director Information for Specification Export */}
+                <div className="border-t pt-4">
+                  <Label className="text-base font-medium">Генеральный директор</Label>
+                  <p className="text-sm text-foreground/60 mb-4">
+                    Информация для экспорта спецификаций (формат: Фамилия И. О.)
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="general_director_last_name">Фамилия</Label>
+                      <Input
+                        id="general_director_last_name"
+                        value={formData.general_director_last_name || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, general_director_last_name: e.target.value })
+                        }
+                        placeholder="Ермаков"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="general_director_first_name">Имя</Label>
+                      <Input
+                        id="general_director_first_name"
+                        value={formData.general_director_first_name || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, general_director_first_name: e.target.value })
+                        }
+                        placeholder="Иван"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="general_director_patronymic">Отчество</Label>
+                      <Input
+                        id="general_director_patronymic"
+                        value={formData.general_director_patronymic || ''}
+                        onChange={(e) =>
+                          setFormData({ ...formData, general_director_patronymic: e.target.value })
+                        }
+                        placeholder="Иванович"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <Label htmlFor="general_director_position">Должность</Label>
+                    <Input
+                      id="general_director_position"
+                      value={formData.general_director_position || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, general_director_position: e.target.value })
+                      }
+                      placeholder="Генеральный директор"
+                    />
+                  </div>
+
+                  {/* Preview */}
+                  {(formData.general_director_last_name ||
+                    formData.general_director_first_name) && (
+                    <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-md">
+                      <p className="text-xs text-foreground/60 mb-1">Формат в спецификации:</p>
+                      <p className="text-sm font-medium text-blue-400">
+                        {formData.general_director_last_name || ''}
+                        {formData.general_director_first_name &&
+                          ` ${formData.general_director_first_name[0]}.`}
+                        {formData.general_director_patronymic &&
+                          ` ${formData.general_director_patronymic[0]}.`}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 pt-2">

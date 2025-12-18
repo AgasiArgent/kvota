@@ -32,6 +32,10 @@ export interface Customer {
   created_at: string;
   updated_at: string;
   created_by: string;
+  // Specification export fields (TASK-005)
+  general_director_name?: string;
+  general_director_position?: string;
+  warehouse_addresses?: Array<{ name: string; address: string }>;
 }
 
 export interface CustomerCreate {
@@ -71,6 +75,10 @@ export interface CustomerUpdate {
   payment_terms?: number;
   status?: string;
   notes?: string;
+  // Specification export fields (TASK-005)
+  general_director_name?: string;
+  general_director_position?: string;
+  warehouse_addresses?: Array<{ name: string; address: string }>;
 }
 
 export interface CustomerListResponse {
@@ -85,34 +93,70 @@ export interface CustomerContact {
   id: string;
   customer_id: string;
   organization_id: string;
-  name: string;
-  last_name?: string;
+  name: string; // First name (Имя)
+  last_name?: string; // Surname (Фамилия)
+  patronymic?: string; // Patronymic (Отчество)
   phone?: string;
   email?: string;
   position?: string;
   is_primary: boolean;
+  is_signatory: boolean;
+  signatory_position?: string; // Deprecated: use position instead
   notes?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface ContactCreate {
-  name: string;
-  last_name?: string;
+  name: string; // First name (Имя)
+  last_name?: string; // Surname (Фамилия)
+  patronymic?: string; // Patronymic (Отчество)
   phone?: string;
   email?: string;
   position?: string;
   is_primary?: boolean;
+  is_signatory?: boolean;
+  signatory_position?: string; // Deprecated: use position instead
   notes?: string;
 }
 
 export interface ContactUpdate {
-  name?: string;
-  last_name?: string;
+  name?: string; // First name (Имя)
+  last_name?: string; // Surname (Фамилия)
+  patronymic?: string; // Patronymic (Отчество)
   phone?: string;
   email?: string;
   position?: string;
   is_primary?: boolean;
+  is_signatory?: boolean;
+  signatory_position?: string; // Deprecated: use position instead
+  notes?: string;
+}
+
+// Delivery Address Types (TASK-006)
+export interface DeliveryAddress {
+  id: string;
+  customer_id: string;
+  organization_id: string;
+  address: string;
+  name?: string;
+  is_default: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeliveryAddressCreate {
+  address: string;
+  name?: string;
+  is_default?: boolean;
+  notes?: string;
+}
+
+export interface DeliveryAddressUpdate {
+  address?: string;
+  name?: string;
+  is_default?: boolean;
   notes?: string;
 }
 
@@ -336,6 +380,70 @@ export class CustomerService {
     }>
   > {
     return this.apiRequest(`/api/customers/${customerId}/quotes?page=${page}&limit=${limit}`);
+  }
+
+  // ============================================================================
+  // DELIVERY ADDRESSES CRUD (TASK-006)
+  // ============================================================================
+
+  /**
+   * Get all delivery addresses for a customer
+   * GET /api/customers/{customer_id}/delivery-addresses
+   */
+  async listDeliveryAddresses(
+    customerId: string
+  ): Promise<ApiResponse<{ addresses: DeliveryAddress[] }>> {
+    return this.apiRequest<{ addresses: DeliveryAddress[] }>(
+      `/api/customers/${customerId}/delivery-addresses`
+    );
+  }
+
+  /**
+   * Create a new delivery address for customer
+   * POST /api/customers/{customer_id}/delivery-addresses
+   */
+  async createDeliveryAddress(
+    customerId: string,
+    data: DeliveryAddressCreate
+  ): Promise<ApiResponse<DeliveryAddress>> {
+    return this.apiRequest<DeliveryAddress>(`/api/customers/${customerId}/delivery-addresses`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Update delivery address
+   * PUT /api/customers/{customer_id}/delivery-addresses/{address_id}
+   */
+  async updateDeliveryAddress(
+    customerId: string,
+    addressId: string,
+    updates: DeliveryAddressUpdate
+  ): Promise<ApiResponse<DeliveryAddress>> {
+    return this.apiRequest<DeliveryAddress>(
+      `/api/customers/${customerId}/delivery-addresses/${addressId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(updates),
+      }
+    );
+  }
+
+  /**
+   * Delete delivery address
+   * DELETE /api/customers/{customer_id}/delivery-addresses/{address_id}
+   */
+  async deleteDeliveryAddress(
+    customerId: string,
+    addressId: string
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.apiRequest<{ success: boolean }>(
+      `/api/customers/${customerId}/delivery-addresses/${addressId}`,
+      {
+        method: 'DELETE',
+      }
+    );
   }
 
   // ============================================================================

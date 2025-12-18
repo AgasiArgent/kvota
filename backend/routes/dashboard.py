@@ -33,7 +33,7 @@ router = APIRouter(
 
 class RecentQuote(BaseModel):
     id: str
-    quote_number: str
+    idn_quote: str
     customer_name: str
     total_amount: str
     status: str
@@ -123,7 +123,7 @@ def calculate_stats(organization_id: str, supabase: Client) -> DashboardStats:
 
     # Get recent quotes (top 5 with customer info)
     recent_result = supabase.table("quotes").select(
-        "id, quote_number, total_amount, status, created_at, customers(name)"
+        "id, idn_quote, total_amount, status, created_at, customers(name)"
     ).eq("organization_id", organization_id).is_("deleted_at", "null").order(
         "created_at", desc=True
     ).limit(5).execute()
@@ -133,7 +133,7 @@ def calculate_stats(organization_id: str, supabase: Client) -> DashboardStats:
     recent_quotes = [
         RecentQuote(
             id=str(q['id']),
-            quote_number=q['quote_number'],
+            idn_quote=q['idn_quote'],
             customer_name=q['customers']['name'] if q.get('customers') and isinstance(q['customers'], dict) else "Unknown",
             total_amount=str(q['total_amount']),
             status=q['status'],

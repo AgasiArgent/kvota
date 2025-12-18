@@ -237,7 +237,7 @@ class QuotePDFService:
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <title>{{ quote.quote_number }} - {{ quote.customer_name }}</title>
+    <title>{{ quote.idn_quote }} - {{ quote.customer_name }}</title>
     <style>
         {{ css_content }}
     </style>
@@ -265,7 +265,7 @@ class QuotePDFService:
 
         <!-- Quote title and number -->
         <div class="quote-title">
-            <h2>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ № {{ quote.quote_number }}</h2>
+            <h2>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ № {{ quote.idn_quote }}</h2>
             <p class="quote-date">от {{ quote.quote_date|ru_date }} г.</p>
         </div>
 
@@ -806,8 +806,8 @@ body {
 
     def get_quote_filename(self, quote: Quote) -> str:
         """Generate standardized filename for quote PDF"""
-        # Clean quote number for filename
-        clean_number = quote.quote_number.replace('/', '-').replace('\\', '-')
+        # Clean quote IDN for filename
+        clean_number = (quote.idn_quote or 'unknown').replace('/', '-').replace('\\', '-')
         # Clean customer name for filename
         clean_customer = ''.join(c for c in quote.customer_name if c.isalnum() or c in '-_. ')[:30]
 
@@ -915,7 +915,7 @@ body {
 
             item_data = {
                 'brand': item.get('brand', ''),
-                'sku': item.get('sku', ''),
+                'sku': item.get('product_code', ''),
                 'product_name': item.get('product_name', ''),
                 'quantity': item.get('quantity', 0),
                 'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0), currency_symbol),
@@ -1004,7 +1004,7 @@ body {
             item_data = {
                 # Columns 1-4: Basic info
                 'brand': item.get('brand', ''),
-                'sku': item.get('sku', ''),
+                'sku': item.get('product_code', ''),
                 'product_name': item.get('product_name', ''),
                 'quantity': quantity,
 
@@ -1107,7 +1107,7 @@ body {
 
             item_data = {
                 'brand': item.get('brand', ''),
-                'sku': item.get('sku', ''),
+                'sku': item.get('product_code', ''),
                 'product_name': item.get('product_name', ''),
                 'quantity': item.get('quantity', 0),
                 'selling_price_per_unit': self.format_russian_currency(calc.get('sales_price_per_unit_no_vat', 0), currency_symbol),
@@ -1200,7 +1200,7 @@ body {
             item_data = {
                 # Columns 1-4: Basic info
                 'brand': item.get('brand', ''),
-                'sku': item.get('sku', ''),
+                'sku': item.get('product_code', ''),
                 'product_name': item.get('product_name', ''),
                 'quantity': quantity,
 
@@ -1279,8 +1279,8 @@ body {
         # Get customer info
         customer = export_data.customer or {}
 
-        # Build invoice number from quote number
-        quote_number = export_data.quote.get('quote_number', '')
+        # Build invoice number from quote IDN
+        quote_number = export_data.quote.get('idn_quote', '')
 
         # Parse dates
         quote_date = parse_iso_date(export_data.quote.get('created_at', ''))

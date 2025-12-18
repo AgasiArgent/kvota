@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <title>{{ quote.quote_number }} - {{ quote.customer_name }}</title>
+    <title>{{ quote.idn_quote }} - {{ quote.customer_name }}</title>
     <style>
         {{ css_content }}
     </style>
@@ -30,7 +30,7 @@
 
         <!-- Quote title and number -->
         <div class="quote-title">
-            <h2>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ № {{ quote.quote_number }}</h2>
+            <h2>КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ № {{ quote.idn_quote }}</h2>
             <p class="quote-date">от {{ quote.quote_date|ru_date }} г.</p>
         </div>
 

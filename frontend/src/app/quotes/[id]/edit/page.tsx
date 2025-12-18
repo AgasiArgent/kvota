@@ -243,7 +243,7 @@ export default function EditQuotePage() {
         setQuoteTitle(quote.title || '');
 
         const products: Product[] = items.map((item: any) => ({
-          sku: item.sku || '',
+          sku: item.product_code || '',
           brand: item.brand || '',
           product_name: item.product_name || '',
           product_code: item.product_code || '',

@@ -55,7 +55,7 @@ EXCEL_CELL_MAP = {
     'base_price_vat': 'K16',
     'quantity': 'E16',
     'brand': 'B16',
-    'sku': 'C16',
+    'product_code': 'C16',
     'product_name': 'D16',
     'weight_in_kg': 'G16',
     'currency_of_base_price': 'J16',
@@ -104,7 +104,7 @@ def map_calculation_to_cells(item: Dict[str, Any]) -> Dict[str, Any]:
     cell_data = {
         # Input data (from item)
         'B16': item.get('brand', ''),
-        'C16': item.get('sku', ''),
+        'C16': item.get('product_code', ''),
         'D16': item.get('product_name', ''),
         'E16': item.get('quantity', 0),
         'G16': item.get('weight_in_kg', 0),

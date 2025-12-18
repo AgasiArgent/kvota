@@ -18,7 +18,7 @@ class QuerySecurityValidator:
     # Whitelist of allowed fields
     ALLOWED_FIELDS = {
         'quotes': [
-            'id', 'quote_number', 'status', 'created_at', 'updated_at',
+            'id', 'idn_quote', 'status', 'created_at', 'updated_at',
             'total_amount', 'quote_date', 'customer_id', 'organization_id'
         ],
         'variables': [
@@ -176,7 +176,7 @@ def build_analytics_query(
     safe_filters = QuerySecurityValidator.sanitize_filters(filters)
 
     if not validated_fields:
-        validated_fields = ['quote_number', 'status', 'total_amount']
+        validated_fields = ['idn_quote', 'status', 'total_amount']
 
     # Separate quote fields vs variable fields vs summary fields
     quote_fields = []

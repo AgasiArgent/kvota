@@ -50,6 +50,7 @@ import { WorkflowStatusCard } from '@/components/workflow';
 import { getWorkflowStatus, type WorkflowStatus } from '@/lib/api/workflow-service';
 import FinancialApprovalActions from '@/components/quotes/FinancialApprovalActions';
 import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
+import SpecificationExportModal from '@/components/quotes/SpecificationExportModal';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -76,7 +77,7 @@ const AgGridReact = dynamic(
 // TypeScript interfaces matching backend response
 interface QuoteItem {
   id: string;
-  sku?: string;
+  product_code?: string;
   brand?: string;
   product_name: string;
   quantity: number;
@@ -129,6 +130,7 @@ export default function QuoteDetailPage() {
   const [workflowLoading, setWorkflowLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('details');
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
+  const [specificationModalOpen, setSpecificationModalOpen] = useState(false);
 
   const quoteService = new QuoteService();
   const quoteId = params?.id as string;
@@ -528,6 +530,16 @@ export default function QuoteDetailPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {(quote.workflow_state === 'financially_approved' ||
+              quote.workflow_state === 'approved') && (
+              <Button
+                onClick={() => setSpecificationModalOpen(true)}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Экспорт спецификации
+              </Button>
+            )}
             {quote.workflow_state === 'draft' && (
               <Button
                 onClick={() => setSubmitModalOpen(true)}
@@ -750,6 +762,17 @@ export default function QuoteDetailPage() {
         onSubmit={handleSubmitForApproval}
         quoteNumber={quote.idn_quote}
       />
+
+      {/* Specification Export Modal */}
+      {quote.customer_id && (
+        <SpecificationExportModal
+          open={specificationModalOpen}
+          onCancel={() => setSpecificationModalOpen(false)}
+          quoteId={quote.id}
+          customerId={quote.customer_id}
+          quoteNumber={quote.idn_quote}
+        />
+      )}
     </MainLayout>
   );
 }

@@ -91,7 +91,7 @@ BEGIN
         -- Insert seller companies
         INSERT INTO seller_companies (organization_id, name, supplier_code, country) VALUES
             (mb_org_id, 'МАСТЕР БЭРИНГ ООО', 'MBR', 'Россия'),
-            (mb_org_id, 'РадРесур ООО', 'RAR', 'Россия'),
+            (mb_org_id, 'РадРесурс ООО', 'RAR', 'Россия'),
             (mb_org_id, 'ЦМТО1 ООО', 'CMT', 'Россия'),
             (mb_org_id, 'GESTUS DIŞ TİCARET LİMİTED ŞİRKETİ', 'GES', 'Турция'),
             (mb_org_id, 'TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ', 'TEX', 'Турция')

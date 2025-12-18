@@ -40,13 +40,39 @@ This skill provides everything needed to understand, maintain, and extend the B2
   - Variable cross-reference table
   - Phase dependency diagram
 
+### Currency & Data Flow (Verified 2025-12-13)
+- **`resources/currency-handling.md`** - Complete currency flow
+  - Currency at each stage (input → calculation → storage → export)
+  - RUB as CBR cross-rate base
+  - Dual storage (Quote currency + USD)
+  - Exchange rate audit trail
+
+- **`resources/database-mapping.md`** - Variables to database tables
+  - 5 main tables: quotes, quote_items, quote_calculation_variables, quote_calculation_results, quote_calculation_summaries
+  - JSONB structures documented
+  - Query examples
+
+- **`resources/export-mapping.md`** - Variables to Excel/PDF
+  - Excel cell references (D5-BL5)
+  - 6 PDF export formats
+  - Value transformations (percentages, country codes)
+
+- **`resources/derived-variables.md`** - 4 derived variables
+  - seller_region, vat_seller_country, internal_markup, rate_vatRu
+  - **SUPERSEDES** archive docs (archive has outdated internal_markup values)
+  - Updated 2025-11-09 markup percentages
+
 ### Source Code Reference
 - **`backend/calculation_engine.py`** (1,200+ lines)
+  - Derived variable mappings (lines 23-84)
+  - Derived variable functions (lines 107-142)
   - Phase functions (lines 143-763)
   - Helper functions (lines 89-120)
   - Orchestrators (lines 770-1130)
 - **`backend/routes/quotes_calc.py`**
   - API integration and validation
+- **`backend/routes/quotes_upload.py`**
+  - Excel upload and currency conversion (lines 177-251)
 
 ---
 
@@ -237,13 +263,32 @@ CREATE TABLE quote_calculations (
 
 ## References
 
+### Primary (Verified from Code)
+- **Currency Flow:** `resources/currency-handling.md` - How currency works end-to-end
+- **Database Mapping:** `resources/database-mapping.md` - Variables to tables
+- **Export Mapping:** `resources/export-mapping.md` - Variables to Excel/PDF
+- **Derived Variables:** `resources/derived-variables.md` - 4 auto-calculated variables
+
+### Secondary
 - **Calculation Summary:** `.claude/reference/calculation_engine_summary.md`
 - **Variables Guide:** `.claude/VARIABLES.md` (42 variables classified)
 - **Source Code:** `backend/calculation_engine.py`
 - **Tests:** `backend/tests/test_quotes_calc_*.py`
 
+### Archive (May Be Outdated)
+- `.claude/archive/Variables_specification_notion.md` - Contains outdated internal_markup values
+- `.claude/archive/VARIABLES_CLASSIFICATION.md` - UI classification (still valid)
+
 ---
 
-**Last Updated:** 2025-10-29
+**Last Updated:** 2025-12-13
 **Status:** Production Ready (✅ 15/15 tests passing)
 **Owner:** Backend Calculation Team
+
+## Audit History
+
+| Date | What Changed | Verified By |
+|------|--------------|-------------|
+| 2025-12-13 | Full audit: currency flow, database mapping, export mapping, derived variables | Code analysis |
+| 2025-11-09 | Internal markup percentages updated in code | (see calculation_engine.py:53-54) |
+| 2025-10-29 | Initial skill documentation | - |

@@ -122,7 +122,7 @@ class WorkflowSettingsUpdate(BaseModel):
 class MyTask(BaseModel):
     """Quote in user's task list"""
     quote_id: str
-    quote_number: str
+    idn_quote: str
     customer_name: str
     total_amount: Decimal
     workflow_state: WorkflowState

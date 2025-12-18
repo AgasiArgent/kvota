@@ -57,11 +57,18 @@ init_task() {
     cp "$TEMPLATES_DIR/template-context.md" "$task_dir/context.md"
     cp "$TEMPLATES_DIR/template-tasks.md" "$task_dir/tasks.md"
 
-    # Update placeholders in files
-    sed -i "s/\[Task Name\]/$description/g" "$task_dir"/*.md
-    sed -i "s/TASK-###/TASK-${task_num}/g" "$task_dir"/*.md
-    sed -i "s/YYYY-MM-DD/$(date +%Y-%m-%d)/g" "$task_dir"/*.md
-    sed -i "s/YYYYMMDD/$date/g" "$task_dir"/*.md
+    # Update placeholders in files (macOS-compatible sed)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/\[Task Name\]/$description/g" "$task_dir"/*.md
+        sed -i '' "s/TASK-###/TASK-${task_num}/g" "$task_dir"/*.md
+        sed -i '' "s/YYYY-MM-DD/$(date +%Y-%m-%d)/g" "$task_dir"/*.md
+        sed -i '' "s/YYYYMMDD/$date/g" "$task_dir"/*.md
+    else
+        sed -i "s/\[Task Name\]/$description/g" "$task_dir"/*.md
+        sed -i "s/TASK-###/TASK-${task_num}/g" "$task_dir"/*.md
+        sed -i "s/YYYY-MM-DD/$(date +%Y-%m-%d)/g" "$task_dir"/*.md
+        sed -i "s/YYYYMMDD/$date/g" "$task_dir"/*.md
+    fi
 
     echo -e "${GREEN}✅ Created task: $task_name${NC}"
     echo -e "${BLUE}📁 Location: $task_dir${NC}"
@@ -143,10 +150,15 @@ update() {
         fi
     fi
 
-    # Update timestamps
+    # Update timestamps (macOS-compatible sed)
     local timestamp=$(date +"%Y-%m-%d %H:%M")
-    sed -i "s/\*\*Last Updated:\*\*.*/\*\*Last Updated:\*\* $timestamp/" "$task_dir/context.md"
-    sed -i "s/\*\*Last Updated:\*\*.*/\*\*Last Updated:\*\* $timestamp/" "$task_dir/tasks.md"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/\*\*Last Updated:\*\*.*/\*\*Last Updated:\*\* $timestamp/" "$task_dir/context.md"
+        sed -i '' "s/\*\*Last Updated:\*\*.*/\*\*Last Updated:\*\* $timestamp/" "$task_dir/tasks.md"
+    else
+        sed -i "s/\*\*Last Updated:\*\*.*/\*\*Last Updated:\*\* $timestamp/" "$task_dir/context.md"
+        sed -i "s/\*\*Last Updated:\*\*.*/\*\*Last Updated:\*\* $timestamp/" "$task_dir/tasks.md"
+    fi
 
     echo -e "${GREEN}✅ Updated timestamps for: $(basename "$task_dir")${NC}"
     echo ""
@@ -175,8 +187,12 @@ complete() {
         exit 1
     fi
 
-    # Update status
-    sed -i "s/\*\*Status:\*\*.*/\*\*Status:\*\* Complete/" "$task_dir/context.md"
+    # Update status (macOS-compatible sed)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/\*\*Status:\*\*.*/\*\*Status:\*\* Complete/" "$task_dir/context.md"
+    else
+        sed -i "s/\*\*Status:\*\*.*/\*\*Status:\*\* Complete/" "$task_dir/context.md"
+    fi
 
     # Move to completed
     mv "$task_dir" "$COMPLETED_DIR/"

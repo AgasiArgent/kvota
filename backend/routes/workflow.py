@@ -370,7 +370,7 @@ async def get_my_workflow_tasks(
 
     # Get quotes assigned to user's role
     quotes_result = supabase.table("quotes")\
-        .select("id, quote_number, customer_id, total_amount, workflow_state, assigned_at, customers(name)")\
+        .select("id, idn_quote, customer_id, total_amount, workflow_state, assigned_at, customers(name)")\
         .eq("organization_id", str(user.current_organization_id))\
         .in_("current_assignee_role", assignee_roles)\
         .neq("workflow_state", "approved")\
@@ -386,7 +386,7 @@ async def get_my_workflow_tasks(
 
         tasks.append(MyTask(
             quote_id=quote["id"],
-            quote_number=quote["quote_number"],
+            idn_quote=quote["idn_quote"],
             customer_name=quote.get("customers", {}).get("name", "Unknown"),
             total_amount=Decimal(str(quote["total_amount"])),
             workflow_state=quote["workflow_state"],

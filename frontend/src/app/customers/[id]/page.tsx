@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Save, Edit, Trash2, Plus, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, Save, Edit, Trash2, Plus, Phone, Mail, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import MainLayout from '@/components/layout/MainLayout';
@@ -48,8 +48,12 @@ import {
   Customer,
   CustomerContact,
   ContactCreate,
+  DeliveryAddress,
+  DeliveryAddressCreate,
 } from '@/lib/api/customer-service';
+import { contractsService } from '@/lib/api/contracts-service';
 import { validateINN, validateKPP, validateOGRN } from '@/lib/validation/russian-business';
+import ContractsList from '@/components/customers/ContractsList';
 
 interface Quote {
   id: string;
@@ -77,9 +81,22 @@ export default function CustomerDetailPage() {
   const [contactModalVisible, setContactModalVisible] = useState(false);
   const [editingContact, setEditingContact] = useState<CustomerContact | null>(null);
 
+  // Delivery addresses state
+  const [deliveryAddresses, setDeliveryAddresses] = useState<DeliveryAddress[]>([]);
+  const [addressModalVisible, setAddressModalVisible] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<DeliveryAddress | null>(null);
+  const [addressFormData, setAddressFormData] = useState<Partial<DeliveryAddressCreate>>({});
+
+  // Contracts count state (for badge)
+  const [contractsCount, setContractsCount] = useState(0);
+
   // Form state
   const [formData, setFormData] = useState<Partial<Customer>>({});
   const [contactFormData, setContactFormData] = useState<Partial<ContactCreate>>({});
+
+  // Loading states for modals
+  const [contactSaving, setContactSaving] = useState(false);
+  const [addressSaving, setAddressSaving] = useState(false);
 
   // Validation errors
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -88,7 +105,20 @@ export default function CustomerDetailPage() {
     fetchCustomer();
     fetchCustomerQuotes();
     fetchContacts();
+    fetchDeliveryAddresses();
+    fetchContractsCount();
   }, [customerId]);
+
+  const fetchContractsCount = async () => {
+    try {
+      const response = await contractsService.listContracts(customerId);
+      if (response.success && response.data) {
+        setContractsCount(Array.isArray(response.data) ? response.data.length : 0);
+      }
+    } catch (error) {
+      console.error('Error fetching contracts count:', error);
+    }
+  };
 
   const fetchCustomer = async () => {
     setLoading(true);
@@ -128,6 +158,17 @@ export default function CustomerDetailPage() {
       }
     } catch (error: any) {
       console.error('Error fetching contacts:', error);
+    }
+  };
+
+  const fetchDeliveryAddresses = async () => {
+    try {
+      const response = await customerService.listDeliveryAddresses(customerId);
+      if (response.success && response.data) {
+        setDeliveryAddresses(response.data.addresses || []);
+      }
+    } catch (error: any) {
+      console.error('Error fetching delivery addresses:', error);
     }
   };
 
@@ -199,6 +240,7 @@ export default function CustomerDetailPage() {
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setContactSaving(true);
 
     try {
       if (editingContact) {
@@ -218,6 +260,8 @@ export default function CustomerDetailPage() {
       fetchContacts();
     } catch (error: any) {
       toast.error(`Ошибка: ${error.message}`);
+    } finally {
+      setContactSaving(false);
     }
   };
 
@@ -240,6 +284,63 @@ export default function CustomerDetailPage() {
       setContactFormData({});
     }
     setContactModalVisible(true);
+  };
+
+  // Delivery Address handlers
+  const openAddressModal = (address?: DeliveryAddress) => {
+    if (address) {
+      setEditingAddress(address);
+      setAddressFormData(address);
+    } else {
+      setEditingAddress(null);
+      setAddressFormData({});
+    }
+    setAddressModalVisible(true);
+  };
+
+  const handleAddressSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!addressFormData.address?.trim()) {
+      toast.error('Адрес обязателен');
+      return;
+    }
+
+    setAddressSaving(true);
+    try {
+      if (editingAddress) {
+        await customerService.updateDeliveryAddress(
+          customerId,
+          editingAddress.id,
+          addressFormData as DeliveryAddressCreate
+        );
+        toast.success('Адрес успешно обновлен');
+      } else {
+        await customerService.createDeliveryAddress(
+          customerId,
+          addressFormData as DeliveryAddressCreate
+        );
+        toast.success('Адрес успешно создан');
+      }
+      setAddressModalVisible(false);
+      setEditingAddress(null);
+      setAddressFormData({});
+      fetchDeliveryAddresses();
+    } catch (error: any) {
+      toast.error(`Ошибка: ${error.message}`);
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
+  const handleAddressDelete = async (addressId: string) => {
+    try {
+      await customerService.deleteDeliveryAddress(customerId, addressId);
+      toast.success('Адрес успешно удален');
+      fetchDeliveryAddresses();
+    } catch (error: any) {
+      toast.error(`Ошибка удаления: ${error.message}`);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -353,6 +454,8 @@ export default function CustomerDetailPage() {
             <TabsTrigger value="info">Информация</TabsTrigger>
             <TabsTrigger value="quotes">Коммерческие предложения ({quotes.length})</TabsTrigger>
             <TabsTrigger value="contacts">Контакты ({contacts.length})</TabsTrigger>
+            <TabsTrigger value="contracts">Договоры ({contractsCount})</TabsTrigger>
+            <TabsTrigger value="delivery">Адреса доставки ({deliveryAddresses.length})</TabsTrigger>
           </TabsList>
 
           {/* Info Tab */}
@@ -794,12 +897,22 @@ export default function CustomerDetailPage() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
                                   <span className="text-sm text-foreground/90">
+                                    {/* Russian name order: Фамилия Имя Отчество */}
+                                    {contact.last_name && `${contact.last_name} `}
                                     {contact.name}
-                                    {contact.last_name ? ` ${contact.last_name}` : ''}
+                                    {contact.patronymic && ` ${contact.patronymic}`}
                                   </span>
                                   {contact.is_primary && (
                                     <Badge variant="secondary" className="text-xs">
                                       Основной
+                                    </Badge>
+                                  )}
+                                  {contact.is_signatory && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs border-primary text-primary"
+                                    >
+                                      Подписант
                                     </Badge>
                                   )}
                                 </div>
@@ -861,6 +974,116 @@ export default function CustomerDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Contracts Tab */}
+          <TabsContent value="contracts">
+            <ContractsList customerId={customerId} onContractsChange={fetchContractsCount} />
+          </TabsContent>
+
+          {/* Delivery Addresses Tab */}
+          <TabsContent value="delivery">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Адреса доставки</CardTitle>
+                <Button onClick={() => openAddressModal()}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Добавить адрес
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {deliveryAddresses.length === 0 ? (
+                  <div className="py-8 text-center text-foreground/40">
+                    Адреса доставки не найдены
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-secondary/30 border-b border-border">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Название
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Адрес
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Примечания
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                              Действия
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {deliveryAddresses.map((address) => (
+                            <tr
+                              key={address.id}
+                              className="hover:bg-foreground/5 transition-colors"
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-foreground/90">
+                                    {address.name || 'Без названия'}
+                                  </span>
+                                  {address.is_default && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      По умолчанию
+                                    </Badge>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70 max-w-md">
+                                {address.address}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-foreground/70 max-w-xs truncate">
+                                {address.notes || '—'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openAddressModal(address)}
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="destructive" size="sm">
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Удалить адрес?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Это действие нельзя отменить.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Отмена</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleAddressDelete(address.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Удалить
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* Contact Modal */}
@@ -872,16 +1095,7 @@ export default function CustomerDetailPage() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleContactSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="contact_name">Имя *</Label>
-                <Input
-                  id="contact_name"
-                  value={contactFormData.name || ''}
-                  onChange={(e) => setContactFormData({ ...contactFormData, name: e.target.value })}
-                  required
-                />
-              </div>
-
+              {/* Russian name order: Фамилия Имя Отчество */}
               <div>
                 <Label htmlFor="contact_last_name">Фамилия</Label>
                 <Input
@@ -890,18 +1104,52 @@ export default function CustomerDetailPage() {
                   onChange={(e) =>
                     setContactFormData({ ...contactFormData, last_name: e.target.value })
                   }
+                  placeholder="Ермаков"
                 />
               </div>
 
               <div>
-                <Label htmlFor="contact_position">Должность</Label>
+                <Label htmlFor="contact_name">Имя *</Label>
+                <Input
+                  id="contact_name"
+                  value={contactFormData.name || ''}
+                  onChange={(e) => setContactFormData({ ...contactFormData, name: e.target.value })}
+                  required
+                  placeholder="Иван"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="contact_patronymic">Отчество</Label>
+                <Input
+                  id="contact_patronymic"
+                  value={contactFormData.patronymic || ''}
+                  onChange={(e) =>
+                    setContactFormData({ ...contactFormData, patronymic: e.target.value })
+                  }
+                  placeholder="Иванович"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="contact_position">
+                  Должность{' '}
+                  {contactFormData.is_signatory && <span className="text-destructive">*</span>}
+                </Label>
                 <Input
                   id="contact_position"
                   value={contactFormData.position || ''}
                   onChange={(e) =>
                     setContactFormData({ ...contactFormData, position: e.target.value })
                   }
+                  placeholder="Генеральный директор"
+                  required={contactFormData.is_signatory}
                 />
+                {contactFormData.is_signatory && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Должность обязательна для подписанта
+                  </p>
+                )}
               </div>
 
               <div>
@@ -940,6 +1188,19 @@ export default function CustomerDetailPage() {
                 </Label>
               </div>
 
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="contact_is_signatory"
+                  checked={contactFormData.is_signatory || false}
+                  onCheckedChange={(checked: boolean) =>
+                    setContactFormData({ ...contactFormData, is_signatory: checked })
+                  }
+                />
+                <Label htmlFor="contact_is_signatory" className="cursor-pointer">
+                  Подписант (право подписи документов)
+                </Label>
+              </div>
+
               <div>
                 <Label htmlFor="contact_notes">Примечания</Label>
                 <Textarea
@@ -961,10 +1222,96 @@ export default function CustomerDetailPage() {
                     setEditingContact(null);
                     setContactFormData({});
                   }}
+                  disabled={contactSaving}
                 >
                   Отмена
                 </Button>
-                <Button type="submit">{editingContact ? 'Сохранить' : 'Добавить'}</Button>
+                <Button type="submit" disabled={contactSaving}>
+                  {contactSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingContact ? 'Сохранить' : 'Добавить'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delivery Address Modal */}
+        <Dialog open={addressModalVisible} onOpenChange={setAddressModalVisible}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editingAddress ? 'Редактировать адрес' : 'Добавить адрес доставки'}
+              </DialogTitle>
+              <DialogDescription>Укажите адрес доставки для клиента</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddressSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="address_name">Название</Label>
+                <Input
+                  id="address_name"
+                  value={addressFormData.name || ''}
+                  onChange={(e) => setAddressFormData({ ...addressFormData, name: e.target.value })}
+                  placeholder="Например: Основной склад, Московский офис"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="address_address">Адрес *</Label>
+                <Textarea
+                  id="address_address"
+                  rows={3}
+                  value={addressFormData.address || ''}
+                  onChange={(e) =>
+                    setAddressFormData({ ...addressFormData, address: e.target.value })
+                  }
+                  placeholder="Полный адрес доставки"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="address_is_default"
+                  checked={addressFormData.is_default || false}
+                  onCheckedChange={(checked: boolean) =>
+                    setAddressFormData({ ...addressFormData, is_default: checked })
+                  }
+                />
+                <Label htmlFor="address_is_default" className="cursor-pointer">
+                  Адрес по умолчанию
+                </Label>
+              </div>
+
+              <div>
+                <Label htmlFor="address_notes">Примечания</Label>
+                <Textarea
+                  id="address_notes"
+                  rows={2}
+                  value={addressFormData.notes || ''}
+                  onChange={(e) =>
+                    setAddressFormData({ ...addressFormData, notes: e.target.value })
+                  }
+                  placeholder="Дополнительные инструкции по доставке"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setAddressModalVisible(false);
+                    setEditingAddress(null);
+                    setAddressFormData({});
+                  }}
+                  disabled={addressSaving}
+                >
+                  Отмена
+                </Button>
+                <Button type="submit" disabled={addressSaving}>
+                  {addressSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingAddress ? 'Сохранить' : 'Добавить'}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>

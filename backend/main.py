@@ -21,7 +21,7 @@ from supabase import create_client, Client
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload, dadata, seller_companies
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload, dadata, seller_companies, customer_contracts, specification_export
 
 # Sentry for error tracking
 import sentry_sdk
@@ -590,6 +590,8 @@ async def test_database(user: User = Depends(get_current_user)):
             detail=f"Database test failed: {str(e)}"
         )
 app.include_router(customers.router)
+app.include_router(customer_contracts.router)  # Customer contracts for specification exports
+app.include_router(specification_export.router)  # Specification (Спецификация) export as DOCX
 app.include_router(quotes_upload.router)  # Excel template upload (BEFORE quotes.router for specific route matching)
 app.include_router(quotes_calc.router)
 app.include_router(quotes.router)
