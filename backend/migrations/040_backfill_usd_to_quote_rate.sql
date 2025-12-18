@@ -5,9 +5,11 @@
 -- Purpose: Fix quotes where usd_to_quote_rate was NULL due to currency_of_quote
 -- being explicitly set to NULL in the request (dict.get returns None, not default)
 --
--- Note: Since the calculation engine works in USD internally, all totals stored
--- in total_amount and total_usd ARE already in USD. The usd_to_quote_rate is
--- used to convert USD values to the client's quote currency for display.
+-- CURRENCY TRUTH (corrected 2025-12-13):
+-- The calculation engine works in QUOTE CURRENCY (not USD!). Values stored in
+-- total_amount_quote are in quote currency. USD values (total_usd) are derived
+-- for analytics. The usd_to_quote_rate records the exchange rate at calculation
+-- time for audit trail purposes.
 --
 -- For historical quotes, we'll use current CBR rates as a reasonable approximation.
 -- This is acceptable because:

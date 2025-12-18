@@ -118,10 +118,9 @@ def generate_idn_quote(supabase_client: Client, organization_id: str) -> str:
 
 class ProductFromFile(BaseModel):
     """Product parsed from Excel/CSV file"""
-    sku: Optional[str] = None  # Артикул
     brand: Optional[str] = None  # Бренд
     product_name: str
-    product_code: Optional[str] = None
+    product_code: Optional[str] = None  # Артикул
     base_price_vat: float
     quantity: int
     weight_in_kg: Optional[float] = 0
@@ -789,10 +788,9 @@ async def upload_products_file(
                 customs_code = get_str('customs_code') or get_str('hs_code')
 
                 product = ProductFromFile(
-                    sku=get_str('sku'),
                     brand=get_str('brand'),
                     product_name=str(row['product_name']),
-                    product_code=get_str('product_code'),
+                    product_code=get_str('sku') or get_str('product_code'),
                     base_price_vat=float(row['base_price_vat']),
                     quantity=int(row['quantity']),
                     weight_in_kg=weight,
@@ -1797,7 +1795,7 @@ async def export_calculation_debug(
             item_id = item.get("id")
             # Get calculation results from lookup dict
             calc_results = calc_results_by_item.get(item_id, {})
-            product_name = item.get("product_name", item.get("sku", "Unknown"))
+            product_name = item.get("product_name", item.get("product_code", "Unknown"))
             quantity = item.get("quantity", 1)
 
             for excel_ref, field_name, description in key_vars:
@@ -2090,9 +2088,9 @@ async def export_validation_data(
             calc_results = calc_results_by_item.get(item_id, {})
 
             # Build row with all fields
-            # Use sku if available, otherwise use product_name (handle None values)
+            # Use product_code if available, otherwise use product_name (handle None values)
             row = {
-                "C16 Артикул": item.get("sku") or item.get("product_name") or "Unknown",
+                "C16 Артикул": item.get("product_code") or item.get("product_name") or "Unknown",
                 "L16 Страна закупки": item.get("supplier_country", ""),
                 "J16 Валюта закупки": item.get("currency_of_base_price", "USD"),
                 "K16 Цена закупки (с VAT)": item.get("base_price_vat", 0),

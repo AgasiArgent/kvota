@@ -1168,7 +1168,7 @@ def export_quote_as_template(
     row = 16
     for item in quote_items:
         ws[f"A{row}"] = item.get("brand", "")
-        ws[f"B{row}"] = item.get("sku", "")
+        ws[f"B{row}"] = item.get("product_code", "")
         ws[f"C{row}"] = item.get("product_name", "")
         ws[f"D{row}"] = int(item.get("quantity", 1))
         ws[f"E{row}"] = float(item.get("weight_in_kg", 0)) if item.get("weight_in_kg") else None
@@ -1325,7 +1325,7 @@ async def export_quote_as_template_endpoint(
 
             product_inputs.append({
                 "brand": item.get("brand", ""),
-                "sku": item.get("sku", ""),
+                "sku": item.get("product_code", ""),  # Read from product_code, export expects "sku"
                 "name": item.get("product_name", ""),  # export service expects "name" not "product_name"
                 "quantity": item.get("quantity", 1),
                 "weight_in_kg": item.get("weight_in_kg") or 0,

@@ -995,8 +995,160 @@ Before deploying export endpoints:
 
 ---
 
+## Variable Mapping for Exports
+
+**Updated:** 2025-12-18
+
+**CRITICAL:** Always use the correct data source for export variables. Mixing sources causes incorrect data in exports.
+
+### Data Sources
+
+| Data Source | Table | Use For |
+|-------------|-------|---------|
+| **Calculation Variables** | `quote_calculation_variables.variables` (JSONB) | Payment terms, delivery time, all calculated values |
+| **Quote Record** | `quotes` | Quote metadata (number, date, customer_id, currency) |
+| **Customer Record** | `customers` | Customer name, addresses, signatories |
+| **Quote Items** | `quote_items` | Product list with IDN, SKU, prices |
+
+### Helper Functions (export_data_mapper.py)
+
+**ALWAYS use these helpers instead of building formatting logic manually:**
+
+```python
+from services.export_data_mapper import (
+    fetch_export_data,          # Fetches ALL data for exports (ExportData object)
+    get_manager_info,           # Get manager name/email/phone
+    get_contact_info,           # Get customer contact name/email/phone
+    format_payment_terms,       # Format advance_from_client → "100% предоплата"
+    format_delivery_description, # Format incoterms → delivery description
+    get_currency_symbol,        # Get symbol: USD → $, RUB → ₽
+    map_calculation_to_cells,   # Map variables to Excel cell references
+)
+```
+
+### Common Variable Mappings
+
+| Variable | Correct Source | Helper Function | Wrong Source |
+|----------|---------------|-----------------|--------------|
+| Payment terms | `variables['advance_from_client']` | `format_payment_terms(variables)` | ❌ `quote.get('payment_terms')` |
+| Delivery time (days) | `variables['delivery_time']` | Direct access | ❌ `quote.get('delivery_days')` |
+| Incoterms | `variables['offer_incoterms']` | `format_delivery_description(variables)` | ❌ Manual strings |
+| Currency symbol | `variables['currency_of_quote']` | `get_currency_symbol(currency)` | ❌ Hardcoded |
+
+### format_payment_terms Usage
+
+```python
+from services.export_data_mapper import format_payment_terms
+
+# ✅ CORRECT - Uses calculation variables
+variables = quote_calculation_variables.get("variables", {})
+payment_terms_text = format_payment_terms(variables)
+# Returns: "100% предоплата", "50% аванс", or "Постоплата"
+
+# ❌ WRONG - Uses denormalized field (may be empty or stale)
+payment_terms_text = quote.get("payment_terms", "")
+```
+
+**How format_payment_terms works:**
+- Reads `advance_from_client` from variables
+- 100% → "100% предоплата"
+- 1-99% → "X% аванс"
+- 0% → "Постоплата"
+
+### Fetching Variables in Exports
+
+```python
+# Fetch calculation variables
+variables_result = supabase.table("quote_calculation_variables").select("variables")\
+    .eq("quote_id", str(quote_id))\
+    .execute()
+
+calculation_variables: Dict[str, Any] = {}
+if variables_result.data and len(variables_result.data) > 0:
+    calculation_variables = variables_result.data[0].get("variables", {})
+
+# Now use variables with helpers
+payment_terms = format_payment_terms(calculation_variables)
+delivery_days = calculation_variables.get("delivery_time", 30)
+```
+
+### fetch_export_data (Recommended)
+
+For most exports, use the consolidated fetch function:
+
+```python
+from services.export_data_mapper import fetch_export_data
+
+export_data = await fetch_export_data(
+    quote_id=str(quote_id),
+    organization_id=str(user.current_organization_id)
+)
+
+# ExportData contains:
+# - export_data.quote: Quote record
+# - export_data.customer: Customer record
+# - export_data.items: List of quote_items with calculation_results
+# - export_data.variables: Calculation variables
+# - export_data.organization: Organization record
+# - export_data.user: User profile
+
+# Use with helpers
+payment_terms = format_payment_terms(export_data.variables)
+manager = get_manager_info(export_data)
+contact = get_contact_info(export_data)
+```
+
+### Excel Cell Reference Variables
+
+For validation exports, use the calculation engine cell references:
+
+| Cell | Variable | Description |
+|------|----------|-------------|
+| D9 | `delivery_time` | Delivery time in days |
+| D11 | `advance_to_supplier` | Advance to supplier % |
+| J5 | `advance_from_client` | Advance from client % |
+| K5 | `time_to_advance` | Days until first advance |
+| AJ16 | `sales_price_per_unit` | Final selling price per unit |
+| AK16 | `sales_price_total` | Total selling price |
+
+**See:** `.claude/skills/calculation-engine-guidelines/resources/export-mapping.md` for complete cell reference map.
+
+### Anti-Pattern: Using Denormalized Fields
+
+The `quotes` table has some denormalized fields (`payment_terms`, `delivery_days`) added by migration 046. **Do NOT use these for exports:**
+
+```python
+# ❌ WRONG - Denormalized fields may be empty, stale, or inconsistent
+"payment_terms": quote.get("payment_terms", ""),
+"delivery_days": quote.get("delivery_days", ""),
+
+# ✅ CORRECT - Use calculation variables
+"payment_terms": format_payment_terms(calculation_variables),
+"delivery_days": calculation_variables.get("delivery_time", 30),
+```
+
+**Why denormalized fields are wrong:**
+1. May not be populated for older quotes
+2. Not updated when calculation variables change
+3. Different format (text vs calculated)
+4. Inconsistent with PDF exports that use variables correctly
+
+### Checklist for New Exports
+
+Before creating a new export format:
+
+- [ ] **Read VARIABLES.md** - Understand the 44 variables and their sources
+- [ ] **Use fetch_export_data()** - Don't fetch data manually unless necessary
+- [ ] **Use helper functions** - format_payment_terms, get_currency_symbol, etc.
+- [ ] **Test with existing quotes** - Verify data matches PDF/Excel exports
+- [ ] **Check calculation-engine-guidelines** - For cell reference mappings
+
+---
+
 **Reference Files:**
 - `backend/services/excel_service.py` - Excel export implementation
 - `backend/pdf_service.py` - PDF export implementation
 - `backend/routes/quotes.py` - Export endpoints (lines 1538-1868)
 - `backend/services/export_data_mapper.py` - Data fetching and mapping
+- `.claude/VARIABLES.md` - Complete variable reference (44 variables)
+- `.claude/skills/calculation-engine-guidelines/resources/export-mapping.md` - Excel cell mappings

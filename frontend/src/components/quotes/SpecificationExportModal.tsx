@@ -26,9 +26,18 @@ import {
 import { Separator } from '@/components/ui/separator';
 
 import { contractsService } from '@/lib/api/contracts-service';
-import { customerService } from '@/lib/api/customer-service';
+import { customerService, CustomerContact, DeliveryAddress } from '@/lib/api/customer-service';
 import { Contract, formatContractDate } from '@/types/contracts';
 import ContractModal from '../customers/ContractModal';
+
+// Helper to format Russian name as "Фамилия Имя Отчество"
+function formatFullName(contact: CustomerContact): string {
+  const parts: string[] = [];
+  if (contact.last_name) parts.push(contact.last_name);
+  if (contact.name) parts.push(contact.name);
+  if (contact.patronymic) parts.push(contact.patronymic);
+  return parts.join(' ') || contact.name;
+}
 
 interface SpecificationExportModalProps {
   open: boolean;
@@ -71,21 +80,27 @@ export default function SpecificationExportModal({
   // Data
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string>('');
-  const [warehouseAddresses, setWarehouseAddresses] = useState<string[]>([]);
-  const [selectedWarehouseIndex, setSelectedWarehouseIndex] = useState<number>(0);
   const [additionalConditions, setAdditionalConditions] = useState('');
 
-  // Missing data form
-  const [missingData, setMissingData] = useState<MissingData>({});
+  // Signatories from customer_contacts (is_signatory=true)
+  const [signatoryContacts, setSignatoryContacts] = useState<CustomerContact[]>([]);
+  const [selectedSignatoryId, setSelectedSignatoryId] = useState<string>('');
   const [signatoryName, setSignatoryName] = useState('');
   const [signatoryPosition, setSignatoryPosition] = useState('Руководитель');
-  const [newWarehouseAddress, setNewWarehouseAddress] = useState('');
-  const [isAddingWarehouse, setIsAddingWarehouse] = useState(false);
   const [isAddingSignatory, setIsAddingSignatory] = useState(false);
   const [newSignatoryName, setNewSignatoryName] = useState('');
   const [newSignatoryPosition, setNewSignatoryPosition] = useState('Руководитель');
 
-  // Customer data for suggestions
+  // Delivery addresses from customer_delivery_addresses table
+  const [deliveryAddresses, setDeliveryAddresses] = useState<DeliveryAddress[]>([]);
+  const [selectedDeliveryAddressId, setSelectedDeliveryAddressId] = useState<string>('');
+  const [isAddingWarehouse, setIsAddingWarehouse] = useState(false);
+  const [newWarehouseAddress, setNewWarehouseAddress] = useState('');
+
+  // Missing data form
+  const [missingData, setMissingData] = useState<MissingData>({});
+
+  // Customer data for backward compatibility fallback
   const [customerData, setCustomerData] = useState<CustomerData>({});
 
   // Contract creation modal
@@ -94,16 +109,21 @@ export default function SpecificationExportModal({
   useEffect(() => {
     if (open) {
       fetchContracts();
-      checkMissingData();
+      fetchSignatoriesAndAddresses();
       setStep('contract');
       setSelectedContractId('');
-      setSelectedWarehouseIndex(0);
       setAdditionalConditions('');
-      setIsAddingWarehouse(false);
-      setNewWarehouseAddress('');
+      // Reset signatory state
+      setSelectedSignatoryId('');
+      setSignatoryName('');
+      setSignatoryPosition('Руководитель');
       setIsAddingSignatory(false);
       setNewSignatoryName('');
       setNewSignatoryPosition('Руководитель');
+      // Reset delivery address state
+      setSelectedDeliveryAddressId('');
+      setIsAddingWarehouse(false);
+      setNewWarehouseAddress('');
     }
   }, [open, customerId]);
 
@@ -129,105 +149,118 @@ export default function SpecificationExportModal({
     }
   };
 
-  const checkMissingData = async () => {
+  const fetchSignatoriesAndAddresses = async () => {
     try {
-      const response = await customerService.getCustomer(customerId);
+      const missing: MissingData = {};
 
-      if (response.success && response.data) {
-        const customer = response.data;
-        const missing: MissingData = {};
+      // Fetch contacts and filter signatories
+      const contactsResponse = await customerService.listContacts(customerId);
+      if (contactsResponse.success && contactsResponse.data) {
+        const signatories = contactsResponse.data.contacts.filter((c) => c.is_signatory);
+        setSignatoryContacts(signatories);
 
-        // Store customer data for suggestions
-        setCustomerData({
-          general_director_name: customer.general_director_name,
-          general_director_position: customer.general_director_position,
-          warehouse_addresses: customer.warehouse_addresses,
-        });
-
-        // Pre-fill from existing customer data
-        if (customer.general_director_name) {
-          setSignatoryName(customer.general_director_name);
-          setSignatoryPosition(customer.general_director_position || 'Руководитель');
+        if (signatories.length > 0) {
+          // Auto-select first signatory
+          const firstSignatory = signatories[0];
+          setSelectedSignatoryId(firstSignatory.id);
+          // Format as "Фамилия Имя Отчество"
+          setSignatoryName(formatFullName(firstSignatory));
+          // Use position field (not signatory_position)
+          setSignatoryPosition(firstSignatory.position || 'Генеральный директор');
+          setIsAddingSignatory(false);
         } else {
           missing.signatory_name = true;
-          setSignatoryPosition('Руководитель');
-        }
-        // Always start with dropdown, let user click "Add new" if needed
-        setIsAddingSignatory(false);
+          // If no signatories, check for fallback in customer data
+          const customerResponse = await customerService.getCustomer(customerId);
+          if (customerResponse.success && customerResponse.data) {
+            const customer = customerResponse.data;
+            setCustomerData({
+              general_director_name: customer.general_director_name,
+              general_director_position: customer.general_director_position,
+              warehouse_addresses: customer.warehouse_addresses,
+            });
 
-        // Parse warehouse addresses - handle both old format and new format
-        let addresses: string[] = [];
-        if (customer.warehouse_addresses && Array.isArray(customer.warehouse_addresses)) {
-          addresses = customer.warehouse_addresses
-            .map((w: any) => {
-              // Handle old format {name, address} or new format (just string)
-              if (typeof w === 'string') return w;
-              if (typeof w === 'object' && w.address) return w.address;
-              return '';
-            })
-            .filter(Boolean);
+            // Fallback: use general_director from customer if no signatory contacts
+            if (customer.general_director_name) {
+              setSignatoryName(customer.general_director_name);
+              setSignatoryPosition(customer.general_director_position || 'Руководитель');
+            }
+          }
         }
+      }
 
-        if (addresses.length === 0) {
-          missing.warehouse_address = true;
-          // Don't auto-show input - let user click "Add new" in dropdown
+      // Fetch delivery addresses from new table
+      const addressesResponse = await customerService.listDeliveryAddresses(customerId);
+      if (addressesResponse.success && addressesResponse.data) {
+        const addresses = addressesResponse.data.addresses;
+        setDeliveryAddresses(addresses);
+
+        if (addresses.length > 0) {
+          // Auto-select default address or first one
+          const defaultAddr = addresses.find((a) => a.is_default);
+          if (defaultAddr) {
+            setSelectedDeliveryAddressId(defaultAddr.id);
+          } else {
+            setSelectedDeliveryAddressId(addresses[0].id);
+          }
           setIsAddingWarehouse(false);
         } else {
-          setWarehouseAddresses(addresses);
+          missing.warehouse_address = true;
           setIsAddingWarehouse(false);
         }
-
-        setMissingData(missing);
       }
+
+      setMissingData(missing);
     } catch (error) {
-      console.error('Error checking missing data:', error);
+      console.error('Error fetching signatories and addresses:', error);
     }
   };
 
   const saveMissingData = async () => {
     try {
-      const updates: any = {};
+      // Save new signatory as a contact if adding new
+      if (isAddingSignatory && newSignatoryName) {
+        const contactResponse = await customerService.createContact(customerId, {
+          name: newSignatoryName,
+          position: newSignatoryPosition || 'Руководитель',
+          is_signatory: true,
+          signatory_position: newSignatoryPosition || 'Руководитель',
+        });
 
-      // Determine actual signatory values (from dropdown selection or new input)
-      const actualSignatoryName = isAddingSignatory ? newSignatoryName : signatoryName;
-      const actualSignatoryPosition = isAddingSignatory ? newSignatoryPosition : signatoryPosition;
-
-      // Save signatory info if different from stored (or if adding new)
-      if (actualSignatoryName && actualSignatoryName !== customerData.general_director_name) {
-        updates.general_director_name = actualSignatoryName;
-      }
-      if (
-        actualSignatoryPosition &&
-        actualSignatoryPosition !== customerData.general_director_position
-      ) {
-        updates.general_director_position = actualSignatoryPosition;
-      }
-
-      // Save new warehouse if adding
-      if (isAddingWarehouse && newWarehouseAddress) {
-        // Combine existing addresses with new one
-        const allAddresses = [...warehouseAddresses, newWarehouseAddress];
-        // Convert to backend format (for compatibility, use address-only objects)
-        updates.warehouse_addresses = allAddresses.map((addr) => ({ name: '', address: addr }));
-      }
-
-      if (Object.keys(updates).length > 0) {
-        const response = await customerService.updateCustomer(customerId, updates);
-
-        if (!response.success) {
-          toast.error(`Ошибка сохранения данных: ${response.error}`);
+        if (!contactResponse.success) {
+          toast.error(`Ошибка создания подписанта: ${contactResponse.error}`);
           return false;
         }
 
-        // Update local state
-        if (updates.warehouse_addresses) {
-          const newAddresses = updates.warehouse_addresses.map((w: any) => w.address);
-          setWarehouseAddresses(newAddresses);
-          // Select the newly added warehouse
-          setSelectedWarehouseIndex(newAddresses.length - 1);
-          setIsAddingWarehouse(false);
-          setNewWarehouseAddress('');
+        // Update local state with new signatory
+        const newContact = contactResponse.data!;
+        setSignatoryContacts([...signatoryContacts, newContact]);
+        setSelectedSignatoryId(newContact.id);
+        setSignatoryName(newSignatoryName);
+        setSignatoryPosition(newSignatoryPosition);
+        setIsAddingSignatory(false);
+        setNewSignatoryName('');
+        setNewSignatoryPosition('Руководитель');
+      }
+
+      // Save new delivery address if adding
+      if (isAddingWarehouse && newWarehouseAddress) {
+        const addressResponse = await customerService.createDeliveryAddress(customerId, {
+          address: newWarehouseAddress,
+          is_default: deliveryAddresses.length === 0, // Default if first address
+        });
+
+        if (!addressResponse.success) {
+          toast.error(`Ошибка создания адреса: ${addressResponse.error}`);
+          return false;
         }
+
+        // Update local state with new address
+        const newAddress = addressResponse.data!;
+        setDeliveryAddresses([...deliveryAddresses, newAddress]);
+        setSelectedDeliveryAddressId(newAddress.id);
+        setIsAddingWarehouse(false);
+        setNewWarehouseAddress('');
       }
 
       return true;
@@ -251,8 +284,8 @@ export default function SpecificationExportModal({
         return;
       }
 
-      // Validate warehouse (check both existing and new)
-      if (warehouseAddresses.length === 0 && !newWarehouseAddress.trim()) {
+      // Validate delivery address (check both existing and new)
+      if (deliveryAddresses.length === 0 && !newWarehouseAddress.trim()) {
         toast.error('Укажите адрес склада');
         return;
       }
@@ -261,16 +294,9 @@ export default function SpecificationExportModal({
         return;
       }
 
-      // Save data if needed
+      // Save data if needed (creates new contact/address if adding)
       const saved = await saveMissingData();
       if (!saved) return;
-
-      // Update local signatory state if we added a new one
-      if (isAddingSignatory && newSignatoryName) {
-        setSignatoryName(newSignatoryName);
-        setSignatoryPosition(newSignatoryPosition);
-        setIsAddingSignatory(false);
-      }
 
       setStep('warehouse');
     } else if (step === 'warehouse') {
@@ -286,23 +312,51 @@ export default function SpecificationExportModal({
     }
   };
 
+  const handleAddSignatory = async () => {
+    if (!newSignatoryName.trim()) {
+      toast.error('Введите ФИО подписанта');
+      return;
+    }
+
+    // Create new signatory contact via API
+    const response = await customerService.createContact(customerId, {
+      name: newSignatoryName,
+      position: newSignatoryPosition || 'Руководитель',
+      is_signatory: true,
+      signatory_position: newSignatoryPosition || 'Руководитель',
+    });
+
+    if (response.success && response.data) {
+      const newContact = response.data;
+      setSignatoryContacts([...signatoryContacts, newContact]);
+      setSelectedSignatoryId(newContact.id);
+      setSignatoryName(newSignatoryName);
+      setSignatoryPosition(newSignatoryPosition || 'Руководитель');
+      setNewSignatoryName('');
+      setNewSignatoryPosition('Руководитель');
+      setIsAddingSignatory(false);
+      toast.success('Подписант добавлен');
+    } else {
+      toast.error(`Ошибка: ${response.error}`);
+    }
+  };
+
   const handleAddWarehouse = async () => {
     if (!newWarehouseAddress.trim()) {
       toast.error('Введите адрес склада');
       return;
     }
 
-    // Save the new warehouse to customer profile
-    const allAddresses = [...warehouseAddresses, newWarehouseAddress];
-    const updates = {
-      warehouse_addresses: allAddresses.map((addr) => ({ name: '', address: addr })),
-    };
+    // Create new delivery address via API
+    const response = await customerService.createDeliveryAddress(customerId, {
+      address: newWarehouseAddress,
+      is_default: deliveryAddresses.length === 0, // Default if first address
+    });
 
-    const response = await customerService.updateCustomer(customerId, updates);
-
-    if (response.success) {
-      setWarehouseAddresses(allAddresses);
-      setSelectedWarehouseIndex(allAddresses.length - 1);
+    if (response.success && response.data) {
+      const newAddress = response.data;
+      setDeliveryAddresses([...deliveryAddresses, newAddress]);
+      setSelectedDeliveryAddressId(newAddress.id);
       setNewWarehouseAddress('');
       setIsAddingWarehouse(false);
       toast.success('Адрес склада добавлен');
@@ -316,7 +370,8 @@ export default function SpecificationExportModal({
     try {
       const response = await contractsService.exportSpecification(quoteId, {
         contract_id: selectedContractId,
-        warehouse_index: selectedWarehouseIndex,
+        delivery_address_id: selectedDeliveryAddressId || undefined,
+        signatory_contact_id: selectedSignatoryId || undefined,
         additional_conditions: additionalConditions || undefined,
       });
 
@@ -420,27 +475,38 @@ export default function SpecificationExportModal({
 
                         {!isAddingSignatory ? (
                           <Select
-                            value={customerData.general_director_name ? 'existing' : 'add_new'}
+                            value={selectedSignatoryId || 'add_new'}
                             onValueChange={(val: string) => {
                               if (val === 'add_new') {
                                 setIsAddingSignatory(true);
+                                setSelectedSignatoryId('');
+                              } else {
+                                setSelectedSignatoryId(val);
+                                const selected = signatoryContacts.find((c) => c.id === val);
+                                if (selected) {
+                                  // Format as "Фамилия Имя Отчество"
+                                  setSignatoryName(formatFullName(selected));
+                                  // Use position field (not signatory_position)
+                                  setSignatoryPosition(selected.position || 'Генеральный директор');
+                                }
                               }
                             }}
                           >
                             <SelectTrigger>
                               <SelectValue>
-                                {customerData.general_director_name
+                                {selectedSignatoryId && signatoryName
                                   ? `${signatoryName}, ${signatoryPosition}`
                                   : 'Выберите или добавьте подписанта'}
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              {customerData.general_director_name && (
-                                <SelectItem value="existing">
-                                  {customerData.general_director_name},{' '}
-                                  {customerData.general_director_position || 'Руководитель'}
+                              {signatoryContacts.map((contact) => (
+                                <SelectItem key={contact.id} value={contact.id}>
+                                  {/* Russian name order: Фамилия Имя Отчество */}
+                                  {formatFullName(contact)},{' '}
+                                  {contact.position || 'Генеральный директор'}
                                 </SelectItem>
-                              )}
+                              ))}
                               <SelectItem value="add_new">
                                 <span className="flex items-center">
                                   <Plus className="h-3 w-3 mr-1" />
@@ -461,19 +527,33 @@ export default function SpecificationExportModal({
                               value={newSignatoryPosition}
                               onChange={(e) => setNewSignatoryPosition(e.target.value)}
                             />
-                            {customerData.general_director_name && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setIsAddingSignatory(false);
-                                  setNewSignatoryName('');
-                                  setNewSignatoryPosition('Руководитель');
-                                }}
-                              >
-                                Отмена
+                            <div className="flex gap-2">
+                              {signatoryContacts.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setIsAddingSignatory(false);
+                                    setNewSignatoryName('');
+                                    setNewSignatoryPosition('Руководитель');
+                                    // Restore previous selection if any
+                                    if (signatoryContacts.length > 0) {
+                                      const first = signatoryContacts[0];
+                                      setSelectedSignatoryId(first.id);
+                                      setSignatoryName(formatFullName(first));
+                                      setSignatoryPosition(
+                                        first.position || 'Генеральный директор'
+                                      );
+                                    }
+                                  }}
+                                >
+                                  Отмена
+                                </Button>
+                              )}
+                              <Button size="sm" onClick={handleAddSignatory}>
+                                Сохранить
                               </Button>
-                            )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -488,30 +568,31 @@ export default function SpecificationExportModal({
                       <div className="space-y-2">
                         {!isAddingWarehouse ? (
                           <Select
-                            value={
-                              warehouseAddresses.length > 0
-                                ? selectedWarehouseIndex.toString()
-                                : 'add_new'
-                            }
+                            value={selectedDeliveryAddressId || 'add_new'}
                             onValueChange={(val: string) => {
                               if (val === 'add_new') {
                                 setIsAddingWarehouse(true);
+                                setSelectedDeliveryAddressId('');
                               } else {
-                                setSelectedWarehouseIndex(parseInt(val));
+                                setSelectedDeliveryAddressId(val);
                               }
                             }}
                           >
                             <SelectTrigger>
                               <SelectValue>
-                                {warehouseAddresses.length > 0
-                                  ? warehouseAddresses[selectedWarehouseIndex]
+                                {selectedDeliveryAddressId
+                                  ? deliveryAddresses.find(
+                                      (a) => a.id === selectedDeliveryAddressId
+                                    )?.address || 'Выберите адрес'
                                   : 'Выберите или добавьте адрес'}
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              {warehouseAddresses.map((address, index) => (
-                                <SelectItem key={index} value={index.toString()}>
-                                  {address}
+                              {deliveryAddresses.map((address) => (
+                                <SelectItem key={address.id} value={address.id}>
+                                  {address.name ? `${address.name}: ` : ''}
+                                  {address.address}
+                                  {address.is_default && ' (по умолчанию)'}
                                 </SelectItem>
                               ))}
                               <SelectItem value="add_new">
@@ -530,13 +611,22 @@ export default function SpecificationExportModal({
                               onChange={(e) => setNewWarehouseAddress(e.target.value)}
                             />
                             <div className="flex gap-2">
-                              {warehouseAddresses.length > 0 && (
+                              {deliveryAddresses.length > 0 && (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   onClick={() => {
                                     setIsAddingWarehouse(false);
                                     setNewWarehouseAddress('');
+                                    // Restore previous selection if any
+                                    if (deliveryAddresses.length > 0) {
+                                      const defaultAddr = deliveryAddresses.find(
+                                        (a) => a.is_default
+                                      );
+                                      setSelectedDeliveryAddressId(
+                                        defaultAddr?.id || deliveryAddresses[0].id
+                                      );
+                                    }
                                   }}
                                 >
                                   Отмена
@@ -561,7 +651,8 @@ export default function SpecificationExportModal({
                 <div className="p-3 bg-secondary/50 rounded-lg space-y-2">
                   <p className="text-sm">
                     <span className="text-muted-foreground">Склад:</span>{' '}
-                    {warehouseAddresses[selectedWarehouseIndex] || newWarehouseAddress}
+                    {deliveryAddresses.find((a) => a.id === selectedDeliveryAddressId)?.address ||
+                      newWarehouseAddress}
                   </p>
                   <p className="text-sm">
                     <span className="text-muted-foreground">Подписант:</span> {signatoryName},{' '}
@@ -619,7 +710,8 @@ export default function SpecificationExportModal({
                       Адрес склада
                     </p>
                     <p className="text-sm">
-                      {warehouseAddresses[selectedWarehouseIndex] || newWarehouseAddress}
+                      {deliveryAddresses.find((a) => a.id === selectedDeliveryAddressId)?.address ||
+                        newWarehouseAddress}
                     </p>
                   </div>
 

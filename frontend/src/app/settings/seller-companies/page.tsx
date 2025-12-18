@@ -41,6 +41,11 @@ interface SellerCompany {
   supplier_code: string;
   country: string | null;
   is_active: boolean;
+  // Director fields (for specification export)
+  general_director_last_name: string | null;
+  general_director_first_name: string | null;
+  general_director_patronymic: string | null;
+  general_director_position: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +55,11 @@ interface FormData {
   supplier_code: string;
   country: string;
   is_active: boolean;
+  // Director fields
+  general_director_last_name: string;
+  general_director_first_name: string;
+  general_director_patronymic: string;
+  general_director_position: string;
 }
 
 const initialFormData: FormData = {
@@ -57,6 +67,10 @@ const initialFormData: FormData = {
   supplier_code: '',
   country: '',
   is_active: true,
+  general_director_last_name: '',
+  general_director_first_name: '',
+  general_director_patronymic: '',
+  general_director_position: 'Генеральный директор',
 };
 
 export default function SellerCompaniesPage() {
@@ -132,6 +146,10 @@ export default function SellerCompaniesPage() {
       supplier_code: company.supplier_code,
       country: company.country || '',
       is_active: company.is_active,
+      general_director_last_name: company.general_director_last_name || '',
+      general_director_first_name: company.general_director_first_name || '',
+      general_director_patronymic: company.general_director_patronymic || '',
+      general_director_position: company.general_director_position || 'Генеральный директор',
     });
     setFormError(null);
     setDialogOpen(true);
@@ -178,6 +196,10 @@ export default function SellerCompaniesPage() {
         supplier_code: formData.supplier_code.toUpperCase(),
         country: formData.country.trim() || null,
         is_active: formData.is_active,
+        general_director_last_name: formData.general_director_last_name.trim() || null,
+        general_director_first_name: formData.general_director_first_name.trim() || null,
+        general_director_patronymic: formData.general_director_patronymic.trim() || null,
+        general_director_position: formData.general_director_position.trim() || null,
       };
 
       const url = editingCompany
@@ -390,6 +412,68 @@ export default function SellerCompaniesPage() {
                 onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                 placeholder="Россия"
               />
+            </div>
+
+            {/* Director Name Section */}
+            <div className="border-t pt-4 mt-4">
+              <p className="text-sm font-medium mb-3">Подписант (директор)</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground/60">Фамилия</Label>
+                  <Input
+                    value={formData.general_director_last_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, general_director_last_name: e.target.value })
+                    }
+                    placeholder="Ермаков"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground/60">Имя</Label>
+                  <Input
+                    value={formData.general_director_first_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, general_director_first_name: e.target.value })
+                    }
+                    placeholder="Иван"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground/60">Отчество</Label>
+                  <Input
+                    value={formData.general_director_patronymic}
+                    onChange={(e) =>
+                      setFormData({ ...formData, general_director_patronymic: e.target.value })
+                    }
+                    placeholder="Иванович"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1 mt-3">
+                <Label className="text-xs text-foreground/60">Должность</Label>
+                <Input
+                  value={formData.general_director_position}
+                  onChange={(e) =>
+                    setFormData({ ...formData, general_director_position: e.target.value })
+                  }
+                  placeholder="Генеральный директор"
+                />
+              </div>
+              {/* Live Preview */}
+              {(formData.general_director_last_name ||
+                formData.general_director_first_name ||
+                formData.general_director_patronymic) && (
+                <p className="text-xs text-foreground/50 mt-2">
+                  В документах:{' '}
+                  <span className="text-foreground/80">
+                    {formData.general_director_last_name}
+                    {formData.general_director_first_name &&
+                      ` ${formData.general_director_first_name.charAt(0)}.`}
+                    {formData.general_director_patronymic &&
+                      ` ${formData.general_director_patronymic.charAt(0)}.`}
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-3">

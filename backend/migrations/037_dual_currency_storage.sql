@@ -2,13 +2,14 @@
 -- Migration 037: Dual Currency Storage (USD + Quote Currency)
 -- Date: 2025-12-02
 --
--- Purpose: Store all monetary values in both USD (canonical) and quote currency
+-- Purpose: Store all monetary values in both USD (for analytics) and quote currency
+--          (for client-facing documents)
 --
--- Current state:
---   - Calculation engine computes in USD internally
---   - quote_calculation_summaries stores only USD values
---   - quote_calculation_results stores USD in phase_results JSONB
---   - Quote currency values computed at response time but NOT persisted
+-- CURRENCY TRUTH (verified 2025-12-13 from calculation_engine.py):
+--   - Calculation engine computes in QUOTE CURRENCY (not USD!)
+--   - Exchange rates fetched from CBR API, cross-rates via RUB
+--   - All 13 phases output values in quote currency
+--   - USD values are derived for analytics/comparison only
 --
 -- This migration adds:
 --   1. Quote currency columns to quote_calculation_summaries

@@ -58,7 +58,7 @@ def create_financial_review_excel(quote_data: Dict[str, Any]) -> Workbook:
     # ========== QUOTE INFO (Row 3) ==========
     ws['A3'] = 'КП №:'
     ws['A3'].font = Font(bold=True)
-    ws['B3'] = quote_data.get('quote_number', '')
+    ws['B3'] = quote_data.get('idn_quote', '')
     ws['B3'].font = Font(bold=True, size=12)
 
     ws['D3'] = 'Клиент:'

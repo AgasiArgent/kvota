@@ -391,6 +391,10 @@ class CustomerBase(BaseModel):
     status: CustomerStatus = Field(default=CustomerStatus.ACTIVE)
     notes: Optional[str] = Field(None, description="Internal notes")
 
+    # Signatory Information (from DaData on INN lookup)
+    general_director_name: Optional[str] = Field(None, description="Name of the general director (default signatory)")
+    general_director_position: Optional[str] = Field(default="Генеральный директор", description="Position of the signatory")
+
     @validator('inn')
     def validate_inn(cls, v):
         """Validate Russian INN format"""
@@ -455,6 +459,8 @@ class CustomerUpdate(BaseModel):
     payment_terms: Optional[int] = Field(None, ge=0, le=365)
     status: Optional[CustomerStatus] = None
     notes: Optional[str] = None
+    general_director_name: Optional[str] = None
+    general_director_position: Optional[str] = None
 
 
 class Customer(CustomerBase):

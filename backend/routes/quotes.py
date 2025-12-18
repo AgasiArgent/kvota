@@ -435,7 +435,6 @@ async def get_quote(
                 product_name as description,
                 product_code,
                 brand,
-                sku,
                 quantity::numeric as quantity,
                 unit,
                 base_price_vat as unit_price,
@@ -2107,7 +2106,7 @@ async def import_items_to_quote(
                 insert_query = """
                     INSERT INTO quote_items (
                         quote_id, idn_sku, description, quantity, unit, unit_price, line_total,
-                        category, brand, notes, sku, country_of_origin, position
+                        category, brand, notes, product_code, country_of_origin, position
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                     RETURNING id, created_at
                 """
@@ -2124,7 +2123,7 @@ async def import_items_to_quote(
                     item["category"] or None,
                     item["brand"] or None,
                     item["notes"] or None,
-                    item["sku"] or None,
+                    item.get("product_code") or item.get("sku") or None,
                     item["country_of_origin"] or None,
                     position
                 )

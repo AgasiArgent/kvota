@@ -315,8 +315,8 @@ class QuoteExcelService:
             # Product header
             product_name = item.get('product_name', '')
             brand = item.get('brand', '')
-            sku = item.get('sku', '')
-            item_title = f'═══ ТОВАР {idx}: {brand} {sku} - {product_name} ═══'
+            product_code = item.get('product_code', '')
+            item_title = f'═══ ТОВАР {idx}: {brand} {product_code} - {product_name} ═══'
 
             ws[f'A{row}'] = item_title
             ws[f'A{row}'].font = Font(bold=True, size=11, color="FF1F4788")
@@ -329,7 +329,7 @@ class QuoteExcelService:
             # Product input data (Left side: columns A-C)
             product_inputs = [
                 (f'B{excel_row}', 'Бренд', brand),
-                (f'C{excel_row}', 'Артикул', sku),
+                (f'C{excel_row}', 'Артикул', product_code),
                 (f'D{excel_row}', 'Наименование', product_name[:30] + '...' if len(product_name) > 30 else product_name),
                 (f'E{excel_row}', 'Кол-во', item.get('quantity', 0)),
                 (f'G{excel_row}', 'Вес (кг)', QuoteExcelService.format_russian_number(item.get('weight_in_kg', 0))),
@@ -455,7 +455,7 @@ class QuoteExcelService:
 
             # Basic info
             ws1.cell(row=row_idx, column=1).value = item.get('brand', '')
-            ws1.cell(row=row_idx, column=2).value = item.get('sku', '')
+            ws1.cell(row=row_idx, column=2).value = item.get('product_code', '')
             ws1.cell(row=row_idx, column=3).value = item.get('product_name', '')
             ws1.cell(row=row_idx, column=4).value = item.get('quantity', 0)
 
@@ -535,7 +535,7 @@ class QuoteExcelService:
 
             # Columns 1-4: Same as Sheet 1
             ws2.cell(row=row_idx, column=1).value = item.get('brand', '')
-            ws2.cell(row=row_idx, column=2).value = item.get('sku', '')
+            ws2.cell(row=row_idx, column=2).value = item.get('product_code', '')
             ws2.cell(row=row_idx, column=3).value = item.get('product_name', '')
             ws2.cell(row=row_idx, column=4).value = item.get('quantity', 0)
 
@@ -757,10 +757,10 @@ class QuoteExcelService:
             calc_results = item.get('calculation_results', {})
             
             ws.cell(row=row, column=1).value = item.get('brand', '')
-            ws.cell(row=row, column=2).value = item.get('sku', '')
+            ws.cell(row=row, column=2).value = item.get('product_code', '')
             ws.cell(row=row, column=3).value = item.get('product_name', '')
             ws.cell(row=row, column=4).value = item.get('quantity', 0)
-            
+
             selling_price_per_unit = Decimal(str(calc_results.get('sales_price_per_unit_no_vat', 0)))
             selling_price_total = Decimal(str(calc_results.get('sales_price_total_no_vat', 0)))
             vat_amount = Decimal(str(calc_results.get('vat_net_payable', 0)))
@@ -991,10 +991,10 @@ class QuoteExcelService:
             
             # Columns 1-4: Basic info
             ws.cell(row=row, column=1).value = item.get('brand', '')
-            ws.cell(row=row, column=2).value = item.get('sku', '')
+            ws.cell(row=row, column=2).value = item.get('product_code', '')
             ws.cell(row=row, column=3).value = item.get('product_name', '')
             ws.cell(row=row, column=4).value = item.get('quantity', 0)
-            
+
             # Column 5: Currency
             ws.cell(row=row, column=5).value = export_data.variables.get('currency_of_base_price', 'USD')
             

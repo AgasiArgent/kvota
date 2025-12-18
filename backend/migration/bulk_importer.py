@@ -112,7 +112,7 @@ class BulkQuoteImporter:
 
         # Check duplicate
         existing = await conn.fetchrow(
-            "SELECT id FROM quotes WHERE organization_id = $1 AND quote_number = $2",
+            "SELECT id FROM quotes WHERE organization_id = $1 AND idn_quote = $2",
             self.organization_id,
             quote_number
         )
@@ -160,7 +160,7 @@ class BulkQuoteImporter:
         quote_vars = excel_data.inputs["quote"]
 
         result = await conn.fetchrow(
-            "INSERT INTO quotes (organization_id, customer_id, quote_number, status, "
+            "INSERT INTO quotes (organization_id, customer_id, idn_quote, status, "
             "seller_company, created_by) VALUES ($1, $2, $3, 'draft', $4, $5) RETURNING id",
             self.organization_id,
             customer_id,

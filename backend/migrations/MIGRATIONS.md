@@ -43,6 +43,13 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 027 | `027_organization_financial_manager.sql` | Add financial_manager_id to organizations | ✅ Done | 2025-11-21 | Session 41 - Financial Approval |
 | 028 | `028_user_financial_manager_flag.sql` | Add is_financial_manager flag to user_profiles | ✅ Done | 2025-11-21 | Session 41 - Financial Approval |
 | 029 | `029_add_financial_workflow_states.sql` | Add missing workflow states for financial approval | ✅ Done | 2025-11-21 | Session 41 - Financial Approval |
+| 035 | `035_fix_missing_rls_policies.sql` | Fix missing RLS policies | ✅ Done | 2025-12-11 | Session 47 |
+| 037 | `037_dual_currency_storage.sql` | Dual currency storage for quotes | ✅ Done | 2025-12-13 | Session 48 |
+| 038 | `038_backfill_total_usd.sql` | Backfill total_usd values | ✅ Done | 2025-12-13 | Session 48 |
+| 040 | `040_backfill_usd_to_quote_rate.sql` | Backfill USD to quote currency rate | ✅ Done | 2025-12-13 | Session 48 |
+| 041 | `041_add_total_with_vat_usd.sql` | Add total with VAT USD column | ✅ Done | 2025-12-04 | Session 46 |
+| 042 | `042_fix_organization_members_rls_recursion.sql` | Fix RLS recursion in org members | ✅ Done | 2025-12-11 | Session 47 |
+| 043 | `043_add_idn_system.sql` | **IDN System: supplier_code, idn_quote, idn_sku** | ⏳ Pending | - | Session 49 |
 
 ---
 

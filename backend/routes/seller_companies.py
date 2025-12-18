@@ -28,6 +28,11 @@ class SellerCompanyBase(BaseModel):
     supplier_code: str = Field(..., min_length=3, max_length=3)
     country: Optional[str] = Field(None, max_length=100)
     is_active: bool = True
+    # Director fields for specification export
+    general_director_last_name: Optional[str] = Field(None, max_length=100)
+    general_director_first_name: Optional[str] = Field(None, max_length=100)
+    general_director_patronymic: Optional[str] = Field(None, max_length=100)
+    general_director_position: Optional[str] = Field(None, max_length=255)
 
     @field_validator('supplier_code')
     @classmethod
@@ -50,6 +55,11 @@ class SellerCompanyUpdate(BaseModel):
     supplier_code: Optional[str] = Field(None, min_length=3, max_length=3)
     country: Optional[str] = Field(None, max_length=100)
     is_active: Optional[bool] = None
+    # Director fields for specification export
+    general_director_last_name: Optional[str] = Field(None, max_length=100)
+    general_director_first_name: Optional[str] = Field(None, max_length=100)
+    general_director_patronymic: Optional[str] = Field(None, max_length=100)
+    general_director_position: Optional[str] = Field(None, max_length=255)
 
     @field_validator('supplier_code')
     @classmethod
@@ -71,6 +81,11 @@ class SellerCompanyResponse(BaseModel):
     supplier_code: str
     country: Optional[str]
     is_active: bool
+    # Director fields for specification export
+    general_director_last_name: Optional[str] = None
+    general_director_first_name: Optional[str] = None
+    general_director_patronymic: Optional[str] = None
+    general_director_position: Optional[str] = None
     created_at: str
     updated_at: str
 

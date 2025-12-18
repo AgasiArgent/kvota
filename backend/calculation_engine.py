@@ -1,6 +1,24 @@
 """
 B2B Quotation Platform - Calculation Engine
-Implements 13-phase calculation logic matching Excel formulas (Option 1: Simple)
+Implements 13-phase calculation logic matching Excel formulas.
+
+CURRENCY HANDLING (verified 2025-12-13):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ALL CALCULATIONS HAPPEN IN QUOTE CURRENCY, NOT USD!
+
+Flow:
+1. Excel upload: Products have various currencies (EUR, USD, TRY, CNY, RUB)
+2. Exchange rates: Fetched from CBR API, cross-rates calculated via RUB
+3. Conversion: All values converted to quote_currency BEFORE calculation
+4. Calculation: All 13 phases compute in quote_currency
+5. Storage: DUAL - both quote_currency (primary) and USD (for analytics)
+6. Export: Uses quote_currency for client-facing documents
+
+Key variable: currency_of_quote (e.g., "USD", "EUR", "RUB")
+Key function: phase1_purchase_price() converts base_price to quote_currency
+
+See: .claude/skills/calculation-engine-guidelines/resources/currency-handling.md
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
 from decimal import Decimal, ROUND_HALF_UP
