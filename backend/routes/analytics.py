@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Backgrou
 from fastapi.responses import FileResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from supabase import Client
+from supabase import Client, create_client
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 import csv
@@ -44,9 +44,7 @@ from analytics_cache import (
     cache_report,
     invalidate_report_cache,
 )
-from db_pool import get_db_connection, release_db_connection
 from async_supabase import async_supabase_call
-from routes.quotes import set_rls_context
 
 logger = logging.getLogger(__name__)
 
@@ -340,6 +338,7 @@ async def execute_analytics_query(
     try:
         # DEBUG: Print incoming filters
         print(f"\n=== ANALYTICS QUERY DEBUG ===\nFilters: {query_request.filters}\nFields: {query_request.selected_fields}\n===\n")
+
         # Generate cache key
         cache_key = get_cache_key(
             str(user.current_organization_id),
@@ -360,106 +359,98 @@ async def execute_analytics_query(
                 message="Cached result"
             )
 
-        # Count quotes to determine threshold
-        conn = await get_db_connection()
-        try:
-            await set_rls_context(conn, user)
+        # Build SQL query using existing query builder
+        # Note: We still need the SQL builder for complex queries with JOINs and filters
+        sql, params = build_analytics_query(
+            user.current_organization_id,
+            query_request.filters,
+            query_request.selected_fields,
+            limit=query_request.limit,
+            offset=query_request.offset
+        )
 
-            # Count total matching quotes
-            count_sql, count_params = build_analytics_query(
-                user.current_organization_id,
-                query_request.filters,
-                ["id"],
-                limit=1000000,  # High limit for counting
-                offset=0
+        # DEBUG: Print generated SQL
+        print(f"\n=== GENERATED SQL ===\n{sql}\n=== PARAMS ===\n{params}\n===\n")
+
+        # Execute via Supabase RPC
+        # Since complex SQL isn't supported by REST API, we use a stored procedure
+        start_time = time.time()
+
+        result = await async_supabase_call(
+            supabase.rpc('execute_analytics_query', {
+                'query_sql': sql,
+                'query_params': params
+            })
+        )
+
+        execution_time_ms = int((time.time() - start_time) * 1000)
+
+        # Count total for pagination (extract from result or run separate count)
+        # For now, we'll fetch total count separately
+        count_sql, count_params = build_analytics_query(
+            user.current_organization_id,
+            query_request.filters,
+            ["id"],
+            limit=1000000,
+            offset=0
+        )
+
+        # Replace SELECT with COUNT
+        import re
+        if "SELECT q.id" in count_sql:
+            count_sql = re.sub(
+                r'SELECT .+? FROM',
+                'SELECT COUNT(DISTINCT q.id) as total FROM',
+                count_sql,
+                count=1,
+                flags=re.DOTALL
+            )
+        else:
+            count_sql = count_sql.replace("SELECT id", "SELECT COUNT(*) as total")
+
+        count_sql = re.sub(r'GROUP BY .+?(?=ORDER BY|LIMIT|$)', '', count_sql, flags=re.DOTALL)
+        count_sql = count_sql.replace("ORDER BY q.created_at DESC", "").replace("LIMIT $", "-- LIMIT $")
+        count_params = count_params[:-2]
+
+        count_result = await async_supabase_call(
+            supabase.rpc('execute_analytics_count', {
+                'query_sql': count_sql,
+                'query_params': count_params
+            })
+        )
+
+        total_count = count_result.data if isinstance(count_result.data, int) else count_result.data[0].get('total', 0) if count_result.data else 0
+
+        # If ≥2,000 quotes: Stub for background processing
+        if total_count >= 2000:
+            import uuid
+            task_id = str(uuid.uuid4())
+            return AnalyticsQueryResponse(
+                rows=[],
+                count=0,
+                total_count=total_count,
+                has_more=False,
+                task_id=task_id,
+                status="processing",
+                message=f"Query processing in background. {total_count} quotes found. Check back with task_id."
             )
 
-            # DEBUG: Print count SQL before replace
-            print(f"\n=== COUNT SQL (BEFORE) ===\n{count_sql}\n=== PARAMS ===\n{count_params}\n===\n")
+        # Prepare response
+        result_rows = result.data if isinstance(result.data, list) else []
 
-            # Replace SELECT fields with COUNT(*)
-            # Handle both "SELECT id" and "SELECT q.id, ..." patterns
-            import re
-            if "SELECT q.id" in count_sql:
-                # When there's JOIN, SELECT starts with "q.id, ..."
-                # Replace everything between SELECT and FROM with COUNT(DISTINCT q.id)
-                count_sql = re.sub(
-                    r'SELECT .+? FROM',
-                    'SELECT COUNT(DISTINCT q.id) as total FROM',
-                    count_sql,
-                    count=1,
-                    flags=re.DOTALL
-                )
-            else:
-                # Simple case: "SELECT id FROM"
-                count_sql = count_sql.replace("SELECT id", "SELECT COUNT(*) as total")
+        response_data = {
+            "rows": result_rows,
+            "count": len(result_rows),
+            "total_count": total_count,
+            "has_more": (query_request.offset + len(result_rows)) < total_count,
+            "status": "completed",
+            "message": f"Query executed in {execution_time_ms}ms"
+        }
 
-            # Remove GROUP BY, ORDER BY and LIMIT
-            count_sql = re.sub(r'GROUP BY .+?(?=ORDER BY|LIMIT|$)', '', count_sql, flags=re.DOTALL)
-            count_sql = count_sql.replace("ORDER BY q.created_at DESC", "").replace("LIMIT $", "-- LIMIT $")
+        # Cache result
+        await cache_report(cache_key, response_data)
 
-            # Remove LIMIT and OFFSET params (last 2)
-            count_params = count_params[:-2]
-
-            # DEBUG: Print count SQL after replace
-            print(f"\n=== COUNT SQL (AFTER) ===\n{count_sql}\n=== PARAMS ===\n{count_params}\n===\n")
-
-            total_count = await conn.fetchval(count_sql, *count_params)
-
-            # If ≥2,000 quotes: Stub for background processing
-            if total_count >= 2000:
-                # TODO: Implement background task queue
-                import uuid
-                task_id = str(uuid.uuid4())
-
-                return AnalyticsQueryResponse(
-                    rows=[],
-                    count=0,
-                    total_count=total_count,
-                    has_more=False,
-                    task_id=task_id,
-                    status="processing",
-                    message=f"Query processing in background. {total_count} quotes found. Check back with task_id."
-                )
-
-            # Execute query immediately
-            start_time = time.time()
-
-            sql, params = build_analytics_query(
-                user.current_organization_id,
-                query_request.filters,
-                query_request.selected_fields,
-                limit=query_request.limit,
-                offset=query_request.offset
-            )
-
-            # DEBUG: Print generated SQL
-            print(f"\n=== GENERATED SQL ===\n{sql}\n=== PARAMS ===\n{params}\n===\n")
-
-            rows = await conn.fetch(sql, *params)
-
-            execution_time_ms = int((time.time() - start_time) * 1000)
-
-            # Convert rows to dicts
-            result_rows = [dict(row) for row in rows]
-
-            # Prepare response
-            response_data = {
-                "rows": result_rows,
-                "count": len(result_rows),
-                "total_count": total_count,
-                "has_more": (query_request.offset + len(result_rows)) < total_count,
-                "status": "completed",
-                "message": f"Query executed in {execution_time_ms}ms"
-            }
-
-            # Cache result
-            await cache_report(cache_key, response_data)
-
-            return AnalyticsQueryResponse(**response_data)
-
-        finally:
-            await release_db_connection(conn)
+        return AnalyticsQueryResponse(**response_data)
 
     except HTTPException:
         raise
@@ -529,45 +520,44 @@ async def execute_analytics_aggregation(
                 execution_time_ms=cached.get("execution_time_ms", 0)
             )
 
-        # Execute aggregation query
-        conn = await get_db_connection()
-        try:
-            await set_rls_context(conn, user)
+        # Build aggregation query
+        start_time = time.time()
 
-            start_time = time.time()
+        sql, params = build_aggregation_query(
+            user.current_organization_id,
+            query_request.filters,
+            query_request.aggregations or {}
+        )
 
-            sql, params = build_aggregation_query(
-                user.current_organization_id,
-                query_request.filters,
-                query_request.aggregations or {}
-            )
+        # DEBUG: Print aggregation SQL
+        print(f"\n=== AGGREGATION SQL ===\n{sql}\n=== PARAMS ===\n{params}\n===\n")
 
-            # DEBUG: Print aggregation SQL
-            print(f"\n=== AGGREGATION SQL ===\n{sql}\n=== PARAMS ===\n{params}\n===\n")
+        # Execute via Supabase RPC
+        result = await async_supabase_call(
+            supabase.rpc('execute_analytics_aggregation', {
+                'query_sql': sql,
+                'query_params': params
+            })
+        )
 
-            row = await conn.fetchrow(sql, *params)
+        execution_time_ms = int((time.time() - start_time) * 1000)
 
-            # DEBUG: Print result
-            print(f"\n=== AGGREGATION RESULT ===\n{dict(row) if row else 'None'}\n===\n")
+        # DEBUG: Print result
+        print(f"\n=== AGGREGATION RESULT ===\n{result.data}\n===\n")
 
-            execution_time_ms = int((time.time() - start_time) * 1000)
+        # Convert result to dict
+        result_aggregations = result.data[0] if isinstance(result.data, list) and result.data else result.data if isinstance(result.data, dict) else {}
 
-            # Convert row to dict
-            result_aggregations = dict(row) if row else {}
+        # Prepare response
+        response_data = {
+            "aggregations": result_aggregations,
+            "execution_time_ms": execution_time_ms
+        }
 
-            # Prepare response
-            response_data = {
-                "aggregations": result_aggregations,
-                "execution_time_ms": execution_time_ms
-            }
+        # Cache result
+        await cache_report(cache_key, response_data)
 
-            # Cache result
-            await cache_report(cache_key, response_data)
-
-            return AnalyticsAggregateResponse(**response_data)
-
-        finally:
-            await release_db_connection(conn)
+        return AnalyticsAggregateResponse(**response_data)
 
     except HTTPException:
         raise
@@ -590,6 +580,7 @@ async def export_analytics_data(
     background_tasks: BackgroundTasks,
     query_request: AnalyticsQueryRequest,
     user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
     format: str = Query(default="xlsx", description="Export format: xlsx or csv")
 ):
     """
@@ -611,80 +602,83 @@ async def export_analytics_data(
         )
 
     try:
-        # Execute query
-        conn = await get_db_connection()
-        try:
-            await set_rls_context(conn, user)
+        # Build query
+        start_time = time.time()
 
-            start_time = time.time()
+        sql, params = build_analytics_query(
+            user.current_organization_id,
+            query_request.filters,
+            query_request.selected_fields,
+            limit=query_request.limit,
+            offset=query_request.offset
+        )
 
-            sql, params = build_analytics_query(
-                user.current_organization_id,
-                query_request.filters,
+        # Execute via Supabase RPC
+        result = await async_supabase_call(
+            supabase.rpc('execute_analytics_query', {
+                'query_sql': sql,
+                'query_params': params
+            })
+        )
+
+        execution_time_ms = int((time.time() - start_time) * 1000)
+
+        rows = result.data if isinstance(result.data, list) else []
+
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No data found for export"
+            )
+
+        # Generate file
+        if export_format == "xlsx":
+            file_path = await generate_excel_export(
+                rows,
                 query_request.selected_fields,
-                limit=query_request.limit,
-                offset=query_request.offset
+                user.current_organization_id
             )
-
-            rows = await conn.fetch(sql, *params)
-
-            execution_time_ms = int((time.time() - start_time) * 1000)
-
-            if not rows:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No data found for export"
-                )
-
-            # Generate file
-            if export_format == "xlsx":
-                file_path = await generate_excel_export(
-                    rows,
-                    query_request.selected_fields,
-                    user.current_organization_id
-                )
-                media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            else:  # csv
-                file_path = await generate_csv_export(
-                    rows,
-                    query_request.selected_fields,
-                    user.current_organization_id
-                )
-                media_type = "text/csv"
-
-            # Upload to Supabase Storage
-            file_url = await upload_to_storage(
-                file_path,
-                str(user.current_organization_id)
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else:  # csv
+            file_path = await generate_csv_export(
+                rows,
+                query_request.selected_fields,
+                user.current_organization_id
             )
+            media_type = "text/csv"
 
-            # Get file size
-            file_size_bytes = os.path.getsize(file_path)
+        # Upload to Supabase Storage
+        file_url = await upload_to_storage(
+            file_path,
+            str(user.current_organization_id),
+            supabase
+        )
 
-            # Create execution record
-            await create_execution_record(
-                user=user,
-                query_request=query_request,
-                result_count=len(rows),
-                execution_time_ms=execution_time_ms,
-                export_format=export_format,
-                export_file_url=file_url,
-                file_size_bytes=file_size_bytes,
-                request=request
-            )
+        # Get file size
+        file_size_bytes = os.path.getsize(file_path)
 
-            # Schedule file cleanup
-            background_tasks.add_task(cleanup_temp_file, file_path)
+        # Create execution record
+        await create_execution_record(
+            user=user,
+            query_request=query_request,
+            result_count=len(rows),
+            execution_time_ms=execution_time_ms,
+            export_format=export_format,
+            export_file_url=file_url,
+            file_size_bytes=file_size_bytes,
+            request=request,
+            supabase=supabase
+        )
 
-            # Return file
-            return FileResponse(
-                path=file_path,
-                media_type=media_type,
-                filename=os.path.basename(file_path)
-            )
+        # Schedule file cleanup
+        background_tasks.add_task(cleanup_temp_file, file_path)
 
-        finally:
-            await release_db_connection(conn)
+        # Return file
+        return FileResponse(
+            path=file_path,
+            media_type=media_type,
+            filename=os.path.basename(file_path)
+        )
 
     except HTTPException:
         raise
@@ -806,12 +800,19 @@ async def generate_csv_export(
     return filename
 
 
-async def upload_to_storage(file_path: str, org_id: str) -> str:
+async def upload_to_storage(file_path: str, org_id: str, supabase: Client = None) -> str:
     """
     Upload file to Supabase Storage and return public URL.
 
     Files stored in: analytics/{org_id}/{date}/{filename}
     """
+    # Get supabase client if not provided
+    if supabase is None:
+        supabase = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
     with open(file_path, 'rb') as f:
         file_data = f.read()
 
@@ -841,7 +842,8 @@ async def create_execution_record(
     export_format: str,
     export_file_url: str,
     file_size_bytes: int,
-    request: Request
+    request: Request,
+    supabase: Client
 ) -> None:
     """
     Create audit record in report_executions table.
@@ -1064,7 +1066,7 @@ async def download_execution_file(
 
         # Download file from storage
         file_url = execution["export_file_url"]
-        temp_path = await download_from_storage(file_url)
+        temp_path = await download_from_storage(file_url, supabase)
 
         # Determine content type
         export_format = execution.get("export_format", "xlsx")
@@ -1422,12 +1424,19 @@ async def run_scheduled_report(
 # TASK 15: HELPER FUNCTIONS
 # ============================================================================
 
-async def download_from_storage(file_url: str) -> str:
+async def download_from_storage(file_url: str, supabase: Client = None) -> str:
     """
     Download file from Supabase Storage to temp directory.
 
     Returns: Path to temporary file
     """
+    # Get supabase client if not provided
+    if supabase is None:
+        supabase = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
     import tempfile
     # Extract bucket and path from URL
     # URL format: https://xxx.supabase.co/storage/v1/object/public/analytics/{path}
@@ -1500,7 +1509,8 @@ async def execute_scheduled_report_internal(
     schedule: Dict,
     saved_report: Dict,
     user: User,
-    execution_type: str = "manual"
+    execution_type: str = "manual",
+    supabase: Client = None
 ) -> Dict:
     """
     Execute scheduled report and create audit record.
@@ -1508,26 +1518,35 @@ async def execute_scheduled_report_internal(
     Generates file, uploads to storage, creates execution record,
     sends email (stub), and updates schedule status.
     """
+    # Get supabase client
+    if supabase is None:
+        from dependencies import get_supabase
+        supabase = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
     start_time = time.time()
 
     try:
-        # Execute query
-        conn = await get_db_connection()
-        try:
-            await set_rls_context(conn, user)
+        # Build and execute query
+        sql, params = build_analytics_query(
+            user.current_organization_id,
+            saved_report.get("filters", {}),
+            saved_report.get("selected_fields", []),
+            limit=100000,  # High limit for exports
+            offset=0
+        )
 
-            sql, params = build_analytics_query(
-                user.current_organization_id,
-                saved_report.get("filters", {}),
-                saved_report.get("selected_fields", []),
-                limit=100000,  # High limit for exports
-                offset=0
-            )
+        # Execute via Supabase RPC
+        result = await async_supabase_call(
+            supabase.rpc('execute_analytics_query', {
+                'query_sql': sql,
+                'query_params': params
+            })
+        )
 
-            rows = await conn.fetch(sql, *params)
-
-        finally:
-            await release_db_connection(conn)
+        rows = result.data if isinstance(result.data, list) else []
 
         if not rows:
             raise ValueError("No data found for report")

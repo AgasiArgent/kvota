@@ -12,7 +12,7 @@ Updated: 2025-12-01 - Added save-to-DB functionality
 import io
 import os
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional, List
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
@@ -54,11 +54,13 @@ from fastapi.responses import StreamingResponse
 
 # Import helper functions from quotes_calc
 from routes.quotes_calc import (
-    generate_quote_number,
     aggregate_product_results_to_summary,
     get_rates_snapshot_to_usd,
     convert_decimals_to_float,
 )
+
+# Import IDN service for proper quote IDN generation
+from services.idn_service import get_idn_service, IDNValidationError, IDNGenerationError
 
 # Supabase client is now injected via dependency injection (see get_supabase)
 
@@ -259,14 +261,17 @@ async def map_to_calculation_inputs(
     Map SimplifiedQuoteInput to list of QuoteCalculationInput (one per product).
     """
     inputs = []
-    quote_currency = CURRENCY_MAP.get(parsed.quote_currency.value, CalcCurrency.EUR)
+    # Note: We keep track of client's quote_currency for display purposes only
+    # All calculations happen in USD (canonical calculation currency)
+    client_quote_currency = parsed.quote_currency.value
 
     for product in parsed.products:
-        # Calculate exchange rate for this product (for_division=True for engine's R16 = P16 / rate)
+        # Calculate exchange rate: base_currency -> USD (for_division=True for engine's R16 = P16 / rate)
+        # USD is the canonical calculation currency (internal accounting)
         product_currency = product.currency.value
         exchange_rate = calculate_exchange_rate(
             product_currency,
-            parsed.quote_currency.value,
+            "USD",  # Always convert to USD for calculation
             rates,
             for_division=True  # Engine divides by this rate
         )
@@ -287,13 +292,18 @@ async def map_to_calculation_inputs(
                 customs_code=str(product.customs_code or "8708913509").zfill(10),
             ),
             financial=FinancialParams(
-                currency_of_quote=quote_currency,
+                currency_of_quote=CalcCurrency.USD,  # Always USD for internal calculation
                 exchange_rate_base_price_to_quote=exchange_rate,
                 supplier_discount=product.supplier_discount * Decimal("100"),  # Convert 0.10 -> 10%
                 markup=product.markup * Decimal("100"),  # Convert 0.15 -> 15%
                 rate_forex_risk=Decimal("3"),  # Default
                 dm_fee_type=DMFeeType.PERCENTAGE if parsed.dm_fee_type == "% от суммы" else DMFeeType.FIXED,
-                dm_fee_value=parsed.dm_fee_value,
+                # For fixed DM fee, convert to USD; for percentage, pass as-is
+                dm_fee_value=parsed.dm_fee_value * calculate_exchange_rate(
+                    parsed.dm_fee_currency.value if parsed.dm_fee_currency else "EUR",
+                    "USD",
+                    rates
+                ) if parsed.dm_fee_type != "% от суммы" else parsed.dm_fee_value,
             ),
             logistics=LogisticsParams(
                 supplier_country=supplier_country,
@@ -301,20 +311,20 @@ async def map_to_calculation_inputs(
                 delivery_time=parsed.delivery_time,
                 # Calculate delivery_date for VAT determination (22% for 2026+)
                 delivery_date=date.today() + timedelta(days=parsed.delivery_time),
-                # Convert logistics costs to quote currency
+                # Convert logistics costs to USD (canonical calculation currency)
                 logistics_supplier_hub=parsed.logistics_supplier_hub.value * calculate_exchange_rate(
                     parsed.logistics_supplier_hub.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
                 logistics_hub_customs=parsed.logistics_hub_customs.value * calculate_exchange_rate(
                     parsed.logistics_hub_customs.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
                 logistics_customs_client=parsed.logistics_customs_client.value * calculate_exchange_rate(
                     parsed.logistics_customs_client.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
             ),
@@ -364,29 +374,30 @@ async def map_to_calculation_inputs(
                 ),
             ),
             customs=CustomsAndClearance(
+                # Convert brokerage costs to USD (canonical calculation currency)
                 brokerage_hub=parsed.brokerage_hub.value * calculate_exchange_rate(
                     parsed.brokerage_hub.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
                 brokerage_customs=parsed.brokerage_customs.value * calculate_exchange_rate(
                     parsed.brokerage_customs.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
                 warehousing_at_customs=parsed.warehousing.value * calculate_exchange_rate(
                     parsed.warehousing.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
                 customs_documentation=parsed.documentation.value * calculate_exchange_rate(
                     parsed.documentation.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
                 brokerage_extra=parsed.other_costs.value * calculate_exchange_rate(
                     parsed.other_costs.currency.value,
-                    parsed.quote_currency.value,
+                    "USD",
                     rates
                 ),
             ),
@@ -675,21 +686,44 @@ async def upload_excel_with_validation_export(
                 (m.days or 0 for m in parsed_data.payment_milestones if m.name == "on_receiving"),
                 0
             ),
-            # Logistics costs
-            "logistics_supplier_hub": float(parsed_data.logistics_supplier_hub.value),
-            "logistics_hub_customs": float(parsed_data.logistics_hub_customs.value),
-            "logistics_customs_client": float(parsed_data.logistics_customs_client.value),
-            # Brokerage costs
-            "brokerage_hub": float(parsed_data.brokerage_hub.value),
-            "brokerage_customs": float(parsed_data.brokerage_customs.value),
-            "warehousing": float(parsed_data.warehousing.value),
-            "documentation": float(parsed_data.documentation.value),
-            "other_costs": float(parsed_data.other_costs.value),
-            # DM Fee
+            # Logistics costs (convert to USD for validation export)
+            "logistics_supplier_hub": float(parsed_data.logistics_supplier_hub.value * calculate_exchange_rate(
+                parsed_data.logistics_supplier_hub.currency.value, "USD", rates
+            )),
+            "logistics_hub_customs": float(parsed_data.logistics_hub_customs.value * calculate_exchange_rate(
+                parsed_data.logistics_hub_customs.currency.value, "USD", rates
+            )),
+            "logistics_customs_client": float(parsed_data.logistics_customs_client.value * calculate_exchange_rate(
+                parsed_data.logistics_customs_client.currency.value, "USD", rates
+            )),
+            # Brokerage costs (convert to USD for validation export)
+            "brokerage_hub": float(parsed_data.brokerage_hub.value * calculate_exchange_rate(
+                parsed_data.brokerage_hub.currency.value, "USD", rates
+            )),
+            "brokerage_customs": float(parsed_data.brokerage_customs.value * calculate_exchange_rate(
+                parsed_data.brokerage_customs.currency.value, "USD", rates
+            )),
+            "warehousing": float(parsed_data.warehousing.value * calculate_exchange_rate(
+                parsed_data.warehousing.currency.value, "USD", rates
+            )),
+            "documentation": float(parsed_data.documentation.value * calculate_exchange_rate(
+                parsed_data.documentation.currency.value, "USD", rates
+            )),
+            "other_costs": float(parsed_data.other_costs.value * calculate_exchange_rate(
+                parsed_data.other_costs.currency.value, "USD", rates
+            )),
+            # DM Fee (convert fixed amounts to USD, percentages pass as-is)
             "dm_fee_type": parsed_data.dm_fee_type,
-            "dm_fee_value": float(parsed_data.dm_fee_value),
+            "dm_fee_value": float(parsed_data.dm_fee_value * calculate_exchange_rate(
+                parsed_data.dm_fee_currency.value if parsed_data.dm_fee_currency else "EUR",
+                "USD",
+                rates
+            )) if parsed_data.dm_fee_type != "% от суммы" else float(parsed_data.dm_fee_value),
             # Admin settings (defaults)
             "rate_forex_risk": 0.03,  # 3%
+            # Exchange rate info for validation export (USD -> quote currency conversion)
+            "_usd_to_quote_rate": float(calculate_exchange_rate("USD", parsed_data.quote_currency.value, rates)),
+            "_quote_currency": parsed_data.quote_currency.value,
         }
 
         # Build product inputs list
@@ -724,8 +758,13 @@ async def upload_excel_with_validation_export(
 
         first_result = calc_results[0] if calc_results else None
 
+        # =================================================================
+        # VALIDATION EXPORT: API results in USD
+        # The validation Excel will use formulas to convert USD → quote currency
+        # Exchange rate is passed separately for Excel to use
+        # =================================================================
         api_results = {
-            # Quote totals
+            # Quote totals (in USD - canonical calculation currency)
             "total_purchase_price": float(total_purchase),
             "total_logistics_first": float(total_logistics_first),
             "total_logistics_last": float(total_logistics_last),
@@ -734,7 +773,7 @@ async def upload_excel_with_validation_export(
             "total_revenue": float(total_revenue_no_vat),
             "total_revenue_with_vat": float(total_revenue_with_vat),
             "total_profit": float(total_profit),
-            # Financing
+            # Financing (in USD)
             "evaluated_revenue": float(first_result.quote_level_evaluated_revenue) if first_result and first_result.quote_level_evaluated_revenue else 0,
             "client_advance": float(first_result.quote_level_client_advance) if first_result and first_result.quote_level_client_advance else 0,
             "total_before_forwarding": float(first_result.quote_level_total_before_forwarding) if first_result and hasattr(first_result, 'quote_level_total_before_forwarding') and first_result.quote_level_total_before_forwarding else 0,
@@ -745,14 +784,21 @@ async def upload_excel_with_validation_export(
             "credit_sales_amount": float(first_result.quote_level_credit_sales_amount) if first_result and hasattr(first_result, 'quote_level_credit_sales_amount') and first_result.quote_level_credit_sales_amount else 0,
             "credit_sales_fv": float(first_result.quote_level_credit_sales_fv) if first_result and hasattr(first_result, 'quote_level_credit_sales_fv') and first_result.quote_level_credit_sales_fv else 0,
             "credit_sales_interest": float(first_result.quote_level_credit_sales_interest) if first_result and first_result.quote_level_credit_sales_interest else 0,
+            # Exchange rate info for Excel conversion formulas
+            "_usd_to_quote_rate": float(calculate_exchange_rate("USD", parsed_data.quote_currency.value, rates)),
+            "_quote_currency": parsed_data.quote_currency.value,
         }
 
-        # Build product results list
+        # Build product results list (in USD - canonical calculation currency)
+        # Note: N16 (purchase_price_no_vat) and P16 (purchase_price_after_discount) are in BASE currency
+        # All other fields (R16 onwards) are in USD
         product_results = []
         for r in calc_results:
             product_results.append({
+                # N16, P16: Base currency values (no conversion)
                 "purchase_price_no_vat": float(r.purchase_price_no_vat),
                 "purchase_price_after_discount": float(r.purchase_price_after_discount),
+                # R16 onwards: USD values (Excel will convert to quote currency)
                 "purchase_price_per_unit_quote_currency": float(r.purchase_price_per_unit_quote_currency),
                 "purchase_price_total_quote_currency": float(r.purchase_price_total_quote_currency),
                 "logistics_first_leg": float(r.logistics_first_leg),
@@ -786,60 +832,83 @@ async def upload_excel_with_validation_export(
         # SAVE TO DATABASE (if customer_id provided)
         # ================================================================
         quote_id = None
-        quote_number = None
+        idn_quote = None
 
         if customer_id and user.current_organization_id:
             try:
-                # Generate quote number
-                quote_number = generate_quote_number(supabase, str(user.current_organization_id))
+                # Get customer INN for IDN generation
+                customer_result = supabase.table("customers").select("inn")\
+                    .eq("id", customer_id)\
+                    .eq("organization_id", str(user.current_organization_id))\
+                    .execute()
+
+                customer_inn = None
+                if customer_result.data and len(customer_result.data) > 0:
+                    customer_inn = customer_result.data[0].get("inn")
+
+                # Generate IDN using proper IDN service (format: SUPPLIER-INN-YEAR-SEQ)
+                if customer_inn:
+                    try:
+                        idn_service = get_idn_service()
+                        idn_quote = await idn_service.generate_quote_idn(
+                            organization_id=user.current_organization_id,
+                            customer_inn=customer_inn
+                        )
+                    except (IDNValidationError, IDNGenerationError) as e:
+                        # Fall back to simple format if IDN service fails
+                        # (org may not have supplier_code configured yet)
+                        logger.warning(f"IDN generation skipped: {e}")
+                        idn_quote = f"КП-{date.today().strftime('%Y%m%d')}-{customer_id[:8]}"
+                else:
+                    # No INN - use fallback format
+                    idn_quote = f"КП-{date.today().strftime('%Y%m%d')}-{customer_id[:8]}"
 
                 # Get exchange rates snapshot for audit
                 rates_snapshot = get_rates_snapshot_to_usd(date.today(), supabase)
 
-                # Calculate VAT totals
+                # Calculate VAT totals (already in USD)
                 total_vat_on_import = sum(r.vat_on_import for r in calc_results)
                 total_vat_payable = sum(r.vat_net_payable for r in calc_results)
 
-                # Get quote currency to USD conversion rate
-                # Calculation engine outputs in QUOTE CURRENCY, we need to convert to USD
+                # Get USD to quote currency conversion rate for display values
+                # Calculation engine now outputs in USD (canonical calculation currency)
                 quote_currency = parsed_data.quote_currency.value
                 if quote_currency == "USD":
-                    quote_to_usd_rate = Decimal("1.0")
+                    usd_to_quote_rate = Decimal("1.0")
                 else:
-                    # rates contains {currency}/RUB rates
-                    # quote_to_usd = quote_currency/RUB ÷ USD/RUB
-                    usd_rub = rates.get("USD/RUB", Decimal("1.0"))
-                    quote_rub = rates.get(f"{quote_currency}/RUB", Decimal("1.0"))
-                    quote_to_usd_rate = quote_rub / usd_rub if usd_rub else Decimal("1.0")
+                    # Get USD -> quote_currency rate
+                    usd_to_quote_rate = calculate_exchange_rate("USD", quote_currency, rates)
 
-                # Convert from quote currency to USD
-                # total_revenue_* values are already in quote currency from calc engine
-                total_revenue_no_vat_usd = total_revenue_no_vat * quote_to_usd_rate
-                total_revenue_with_vat_usd = total_revenue_with_vat * quote_to_usd_rate
-                total_profit_usd = total_profit * quote_to_usd_rate
+                # Convert from USD to quote currency for client display
+                # total_revenue_* values are now in USD from calc engine
+                total_revenue_no_vat_quote = total_revenue_no_vat * usd_to_quote_rate
+                total_revenue_with_vat_quote = total_revenue_with_vat * usd_to_quote_rate
 
                 # 1. Create quote record
                 quote_data = {
                     "organization_id": str(user.current_organization_id),
                     "customer_id": customer_id,
-                    "quote_number": quote_number,
+                    "idn_quote": idn_quote,
                     "title": f"КП от {date.today().strftime('%d.%m.%Y')}",
                     "status": "draft",
                     "created_by": str(user.id),
                     "quote_date": date.today().isoformat(),
                     "valid_until": (date.today() + timedelta(days=30)).isoformat(),
                     "currency": quote_currency,
-                    "subtotal": float(total_purchase),
-                    "total_amount": float(total_revenue_no_vat),  # In quote currency
-                    # USD totals for display (converted from quote currency)
-                    "total_usd": float(total_revenue_no_vat_usd),  # AK16 sum converted to USD
-                    "total_with_vat_usd": float(total_revenue_with_vat_usd),  # AL16 sum converted to USD
-                    "total_profit_usd": float(total_profit_usd),  # AF16 sum converted to USD
-                    "total_vat_on_import_usd": float(total_vat_on_import * quote_to_usd_rate),
-                    "total_vat_payable_usd": float(total_vat_payable * quote_to_usd_rate),
-                    # Quote currency totals (already in quote currency from calc engine)
-                    "total_amount_quote": float(total_revenue_no_vat),
-                    "total_with_vat_quote": float(total_revenue_with_vat),
+                    "subtotal": float(total_purchase),  # In USD
+                    "total_amount": float(total_revenue_no_vat),  # In USD (canonical)
+                    # USD totals (now directly from calculation, no conversion needed)
+                    "total_usd": float(total_revenue_no_vat),  # AK16 sum in USD
+                    "total_with_vat_usd": float(total_revenue_with_vat),  # AL16 sum in USD
+                    "total_profit_usd": float(total_profit),  # AF16 sum in USD
+                    "total_vat_on_import_usd": float(total_vat_on_import),  # Already in USD
+                    "total_vat_payable_usd": float(total_vat_payable),  # Already in USD
+                    # Quote currency totals (converted from USD for client display)
+                    "usd_to_quote_rate": float(usd_to_quote_rate),
+                    "exchange_rate_source": "cbr",
+                    "exchange_rate_timestamp": datetime.now(timezone.utc).isoformat(),
+                    "total_amount_quote": float(total_revenue_no_vat_quote),
+                    "total_with_vat_quote": float(total_revenue_with_vat_quote),
                 }
 
                 quote_response = supabase.table("quotes").insert(quote_data).execute()
@@ -852,8 +921,13 @@ async def upload_excel_with_validation_export(
                 for idx, p in enumerate(parsed_data.products):
                     custom_fields = {
                         "currency_of_base_price": p.currency.value,
+                        # Exchange rate: base_currency -> USD (canonical calculation currency)
+                        "exchange_rate_base_price_to_usd": float(calculate_exchange_rate(
+                            p.currency.value, "USD", rates, for_division=True
+                        )),
+                        # Also store quote currency rate for reference
                         "exchange_rate_base_price_to_quote": float(calculate_exchange_rate(
-                            p.currency.value, parsed_data.quote_currency.value, rates, for_division=True
+                            p.currency.value, quote_currency, rates, for_division=True
                         )),
                         "supplier_discount": float(p.supplier_discount) if p.supplier_discount else 0,
                         "markup": float(p.markup),
@@ -887,24 +961,51 @@ async def upload_excel_with_validation_export(
                 }
                 supabase.table("quote_calculation_variables").insert(variables_data).execute()
 
-                # 4. Save calculation results for each product
+                # 4. Save calculation results for each product (USD in phase_results, quote currency in phase_results_quote_currency)
                 for idx, (r, item_record) in enumerate(zip(calc_results, items_response.data)):
                     result_dict = convert_decimals_to_float(r.dict())
                     result_dict["rates_snapshot"] = rates_snapshot
+                    result_dict["quote_currency"] = quote_currency
+                    result_dict["usd_to_quote_rate"] = float(usd_to_quote_rate)
+
+                    # Build quote currency version of key results for client display
+                    phase_results_quote = {
+                        "quote_currency": quote_currency,
+                        "usd_to_quote_rate": float(usd_to_quote_rate),
+                        # Key values in quote currency
+                        "purchase_price_total": float(r.purchase_price_total_quote_currency * usd_to_quote_rate),
+                        "logistics_total": float(r.logistics_total * usd_to_quote_rate),
+                        "cogs_per_product": float(r.cogs_per_product * usd_to_quote_rate),
+                        "sales_price_total_no_vat": float(r.sales_price_total_no_vat * usd_to_quote_rate),
+                        "sales_price_total_with_vat": float(r.sales_price_total_with_vat * usd_to_quote_rate),
+                        "sales_price_per_unit_no_vat": float(r.sales_price_per_unit_no_vat * usd_to_quote_rate),
+                        "sales_price_per_unit_with_vat": float(r.sales_price_per_unit_with_vat * usd_to_quote_rate),
+                        "profit": float(r.profit * usd_to_quote_rate),
+                        "dm_fee": float(r.dm_fee * usd_to_quote_rate),
+                    }
 
                     results_data = {
                         "quote_id": quote_id,
                         "quote_item_id": item_record['id'],
                         "phase_results": result_dict,
+                        "phase_results_quote_currency": phase_results_quote,
                     }
                     supabase.table("quote_calculation_results").insert(results_data).execute()
 
                 # 5. Save quote calculation summary
-                quote_summary = aggregate_product_results_to_summary(calc_results, quote_inputs)
+
+                quote_summary = aggregate_product_results_to_summary(
+                    calc_results,
+                    quote_inputs,
+                    quote_currency=quote_currency,
+                    usd_to_quote_rate=usd_to_quote_rate,
+                    exchange_rate_source="cbr",
+                    exchange_rate_timestamp=datetime.now(timezone.utc)
+                )
                 quote_summary["quote_id"] = quote_id
                 supabase.table("quote_calculation_summaries").upsert(quote_summary).execute()
 
-                logger.info(f"Quote {quote_number} (ID: {quote_id}) saved to database for customer {customer_id}")
+                logger.info(f"Quote {idn_quote} (ID: {quote_id}) saved to database for customer {customer_id}")
 
             except Exception as e:
                 logger.exception(f"Error saving quote to database: {e}")
@@ -936,8 +1037,8 @@ async def upload_excel_with_validation_export(
         # Add quote info headers if saved to DB
         if quote_id:
             response_headers["X-Quote-Id"] = str(quote_id)
-            # URL-encode quote_number for HTTP header (contains Cyrillic "КП")
-            response_headers["X-Quote-Number"] = url_quote(quote_number, safe='')
+            # URL-encode idn_quote for HTTP header (contains Cyrillic "КП")
+            response_headers["X-Quote-Number"] = url_quote(idn_quote, safe='')
             # Expose custom headers to frontend
             response_headers["Access-Control-Expose-Headers"] = "X-Quote-Id, X-Quote-Number"
 
@@ -1067,7 +1168,7 @@ def export_quote_as_template(
     row = 16
     for item in quote_items:
         ws[f"A{row}"] = item.get("brand", "")
-        ws[f"B{row}"] = item.get("sku", "")
+        ws[f"B{row}"] = item.get("product_code", "")
         ws[f"C{row}"] = item.get("product_name", "")
         ws[f"D{row}"] = int(item.get("quantity", 1))
         ws[f"E{row}"] = float(item.get("weight_in_kg", 0)) if item.get("weight_in_kg") else None
@@ -1224,7 +1325,7 @@ async def export_quote_as_template_endpoint(
 
             product_inputs.append({
                 "brand": item.get("brand", ""),
-                "sku": item.get("sku", ""),
+                "sku": item.get("product_code", ""),  # Read from product_code, export expects "sku"
                 "name": item.get("product_name", ""),  # export service expects "name" not "product_name"
                 "quantity": item.get("quantity", 1),
                 "weight_in_kg": item.get("weight_in_kg") or 0,
@@ -1293,10 +1394,10 @@ async def export_quote_as_template_endpoint(
         )
 
         # Build filename
-        quote_number = quote.get("quote_number", quote_id)
-        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
-        filename = f"validation_{safe_quote_number}.xlsm"
-        filename_encoded = url_quote(f"validation_{quote_number}.xlsm", safe='')
+        idn_quote = quote.get("idn_quote", quote_id)
+        safe_idn_quote = ''.join(c if ord(c) < 128 else '_' for c in str(idn_quote))
+        filename = f"validation_{safe_idn_quote}.xlsm"
+        filename_encoded = url_quote(f"validation_{idn_quote}.xlsm", safe='')
 
         return StreamingResponse(
             io.BytesIO(excel_bytes),

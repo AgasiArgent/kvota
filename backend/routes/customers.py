@@ -5,7 +5,6 @@ Full CRUD operations with Russian business validation
 from typing import List, Optional
 from uuid import UUID
 
-import asyncpg
 from fastapi import APIRouter, HTTPException, Depends, Query, status
 from fastapi.responses import JSONResponse
 from supabase import Client
@@ -16,7 +15,6 @@ from models import (
     Customer, CustomerCreate, CustomerUpdate, CustomerListResponse,
     PaginationParams, SuccessResponse, ErrorResponse
 )
-import os
 from services.activity_log_service import log_activity, log_activity_decorator
 
 
@@ -29,29 +27,6 @@ router = APIRouter(
     tags=["customers"],
     dependencies=[Depends(get_current_user)]  # All endpoints require authentication
 )
-
-
-# ============================================================================
-# DATABASE HELPER FUNCTIONS
-# ============================================================================
-
-async def get_db_connection():
-    """Get database connection with proper error handling"""
-    try:
-        return await asyncpg.connect(os.getenv("DATABASE_URL"))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database connection failed: {str(e)}"
-        )
-
-
-async def set_rls_context(conn, user: User):
-    """Set Row Level Security context for database queries"""
-    await conn.execute(
-        "SELECT set_config('request.jwt.claims', $1, true)", 
-        f'{{"sub": "{user.id}", "role": "authenticated"}}'
-    )
 
 
 # ============================================================================
@@ -197,6 +172,22 @@ async def create_customer(
             )
 
         customer = Customer(**result.data[0])
+
+        # Auto-create signatory contact from general director if available
+        if customer_data.general_director_name:
+            try:
+                supabase.table("customer_contacts").insert({
+                    "customer_id": str(customer.id),
+                    "organization_id": str(customer_data.organization_id),
+                    "name": customer_data.general_director_name,
+                    "position": customer_data.general_director_position or "Генеральный директор",
+                    "is_signatory": True,
+                    "signatory_position": customer_data.general_director_position or "Генеральный директор",
+                    "is_primary": True  # General director is default primary contact
+                }).execute()
+            except Exception as e:
+                # Log but don't fail customer creation if contact creation fails
+                print(f"Warning: Failed to create signatory contact for customer {customer.id}: {e}")
 
         # Log activity
         await log_activity(
@@ -429,7 +420,7 @@ async def get_customer_quotes(
         offset = (page - 1) * limit
 
         quotes_result = supabase.table("quotes")\
-            .select("id, quote_number, title, status, total_amount, quote_date, valid_until, created_at, updated_at", count="exact")\
+            .select("id, idn_quote, title, status, total_amount, quote_date, valid_until, created_at, updated_at", count="exact")\
             .eq("customer_id", str(customer_id))\
             .eq("organization_id", str(user.current_organization_id))\
             .order("created_at", desc=True)\
@@ -576,10 +567,13 @@ async def create_contact(
         "customer_id": str(customer_id),
         "name": contact['name'],
         "last_name": contact.get('last_name'),
+        "patronymic": contact.get('patronymic'),
         "phone": contact.get('phone'),
         "email": contact.get('email'),
         "position": contact.get('position'),
         "is_primary": contact.get('is_primary', False),
+        "is_signatory": contact.get('is_signatory', False),
+        "signatory_position": contact.get('signatory_position'),
         "notes": contact.get('notes'),
         "organization_id": str(user.current_organization_id)
     }).execute()
@@ -679,54 +673,257 @@ async def delete_contact(
 
 
 # ============================================================================
+# CUSTOMER DELIVERY ADDRESSES CRUD OPERATIONS
+# ============================================================================
+
+@router.get("/{customer_id}/delivery-addresses")
+async def list_delivery_addresses(
+    customer_id: UUID,
+    user: User = Depends(require_permission("customers:read")),
+    supabase: Client = Depends(get_supabase)
+):
+    """List all delivery addresses for a customer"""
+
+    # Verify customer belongs to user's organization
+    customer = supabase.table("customers")\
+        .select("id")\
+        .eq("id", str(customer_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    if not customer.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found"
+        )
+
+    # Get delivery addresses
+    result = supabase.table("customer_delivery_addresses")\
+        .select("*")\
+        .eq("customer_id", str(customer_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .order("is_default", desc=True)\
+        .order("created_at", desc=False)\
+        .execute()
+
+    return {"addresses": result.data}
+
+
+@router.post("/{customer_id}/delivery-addresses")
+@log_activity_decorator("delivery_address", "created")
+async def create_delivery_address(
+    customer_id: UUID,
+    address_data: dict,
+    user: User = Depends(require_permission("customers:update")),
+    supabase: Client = Depends(get_supabase)
+):
+    """Create a new delivery address for customer"""
+
+    # Validate customer belongs to organization
+    customer = supabase.table("customers")\
+        .select("id")\
+        .eq("id", str(customer_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    if not customer.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found"
+        )
+
+    # Validate required address field
+    if not address_data.get('address'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Address is required"
+        )
+
+    # If setting as default, unset other default addresses
+    if address_data.get('is_default'):
+        supabase.table("customer_delivery_addresses")\
+            .update({"is_default": False})\
+            .eq("customer_id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+    # Insert address
+    result = supabase.table("customer_delivery_addresses").insert({
+        "customer_id": str(customer_id),
+        "address": address_data['address'],
+        "name": address_data.get('name'),
+        "is_default": address_data.get('is_default', False),
+        "notes": address_data.get('notes'),
+        "organization_id": str(user.current_organization_id)
+    }).execute()
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create delivery address"
+        )
+
+    address = result.data[0]
+
+    # Log activity
+    await log_activity(
+        user_id=user.id,
+        organization_id=user.current_organization_id,
+        action="created",
+        entity_type="delivery_address",
+        entity_id=UUID(address['id'])
+    )
+
+    return address
+
+
+@router.put("/{customer_id}/delivery-addresses/{address_id}")
+@log_activity_decorator("delivery_address", "updated")
+async def update_delivery_address(
+    customer_id: UUID,
+    address_id: UUID,
+    address_data: dict,
+    user: User = Depends(require_permission("customers:update")),
+    supabase: Client = Depends(get_supabase)
+):
+    """Update delivery address"""
+
+    # If setting as default, unset others
+    if address_data.get('is_default'):
+        supabase.table("customer_delivery_addresses")\
+            .update({"is_default": False})\
+            .eq("customer_id", str(customer_id))\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
+
+    # Update address
+    result = supabase.table("customer_delivery_addresses")\
+        .update(address_data)\
+        .eq("id", str(address_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Delivery address not found"
+        )
+
+    address = result.data[0]
+
+    # Log activity
+    await log_activity(
+        user_id=user.id,
+        organization_id=user.current_organization_id,
+        action="updated",
+        entity_type="delivery_address",
+        entity_id=address_id
+    )
+
+    return address
+
+
+@router.delete("/{customer_id}/delivery-addresses/{address_id}")
+@log_activity_decorator("delivery_address", "deleted")
+async def delete_delivery_address(
+    customer_id: UUID,
+    address_id: UUID,
+    user: User = Depends(require_permission("customers:update")),
+    supabase: Client = Depends(get_supabase)
+):
+    """Delete delivery address"""
+
+    result = supabase.table("customer_delivery_addresses")\
+        .delete()\
+        .eq("id", str(address_id))\
+        .eq("organization_id", str(user.current_organization_id))\
+        .execute()
+
+    # Log activity
+    await log_activity(
+        user_id=user.id,
+        organization_id=user.current_organization_id,
+        action="deleted",
+        entity_type="delivery_address",
+        entity_id=address_id
+    )
+
+    return {"success": True}
+
+
+# ============================================================================
 # ANALYTICS ENDPOINTS
 # ============================================================================
 
 @router.get("/stats/overview")
 async def get_customer_stats(
-    user: User = Depends(require_permission("customers:read"))
+    user: User = Depends(require_permission("customers:read")),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get customer statistics overview
 
     Useful for dashboard and reporting
     """
-    conn = await get_db_connection()
     try:
-        await set_rls_context(conn, user)
+        # Check if user has an organization
+        if not user.current_organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is not associated with any organization"
+            )
 
-        stats = await conn.fetchrow("""
-            SELECT
-                COUNT(*) as total_customers,
-                COUNT(*) FILTER (WHERE status = 'active') as active_customers,
-                COUNT(*) FILTER (WHERE status = 'inactive') as inactive_customers,
-                COUNT(*) FILTER (WHERE company_type = 'organization') as organizations,
-                COUNT(*) FILTER (WHERE company_type = 'individual_entrepreneur') as entrepreneurs,
-                COUNT(*) FILTER (WHERE region = 'Москва') as moscow_customers,
-                AVG(credit_limit) as avg_credit_limit,
-                SUM(credit_limit) as total_credit_limit
-            FROM customers
-        """)
+        # Get all customers for the organization
+        result = supabase.table("customers").select("*")\
+            .eq("organization_id", str(user.current_organization_id))\
+            .execute()
 
-        # Get regional breakdown
-        regions = await conn.fetch("""
-            SELECT region, COUNT(*) as count
-            FROM customers
-            WHERE region IS NOT NULL
-            GROUP BY region
-            ORDER BY count DESC
-            LIMIT 10
-        """)
+        customers = result.data
+
+        # Calculate statistics in Python
+        total_customers = len(customers)
+        active_customers = sum(1 for c in customers if c.get('status') == 'active')
+        inactive_customers = sum(1 for c in customers if c.get('status') == 'inactive')
+        organizations = sum(1 for c in customers if c.get('company_type') == 'organization')
+        entrepreneurs = sum(1 for c in customers if c.get('company_type') == 'individual_entrepreneur')
+        moscow_customers = sum(1 for c in customers if c.get('region') == 'Москва')
+
+        # Calculate credit limit averages
+        credit_limits = [float(c.get('credit_limit', 0)) for c in customers if c.get('credit_limit')]
+        avg_credit_limit = sum(credit_limits) / len(credit_limits) if credit_limits else 0
+        total_credit_limit = sum(credit_limits)
+
+        # Calculate regional breakdown
+        region_counts = {}
+        for c in customers:
+            region = c.get('region')
+            if region:
+                region_counts[region] = region_counts.get(region, 0) + 1
+
+        # Sort by count descending and take top 10
+        top_regions = [
+            {"region": region, "count": count}
+            for region, count in sorted(region_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        ]
 
         return {
-            "overview": dict(stats),
-            "top_regions": [dict(row) for row in regions]
+            "overview": {
+                "total_customers": total_customers,
+                "active_customers": active_customers,
+                "inactive_customers": inactive_customers,
+                "organizations": organizations,
+                "entrepreneurs": entrepreneurs,
+                "moscow_customers": moscow_customers,
+                "avg_credit_limit": round(avg_credit_limit, 2),
+                "total_credit_limit": round(total_credit_limit, 2)
+            },
+            "top_regions": top_regions
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve customer statistics: {str(e)}"
         )
-    finally:
-        await conn.close()

@@ -39,30 +39,38 @@ async def transition_quote_workflow(
     - Current state allows this action
     - Required fields are filled
     """
-    # Get quote
+    # Get quote (avoid .single() which throws PGRST116 on 0 rows)
     quote_result = supabase.table("quotes")\
         .select("*")\
         .eq("id", str(quote_id))\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
         .execute()
 
-    if not quote_result.data:
+    if not quote_result.data or len(quote_result.data) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Quote not found"
         )
 
-    quote = quote_result.data
+    quote = quote_result.data[0]
 
-    # Get workflow settings
+    # Get workflow settings (avoid .single() to handle missing settings gracefully)
     settings_result = supabase.table("organization_workflow_settings")\
         .select("*")\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
         .execute()
 
-    settings = WorkflowSettings(**settings_result.data)
+    if not settings_result.data or len(settings_result.data) == 0:
+        # Return default settings if not configured
+        settings = WorkflowSettings(
+            organization_id=str(user.current_organization_id),
+            workflow_mode="simple",
+            thresholds=[],
+            require_procurement_review=False,
+            require_logistics_customs_parallel=False
+        )
+    else:
+        settings = WorkflowSettings(**settings_result.data[0])
 
     # Validate transition
     validator = WorkflowValidator(settings)
@@ -227,30 +235,38 @@ async def get_quote_workflow_status(
     - Full transition history
     - Senior approval progress
     """
-    # Get quote
+    # Get quote (avoid .single() which throws PGRST116 on 0 rows)
     quote_result = supabase.table("quotes")\
         .select("*")\
         .eq("id", str(quote_id))\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
         .execute()
 
-    if not quote_result.data:
+    if not quote_result.data or len(quote_result.data) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Quote not found"
         )
 
-    quote = quote_result.data
+    quote = quote_result.data[0]
 
-    # Get workflow settings
+    # Get workflow settings (avoid .single() to handle missing settings gracefully)
     settings_result = supabase.table("organization_workflow_settings")\
         .select("*")\
         .eq("organization_id", str(user.current_organization_id))\
-        .single()\
         .execute()
 
-    settings = WorkflowSettings(**settings_result.data)
+    if not settings_result.data or len(settings_result.data) == 0:
+        # Return default settings if not configured
+        settings = WorkflowSettings(
+            organization_id=str(user.current_organization_id),
+            workflow_mode="simple",
+            thresholds=[],
+            require_procurement_review=False,
+            require_logistics_customs_parallel=False
+        )
+    else:
+        settings = WorkflowSettings(**settings_result.data[0])
 
     # Get transition history
     history_result = supabase.table("quote_workflow_transitions")\
@@ -354,7 +370,7 @@ async def get_my_workflow_tasks(
 
     # Get quotes assigned to user's role
     quotes_result = supabase.table("quotes")\
-        .select("id, quote_number, customer_id, total_amount, workflow_state, assigned_at, customers(name)")\
+        .select("id, idn_quote, customer_id, total_amount, workflow_state, assigned_at, customers(name)")\
         .eq("organization_id", str(user.current_organization_id))\
         .in_("current_assignee_role", assignee_roles)\
         .neq("workflow_state", "approved")\
@@ -370,7 +386,7 @@ async def get_my_workflow_tasks(
 
         tasks.append(MyTask(
             quote_id=quote["id"],
-            quote_number=quote["quote_number"],
+            idn_quote=quote["idn_quote"],
             customer_name=quote.get("customers", {}).get("name", "Unknown"),
             total_amount=Decimal(str(quote["total_amount"])),
             workflow_state=quote["workflow_state"],

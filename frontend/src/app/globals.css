@@ -1,10 +1,36 @@
+@import 'ag-grid-community/styles/ag-grid.css';
+@import '../styles/ag-grid-dark.css';
 @import 'tailwindcss';
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@source "../**/*.{ts,tsx}";
+@source "../../components/**/*.{ts,tsx}";
 
-  /* Russian B2B Platform Colors */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Light mode - keeping for reference, but app will force dark */
+  --background: 0 0% 100%;
+  --foreground: 0 0% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 3.9%;
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 96.1%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 96.1%;
+  --muted-foreground: 0 0% 45.1%;
+  --accent: 0 0% 96.1%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 89.8%;
+  --input: 0 0% 89.8%;
+  --ring: 239 84% 67%;
+  --radius: 0.5rem;
+
+  /* Russian B2B Platform Colors (preserved for compatibility) */
   --primary-blue: #1890ff;
   --success-green: #52c41a;
   --warning-orange: #faad14;
@@ -19,23 +45,181 @@
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-chart-5: hsl(var(--chart-5));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-ring: hsl(var(--ring));
+  --color-input: hsl(var(--input));
+  --color-border: hsl(var(--border));
+  --color-destructive: hsl(var(--destructive));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card: hsl(var(--card));
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
   }
-}
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+  /* Apply colors directly since @theme can't use runtime CSS variables */
+  .bg-background {
+    background-color: hsl(var(--background));
+  }
+  .bg-foreground {
+    background-color: hsl(var(--foreground));
+  }
+  .bg-card {
+    background-color: hsl(var(--card));
+  }
+  .bg-popover {
+    background-color: hsl(var(--popover));
+  }
+  .bg-primary {
+    background-color: hsl(var(--primary));
+  }
+  .bg-secondary {
+    background-color: hsl(var(--secondary));
+  }
+  .bg-muted {
+    background-color: hsl(var(--muted));
+  }
+  .bg-accent {
+    background-color: hsl(var(--accent));
+  }
+  .bg-destructive {
+    background-color: hsl(var(--destructive));
+  }
+
+  .text-foreground {
+    color: hsl(var(--foreground));
+  }
+  .text-card-foreground {
+    color: hsl(var(--card-foreground));
+  }
+  .text-popover-foreground {
+    color: hsl(var(--popover-foreground));
+  }
+  .text-primary {
+    color: hsl(var(--primary));
+  }
+  .text-primary-foreground {
+    color: hsl(var(--primary-foreground));
+  }
+  .text-secondary-foreground {
+    color: hsl(var(--secondary-foreground));
+  }
+  .text-muted-foreground {
+    color: hsl(var(--muted-foreground));
+  }
+  .text-accent-foreground {
+    color: hsl(var(--accent-foreground));
+  }
+  .text-destructive {
+    color: hsl(var(--destructive));
+  }
+  .text-destructive-foreground {
+    color: hsl(var(--destructive-foreground));
+  }
+
+  .border-border {
+    border-color: hsl(var(--border));
+  }
+  .border-input {
+    border-color: hsl(var(--input));
+  }
+  .border-primary {
+    border-color: hsl(var(--primary));
+  }
+  .border-destructive {
+    border-color: hsl(var(--destructive));
+  }
+
+  .ring-ring {
+    --tw-ring-color: hsl(var(--ring));
+  }
+
+  /* Opacity variations for semantic colors */
+  .bg-card\/50 {
+    background-color: hsl(var(--card) / 0.5);
+  }
+  .bg-card\/30 {
+    background-color: hsl(var(--card) / 0.3);
+  }
+  .bg-background\/50 {
+    background-color: hsl(var(--background) / 0.5);
+  }
+  .bg-foreground\/5 {
+    background-color: hsl(var(--foreground) / 0.05);
+  }
+  .bg-primary\/10 {
+    background-color: hsl(var(--primary) / 0.1);
+  }
+
+  .text-foreground\/90 {
+    color: hsl(var(--foreground) / 0.9);
+  }
+  .text-foreground\/85 {
+    color: hsl(var(--foreground) / 0.85);
+  }
+  .text-foreground\/60 {
+    color: hsl(var(--foreground) / 0.6);
+  }
+  .text-foreground\/55 {
+    color: hsl(var(--foreground) / 0.55);
+  }
+  .text-foreground\/50 {
+    color: hsl(var(--foreground) / 0.5);
+  }
+  .text-foreground\/40 {
+    color: hsl(var(--foreground) / 0.4);
+  }
+  .text-foreground\/30 {
+    color: hsl(var(--foreground) / 0.3);
+  }
+
+  .border-border\/50 {
+    border-color: hsl(var(--border) / 0.5);
+  }
+
+  .hover\:bg-foreground\/5:hover {
+    background-color: hsl(var(--foreground) / 0.05);
+  }
+  .hover\:bg-background\/50:hover {
+    background-color: hsl(var(--background) / 0.5);
+  }
+  .hover\:text-foreground:hover {
+    color: hsl(var(--foreground));
+  }
 }
 
 html,
@@ -45,8 +229,6 @@ body {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
   font-family:
     var(--font-geist-sans),
     -apple-system,
@@ -148,4 +330,84 @@ body {
 .approval-workflow-step.rejected {
   border-color: var(--error-red);
   background: #fff2f0;
+}
+
+.dark {
+  /* Warm Linear Dark Theme - matching ag-Grid greys */
+  --background: 0 0% 8%; /* #141414 */
+  --foreground: 0 0% 85%; /* #d9d9d9 - main content grey */
+  --card: 0 0% 12%; /* #1f1f1f */
+  --card-foreground: 0 0% 85%; /* #d9d9d9 */
+  --popover: 0 0% 12%; /* #1f1f1f */
+  --popover-foreground: 0 0% 85%; /* #d9d9d9 */
+  --primary: 38 92% 50%; /* #f59e0b amber-500 - warm accent */
+  --primary-foreground: 0 0% 9%; /* dark text on amber */
+  --secondary: 0 0% 16%; /* #292929 */
+  --secondary-foreground: 0 0% 85%; /* #d9d9d9 */
+  --muted: 0 0% 16%; /* #292929 */
+  --muted-foreground: 0 0% 60%; /* #999999 - labels/headers grey */
+  --accent: 0 0% 16%; /* #292929 */
+  --accent-foreground: 0 0% 85%; /* #d9d9d9 */
+  --destructive: 0 84% 60%; /* #ef4444 */
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 18%; /* #2e2e2e */
+  --input: 0 0% 18%; /* #2e2e2e */
+  --ring: 38 92% 50%; /* #f59e0b amber-500 */
+  --radius: 0.5rem;
+
+  /* Custom semantic colors */
+  --success: 142 71% 45%; /* #22c55e */
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 50%; /* #f59e0b */
+  --warning-foreground: 0 0% 9%;
+  --info: 38 92% 50%; /* #f59e0b amber */
+  --info-foreground: 0 0% 9%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  /* Force dark mode */
+  :root {
+    color-scheme: dark;
+  }
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Number formatting - tabular figures */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Monospace numbers */
+.font-mono-numbers {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }

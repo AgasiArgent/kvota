@@ -25,6 +25,13 @@ export interface Organization {
   status: OrganizationStatus;
   owner_id: string;
   settings?: Record<string, any>;
+  supplier_code?: string; // 3-letter code for IDN (e.g., MBR, CMT)
+  // Director fields for specification export (TASK-006)
+  general_director_name?: string; // Legacy: single name field
+  general_director_position?: string;
+  general_director_last_name?: string; // Фамилия
+  general_director_first_name?: string; // Имя
+  general_director_patronymic?: string; // Отчество
   created_at: string;
   updated_at: string;
 }
@@ -44,6 +51,12 @@ export interface OrganizationUpdate {
   logo_url?: string;
   status?: OrganizationStatus;
   settings?: Record<string, any>;
+  supplier_code?: string; // 3-letter code for IDN (e.g., MBR, CMT)
+  // Director fields for specification export (TASK-006)
+  general_director_position?: string;
+  general_director_last_name?: string; // Фамилия
+  general_director_first_name?: string; // Имя
+  general_director_patronymic?: string; // Отчество
 }
 
 export interface UserOrganization {

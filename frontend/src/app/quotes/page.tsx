@@ -1,123 +1,217 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useTransition,
+  useMemo,
+  useCallback,
+  memo,
+} from 'react';
+import { useRouter } from 'next/navigation';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, ICellRendererParams, ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
+
+// Register AG Grid modules (required for v34+)
+ModuleRegistry.registerModules([AllCommunityModule]);
 import {
-  Table,
-  Button,
-  Space,
-  Input,
-  Select,
-  Card,
-  Tag,
-  Typography,
-  Row,
-  Col,
-  Statistic,
-  DatePicker,
-  Dropdown,
-  Popover,
-  App,
-} from 'antd';
-import type { MenuProps } from 'antd';
-import {
-  SearchOutlined,
-  FileTextOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  DollarOutlined,
-  SendOutlined,
-  DownloadOutlined,
-  UploadOutlined,
-  DownOutlined,
-} from '@ant-design/icons';
+  Download,
+  Upload,
+  MoreHorizontal,
+  Send,
+  FileDown,
+  FileSpreadsheet,
+  FileText,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import PageHeader from '@/components/shared/PageHeader';
+import QuoteStats from '@/components/quotes/QuoteStats';
+import QuoteFilters from '@/components/quotes/QuoteFilters';
+import StatusBadge from '@/components/shared/StatusBadge';
+import CreateQuoteModal from '@/components/quotes/CreateQuoteModal';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+
 import { QuoteService } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import type { Dayjs } from 'dayjs';
-import { QuoteItem } from '@/lib/types/platform';
-import SubmitForApprovalModal from '@/components/quotes/SubmitForApprovalModal';
-import CreateQuoteModal from '@/components/quotes/CreateQuoteModal';
 import { config } from '@/lib/config';
 import { getAuthToken } from '@/lib/auth/auth-helper';
-
-const { Title } = Typography;
-const { Search } = Input;
-const { RangePicker } = DatePicker;
+import { cn } from '@/lib/utils';
 
 interface QuoteListItem {
   id: string;
-  quote_number: string;
+  idn_quote?: string; // New IDN format (optional for backward compatibility)
+  quote_number?: string; // Legacy field (optional for backward compatibility)
   customer_name?: string;
   created_by_name?: string;
-  title?: string;
-  status: string;
   workflow_state?: string;
-  total_amount?: number;
   total_with_vat_quote?: number;
   total_with_vat_usd?: number;
-  total_usd?: number;
-  total?: number; // Backend uses 'total' instead of 'total_amount'
   total_profit_usd?: number;
   currency?: string;
   quote_date?: string;
   valid_until?: string;
-  created_at: string;
 }
 
+// Memoized formatting functions (outside component to avoid recreation)
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
+const getCurrencyFormatter = (currency: string) => {
+  if (!currencyFormatters.has(currency)) {
+    currencyFormatters.set(
+      currency,
+      new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: currency || 'USD',
+        minimumFractionDigits: 0,
+      })
+    );
+  }
+  return currencyFormatters.get(currency)!;
+};
+
+const formatCurrencyStatic = (amount: number, currency: string) => {
+  return getCurrencyFormatter(currency || 'USD').format(amount);
+};
+
+const formatDateStatic = (date: string) => {
+  return new Date(date).toLocaleDateString('ru-RU');
+};
+
+// Memoized cell renderers (defined outside component)
+const QuoteNumberCell = memo(({ value }: { value: string }) => (
+  <span className="font-medium text-foreground/90 cursor-pointer hover:text-foreground">
+    {value}
+  </span>
+));
+QuoteNumberCell.displayName = 'QuoteNumberCell';
+
+const ProfitCell = memo(({ value }: { value: number | null }) => {
+  if (!value) return <span className="text-foreground/40">—</span>;
+  const isPositive = value >= 0;
+  return (
+    <span className={isPositive ? 'text-emerald-400' : 'text-red-400'}>
+      ${value.toLocaleString('ru-RU', { minimumFractionDigits: 0 })}
+    </span>
+  );
+});
+ProfitCell.displayName = 'ProfitCell';
+
+// Actions menu - memoized with callbacks
+interface ActionsMenuProps {
+  data: QuoteListItem;
+  onSubmitForApproval: (id: string, idnQuote: string) => void;
+  onExport: (id: string, type: 'validation' | 'invoice') => void;
+}
+
+const ActionsMenu = memo(({ data, onSubmitForApproval, onExport }: ActionsMenuProps) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      {data.workflow_state === 'draft' && (
+        <>
+          <DropdownMenuItem
+            onClick={() => onSubmitForApproval(data.id, data.idn_quote || data.quote_number || '')}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            На утверждение
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+      )}
+      <DropdownMenuItem onClick={() => onExport(data.id, 'validation')}>
+        <FileSpreadsheet className="mr-2 h-4 w-4" />
+        Экспорт для проверки
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => onExport(data.id, 'invoice')}>
+        <FileDown className="mr-2 h-4 w-4" />
+        Счёт (Invoice)
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+));
+ActionsMenu.displayName = 'ActionsMenu';
+
 export default function QuotesPage() {
+  const router = useRouter();
   const { profile } = useAuth();
-  const { message } = App.useApp();
-  const [loading, setLoading] = useState(false);
+  const gridRef = useRef<AgGridReact>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Data state
+  const [loading, setLoading] = useState(true);
   const [quotes, setQuotes] = useState<QuoteListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize] = useState(20);
 
-  // Filters
+  // Filters with transition for better INP
+  const [isPending, startTransition] = useTransition();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [authorFilter, setAuthorFilter] = useState<string | undefined>(undefined);
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
-
-  // Team members for author filter
-  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
   const [authorFilterInitialized, setAuthorFilterInitialized] = useState(false);
 
-  // Submit modal state
+  // Team members
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string }[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // Submit modal
   const [submitModalOpen, setSubmitModalOpen] = useState(false);
   const [submitQuoteId, setSubmitQuoteId] = useState<string | null>(null);
-  const [submitQuoteNumber, setSubmitQuoteNumber] = useState<string>('');
+  const [submitQuoteNumber, setSubmitQuoteNumber] = useState('');
+  const [submitComment, setSubmitComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // Create quote modal state
+  // Create quote modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const quoteService = new QuoteService();
 
-  // Fetch team members for author filter on load
+  // Fetch team members
   useEffect(() => {
-    if (profile?.organization_id && !loadingMembers && teamMembers.length === 0) {
+    if (profile?.organization_id && teamMembers.length === 0) {
       fetchTeamMembers();
     }
   }, [profile?.organization_id]);
 
-  // Pre-select current user once team members are loaded
+  // Pre-select current user
   useEffect(() => {
     if (teamMembers.length > 0 && profile?.id && !authorFilterInitialized) {
-      // Pre-select current user in author filter
       setAuthorFilter(profile.id);
       setAuthorFilterInitialized(true);
     }
   }, [teamMembers, profile?.id, authorFilterInitialized]);
 
+  // Fetch quotes when filters change
   useEffect(() => {
-    console.log('[useEffect] Triggered - profile:', profile?.organization_id, 'page:', currentPage);
     if (profile?.organization_id && authorFilterInitialized) {
       fetchQuotes();
-    } else {
-      console.log('[useEffect] BLOCKED - no organization_id or author filter not initialized');
     }
   }, [
     currentPage,
@@ -125,7 +219,6 @@ export default function QuotesPage() {
     searchTerm,
     statusFilter,
     authorFilter,
-    dateRange,
     profile,
     authorFilterInitialized,
   ]);
@@ -139,19 +232,17 @@ export default function QuotesPage() {
 
       const response = await fetch(
         `${config.apiUrl}/api/organizations/${profile.organization_id}/members`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (response.ok) {
         const data = await response.json();
-        // Map to simpler format for dropdown
-        const members = data.map((m: any) => ({
-          id: m.user_id,
-          name: m.user_full_name || m.user_email,
-        }));
-        setTeamMembers(members);
+        setTeamMembers(
+          data.map((m: any) => ({
+            id: m.user_id,
+            name: m.user_full_name || m.user_email,
+          }))
+        );
       }
     } catch (error) {
       console.error('Error fetching team members:', error);
@@ -161,117 +252,61 @@ export default function QuotesPage() {
   };
 
   const fetchQuotes = async () => {
-    console.log(
-      '[fetchQuotes] START - profile:',
-      profile?.email,
-      'org_id:',
-      profile?.organization_id
-    );
     setLoading(true);
     try {
       const filters: Record<string, any> = {};
+      if (searchTerm) filters.search = searchTerm;
+      if (statusFilter) filters.workflow_state = statusFilter;
+      if (authorFilter) filters.created_by = authorFilter;
 
-      if (searchTerm) {
-        filters.search = searchTerm;
-      }
-      if (statusFilter) {
-        filters.workflow_state = statusFilter;
-      }
-      if (dateRange) {
-        filters.date_from = dateRange[0].format('YYYY-MM-DD');
-        filters.date_to = dateRange[1].format('YYYY-MM-DD');
-      }
-      if (authorFilter) {
-        filters.created_by = authorFilter;
-      }
-
-      const organizationId = profile?.organization_id || '';
-      if (!organizationId) {
-        message.error('Не удалось определить организацию');
-        return;
-      }
-
-      const response = await quoteService.getQuotes(organizationId, filters, {
+      const response = await quoteService.getQuotes(profile?.organization_id || '', filters, {
         page: currentPage,
         limit: pageSize,
       });
-      console.log('[fetchQuotes] API response:', response);
+
       if (response.success && response.data) {
-        console.log('[fetchQuotes] Quotes array:', response.data.quotes);
-        console.log('[fetchQuotes] Total items:', response.data.pagination?.total_items);
         setQuotes(response.data.quotes || []);
         setTotalCount(response.data.pagination?.total_items || 0);
       } else {
-        console.error('[fetchQuotes] ERROR:', response.error);
-        message.error(response.error || 'Ошибка загрузки КП');
+        toast.error(response.error || 'Ошибка загрузки КП');
       }
     } catch (error: any) {
-      message.error(`Ошибка загрузки КП: ${error.message}`);
+      toast.error(`Ошибка загрузки: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmitForApproval = async (comment?: string) => {
-    if (!submitQuoteId) return;
+  // Calculate stats - memoized to avoid recalculation on unrelated state changes
+  const { approvedQuotes, pendingQuotes, totalProfitUsd } = useMemo(() => {
+    const approved = quotes.filter(
+      (q: QuoteListItem) =>
+        q.workflow_state === 'financially_approved' || q.workflow_state === 'accepted_by_customer'
+    ).length;
+    const pending = quotes.filter(
+      (q: QuoteListItem) => q.workflow_state === 'awaiting_financial_approval'
+    ).length;
+    const profit = quotes.reduce(
+      (sum: number, q: QuoteListItem) => sum + (q.total_profit_usd || 0),
+      0
+    );
+    return { approvedQuotes: approved, pendingQuotes: pending, totalProfitUsd: profit };
+  }, [quotes]);
 
-    try {
-      const token = await getAuthToken();
-      if (!token) {
-        message.error('Не авторизован');
-        return;
-      }
-
-      const response = await fetch(
-        `${config.apiUrl}/api/quotes/${submitQuoteId}/submit-for-financial-approval`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'text/plain',
-          },
-          body: comment || '',
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Ошибка отправки на утверждение');
-      }
-
-      setSubmitModalOpen(false);
-      message.success('КП отправлено на финансовое утверждение');
-      fetchQuotes(); // Refresh the list
-    } catch (error: any) {
-      message.error(error.message || 'Ошибка отправки на утверждение');
-      throw error;
-    }
-  };
-
-  const openSubmitModal = (id: string, quoteNumber: string) => {
-    setSubmitQuoteId(id);
-    setSubmitQuoteNumber(quoteNumber);
-    setSubmitModalOpen(true);
-  };
-
-  // Template download handler
+  // Handlers
   const handleDownloadTemplate = async () => {
     try {
       const token = await getAuthToken();
       if (!token) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
       const response = await fetch(`${config.apiUrl}/api/quotes/upload/download-template`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!response.ok) {
-        throw new Error('Ошибка скачивания шаблона');
-      }
+      if (!response.ok) throw new Error('Ошибка скачивания');
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -282,655 +317,359 @@ export default function QuotesPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      message.success('Шаблон скачан');
+      toast.success('Шаблон скачан');
     } catch (error: any) {
-      message.error(error.message || 'Ошибка скачивания шаблона');
+      toast.error(error.message);
     }
   };
 
-  // File selection handler for Create Quote flow (native input for React 19 compatibility)
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
       setCreateModalOpen(true);
     }
-    // Reset the input so the same file can be selected again
-    event.target.value = '';
+    e.target.value = '';
   };
 
-  const handleCreateQuoteClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Handle successful quote creation
-  const handleCreateQuoteSuccess = (quoteId: string, quoteNumber: string) => {
+  const handleCreateModalSuccess = (_quoteId: string, quoteNumber: string) => {
     setCreateModalOpen(false);
     setSelectedFile(null);
-    fetchQuotes(); // Refresh the list to show new quote
+    // Refresh the quotes list to show the new quote
+    fetchQuotes();
+    toast.success(`КП ${quoteNumber} добавлено в список`);
   };
 
-  // Handle modal cancel
   const handleCreateModalCancel = () => {
     setCreateModalOpen(false);
     setSelectedFile(null);
   };
 
-  // Extract filename from Content-Disposition header
-  const extractFilename = (contentDisposition: string | null, fallback: string): string => {
-    if (!contentDisposition) return fallback;
+  const handleSubmitForApproval = async () => {
+    if (!submitQuoteId) return;
+    setSubmitting(true);
 
-    // Try to get UTF-8 encoded filename first (filename*=UTF-8''...)
-    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
-    if (utf8Match) {
-      try {
-        return decodeURIComponent(utf8Match[1]);
-      } catch {
-        // Fall through to ASCII version
-      }
-    }
-
-    // Try to get ASCII filename (filename="...")
-    const asciiMatch = contentDisposition.match(/filename="([^"]+)"/i);
-    if (asciiMatch) {
-      return asciiMatch[1];
-    }
-
-    return fallback;
-  };
-
-  // Export handler
-  const handleExport = async (quoteId: string, exportType: string) => {
     try {
       const token = await getAuthToken();
-      if (!token) {
-        message.error('Не авторизован');
-        return;
-      }
+      if (!token) throw new Error('Не авторизован');
 
-      let url: string;
-      let fallbackFilename: string;
-
-      if (exportType === 'validation') {
-        // Export as validation Excel file (.xlsm with macros)
-        url = `${config.apiUrl}/api/quotes/upload/export-as-template/${quoteId}`;
-        fallbackFilename = `validation_${quoteId}.xlsm`;
-        // Show informative loading message for validation export (takes 10-15 sec)
-        message.loading({
-          content: 'Создание файла для проверки... Это займет 10-15 секунд',
-          key: 'export',
-          duration: 0, // Don't auto-hide
-        });
-      } else {
-        // PDF exports: supply, supply-letter, openbook, openbook-letter
-        url = `${config.apiUrl}/api/quotes/${quoteId}/export/pdf?format=${exportType}`;
-        fallbackFilename = `quote_${exportType}_${quoteId}.pdf`;
-        message.loading({ content: 'Экспорт...', key: 'export', duration: 0 });
-      }
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        `${config.apiUrl}/api/quotes/${submitQuoteId}/submit-for-financial-approval`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'text/plain',
+          },
+          body: submitComment || '',
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Ошибка экспорта');
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка отправки');
       }
 
-      // Extract filename from Content-Disposition header (server sends proper quote number)
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const filename = extractFilename(contentDisposition, fallbackFilename);
+      setSubmitModalOpen(false);
+      setSubmitComment('');
+      toast.success('КП отправлено на утверждение');
+      fetchQuotes();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleExport = async (quoteId: string, type: 'validation' | 'invoice') => {
+    const loadingToast = toast.loading(
+      type === 'validation' ? 'Создание файла... (10-15 сек)' : 'Экспорт...'
+    );
+
+    try {
+      const token = await getAuthToken();
+      if (!token) throw new Error('Не авторизован');
+
+      const url =
+        type === 'validation'
+          ? `${config.apiUrl}/api/quotes/upload/export-as-template/${quoteId}`
+          : `${config.apiUrl}/api/quotes/${quoteId}/export/pdf?format=invoice`;
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error('Ошибка экспорта');
 
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = filename;
+      a.download = type === 'validation' ? `validation_${quoteId}.xlsm` : `invoice_${quoteId}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(blobUrl);
       document.body.removeChild(a);
-      message.success({ content: 'Файл скачан', key: 'export' });
+
+      toast.success('Файл скачан', { id: loadingToast });
     } catch (error: any) {
-      message.error({ content: error.message || 'Ошибка экспорта', key: 'export' });
+      toast.error(error.message, { id: loadingToast });
     }
   };
 
-  // Export dropdown menu items generator
-  const getExportMenuItems = (quoteId: string): MenuProps['items'] => [
-    {
-      key: 'validation',
-      label: 'Экспорт для проверки',
-      onClick: () => handleExport(quoteId, 'validation'),
-    },
-    {
-      key: 'invoice',
-      label: 'Счет (Invoice)',
-      onClick: () => handleExport(quoteId, 'invoice'),
-    },
-  ];
+  // Memoized callbacks for actions menu
+  const handleOpenSubmitModal = useCallback((id: string, quoteNumber: string) => {
+    setSubmitQuoteId(id);
+    setSubmitQuoteNumber(quoteNumber);
+    setSubmitModalOpen(true);
+  }, []);
 
-  // Products popover state
-  const [popoverProducts, setPopoverProducts] = useState<Record<string, QuoteItem[]>>({});
-  const [popoverLoading, setPopoverLoading] = useState<Record<string, boolean>>({});
+  const handleExportMemo = useCallback((quoteId: string, type: 'validation' | 'invoice') => {
+    handleExport(quoteId, type);
+  }, []);
 
-  // Fetch products for popover
-  const fetchProductsForPopover = async (quoteId: string) => {
-    // If already loaded, don't refetch
-    if (popoverProducts[quoteId]) return;
-
-    const organizationId = profile?.organization_id || '';
-    if (!organizationId) {
-      console.error('[fetchProductsForPopover] No organization_id available');
-      return;
-    }
-
-    setPopoverLoading((prev) => ({ ...prev, [quoteId]: true }));
-    try {
-      const response = await quoteService.getQuoteDetails(quoteId, organizationId);
-      if (response.success && response.data) {
-        const { items } = response.data as any;
-        setPopoverProducts((prev) => ({ ...prev, [quoteId]: items || [] }));
-      }
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    } finally {
-      setPopoverLoading((prev) => ({ ...prev, [quoteId]: false }));
-    }
-  };
-
-  // Products popover content
-  const renderProductsPopover = (quoteId: string, currency: string) => {
-    const products = popoverProducts[quoteId] || [];
-    const isLoading = popoverLoading[quoteId];
-
-    if (isLoading) {
-      return (
-        <div style={{ padding: 20, textAlign: 'center' }}>
-          <span>Загрузка...</span>
-        </div>
-      );
-    }
-
-    if (products.length === 0) {
-      return (
-        <div style={{ padding: 20, textAlign: 'center' }}>
-          <Typography.Text type="secondary">Нет товаров</Typography.Text>
-        </div>
-      );
-    }
-
-    const totalQuantity = products.reduce((sum, p) => sum + Number(p.quantity || 0), 0);
-    const totalAmount = products.reduce(
-      (sum, p) => sum + Number(p.final_price || 0) * Number(p.quantity || 0),
-      0
-    );
-
-    return (
-      <div style={{ width: 450 }}>
-        <div style={{ fontWeight: 500, marginBottom: 12 }}>Товары ({products.length} позиций)</div>
-        <Table
-          dataSource={products}
-          rowKey="id"
-          pagination={false}
-          size="small"
-          scroll={{ y: 200 }}
-          columns={[
-            {
-              title: 'Название',
-              dataIndex: 'name',
-              key: 'name',
-              width: 200,
-              ellipsis: true,
-              render: (name: string, record: QuoteItem) =>
-                record.sku ? `${record.sku} - ${name}` : name,
-            },
-            {
-              title: 'Кол-во',
-              dataIndex: 'quantity',
-              key: 'quantity',
-              width: 80,
-              align: 'right' as const,
-              render: (qty: number) => `${qty} шт`,
-            },
-            {
-              title: 'Цена',
-              dataIndex: 'final_price',
-              key: 'final_price',
-              width: 100,
-              align: 'right' as const,
-              render: (price: number) => (price ? formatCurrency(price, currency) + '/шт' : '—'),
-            },
-          ]}
-        />
-        <div
-          style={{
-            marginTop: 12,
-            paddingTop: 12,
-            borderTop: '1px solid #f0f0f0',
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>
-            <strong>Итого:</strong> {totalQuantity} шт
-          </span>
-          <span>
-            <strong>Сумма:</strong> {formatCurrency(totalAmount, currency)}
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-  const getStatusTag = (workflowState: string) => {
-    const statusMap = {
-      draft: { color: 'default', text: 'Черновик' },
-      awaiting_financial_approval: { color: 'orange', text: 'На финансовом утверждении' },
-      financially_approved: { color: 'green', text: 'Финансово утверждено' },
-      rejected_by_finance: { color: 'red', text: 'Отклонено финансами' },
-      sent_back_for_revision: { color: 'purple', text: 'Требуется доработка' },
-      ready_to_send: { color: 'cyan', text: 'Готово к отправке' },
-      sent_to_customer: { color: 'blue', text: 'Отправлено клиенту' },
-      accepted_by_customer: { color: 'green', text: 'Принято клиентом' },
-      rejected_by_customer: { color: 'red', text: 'Отклонено клиентом' },
-      expired: { color: 'default', text: 'Истекло' },
-      cancelled: { color: 'default', text: 'Отменено' },
-    };
-    const config = statusMap[workflowState as keyof typeof statusMap] || {
-      color: 'default',
-      text: workflowState,
-    };
-    return <Tag color={config.color}>{config.text}</Tag>;
-  };
-
-  const formatCurrency = (amount: number, currency: string) => {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: currency || 'RUB',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const columns = [
-    {
-      title: 'Номер КП',
-      dataIndex: 'quote_number',
-      key: 'quote_number',
-      width: 150,
-      render: (text: string, record: QuoteListItem) => (
-        <Popover
-          content={renderProductsPopover(record.id, record.currency || 'USD')}
-          title={null}
-          trigger="click"
-          placement="right"
-          onOpenChange={(open) => {
-            if (open) fetchProductsForPopover(record.id);
-          }}
-        >
-          <a
-            style={{
-              display: 'inline-block',
-              padding: '4px 8px',
-              margin: '-4px -8px',
-              fontWeight: 500,
-              color: '#1890ff',
-              cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-            onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
-          >
-            {text}
-          </a>
-        </Popover>
-      ),
-    },
-    {
-      title: 'Клиент',
-      dataIndex: 'customer_name',
-      key: 'customer_name',
-      width: 200,
-      ellipsis: true,
-    },
-    {
-      title: 'Автор',
-      dataIndex: 'created_by_name',
-      key: 'created_by_name',
-      width: 150,
-      ellipsis: true,
-      render: (name: string) => name || '—',
-    },
-    {
-      title: 'Сумма с НДС',
-      dataIndex: 'total_with_vat_quote',
-      key: 'total_with_vat_quote',
-      width: 150,
-      align: 'right' as const,
-      render: (_: any, record: QuoteListItem) => {
-        // Use total_with_vat_quote (AL16) - final price with VAT in quote currency
-        // Show '—' if not calculated yet (consistent with other columns)
-        if (!record.total_with_vat_quote) return '—';
-        return formatCurrency(record.total_with_vat_quote, record.currency || 'USD');
+  // ag-Grid column definitions - memoized to prevent recreation on every render
+  // Column definitions with consistent alignment:
+  // - Text columns: left-aligned (header + data)
+  // - Number columns: right-aligned (header + data)
+  // - Center: status badges only
+  const columnDefs: ColDef[] = useMemo(
+    () => [
+      {
+        field: 'idn_quote',
+        headerName: 'IDN КП',
+        width: 220,
+        valueGetter: (params) => params.data?.idn_quote || params.data?.quote_number || '',
+        cellRenderer: (params: ICellRendererParams) => <QuoteNumberCell value={params.value} />,
       },
-    },
-    {
-      title: 'Сумма USD',
-      dataIndex: 'total_with_vat_usd',
-      key: 'total_with_vat_usd',
-      width: 130,
-      align: 'right' as const,
-      render: (_: any, record: QuoteListItem) => {
-        // Use total_with_vat_usd (AL16 sum) - final price with VAT in USD
-        // Show '—' if not calculated yet
-        if (!record.total_with_vat_usd) return '—';
-        return (
-          <span>
-            $
-            {record.total_with_vat_usd.toLocaleString('ru-RU', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
-        );
+      {
+        field: 'customer_name',
+        headerName: 'Клиент',
+        flex: 1,
+        minWidth: 180,
+        cellClass: 'text-foreground/90',
       },
-    },
-    {
-      title: 'Прибыль',
-      dataIndex: 'total_profit_usd',
-      key: 'total_profit_usd',
-      width: 130,
-      align: 'right' as const,
-      render: (profit: number | undefined) => {
-        if (profit === undefined || profit === null) return '—';
-        const color = profit > 0 ? '#52c41a' : profit < 0 ? '#ff4d4f' : undefined;
-        return (
-          <span style={{ color, fontWeight: profit !== 0 ? 500 : undefined }}>
-            $
-            {profit.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-        );
+      {
+        field: 'created_by_name',
+        headerName: 'Автор',
+        width: 150,
+        cellClass: 'text-foreground/55',
+        valueFormatter: (params: { value: string }) => params.value || '—',
       },
-    },
-    {
-      title: 'Статус',
-      dataIndex: 'workflow_state',
-      key: 'workflow_state',
-      width: 180,
-      render: (workflowState: string) => getStatusTag(workflowState || 'draft'),
-    },
-    {
-      title: 'Дата КП',
-      dataIndex: 'quote_date',
-      key: 'quote_date',
-      width: 120,
-      render: (date: string) => (date ? new Date(date).toLocaleDateString('ru-RU') : '—'),
-    },
-    {
-      title: 'Действительно до',
-      dataIndex: 'valid_until',
-      key: 'valid_until',
-      width: 140,
-      render: (date: string) => {
-        if (!date) return '—';
-        const validDate = new Date(date);
-        const isExpired = validDate < new Date();
-        return (
-          <span style={{ color: isExpired ? '#ff4d4f' : undefined }}>
-            {validDate.toLocaleDateString('ru-RU')}
-          </span>
-        );
+      {
+        field: 'total_with_vat_quote',
+        headerName: 'Сумма',
+        width: 140,
+        type: 'rightAligned',
+        cellClass: 'font-mono-numbers text-foreground/90',
+        valueFormatter: (params: { value: number; data: QuoteListItem }) =>
+          params.value ? formatCurrencyStatic(params.value, params.data.currency || 'USD') : '—',
       },
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 200,
-      fixed: 'right' as const,
-      render: (_: any, record: QuoteListItem) => (
-        <Space size="small">
-          {record.workflow_state === 'draft' && (
-            <Button
-              type="text"
-              icon={<SendOutlined />}
-              onClick={() => openSubmitModal(record.id, record.quote_number)}
-              title="Отправить на утверждение"
-              style={{ color: '#52c41a' }}
-            />
-          )}
-          <Dropdown menu={{ items: getExportMenuItems(record.id) }} trigger={['click']}>
-            <Button icon={<DownloadOutlined />} onClick={(e) => e.preventDefault()}>
-              Экспорт <DownOutlined />
-            </Button>
-          </Dropdown>
-        </Space>
-      ),
-    },
-  ];
+      {
+        field: 'total_with_vat_usd',
+        headerName: 'Сумма $',
+        width: 130,
+        type: 'rightAligned',
+        cellClass: 'font-mono-numbers text-foreground/70',
+        valueFormatter: (params: { value: number }) =>
+          params.value ? formatCurrencyStatic(params.value, 'USD') : '—',
+      },
+      {
+        field: 'total_profit_usd',
+        headerName: 'Прибыль',
+        width: 120,
+        type: 'rightAligned',
+        cellClass: 'font-mono-numbers',
+        cellRenderer: (params: ICellRendererParams) => <ProfitCell value={params.value} />,
+      },
+      {
+        field: 'workflow_state',
+        headerName: 'Статус',
+        width: 140,
+        cellStyle: { display: 'flex', alignItems: 'center' },
+        cellRenderer: (params: ICellRendererParams) => (
+          <StatusBadge status={params.value || 'draft'} />
+        ),
+      },
+      {
+        field: 'quote_date',
+        headerName: 'Дата',
+        width: 110,
+        cellClass: 'text-foreground/55',
+        valueFormatter: (params: { value: string }) =>
+          params.value ? formatDateStatic(params.value) : '—',
+      },
+      {
+        headerName: '',
+        width: 60,
+        sortable: false,
+        filter: false,
+        cellRenderer: (params: ICellRendererParams) => (
+          <ActionsMenu
+            data={params.data}
+            onSubmitForApproval={handleOpenSubmitModal}
+            onExport={handleExportMemo}
+          />
+        ),
+      },
+    ],
+    [handleOpenSubmitModal, handleExportMemo]
+  );
 
-  // Calculate stats from displayed quotes
-  const totalQuotes = totalCount;
-  const approvedQuotes = quotes.filter(
-    (q) =>
-      q.workflow_state === 'financially_approved' || q.workflow_state === 'accepted_by_customer'
-  ).length;
-  const pendingQuotes = quotes.filter(
-    (q) => q.workflow_state === 'awaiting_financial_approval'
-  ).length;
-  // Sum total_usd for all displayed quotes (shows — if no data)
-  const totalRevenueUsd = quotes.reduce((sum, q) => sum + (q.total_usd || 0), 0);
-  const totalProfitUsd = quotes.reduce((sum, q) => sum + (q.total_profit_usd || 0), 0);
+  const defaultColDef: ColDef = {
+    sortable: true,
+    resizable: true,
+  };
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div className="space-y-6">
         {/* Header */}
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Title level={2}>Коммерческие предложения</Title>
-          </Col>
-          <Col>
-            <Space>
-              <Button icon={<DownloadOutlined />} size="large" onClick={handleDownloadTemplate}>
-                Скачать шаблон
+        <PageHeader
+          title="Коммерческие предложения"
+          actions={
+            <>
+              <Button variant="outline" onClick={handleDownloadTemplate}>
+                <Download className="mr-2 h-4 w-4" />
+                Шаблон
               </Button>
-              {/* Hidden file input for React 19 compatibility */}
               <input
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
                 accept=".xlsx,.xls,.xlsm"
-                style={{ display: 'none' }}
+                className="hidden"
               />
-              <Button
-                type="primary"
-                icon={<UploadOutlined />}
-                size="large"
-                onClick={handleCreateQuoteClick}
-              >
+              <Button onClick={() => fileInputRef.current?.click()}>
+                <Upload className="mr-2 h-4 w-4" />
                 Создать КП
               </Button>
-            </Space>
-          </Col>
-        </Row>
+            </>
+          }
+        />
 
         {/* Stats */}
-        <Row gutter={16}>
-          <Col xs={12} sm={8} lg={4}>
-            <Card size="small">
-              <Statistic
-                title="Всего КП"
-                value={totalQuotes}
-                prefix={<FileTextOutlined />}
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={4}>
-            <Card size="small">
-              <Statistic
-                title="Утверждено"
-                value={approvedQuotes}
-                prefix={<CheckCircleOutlined />}
-                valueStyle={{ color: '#52c41a' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8} lg={4}>
-            <Card size="small">
-              <Statistic
-                title="На утверждении"
-                value={pendingQuotes}
-                prefix={<ClockCircleOutlined />}
-                valueStyle={{ color: '#faad14' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={12} lg={6}>
-            <Card size="small">
-              <Statistic
-                title="Выручка (USD)"
-                value={totalRevenueUsd}
-                prefix={<DollarOutlined />}
-                formatter={(value) =>
-                  `$${Number(value).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                }
-                valueStyle={{ color: '#722ed1' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={12} lg={6}>
-            <Card size="small">
-              <Statistic
-                title="Прибыль (USD)"
-                value={totalProfitUsd}
-                prefix={<DollarOutlined />}
-                formatter={(value) =>
-                  `$${Number(value).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                }
-                valueStyle={{ color: totalProfitUsd >= 0 ? '#52c41a' : '#ff4d4f' }}
-              />
-            </Card>
-          </Col>
-        </Row>
+        <QuoteStats
+          totalQuotes={totalCount}
+          approvedQuotes={approvedQuotes}
+          pendingQuotes={pendingQuotes}
+          totalProfitUsd={totalProfitUsd}
+        />
 
         {/* Filters */}
-        <Card>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={6}>
-              <Search
-                placeholder="Поиск по номеру, клиенту..."
-                allowClear
-                enterButton={<SearchOutlined />}
-                size="large"
-                onSearch={(value) => {
-                  setSearchTerm(value);
-                  setCurrentPage(1);
-                }}
-                onChange={(e) => {
-                  if (!e.target.value) {
-                    setSearchTerm('');
-                    setCurrentPage(1);
-                  }
-                }}
-              />
-            </Col>
-            <Col xs={24} md={6}>
-              <Select
-                placeholder="Статус"
-                allowClear
-                size="large"
-                style={{ width: '100%' }}
-                onChange={(value) => {
-                  setStatusFilter(value || '');
-                  setCurrentPage(1);
-                }}
-                options={[
-                  { label: 'Черновик', value: 'draft' },
-                  { label: 'На финансовом утверждении', value: 'awaiting_financial_approval' },
-                  { label: 'Финансово утверждено', value: 'financially_approved' },
-                  { label: 'Отклонено финансами', value: 'rejected_by_finance' },
-                  { label: 'Требуется доработка', value: 'sent_back_for_revision' },
-                  { label: 'Готово к отправке', value: 'ready_to_send' },
-                  { label: 'Отправлено клиенту', value: 'sent_to_customer' },
-                  { label: 'Принято клиентом', value: 'accepted_by_customer' },
-                  { label: 'Отклонено клиентом', value: 'rejected_by_customer' },
-                  { label: 'Истекло', value: 'expired' },
-                  { label: 'Отменено', value: 'cancelled' },
-                ]}
-              />
-            </Col>
-            <Col xs={24} md={6}>
-              <Select
-                placeholder="Автор"
-                allowClear
-                size="large"
-                style={{ width: '100%' }}
-                value={authorFilter}
-                loading={loadingMembers}
-                onChange={(value) => {
-                  setAuthorFilter(value);
-                  setCurrentPage(1);
-                }}
-                options={teamMembers.map((m) => ({
-                  label: m.name,
-                  value: m.id,
-                }))}
-              />
-            </Col>
-            <Col xs={24} md={6}>
-              <RangePicker
-                size="large"
-                style={{ width: '100%' }}
-                format="DD.MM.YYYY"
-                placeholder={['Дата от', 'Дата до']}
-                onChange={(dates) => {
-                  setDateRange(dates as [Dayjs, Dayjs] | null);
-                  setCurrentPage(1);
-                }}
-              />
-            </Col>
-          </Row>
-        </Card>
+        <QuoteFilters
+          searchTerm={searchTerm}
+          onSearchChange={(v) =>
+            startTransition(() => {
+              setSearchTerm(v);
+              setCurrentPage(1);
+            })
+          }
+          statusFilter={statusFilter}
+          onStatusChange={(v) =>
+            startTransition(() => {
+              setStatusFilter(v);
+              setCurrentPage(1);
+            })
+          }
+          authorFilter={authorFilter}
+          onAuthorChange={(v) =>
+            startTransition(() => {
+              setAuthorFilter(v);
+              setCurrentPage(1);
+            })
+          }
+          teamMembers={teamMembers}
+          loadingMembers={loadingMembers}
+        />
 
         {/* Table */}
-        <Card>
-          <Table
-            columns={columns}
-            dataSource={quotes}
-            rowKey="id"
-            loading={loading}
-            scroll={{ x: 1550 }}
-            pagination={{
-              current: currentPage,
-              pageSize: pageSize,
-              total: totalCount,
-              showSizeChanger: true,
-              showTotal: (total) => `Всего: ${total} КП`,
-              onChange: (page, size) => {
-                setCurrentPage(page);
-                setPageSize(size);
-              },
-            }}
-          />
-        </Card>
+        <div
+          className={cn(
+            'ag-theme-custom-dark rounded-lg border border-border overflow-hidden',
+            isPending && 'opacity-70 transition-opacity'
+          )}
+          style={{ height: 600 }}
+        >
+          {loading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : quotes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <FileText className="h-16 w-16 mb-4 opacity-50" />
+              <p className="text-lg font-medium">КП не найдено</p>
+              <p className="text-sm mt-1">
+                {authorFilter
+                  ? 'По выбранному фильтру нет коммерческих предложений'
+                  : 'Создайте первое коммерческое предложение'}
+              </p>
+            </div>
+          ) : (
+            <AgGridReact
+              ref={gridRef}
+              theme="legacy"
+              rowData={quotes}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
+              suppressCellFocus={true}
+              // Disable text selection to prevent InvalidNodeTypeError on detached nodes
+              enableCellTextSelection={false}
+              ensureDomOrder={true}
+              pagination
+              paginationPageSize={pageSize}
+              domLayout="normal"
+              getRowId={(params) => params.data.id}
+              onRowClicked={(e) => {
+                // Skip navigation when clicking on checkbox column
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                if ((e as any).column?.getColId() === 'ag-Grid-SelectionColumn') return;
+                if (e.data?.id) {
+                  router.push(`/quotes/${e.data.id}`);
+                }
+              }}
+            />
+          )}
+        </div>
+      </div>
 
-        {/* Submit for Approval Modal */}
-        <SubmitForApprovalModal
-          open={submitModalOpen}
-          onCancel={() => setSubmitModalOpen(false)}
-          onSubmit={handleSubmitForApproval}
-          quoteNumber={submitQuoteNumber}
-        />
+      {/* Submit for Approval Dialog */}
+      <Dialog open={submitModalOpen} onOpenChange={setSubmitModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Отправить на утверждение</DialogTitle>
+            <DialogDescription>
+              КП {submitQuoteNumber} будет отправлено на финансовое утверждение.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Комментарий (необязательно)"
+              value={submitComment}
+              onChange={(e) => setSubmitComment(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmitModalOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleSubmitForApproval} disabled={submitting}>
+              {submitting ? 'Отправка...' : 'Отправить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* Create Quote Modal */}
-        <CreateQuoteModal
-          open={createModalOpen}
-          onCancel={handleCreateModalCancel}
-          onSuccess={handleCreateQuoteSuccess}
-          selectedFile={selectedFile}
-        />
-      </Space>
+      {/* Create Quote Modal */}
+      <CreateQuoteModal
+        open={createModalOpen}
+        onCancel={handleCreateModalCancel}
+        onSuccess={handleCreateModalSuccess}
+        selectedFile={selectedFile}
+      />
     </MainLayout>
   );
 }

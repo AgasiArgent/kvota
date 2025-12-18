@@ -1,48 +1,54 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import {
-  Table,
-  Button,
-  Space,
-  Input,
-  Select,
-  Card,
-  Tag,
-  Typography,
-  message,
-  Popconfirm,
-  Row,
-  Col,
-  Statistic,
-  Tooltip,
-} from 'antd';
-import {
-  PlusOutlined,
-  SearchOutlined,
-  PhoneOutlined,
-  MailOutlined,
-  UserOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  EyeOutlined,
-  DeleteOutlined,
-} from '@ant-design/icons';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Plus,
+  Search as SearchIcon,
+  X,
+  Eye,
+  Trash2,
+  CheckCircle,
+  Phone,
+  Mail,
+  User,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import PageHeader from '@/components/shared/PageHeader';
+import StatCard from '@/components/shared/StatCard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import {
   listLeads,
   deleteLead,
-  assignLead,
   qualifyLead,
   type LeadWithDetails,
   type LeadListParams,
 } from '@/lib/api/lead-service';
 import { listLeadStages, type LeadStage } from '@/lib/api/lead-stage-service';
-
-const { Title } = Typography;
-const { Search } = Input;
-const { Option } = Select;
 
 export default function LeadsPage() {
   const router = useRouter();
@@ -51,13 +57,31 @@ export default function LeadsPage() {
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize] = useState(20);
 
-  // Filters
+  // Filters with transition for better INP
+  const [isPending, startTransition] = useTransition();
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('');
   const [assignedFilter, setAssignedFilter] = useState<string>('');
-  const [segmentFilter, setSegmentFilter] = useState<string>('');
+  const [segmentFilter, setSegmentFilter] = useState('');
+
+  // Delete confirmation dialog
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; lead: LeadWithDetails | null }>(
+    {
+      open: false,
+      lead: null,
+    }
+  );
+
+  // Qualify confirmation dialog
+  const [qualifyDialog, setQualifyDialog] = useState<{
+    open: boolean;
+    lead: LeadWithDetails | null;
+  }>({
+    open: false,
+    lead: null,
+  });
 
   // Load data on mount - fetch stages and leads in parallel
   useEffect(() => {
@@ -75,14 +99,17 @@ export default function LeadsPage() {
         setStages(stagesData);
         setLeads(leadsResponse.data || []);
         setTotalCount(leadsResponse.total || 0);
-      } catch (error: any) {
-        message.error(`Ошибка загрузки: ${error.message}`);
+      } catch (error) {
+        toast.error(
+          `Ошибка загрузки: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+        );
       } finally {
         setLoading(false);
       }
     };
 
     init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-fetch leads when filters change (stages already loaded)
@@ -90,6 +117,7 @@ export default function LeadsPage() {
     if (stages.length > 0) {
       fetchLeads();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize, searchTerm, stageFilter, assignedFilter, segmentFilter]);
 
   const fetchLeads = async () => {
@@ -108,8 +136,10 @@ export default function LeadsPage() {
       const response = await listLeads(params);
       setLeads(response.data || []);
       setTotalCount(response.total || 0);
-    } catch (error: any) {
-      message.error(`Ошибка загрузки лидов: ${error.message}`);
+    } catch (error) {
+      toast.error(
+        `Ошибка загрузки лидов: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
       setLeads([]);
       setTotalCount(0);
     } finally {
@@ -117,36 +147,55 @@ export default function LeadsPage() {
     }
   };
 
-  const handleDelete = async (id: string, companyName: string) => {
-    try {
-      await deleteLead(id);
-      message.success(`Лид "${companyName}" успешно удален`);
-      fetchLeads();
-    } catch (error: any) {
-      message.error(`Ошибка удаления: ${error.message}`);
-    }
-  };
+  const handleDelete = async () => {
+    if (!deleteDialog.lead) return;
 
-  const handleQualify = async (id: string, companyName: string) => {
     try {
-      const response = await qualifyLead(id);
-      message.success(
-        `Лид "${companyName}" квалифицирован. Создан клиент "${response.customer_name}"`
+      await deleteLead(deleteDialog.lead.id);
+      toast.success(`Лид "${deleteDialog.lead.company_name}" успешно удален`);
+      setDeleteDialog({ open: false, lead: null });
+      fetchLeads();
+    } catch (error) {
+      toast.error(
+        `Ошибка удаления: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
       );
-      fetchLeads();
-      // Optionally redirect to customer
-      // router.push(`/customers/${response.customer_id}`);
-    } catch (error: any) {
-      message.error(`Ошибка квалификации: ${error.message}`);
     }
   };
 
-  const getStageTag = (stageName?: string, stageColor?: string) => {
-    if (!stageName) return <Tag>—</Tag>;
+  const handleQualify = async () => {
+    if (!qualifyDialog.lead) return;
+
+    try {
+      const response = await qualifyLead(qualifyDialog.lead.id);
+      toast.success(
+        `Лид "${qualifyDialog.lead.company_name}" квалифицирован. Создан клиент "${response.customer_name}"`
+      );
+      setQualifyDialog({ open: false, lead: null });
+      fetchLeads();
+    } catch (error) {
+      toast.error(
+        `Ошибка квалификации: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      );
+    }
+  };
+
+  const getStageBadge = (stageName?: string, stageColor?: string) => {
+    if (!stageName) {
+      return (
+        <Badge variant="secondary" className="gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />—
+        </Badge>
+      );
+    }
+
+    // Convert hex color to Tailwind class approximation
+    const dotColorClass = stageColor ? `bg-[${stageColor}]` : 'bg-zinc-400';
+
     return (
-      <Tag color={stageColor || '#1890ff'} style={{ borderRadius: 4 }}>
+      <Badge variant="secondary" className="gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full', dotColorClass)} />
         {stageName}
-      </Tag>
+      </Badge>
     );
   };
 
@@ -158,284 +207,364 @@ export default function LeadsPage() {
     unassigned: leads.filter((l) => !l.assigned_to).length,
   };
 
-  const columns = [
-    {
-      title: 'Компания',
-      dataIndex: 'company_name',
-      key: 'company_name',
-      width: 250,
-      render: (text: string, record: LeadWithDetails) => (
-        <Space direction="vertical" size={0}>
-          <a
-            onClick={() => router.push(`/leads/${record.id}`)}
-            style={{ fontWeight: 500, cursor: 'pointer' }}
-          >
-            {text}
-          </a>
-          {record.segment && (
-            <span style={{ fontSize: '12px', color: '#888' }}>{record.segment}</span>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: 'ИНН',
-      dataIndex: 'inn',
-      key: 'inn',
-      width: 130,
-      render: (inn: string) => inn || '—',
-    },
-    {
-      title: 'Контакты',
-      key: 'contacts',
-      width: 200,
-      render: (_: any, record: LeadWithDetails) => (
-        <Space direction="vertical" size={0}>
-          {record.email && (
-            <Space size={4}>
-              <MailOutlined style={{ color: '#888' }} />
-              <span style={{ fontSize: '12px' }}>{record.email}</span>
-            </Space>
-          )}
-          {record.primary_phone && (
-            <Space size={4}>
-              <PhoneOutlined style={{ color: '#888' }} />
-              <span style={{ fontSize: '12px' }}>{record.primary_phone}</span>
-            </Space>
-          )}
-          {record.contacts && record.contacts.length > 0 && (
-            <Tooltip title={record.contacts.map((c) => c.full_name).join(', ')}>
-              <Space size={4}>
-                <UserOutlined style={{ color: '#888' }} />
-                <span style={{ fontSize: '12px' }}>ЛПР: {record.contacts.length}</span>
-              </Space>
-            </Tooltip>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: 'Этап',
-      key: 'stage',
-      width: 150,
-      render: (_: any, record: LeadWithDetails) =>
-        getStageTag(record.stage_name, record.stage_color),
-    },
-    {
-      title: 'Ответственный',
-      dataIndex: 'assigned_to_name',
-      key: 'assigned_to',
-      width: 150,
-      render: (name: string) =>
-        name ? (
-          <Space size={4}>
-            <UserOutlined style={{ color: '#888' }} />
-            <span>{name}</span>
-          </Space>
-        ) : (
-          <Tag color="orange">Не назначен</Tag>
-        ),
-    },
-    {
-      title: 'Создан',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 120,
-      render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 200,
-      fixed: 'right' as const,
-      render: (_: any, record: LeadWithDetails) => {
-        const isQualified = record.stage_name === 'Квалифицирован';
-        const isFailed = record.stage_name === 'Отказ';
+  const hasActiveFilters = searchTerm || stageFilter || assignedFilter || segmentFilter;
 
-        return (
-          <Space size="small">
-            <Tooltip title="Открыть">
-              <Button
-                type="text"
-                icon={<EyeOutlined />}
-                onClick={() => router.push(`/leads/${record.id}`)}
-              />
-            </Tooltip>
-
-            {!isQualified && !isFailed && (
-              <Tooltip title="Квалифицировать">
-                <Popconfirm
-                  title="Квалифицировать лид?"
-                  description={`Создать клиента из лида "${record.company_name}"?`}
-                  onConfirm={() => handleQualify(record.id, record.company_name)}
-                  okText="Да"
-                  cancelText="Нет"
-                >
-                  <Button type="text" icon={<CheckCircleOutlined />} style={{ color: '#52c41a' }} />
-                </Popconfirm>
-              </Tooltip>
-            )}
-
-            <Tooltip title="Удалить">
-              <Popconfirm
-                title="Удалить лид?"
-                description={`Вы уверены, что хотите удалить "${record.company_name}"?`}
-                onConfirm={() => handleDelete(record.id, record.company_name)}
-                okText="Да"
-                cancelText="Нет"
-              >
-                <Button type="text" danger icon={<DeleteOutlined />} />
-              </Popconfirm>
-            </Tooltip>
-          </Space>
-        );
-      },
-    },
-  ];
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStageFilter('');
+    setAssignedFilter('');
+    setSegmentFilter('');
+    setCurrentPage(1);
+  };
 
   return (
     <MainLayout>
-      <div style={{ padding: '24px' }}>
+      <div className="space-y-6">
         {/* Header */}
-        <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-          <Col>
-            <Title level={2}>Лиды</Title>
-          </Col>
-          <Col>
-            <Space>
-              <Button type="default" onClick={() => router.push('/leads/pipeline')}>
+        <PageHeader
+          title="Лиды"
+          actions={
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => router.push('/leads/pipeline')}>
                 Воронка
               </Button>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => router.push('/leads/create')}
-              >
+              <Button onClick={() => router.push('/leads/create')}>
+                <Plus className="mr-2 h-4 w-4" />
                 Создать лид
               </Button>
-            </Space>
-          </Col>
-        </Row>
+            </div>
+          }
+        />
 
         {/* Statistics */}
-        <Row gutter={16} style={{ marginBottom: 24 }}>
-          <Col span={6}>
-            <Card>
-              <Statistic title="Всего лидов" value={statsData.total} />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic
-                title="Новые"
-                value={statsData.newLeads}
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic
-                title="Квалифицированы"
-                value={statsData.qualified}
-                valueStyle={{ color: '#52c41a' }}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card>
-              <Statistic
-                title="Не назначены"
-                value={statsData.unassigned}
-                valueStyle={{ color: '#fa8c16' }}
-              />
-            </Card>
-          </Col>
-        </Row>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <StatCard label="Всего лидов" value={statsData.total} />
+          <StatCard label="Новые" value={statsData.newLeads} />
+          <StatCard label="Квалифицированы" value={statsData.qualified} />
+          <StatCard label="Не назначены" value={statsData.unassigned} />
+        </div>
 
         {/* Filters */}
-        <Card style={{ marginBottom: 16 }}>
-          <Row gutter={16}>
-            <Col span={8}>
-              <Search
-                placeholder="Поиск по названию, email, ИНН"
-                allowClear
-                enterButton={<SearchOutlined />}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onSearch={() => setCurrentPage(1)}
-              />
-            </Col>
-            <Col span={5}>
-              <Select
-                placeholder="Этап"
-                allowClear
-                style={{ width: '100%' }}
-                value={stageFilter || undefined}
-                onChange={(value) => {
-                  setStageFilter(value || '');
-                  setCurrentPage(1);
-                }}
-              >
-                {stages.map((stage) => (
-                  <Option key={stage.id} value={stage.id}>
-                    <Tag color={stage.color} style={{ marginRight: 8 }}>
-                      {stage.name}
-                    </Tag>
-                  </Option>
-                ))}
-              </Select>
-            </Col>
-            <Col span={5}>
-              <Select
-                placeholder="Ответственный"
-                allowClear
-                style={{ width: '100%' }}
-                value={assignedFilter || undefined}
-                onChange={(value) => {
-                  setAssignedFilter(value || '');
-                  setCurrentPage(1);
-                }}
-              >
-                <Option value="me">Мои лиды</Option>
-                <Option value="unassigned">Не назначены</Option>
-              </Select>
-            </Col>
-            <Col span={6}>
-              <Input
-                placeholder="Сегмент"
-                allowClear
-                value={segmentFilter}
-                onChange={(e) => setSegmentFilter(e.target.value)}
-                onPressEnter={() => setCurrentPage(1)}
-              />
-            </Col>
-          </Row>
-        </Card>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/50 bg-card/30 p-4">
+          <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+            <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
+            <Input
+              placeholder="Поиск по названию, email, ИНН"
+              value={searchTerm}
+              onChange={(e) => startTransition(() => setSearchTerm(e.target.value))}
+              className="pl-9 bg-background/50 border-border/50 placeholder:text-foreground/30"
+            />
+          </div>
+
+          <Select
+            value={stageFilter}
+            onValueChange={(v: string) => startTransition(() => setStageFilter(v))}
+          >
+            <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
+              <SelectValue placeholder="Этап" />
+            </SelectTrigger>
+            <SelectContent>
+              {stages.map((stage) => (
+                <SelectItem key={stage.id} value={stage.id}>
+                  {stage.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={assignedFilter}
+            onValueChange={(v: string) => startTransition(() => setAssignedFilter(v))}
+          >
+            <SelectTrigger className="w-[160px] bg-background/50 border-border/50">
+              <SelectValue placeholder="Ответственный" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="me">Мои лиды</SelectItem>
+              <SelectItem value="unassigned">Не назначены</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Input
+            placeholder="Сегмент"
+            value={segmentFilter}
+            onChange={(e) => startTransition(() => setSegmentFilter(e.target.value))}
+            className="w-[160px] bg-background/50 border-border/50 placeholder:text-foreground/30"
+          />
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-9 px-3 text-foreground/50 hover:text-foreground hover:bg-background/50"
+            >
+              <X className="mr-1.5 h-4 w-4" />
+              Сбросить
+            </Button>
+          )}
+        </div>
 
         {/* Table */}
-        <Card>
-          <Table
-            columns={columns}
-            dataSource={leads}
-            rowKey="id"
-            loading={loading}
-            pagination={{
-              current: currentPage,
-              pageSize: pageSize,
-              total: totalCount,
-              onChange: (page, size) => {
-                setCurrentPage(page);
-                setPageSize(size || 20);
-              },
-              showSizeChanger: true,
-              showTotal: (total) => `Всего: ${total} лидов`,
-              pageSizeOptions: ['10', '20', '50', '100'],
-            }}
-            scroll={{ x: 1200 }}
-          />
-        </Card>
+        <div
+          className={cn(
+            'rounded-lg border border-border overflow-hidden bg-card',
+            isPending && 'opacity-70 transition-opacity'
+          )}
+        >
+          {loading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : leads.length === 0 ? (
+            <div className="p-8 text-center text-foreground/40">Лиды не найдены</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-secondary/30 border-b border-border">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Компания
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      ИНН
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Контакты
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Этап
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Ответственный
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Создан
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Действия
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {leads.map((lead) => {
+                    const isQualified = lead.stage_name === 'Квалифицирован';
+                    const isFailed = lead.stage_name === 'Отказ';
+
+                    return (
+                      <tr key={lead.id} className="hover:bg-foreground/5 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col">
+                            <button
+                              onClick={() => router.push(`/leads/${lead.id}`)}
+                              className="font-medium text-foreground/90 hover:text-amber-400 text-left transition-colors"
+                            >
+                              {lead.company_name}
+                            </button>
+                            {lead.segment && (
+                              <span className="text-xs text-foreground/55">{lead.segment}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-foreground/70">{lead.inn || '—'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1 text-xs">
+                            {lead.email && (
+                              <div className="flex items-center gap-1.5 text-foreground/60">
+                                <Mail className="h-3 w-3" />
+                                <span>{lead.email}</span>
+                              </div>
+                            )}
+                            {lead.primary_phone && (
+                              <div className="flex items-center gap-1.5 text-foreground/60">
+                                <Phone className="h-3 w-3" />
+                                <span>{lead.primary_phone}</span>
+                              </div>
+                            )}
+                            {lead.contacts && lead.contacts.length > 0 && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1.5 text-foreground/60 cursor-help">
+                                      <User className="h-3 w-3" />
+                                      <span>ЛПР: {lead.contacts.length}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">
+                                    <div className="text-xs">
+                                      {lead.contacts.map((c) => c.full_name).join(', ')}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {getStageBadge(lead.stage_name, lead.stage_color)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {lead.assigned_to_name ? (
+                            <div className="flex items-center gap-1.5 text-sm text-foreground/70">
+                              <User className="h-3 w-3" />
+                              <span>{lead.assigned_to_name}</span>
+                            </div>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                              Не назначен
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-foreground/70">
+                          {new Date(lead.created_at).toLocaleDateString('ru-RU')}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => router.push(`/leads/${lead.id}`)}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Открыть</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+
+                            {!isQualified && !isFailed && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setQualifyDialog({ open: true, lead })}
+                                      className="h-8 w-8 p-0 text-emerald-400 hover:text-emerald-400 hover:bg-emerald-400/10"
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Квалифицировать</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setDeleteDialog({ open: true, lead })}
+                                    className="h-8 w-8 p-0 text-red-400 hover:text-red-400 hover:bg-red-400/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Удалить</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && totalCount > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/20">
+              <div className="text-sm text-foreground/60">
+                Показано {(currentPage - 1) * pageSize + 1}–
+                {Math.min(currentPage * pageSize, totalCount)} из {totalCount} лидов
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  Назад
+                </Button>
+                <span className="text-sm text-foreground/60">
+                  Страница {currentPage} из {Math.ceil(totalCount / pageSize)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                >
+                  Далее
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteDialog.open}
+        onOpenChange={(open: boolean) => setDeleteDialog({ open, lead: null })}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить лид?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите удалить &quot;{deleteDialog.lead?.company_name}&quot;?
+              <br />
+              Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Нет</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Да, удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Qualify Confirmation Dialog */}
+      <AlertDialog
+        open={qualifyDialog.open}
+        onOpenChange={(open: boolean) => setQualifyDialog({ open, lead: null })}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Квалифицировать лид?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Создать клиента из лида &quot;{qualifyDialog.lead?.company_name}&quot;?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Нет</AlertDialogCancel>
+            <AlertDialogAction onClick={handleQualify}>Да</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

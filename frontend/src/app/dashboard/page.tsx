@@ -1,36 +1,28 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  Row,
-  Col,
-  Card,
-  Statistic,
-  Typography,
-  Space,
-  Table,
-  Tag,
-  Button,
-  Divider,
-  Progress,
-  Spin,
-  message,
-} from 'antd';
-import {
-  FileTextOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  DollarOutlined,
-  TrophyOutlined,
-  ArrowUpOutlined,
-} from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
-import MainLayout from '@/components/layout/MainLayout';
-import { useAuth } from '@/lib/auth/AuthProvider';
-import { QuoteService } from '@/lib/api/quote-service';
-import { BaseApiService } from '@/lib/api/base-api';
+import {
+  FileText,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Trophy,
+  TrendingUp,
+  ArrowRight,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
-const { Title, Text } = Typography;
+import MainLayout from '@/components/layout/MainLayout';
+import PageHeader from '@/components/shared/PageHeader';
+import StatCard from '@/components/shared/StatCard';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent, CardAction } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { cn } from '@/lib/utils';
 
 interface Quote {
   id: string;
@@ -51,7 +43,7 @@ export default function DashboardPage() {
     approvedQuotes: 0,
     pendingQuotes: 0,
     totalRevenue: 0,
-    monthlyGrowth: 12.5, // This would come from analytics API
+    monthlyGrowth: 12.5,
     totalCustomers: 0,
   });
   const [recentQuotes, setRecentQuotes] = useState<Quote[]>([]);
@@ -64,11 +56,6 @@ export default function DashboardPage() {
     setLoading(true);
     try {
       // TODO: Implement dashboard data fetching with proper organizationId context
-      // This requires refactoring to get organizationId from auth context
-      // and properly calling quoteService.getQuotes(organizationId, filters, pagination)
-      // and customerService.listCustomers()
-
-      // Temporary: Set empty/default stats
       setStats({
         totalQuotes: 0,
         approvedQuotes: 0,
@@ -79,23 +66,29 @@ export default function DashboardPage() {
       });
       setRecentQuotes([]);
     } catch (error: any) {
-      message.error(`Ошибка загрузки данных: ${error.message}`);
+      toast.error(`Ошибка загрузки данных: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusTag = (status: string) => {
-    const statusMap = {
-      draft: { color: 'default', text: 'Черновик' },
-      pending_approval: { color: 'orange', text: 'На утверждении' },
-      approved: { color: 'green', text: 'Утверждено' },
-      sent: { color: 'blue', text: 'Отправлено' },
-      accepted: { color: 'cyan', text: 'Принято' },
-      rejected: { color: 'red', text: 'Отклонено' },
-      expired: { color: 'default', text: 'Истекло' },
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { dotColor: string; text: string }> = {
+      draft: { dotColor: 'bg-zinc-400', text: 'Черновик' },
+      pending_approval: { dotColor: 'bg-amber-400', text: 'На утверждении' },
+      approved: { dotColor: 'bg-emerald-400', text: 'Утверждено' },
+      sent: { dotColor: 'bg-blue-400', text: 'Отправлено' },
+      accepted: { dotColor: 'bg-green-400', text: 'Принято' },
+      rejected: { dotColor: 'bg-rose-400', text: 'Отклонено' },
+      expired: { dotColor: 'bg-gray-400', text: 'Истекло' },
     };
-    return statusMap[status as keyof typeof statusMap] || { color: 'default', text: status };
+    const config = statusMap[status] || { dotColor: 'bg-zinc-400', text: status };
+    return (
+      <Badge variant="secondary" className="gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full', config.dotColor)} />
+        {config.text}
+      </Badge>
+    );
   };
 
   const formatCurrency = (amount: number, currency: string) => {
@@ -105,43 +98,6 @@ export default function DashboardPage() {
       minimumFractionDigits: 0,
     }).format(amount);
   };
-
-  const tableColumns = [
-    {
-      title: 'Номер КП',
-      dataIndex: 'quote_number',
-      key: 'quote_number',
-      render: (text: string, record: Quote) => (
-        <a onClick={() => router.push(`/quotes/${record.id}`)}>{text}</a>
-      ),
-    },
-    {
-      title: 'Клиент',
-      dataIndex: 'customer_name',
-      key: 'customer_name',
-    },
-    {
-      title: 'Сумма',
-      dataIndex: 'total_amount',
-      key: 'total_amount',
-      render: (amount: number, record: Quote) => formatCurrency(amount, record.currency),
-    },
-    {
-      title: 'Статус',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const statusConfig = getStatusTag(status);
-        return <Tag color={statusConfig.color}>{statusConfig.text}</Tag>;
-      },
-    },
-    {
-      title: 'Дата',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date: string) => new Date(date).toLocaleDateString('ru-RU'),
-    },
-  ];
 
   const getRoleWelcome = () => {
     const roleMessages = {
@@ -157,8 +113,21 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <MainLayout>
-        <div style={{ textAlign: 'center', padding: '100px' }}>
-          <Spin size="large" tip="Загрузка данных..." />
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-80" />
+            ))}
+          </div>
         </div>
       </MainLayout>
     );
@@ -166,166 +135,220 @@ export default function DashboardPage() {
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div className="space-y-6">
         {/* Welcome Section */}
         <div>
-          <Title level={2}>Добро пожаловать, {profile?.full_name || 'Пользователь'}!</Title>
-          <Text type="secondary" style={{ fontSize: '16px' }}>
-            {getRoleWelcome()}
-          </Text>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Добро пожаловать, {profile?.full_name || 'Пользователь'}!
+          </h1>
+          <p className="mt-1 text-base text-foreground/60">{getRoleWelcome()}</p>
         </div>
 
         {/* Statistics Cards */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="Всего КП"
-                value={stats.totalQuotes}
-                prefix={<FileTextOutlined />}
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="Утверждено"
-                value={stats.approvedQuotes}
-                prefix={<CheckCircleOutlined />}
-                valueStyle={{ color: '#52c41a' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="На утверждении"
-                value={stats.pendingQuotes}
-                prefix={<ClockCircleOutlined />}
-                valueStyle={{ color: '#faad14' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card>
-              <Statistic
-                title="Общая выручка"
-                value={stats.totalRevenue}
-                prefix={<DollarOutlined />}
-                formatter={(value) => formatCurrency(Number(value), 'RUB')}
-                valueStyle={{ color: '#722ed1' }}
-              />
-            </Card>
-          </Col>
-        </Row>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Всего КП" value={stats.totalQuotes} />
+          <StatCard label="Утверждено" value={stats.approvedQuotes} />
+          <StatCard label="На утверждении" value={stats.pendingQuotes} />
+          <StatCard
+            label="Общая выручка"
+            value={formatCurrency(stats.totalRevenue, 'RUB')}
+            valueClassName="text-xl"
+          />
+        </div>
 
-        {/* Performance and Recent Activity */}
-        <Row gutter={[16, 16]}>
+        {/* Performance and Quick Actions */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Performance Chart */}
-          <Col xs={24} lg={12}>
-            <Card title="Эффективность за месяц" extra={<Button type="link">Подробнее</Button>}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Text strong>Рост продаж</Text>
-                  </Col>
-                  <Col>
-                    <Text type="success">
-                      <ArrowUpOutlined /> {stats.monthlyGrowth}%
-                    </Text>
-                  </Col>
-                </Row>
-                <Progress
-                  percent={stats.monthlyGrowth}
-                  strokeColor={{
-                    '0%': '#108ee9',
-                    '100%': '#87d068',
-                  }}
-                />
+          <Card>
+            <CardHeader>
+              <CardTitle>Эффективность за месяц</CardTitle>
+              <CardAction>
+                <Button variant="ghost" size="sm">
+                  Подробнее
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Monthly Growth */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Рост продаж</span>
+                  <span className="flex items-center gap-1 text-sm font-medium text-emerald-400">
+                    <TrendingUp className="h-4 w-4" />
+                    {stats.monthlyGrowth}%
+                  </span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-secondary/30">
+                  <div
+                    className="h-2 rounded-full bg-amber-500 transition-all"
+                    style={{ width: `${Math.min(stats.monthlyGrowth, 100)}%` }}
+                  />
+                </div>
+              </div>
 
-                <Divider />
+              <Separator />
 
-                <Row justify="space-between">
-                  <Col>
-                    <Statistic
-                      title="Конверсия КП"
-                      value={68.5}
-                      suffix="%"
-                      valueStyle={{ fontSize: '20px' }}
-                    />
-                  </Col>
-                  <Col>
-                    <Statistic
-                      title="Среднее время утверждения"
-                      value={2.3}
-                      suffix="дня"
-                      valueStyle={{ fontSize: '20px' }}
-                    />
-                  </Col>
-                </Row>
-              </Space>
-            </Card>
-          </Col>
+              {/* Stats Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-foreground/60">
+                    Конверсия КП
+                  </p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums">68.5%</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-foreground/60">
+                    Среднее время утверждения
+                  </p>
+                  <p className="mt-2 text-xl font-semibold tabular-nums">
+                    2.3 <span className="text-sm font-normal text-foreground/60">дня</span>
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Quick Actions */}
-          <Col xs={24} lg={12}>
-            <Card title="Быстрые действия">
-              <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                <Button type="primary" size="large" block href="/quotes/create">
-                  Создать новое КП
-                </Button>
+          <Card>
+            <CardHeader>
+              <CardTitle>Быстрые действия</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                className="w-full justify-start"
+                variant="default"
+                size="lg"
+                onClick={() => router.push('/quotes/create')}
+              >
+                Создать новое КП
+              </Button>
 
-                {profile?.role &&
-                  ['finance_manager', 'department_manager', 'director', 'admin'].includes(
-                    profile.role
-                  ) && (
-                    <Button size="large" block href="/quotes/approval">
-                      Проверить КП на утверждении ({stats.pendingQuotes})
-                    </Button>
-                  )}
+              {profile?.role &&
+                ['finance_manager', 'department_manager', 'director', 'admin'].includes(
+                  profile.role
+                ) && (
+                  <Button
+                    className="w-full justify-start"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => router.push('/quotes/approval')}
+                  >
+                    Проверить КП на утверждении ({stats.pendingQuotes})
+                  </Button>
+                )}
 
-                <Button size="large" block href="/customers">
-                  Управление клиентами
-                </Button>
+              <Button
+                className="w-full justify-start"
+                variant="outline"
+                size="lg"
+                onClick={() => router.push('/customers')}
+              >
+                Управление клиентами
+              </Button>
 
-                <Button size="large" block href="/quotes">
-                  Просмотреть все КП
-                </Button>
+              <Button
+                className="w-full justify-start"
+                variant="outline"
+                size="lg"
+                onClick={() => router.push('/quotes')}
+              >
+                Просмотреть все КП
+              </Button>
 
-                <Divider />
+              <Separator />
 
-                <div style={{ textAlign: 'center' }}>
-                  <TrophyOutlined style={{ fontSize: '24px', color: '#faad14' }} />
-                  <div style={{ marginTop: '8px' }}>
-                    <Text strong>Цель месяца</Text>
-                    <br />
-                    <Text type="secondary">200 КП (выполнено 78%)</Text>
-                  </div>
-                  <Progress percent={78} size="small" />
+              {/* Goal Section */}
+              <div className="space-y-3 rounded-lg bg-secondary/20 p-4 text-center">
+                <Trophy className="mx-auto h-6 w-6 text-amber-500" />
+                <div>
+                  <p className="font-semibold">Цель месяца</p>
+                  <p className="text-sm text-foreground/60">200 КП (выполнено 78%)</p>
                 </div>
-              </Space>
-            </Card>
-          </Col>
-        </Row>
+                <div className="h-2 w-full rounded-full bg-secondary/30">
+                  <div
+                    className="h-2 rounded-full bg-amber-500 transition-all"
+                    style={{ width: '78%' }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Recent Quotes Table */}
-        <Card
-          title="Последние коммерческие предложения"
-          extra={
-            <Button type="link" href="/quotes">
-              Показать все
-            </Button>
-          }
-        >
-          <Table
-            columns={tableColumns}
-            dataSource={recentQuotes}
-            pagination={false}
-            size="middle"
-          />
+        <Card>
+          <CardHeader>
+            <CardTitle>Последние коммерческие предложения</CardTitle>
+            <CardAction>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/quotes')}
+                className="gap-1"
+              >
+                Показать все
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            {recentQuotes.length === 0 ? (
+              <div className="py-12 text-center text-foreground/40">
+                Нет коммерческих предложений
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Номер КП
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Клиент
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Сумма
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Статус
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                        Дата
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {recentQuotes.map((quote) => (
+                      <tr
+                        key={quote.id}
+                        onClick={() => router.push(`/quotes/${quote.id}`)}
+                        className="cursor-pointer transition-colors hover:bg-foreground/5"
+                      >
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-foreground/90">
+                            {quote.quote_number}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-foreground/70">
+                          {quote.customer_name}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-foreground/70">
+                          {formatCurrency(quote.total_amount, quote.currency)}
+                        </td>
+                        <td className="px-4 py-3">{getStatusBadge(quote.status)}</td>
+                        <td className="px-4 py-3 text-sm text-foreground/70">
+                          {new Date(quote.created_at).toLocaleDateString('ru-RU')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
         </Card>
-      </Space>
+      </div>
     </MainLayout>
   );
 }

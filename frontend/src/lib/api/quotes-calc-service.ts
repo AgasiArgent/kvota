@@ -213,6 +213,7 @@ export interface ProductCalculationResult {
 export interface QuoteCalculationResponse {
   quote_id: string;
   quote_number: string;
+  idn_quote?: string; // New IDN format: SUPPLIER-INN-YEAR-SEQ
   customer_id: string;
   title: string;
   status: string;

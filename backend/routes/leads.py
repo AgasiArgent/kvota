@@ -176,7 +176,8 @@ async def list_leads(
     stage_id: Optional[str] = Query(None, description="Filter by stage"),
     assigned_to: Optional[str] = Query(None, description="Filter by assigned user"),
     segment: Optional[str] = Query(None, description="Filter by segment"),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     List leads with pagination and filtering
@@ -289,7 +290,8 @@ async def list_leads(
 @router.get("/{lead_id}", response_model=LeadWithDetails)
 async def get_lead(
     lead_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Get lead by ID with full details
@@ -360,7 +362,8 @@ async def get_lead(
 @router.post("/", response_model=Lead, status_code=status.HTTP_201_CREATED)
 async def create_lead(
     lead_data: LeadCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Create new lead manually
@@ -377,10 +380,10 @@ async def create_lead(
         # Get default stage if not provided
         stage_id = lead_data.stage_id
         if not stage_id:
-            stage_id = await get_default_stage_id(str(user.current_organization_id, supabase))
+            stage_id = await get_default_stage_id(str(user.current_organization_id), supabase)
         else:
             # Verify stage belongs to organization
-            if not await verify_stage_belongs_to_org(stage_id, str(user.current_organization_id, supabase)):
+            if not await verify_stage_belongs_to_org(stage_id, str(user.current_organization_id), supabase):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid stage_id for organization"
@@ -455,7 +458,8 @@ async def create_lead(
 async def update_lead(
     lead_id: str,
     lead_data: LeadUpdate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Update lead
@@ -480,7 +484,7 @@ async def update_lead(
 
         # Verify stage_id if provided
         if "stage_id" in update_dict and update_dict["stage_id"]:
-            if not await verify_stage_belongs_to_org(update_dict["stage_id"], str(user.current_organization_id, supabase)):
+            if not await verify_stage_belongs_to_org(update_dict["stage_id"], str(user.current_organization_id), supabase):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid stage_id for organization"
@@ -521,7 +525,8 @@ async def update_lead(
 @router.delete("/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lead(
     lead_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Delete lead
@@ -575,7 +580,8 @@ async def delete_lead(
 async def assign_lead(
     lead_id: str,
     assign_data: LeadAssignRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Assign lead to user (or unassign if user_id is None)
@@ -634,7 +640,8 @@ async def assign_lead(
 async def change_lead_stage(
     lead_id: str,
     stage_data: LeadStageRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Move lead to different stage
@@ -657,7 +664,7 @@ async def change_lead_stage(
         old_stage_id = existing.data[0].get("stage_id")
 
         # Verify new stage belongs to organization
-        if not await verify_stage_belongs_to_org(stage_data.stage_id, str(user.current_organization_id, supabase)):
+        if not await verify_stage_belongs_to_org(stage_data.stage_id, str(user.current_organization_id), supabase):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid stage_id for organization"
@@ -701,7 +708,8 @@ async def change_lead_stage(
 async def qualify_lead_to_customer(
     lead_id: str,
     qualify_data: LeadQualifyRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Qualify lead → Convert to customer
@@ -841,7 +849,8 @@ class CalendarEventUpdate(BaseModel):
 async def create_calendar_meeting(
     lead_id: str,
     request: CreateMeetingRequest,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """
     Trigger n8n workflow to create Google Calendar meeting for lead

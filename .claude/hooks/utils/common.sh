@@ -32,10 +32,10 @@ elif [ "$HOOKS_COLOR" = "always" ]; then
   HOOKS_COLOR=1
 fi
 
-# Source colors if enabled
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Source colors if enabled (use _UTILS_DIR to avoid overwriting SCRIPT_DIR from calling script)
+_UTILS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ "$HOOKS_COLOR" = "1" ]; then
-  source "$SCRIPT_DIR/colors.sh"
+  source "$_UTILS_DIR/colors.sh"
 else
   # Define empty color variables
   RED="" GREEN="" YELLOW="" BLUE="" NC="" BOLD="" DIM=""
@@ -340,8 +340,9 @@ load_config() {
     source "$config_file"
   fi
 
-  # Also check project-specific config
-  local project_config="/home/novi/quotation-app-dev/.claude/hooks/config.conf"
+  # Also check project-specific config (dynamically find it relative to this script)
+  local common_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local project_config="$common_script_dir/../config.conf"
   if [ -f "$project_config" ]; then
     log_debug "Loading project configuration from $project_config"
     source "$project_config"

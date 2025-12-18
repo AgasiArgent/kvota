@@ -85,8 +85,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Setup
-PROJECT_ROOT="/home/novi/workspace/tech/projects/kvota/user-feedback"
+# Setup - determine project root dynamically
+# SCRIPT_DIR is .claude/hooks, so go up 2 levels to get project root
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 START_TIME=$(date +%s)
 

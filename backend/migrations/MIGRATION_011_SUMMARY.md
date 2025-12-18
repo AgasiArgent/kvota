@@ -115,7 +115,8 @@ This migration adds comprehensive soft delete support to the quotes system and e
 ```bash
 cd /home/novi/quotation-app/backend
 
-PGPASSWORD='***REMOVED***' psql \
+# Get DB password from Supabase Dashboard > Settings > Database
+PGPASSWORD='<DB_PASSWORD>' psql \
   -h db.wstwwmiihkzlgvlymlfd.supabase.co \
   -p 5432 \
   -U postgres \

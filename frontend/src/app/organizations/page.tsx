@@ -1,20 +1,20 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Space, Typography, message, Row, Col, Tag, Empty, Spin } from 'antd';
-import {
-  PlusOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  CrownOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
+import { Plus, Settings, Users, Crown, User } from 'lucide-react';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import PageHeader from '@/components/shared/PageHeader';
+import StatCard from '@/components/shared/StatCard';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { organizationService } from '@/lib/api/organization-service';
 import { UserOrganization } from '@/lib/types/organization';
-
-const { Title, Text, Paragraph } = Typography;
 
 export default function OrganizationsPage() {
   const router = useRouter();
@@ -33,10 +33,10 @@ export default function OrganizationsPage() {
       if (result.success && result.data) {
         setOrganizations(result.data);
       } else {
-        message.error(result.error || 'Ошибка загрузки организаций');
+        toast.error(result.error || 'Ошибка загрузки организаций');
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -45,27 +45,29 @@ export default function OrganizationsPage() {
   const getRoleBadge = (roleName: string, isOwner: boolean) => {
     if (isOwner) {
       return (
-        <Tag icon={<CrownOutlined />} color="gold">
+        <Badge variant="secondary" className="gap-1.5">
+          <Crown className="h-3 w-3 text-amber-400" />
           Владелец
-        </Tag>
+        </Badge>
       );
     }
 
     // Map role names to Russian labels
-    const roleMap: Record<string, { label: string; color: string }> = {
-      admin: { label: 'Администратор', color: 'red' },
-      'financial-admin': { label: 'Финансовый администратор', color: 'purple' },
-      'sales-manager': { label: 'Менеджер по продажам', color: 'blue' },
-      'procurement-manager': { label: 'Менеджер по закупкам', color: 'cyan' },
-      'logistics-manager': { label: 'Менеджер по логистике', color: 'green' },
+    const roleMap: Record<string, string> = {
+      admin: 'Администратор',
+      'financial-admin': 'Финансовый администратор',
+      'sales-manager': 'Менеджер по продажам',
+      'procurement-manager': 'Менеджер по закупкам',
+      'logistics-manager': 'Менеджер по логистике',
     };
 
-    const role = roleMap[roleName] || { label: roleName, color: 'default' };
+    const label = roleMap[roleName] || roleName;
 
     return (
-      <Tag icon={<UserOutlined />} color={role.color}>
-        {role.label}
-      </Tag>
+      <Badge variant="secondary" className="gap-1.5">
+        <User className="h-3 w-3" />
+        {label}
+      </Badge>
     );
   };
 
@@ -74,160 +76,117 @@ export default function OrganizationsPage() {
     return isOwner || roleName === 'admin';
   };
 
-  const _truncateDescription = (description?: string) => {
-    if (!description) return 'Нет описания';
-    if (description.length <= 100) return description;
-    return description.substring(0, 100) + '...';
-  };
+  // Stats calculation
+  const ownerCount = organizations.filter((org) => org.is_owner).length;
+  const memberCount = organizations.filter((org) => !org.is_owner).length;
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div className="space-y-6">
         {/* Header */}
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Title level={2} style={{ margin: 0 }}>
-              Мои организации
-            </Title>
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              size="large"
-              onClick={() => router.push('/organizations/create')}
-            >
+        <PageHeader
+          title="Мои организации"
+          actions={
+            <Button onClick={() => router.push('/organizations/create')}>
+              <Plus className="mr-2 h-4 w-4" />
               Создать организацию
             </Button>
-          </Col>
-        </Row>
+          }
+        />
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard label="Всего организаций" value={organizations.length} />
+          <StatCard label="Владелец" value={ownerCount} />
+          <StatCard label="Участник" value={memberCount} />
+        </div>
 
         {/* Loading State */}
         {loading && (
-          <div style={{ textAlign: 'center', padding: '50px 0' }}>
-            <Spin size="large" tip="Загрузка организаций...">
-              <div style={{ minHeight: '200px' }} />
-            </Spin>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-48 w-full" />
+              ))}
+            </div>
           </div>
         )}
 
         {/* Empty State */}
         {!loading && organizations.length === 0 && (
           <Card>
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <Space direction="vertical" size="small">
-                  <Text>У вас пока нет организаций. Создайте первую!</Text>
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => router.push('/organizations/create')}
-                  >
-                    Создать организацию
-                  </Button>
-                </Space>
-              }
-            />
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <p className="mb-4 text-foreground/60">
+                  У вас пока нет организаций. Создайте первую!
+                </p>
+                <Button onClick={() => router.push('/organizations/create')}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Создать организацию
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         )}
 
         {/* Organizations Grid */}
         {!loading && organizations.length > 0 && (
-          <Row gutter={[16, 16]}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {organizations.map((org) => (
-              <Col xs={24} sm={12} lg={8} xl={6} key={org.organization_id}>
-                <Card
-                  title={
-                    <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                      <Text strong style={{ fontSize: '16px' }}>
+              <Card
+                key={org.organization_id}
+                className="flex flex-col hover:border-primary/50 transition-colors cursor-pointer"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-base leading-tight mb-1">
                         {org.organization_name}
-                      </Text>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        @{org.organization_slug}
-                      </Text>
-                    </Space>
-                  }
-                  extra={getRoleBadge(org.role_slug, org.is_owner)}
-                  actions={[
+                      </CardTitle>
+                      <p className="text-xs text-foreground/55">@{org.organization_slug}</p>
+                    </div>
+                    {getRoleBadge(org.role_slug, org.is_owner)}
+                  </div>
+                </CardHeader>
+
+                <CardContent className="flex-1 space-y-3 pb-3">
+                  <div>
+                    <p className="text-xs text-foreground/55 mb-1">Ваша роль:</p>
+                    <p className="text-sm font-medium">{org.role_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-foreground/55 mb-1">Присоединились:</p>
+                    <p className="text-sm">{new Date(org.joined_at).toLocaleDateString('ru-RU')}</p>
+                  </div>
+                </CardContent>
+
+                <CardFooter className="pt-3 border-t border-border/50 flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => router.push(`/organizations/${org.organization_id}/team`)}
+                  >
+                    <Users className="mr-1.5 h-4 w-4" />
+                    Команда
+                  </Button>
+                  {canManageOrganization(org.role_slug, org.is_owner) && (
                     <Button
-                      key="view"
-                      type="link"
-                      icon={<TeamOutlined />}
-                      onClick={() => router.push(`/organizations/${org.organization_id}/team`)}
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => router.push(`/organizations/${org.organization_id}/settings`)}
                     >
-                      Команда
-                    </Button>,
-                    canManageOrganization(org.role_slug, org.is_owner) ? (
-                      <Button
-                        key="settings"
-                        type="link"
-                        icon={<SettingOutlined />}
-                        onClick={() =>
-                          router.push(`/organizations/${org.organization_id}/settings`)
-                        }
-                      >
-                        Настройки
-                      </Button>
-                    ) : (
-                      <div key="settings" />
-                    ),
-                  ]}
-                  hoverable
-                  style={{ height: '100%' }}
-                >
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    <div>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        Ваша роль:
-                      </Text>
-                      <br />
-                      <Text strong>{org.role_name}</Text>
-                    </div>
-
-                    <div>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        Присоединились:
-                      </Text>
-                      <br />
-                      <Text>{new Date(org.joined_at).toLocaleDateString('ru-RU')}</Text>
-                    </div>
-                  </Space>
-                </Card>
-              </Col>
+                      <Settings className="mr-1.5 h-4 w-4" />
+                      Настройки
+                    </Button>
+                  )}
+                </CardFooter>
+              </Card>
             ))}
-          </Row>
+          </div>
         )}
-
-        {/* Info Card */}
-        {!loading && organizations.length > 0 && (
-          <Card>
-            <Row gutter={16}>
-              <Col xs={24} sm={8}>
-                <Text type="secondary">Всего организаций</Text>
-                <br />
-                <Title level={3} style={{ margin: 0 }}>
-                  {organizations.length}
-                </Title>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Text type="secondary">Владелец</Text>
-                <br />
-                <Title level={3} style={{ margin: 0 }}>
-                  {organizations.filter((org) => org.is_owner).length}
-                </Title>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Text type="secondary">Участник</Text>
-                <br />
-                <Title level={3} style={{ margin: 0 }}>
-                  {organizations.filter((org) => !org.is_owner).length}
-                </Title>
-              </Col>
-            </Row>
-          </Card>
-        )}
-      </Space>
+      </div>
     </MainLayout>
   );
 }

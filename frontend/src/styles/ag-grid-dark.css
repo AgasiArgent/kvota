@@ -1,0 +1,303 @@
+/* Custom Dark Theme for ag-Grid - Unified Linear-style Design */
+.ag-theme-custom-dark {
+  /* Core colors - slightly warmer dark */
+  --ag-background-color: hsl(0 0% 10%);
+  --ag-foreground-color: hsl(0 0% 85%);
+  --ag-border-color: hsl(0 0% 18%);
+
+  /* Header - better readability with higher contrast */
+  --ag-header-background-color: hsl(0 0% 12%);
+  --ag-header-foreground-color: hsl(0 0% 60%);
+  --ag-header-cell-hover-background-color: hsl(0 0% 15%);
+
+  /* Rows - subtle alternating pattern */
+  --ag-odd-row-background-color: hsl(0 0% 10%);
+  --ag-row-hover-color: hsl(0 0% 14%);
+  --ag-selected-row-background-color: hsl(38 92% 50% / 0.12);
+
+  /* Cells */
+  --ag-cell-horizontal-border: solid hsl(0 0% 16%);
+  --ag-range-selection-border-color: transparent;
+  --ag-range-selection-background-color: transparent;
+
+  /* Input - consistent amber */
+  --ag-input-focus-border-color: hsl(38 92% 50%);
+  --ag-input-focus-box-shadow: 0 0 0 1px hsl(38 92% 50%);
+
+  /* Sizing - slightly taller rows for readability */
+  --ag-grid-size: 6px;
+  --ag-list-item-height: 32px;
+  --ag-row-height: 52px;
+  --ag-header-height: 44px;
+
+  /* Typography */
+  --ag-font-family: inherit;
+  --ag-font-size: 14px;
+
+  /* Borders - subtler */
+  --ag-row-border-width: 1px;
+  --ag-row-border-color: hsl(0 0% 16%);
+  --ag-cell-horizontal-padding: 16px;
+
+  /* Misc */
+  --ag-border-radius: 0;
+  --ag-wrapper-border-radius: 8px;
+
+  /* Checkbox - proper styling for dark theme */
+  --ag-checkbox-background-color: transparent;
+  --ag-checkbox-border-radius: 3px;
+  --ag-checkbox-checked-color: hsl(38 92% 50%);
+  --ag-checkbox-unchecked-color: hsl(0 0% 40%);
+  --ag-checkbox-indeterminate-color: hsl(38 92% 50%);
+}
+
+/* Header styling - better hierarchy and centered text */
+.ag-theme-custom-dark .ag-header {
+  border-bottom: 1px solid hsl(0 0% 20%);
+  background: hsl(0 0% 12%);
+}
+
+.ag-theme-custom-dark .ag-header-cell {
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(0 0% 55%);
+}
+
+.ag-theme-custom-dark .ag-header-cell:hover {
+  color: hsl(0 0% 75%);
+}
+
+/* Row styling - alternating for scanability */
+.ag-theme-custom-dark .ag-row-even {
+  background-color: hsl(0 0% 10%);
+}
+
+.ag-theme-custom-dark .ag-row-odd {
+  background-color: hsl(0 0% 11.5%);
+}
+
+/* Row hover effect - more visible */
+.ag-theme-custom-dark .ag-row:hover {
+  background-color: hsl(0 0% 15%) !important;
+}
+
+/* Selected row - consistent amber */
+.ag-theme-custom-dark .ag-row-selected {
+  background-color: hsl(38 92% 50% / 0.1) !important;
+}
+
+/* Cell styling */
+.ag-theme-custom-dark .ag-cell {
+  border-bottom: 1px solid hsl(0 0% 14%);
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+}
+
+/* Cell focus - remove ALL focus borders completely */
+.ag-theme-custom-dark .ag-cell-focus,
+.ag-theme-custom-dark .ag-cell-focus:focus,
+.ag-theme-custom-dark .ag-cell.ag-cell-focus,
+.ag-theme-custom-dark .ag-cell-range-selected,
+.ag-theme-custom-dark .ag-cell-range-single-cell {
+  border: none !important;
+  border-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background-color: inherit !important;
+}
+
+/* Range selection - disable blue borders */
+.ag-theme-custom-dark .ag-cell-range-selected:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-1:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-2:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-3:not(.ag-cell-focus),
+.ag-theme-custom-dark .ag-cell-range-selected-4:not(.ag-cell-focus) {
+  border: none !important;
+  background-color: inherit !important;
+}
+
+/* Checkbox cell styling */
+.ag-theme-custom-dark .ag-cell-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+/* Checkbox styling - explicit styling for dark theme */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  border: 1px solid hsl(0 0% 40%);
+  border-radius: 3px;
+  background-color: transparent;
+  position: relative;
+}
+
+/* Hide default ::after for unchecked state */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper::after {
+  display: none;
+}
+
+/* Unchecked checkbox hover */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper:hover {
+  border-color: hsl(0 0% 55%);
+}
+
+/* Checked checkbox */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked {
+  background-color: hsl(38 92% 50%);
+  border-color: hsl(38 92% 50%);
+}
+
+/* Checkmark for checked state */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked::after {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid hsl(0 0% 9%);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Indeterminate state (partial selection) */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate {
+  background-color: hsl(38 92% 50%);
+  border-color: hsl(38 92% 50%);
+}
+
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 8px;
+  height: 2px;
+  background-color: hsl(0 0% 9%);
+  transform: none;
+  border: none;
+}
+
+/* Remove blue focus ring from checkbox when checked/focused */
+.ag-theme-custom-dark .ag-checkbox-input-wrapper,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-checked,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper.ag-indeterminate,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper:focus,
+.ag-theme-custom-dark .ag-checkbox-input-wrapper:focus-within {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Selection checkbox column - remove ALL focus indicators */
+.ag-theme-custom-dark .ag-selection-checkbox {
+  outline: none !important;
+}
+
+.ag-theme-custom-dark .ag-cell:focus-within {
+  outline: none !important;
+  border-color: transparent !important;
+}
+
+/* Kill the blue focus rectangle on checkbox cells */
+.ag-theme-custom-dark .ag-cell[col-id='checkbox'],
+.ag-theme-custom-dark .ag-cell[col-id='0'],
+.ag-theme-custom-dark .ag-header-cell[col-id='checkbox'],
+.ag-theme-custom-dark .ag-header-cell[col-id='0'] {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Target the selection column specifically */
+.ag-theme-custom-dark [role='gridcell']:first-child {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Override ANY border on focused cells */
+.ag-theme-custom-dark .ag-cell-focus,
+.ag-theme-custom-dark .ag-cell:focus,
+.ag-theme-custom-dark .ag-cell:focus-visible,
+.ag-theme-custom-dark .ag-row .ag-cell:first-child {
+  border: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-bottom: 1px solid hsl(0 0% 14%) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Pagination - unified styling */
+.ag-theme-custom-dark .ag-paging-panel {
+  border-top: 1px solid hsl(0 0% 16%);
+  background-color: hsl(0 0% 9%);
+  color: hsl(0 0% 55%);
+  font-size: 13px;
+}
+
+.ag-theme-custom-dark .ag-paging-button {
+  color: hsl(0 0% 55%);
+}
+
+.ag-theme-custom-dark .ag-paging-button:hover {
+  color: hsl(0 0% 80%);
+}
+
+/* Loading overlay */
+.ag-theme-custom-dark .ag-overlay-loading-center {
+  background-color: hsl(0 0% 10%);
+  color: hsl(0 0% 92%);
+}
+
+/* No rows overlay */
+.ag-theme-custom-dark .ag-overlay-no-rows-center {
+  background-color: hsl(0 0% 10%);
+  color: hsl(0 0% 55%);
+}
+
+/* Scrollbar - subtle */
+.ag-theme-custom-dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ag-theme-custom-dark ::-webkit-scrollbar-track {
+  background: hsl(0 0% 8%);
+}
+
+.ag-theme-custom-dark ::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 22%);
+  border-radius: 4px;
+}
+
+.ag-theme-custom-dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 30%);
+}
+
+/* Pinned columns */
+.ag-theme-custom-dark .ag-pinned-left-header,
+.ag-theme-custom-dark .ag-pinned-left-cols-container {
+  border-right: 1px solid hsl(0 0% 20%);
+}
+
+.ag-theme-custom-dark .ag-pinned-right-header,
+.ag-theme-custom-dark .ag-pinned-right-cols-container {
+  border-left: 1px solid hsl(0 0% 20%);
+}
+
+/* Sort icons */
+.ag-theme-custom-dark .ag-sort-indicator-icon {
+  color: hsl(0 0% 45%);
+}
+
+.ag-theme-custom-dark .ag-header-cell:hover .ag-sort-indicator-icon {
+  color: hsl(0 0% 65%);
+}

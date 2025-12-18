@@ -226,7 +226,7 @@ async def get_financial_review_excel(
 
         # Prepare quote data for Excel export
         quote_data = {
-            'quote_number': quote.get('quote_number', ''),
+            'idn_quote': quote.get('idn_quote', ''),
             'customer_name': quote.get('customer', {}).get('name', 'Unknown') if quote.get('customer') else 'Unknown',
 
             # BUGFIX: Use INPUT variables from quote_calculation_variables, not from quotes table
@@ -274,7 +274,7 @@ async def get_financial_review_excel(
         }
 
         # Debug: Log quote data being sent to Excel generator
-        print(f"[DEBUG] Generating Excel for quote {quote_data.get('quote_number')}")
+        print(f"[DEBUG] Generating Excel for quote {quote_data.get('idn_quote')}")
         print(f"[DEBUG] Quote data keys: {list(quote_data.keys())}")
         print(f"[DEBUG] Has products: {len(quote_data.get('products', []))}")
 
@@ -294,7 +294,7 @@ async def get_financial_review_excel(
         # Return as download
         # URL-encode filename to handle Russian characters (КП)
         from urllib.parse import quote
-        filename = f"Financial_Review_{quote_data['quote_number']}.xlsx"
+        filename = f"Financial_Review_{quote_data['idn_quote']}.xlsx"
         filename_encoded = quote(filename)
 
         return StreamingResponse(

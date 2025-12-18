@@ -55,7 +55,7 @@ EXCEL_CELL_MAP = {
     'base_price_vat': 'K16',
     'quantity': 'E16',
     'brand': 'B16',
-    'sku': 'C16',
+    'product_code': 'C16',
     'product_name': 'D16',
     'weight_in_kg': 'G16',
     'currency_of_base_price': 'J16',
@@ -104,7 +104,7 @@ def map_calculation_to_cells(item: Dict[str, Any]) -> Dict[str, Any]:
     cell_data = {
         # Input data (from item)
         'B16': item.get('brand', ''),
-        'C16': item.get('sku', ''),
+        'C16': item.get('product_code', ''),
         'D16': item.get('product_name', ''),
         'E16': item.get('quantity', 0),
         'G16': item.get('weight_in_kg', 0),
@@ -394,8 +394,9 @@ def format_payment_terms(variables: Dict[str, Any]) -> str:
         advance = 100.0
 
     # Handle decimal format (0-1) vs percentage format (0-100)
-    # If value is between 0 and 1 (exclusive), convert to percentage
-    if 0 < advance < 1:
+    # If value is between 0 and 1 (inclusive), convert to percentage
+    # Note: 1.0 represents 100%, so we include it with <= 1
+    if 0 < advance <= 1:
         advance = advance * 100
 
     # Round to avoid floating point issues

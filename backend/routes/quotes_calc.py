@@ -65,12 +65,12 @@ router = APIRouter(
 # HELPER FUNCTIONS
 # ============================================================================
 
-def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
+def generate_idn_quote(supabase_client: Client, organization_id: str) -> str:
     """
     Generate next sequential quote number for organization.
     Format: КП{YY}-{NNNN} (e.g., КП25-0001)
 
-    Uses MAX(quote_number) approach to avoid race conditions.
+    Uses MAX(idn_quote) approach to avoid race conditions.
     Filters by current year to reset numbering each year.
 
     Args:
@@ -84,18 +84,18 @@ def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
     year_short = str(current_year)[-2:]  # Last 2 digits (2025 → 25)
     year_prefix = f"КП{year_short}-"
 
-    # Query for maximum quote_number starting with this year's prefix
+    # Query for maximum idn_quote starting with this year's prefix
     quotes_response = supabase_client.table("quotes")\
-        .select("quote_number")\
+        .select("idn_quote")\
         .eq("organization_id", str(organization_id))\
-        .like("quote_number", f"{year_prefix}%")\
-        .order("quote_number", desc=True)\
+        .like("idn_quote", f"{year_prefix}%")\
+        .order("idn_quote", desc=True)\
         .limit(1)\
         .execute()
 
     if quotes_response.data and len(quotes_response.data) > 0:
         # Extract numeric part from last quote number (e.g., "КП25-0042" → 42)
-        last_quote = quotes_response.data[0]["quote_number"]
+        last_quote = quotes_response.data[0]["idn_quote"]
         match = re.search(r'-(\d+)$', last_quote)
         if match:
             last_number = int(match.group(1))
@@ -108,8 +108,8 @@ def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
         next_number = 1
 
     # Format: КП25-0001
-    quote_number = f"{year_prefix}{str(next_number).zfill(4)}"
-    return quote_number
+    idn_quote = f"{year_prefix}{str(next_number).zfill(4)}"
+    return idn_quote
 
 
 # ============================================================================
@@ -118,10 +118,9 @@ def generate_quote_number(supabase_client: Client, organization_id: str) -> str:
 
 class ProductFromFile(BaseModel):
     """Product parsed from Excel/CSV file"""
-    sku: Optional[str] = None  # Артикул
     brand: Optional[str] = None  # Бренд
     product_name: str
-    product_code: Optional[str] = None
+    product_code: Optional[str] = None  # Артикул
     base_price_vat: float
     quantity: int
     weight_in_kg: Optional[float] = 0
@@ -183,7 +182,7 @@ class QuoteCalculationRequest(BaseModel):
 class QuoteCalculationResult(BaseModel):
     """Result of quote calculation"""
     quote_id: str
-    quote_number: str
+    idn_quote: str
     customer_id: str
     title: str
     items: List[Dict[str, Any]]  # List of products with all calculation results
@@ -619,8 +618,8 @@ def validate_calculation_input(
 
     # Get product identifier for error messages
     product_id = product.product_name
-    if product.sku:
-        product_id = f"{product.sku} ({product.product_name})"
+    if product.product_code:
+        product_id = f"{product.product_code} ({product.product_name})"
 
     # Required fields validation
     if not product.base_price_vat or product.base_price_vat <= 0:
@@ -789,10 +788,9 @@ async def upload_products_file(
                 customs_code = get_str('customs_code') or get_str('hs_code')
 
                 product = ProductFromFile(
-                    sku=get_str('sku'),
                     brand=get_str('brand'),
                     product_name=str(row['product_name']),
-                    product_code=get_str('product_code'),
+                    product_code=get_str('sku') or get_str('product_code'),
                     base_price_vat=float(row['base_price_vat']),
                     quantity=int(row['quantity']),
                     weight_in_kg=weight,
@@ -837,7 +835,8 @@ async def upload_products_file(
 
 @router.get("/variable-templates", response_model=List[VariableTemplate])
 async def list_variable_templates(
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """List all variable templates for the user's organization"""
 
@@ -881,7 +880,8 @@ async def list_variable_templates(
 @router.post("/variable-templates", response_model=VariableTemplate, status_code=status.HTTP_201_CREATED)
 async def create_variable_template(
     template: VariableTemplateCreate,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """Create a new variable template"""
 
@@ -936,7 +936,8 @@ async def create_variable_template(
 @router.get("/variable-templates/{template_id}", response_model=VariableTemplate)
 async def get_variable_template(
     template_id: str,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase)
 ):
     """Get a specific variable template"""
 
@@ -1326,14 +1327,14 @@ async def calculate_quote(
     for attempt in range(max_retries):
         try:
             # Generate quote number with current year (format: КП25-0001)
-            quote_number = generate_quote_number(supabase, str(user.current_organization_id))
+            idn_quote = generate_idn_quote(supabase, str(user.current_organization_id))
 
             # 1. Create quote record
             quote_data = {
                 "organization_id": str(user.current_organization_id),
                 "customer_id": request.customer_id,
                 "contact_id": request.contact_id,  # Customer contact person
-                "quote_number": quote_number,
+                "idn_quote": idn_quote,
                 "title": request.title,
                 "description": request.description,
                 "status": "draft",
@@ -1663,7 +1664,7 @@ async def calculate_quote(
         # 9. Return complete result
         return QuoteCalculationResult(
             quote_id=quote_id,
-            quote_number=quote_number,
+            idn_quote=idn_quote,
             customer_id=request.customer_id,
             title=request.title,
             items=calculation_results,
@@ -1794,7 +1795,7 @@ async def export_calculation_debug(
             item_id = item.get("id")
             # Get calculation results from lookup dict
             calc_results = calc_results_by_item.get(item_id, {})
-            product_name = item.get("product_name", item.get("sku", "Unknown"))
+            product_name = item.get("product_name", item.get("product_code", "Unknown"))
             quantity = item.get("quantity", 1)
 
             for excel_ref, field_name, description in key_vars:
@@ -1906,10 +1907,10 @@ async def export_calculation_debug(
 
         # Return as downloadable CSV
         # Use ASCII-safe filename to avoid encoding issues
-        quote_number = quote.get('quote_number', quote_id)
+        idn_quote = quote.get('idn_quote', quote_id)
         # Remove any non-ASCII characters for the filename
-        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
-        filename = f"debug_calc_{safe_quote_number}.csv"
+        safe_idn_quote = ''.join(c if ord(c) < 128 else '_' for c in str(idn_quote))
+        filename = f"debug_calc_{safe_idn_quote}.csv"
 
         return StreamingResponse(
             iter([output.getvalue()]),
@@ -2087,9 +2088,9 @@ async def export_validation_data(
             calc_results = calc_results_by_item.get(item_id, {})
 
             # Build row with all fields
-            # Use sku if available, otherwise use product_name (handle None values)
+            # Use product_code if available, otherwise use product_name (handle None values)
             row = {
-                "C16 Артикул": item.get("sku") or item.get("product_name") or "Unknown",
+                "C16 Артикул": item.get("product_code") or item.get("product_name") or "Unknown",
                 "L16 Страна закупки": item.get("supplier_country", ""),
                 "J16 Валюта закупки": item.get("currency_of_base_price", "USD"),
                 "K16 Цена закупки (с VAT)": item.get("base_price_vat", 0),
@@ -2158,9 +2159,9 @@ async def export_validation_data(
         df.to_csv(output, index=False)
         output.seek(0)
 
-        quote_number = quote.get('quote_number', quote_id)
-        safe_quote_number = ''.join(c if ord(c) < 128 else '_' for c in str(quote_number))
-        filename = f"validation_{safe_quote_number}.csv"
+        idn_quote = quote.get('idn_quote', quote_id)
+        safe_idn_quote = ''.join(c if ord(c) < 128 else '_' for c in str(idn_quote))
+        filename = f"validation_{safe_idn_quote}.csv"
 
         return StreamingResponse(
             iter([output.getvalue()]),

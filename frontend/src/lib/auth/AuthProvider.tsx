@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { getSupabase } from '@/lib/supabase/client';
-import { message } from 'antd';
+import { toast } from 'sonner';
 import { PhoneRequiredModal } from '@/components/auth/PhoneRequiredModal';
 
 // Supabase REST API URL for direct fetch
@@ -436,15 +436,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        message.error(`Ошибка входа: ${error.message}`);
+        toast.error(`Ошибка входа: ${error.message}`);
         return { error };
       }
 
-      message.success('Вход выполнен успешно');
+      toast.success('Вход выполнен успешно');
       return { error: null };
     } catch (error) {
       console.error('Sign in error:', error);
-      message.error('Произошла ошибка при входе');
+      toast.error('Произошла ошибка при входе');
       return { error: error as AuthError };
     } finally {
       setLoading(false);
@@ -468,7 +468,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (error) {
-        message.error(`Ошибка регистрации: ${error.message}`);
+        toast.error(`Ошибка регистрации: ${error.message}`);
         return { error };
       }
 
@@ -481,15 +481,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           message: 'User already registered',
           status: 400,
         } as AuthError;
-        message.error('Этот email уже зарегистрирован');
+        toast.error('Этот email уже зарегистрирован');
         return { error: duplicateError };
       }
 
-      message.success('Регистрация успешна! Проверьте email для подтверждения.');
+      toast.success('Регистрация успешна! Проверьте email для подтверждения.');
       return { error: null };
     } catch (error) {
       console.error('Sign up error:', error);
-      message.error('Произошла ошибка при регистрации');
+      toast.error('Произошла ошибка при регистрации');
       return { error: error as AuthError };
     } finally {
       setLoading(false);
@@ -503,20 +503,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signOut();
 
       if (error) {
-        message.error(`Ошибка выхода: ${error.message}`);
+        toast.error(`Ошибка выхода: ${error.message}`);
         return;
       }
 
       setUser(null);
       setProfile(null);
       setSession(null);
-      message.success('Выход выполнен успешно');
+      toast.success('Выход выполнен успешно');
 
       // Redirect to login page
       window.location.href = '/auth/login';
     } catch (error) {
       console.error('Sign out error:', error);
-      message.error('Произошла ошибка при выходе');
+      toast.error('Произошла ошибка при выходе');
     } finally {
       setLoading(false);
     }
@@ -536,16 +536,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', user.id);
 
       if (error) {
-        message.error(`Ошибка обновления профиля: ${error.message}`);
+        toast.error(`Ошибка обновления профиля: ${error.message}`);
         return;
       }
 
       // Refresh profile data
       await refreshProfile();
-      message.success('Профиль обновлен успешно');
+      toast.success('Профиль обновлен успешно');
     } catch (error) {
       console.error('Update profile error:', error);
-      message.error('Произошла ошибка при обновлении профиля');
+      toast.error('Произошла ошибка при обновлении профиля');
     }
   };
 

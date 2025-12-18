@@ -1,14 +1,8 @@
 'use client';
 
-import { Tag } from 'antd';
-import {
-  FileTextOutlined,
-  ShoppingCartOutlined,
-  CarOutlined,
-  DollarOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-} from '@ant-design/icons';
+import { Badge } from '@/components/ui/badge';
+import { FileText, ShoppingCart, Truck, DollarSign, CheckCircle, XCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type WorkflowState =
   | 'draft'
@@ -28,61 +22,80 @@ interface WorkflowStateBadgeProps {
   size?: 'small' | 'default' | 'large';
 }
 
-const STATE_CONFIG = {
+const STATE_CONFIG: Record<
+  WorkflowState,
+  {
+    label: string;
+    variant: 'default' | 'secondary' | 'destructive' | 'outline';
+    className: string;
+    icon: React.ReactNode;
+  }
+> = {
   draft: {
     label: 'Черновик',
-    color: 'default',
-    icon: <FileTextOutlined />,
+    variant: 'secondary',
+    className: '',
+    icon: <FileText className="h-3 w-3" />,
   },
   awaiting_procurement: {
     label: 'Ожидает закупки',
-    color: 'blue',
-    icon: <ShoppingCartOutlined />,
+    variant: 'default',
+    className: 'bg-blue-600 hover:bg-blue-600',
+    icon: <ShoppingCart className="h-3 w-3" />,
   },
   awaiting_logistics_customs: {
     label: 'Логистика и таможня',
-    color: 'cyan',
-    icon: <CarOutlined />,
+    variant: 'default',
+    className: 'bg-cyan-600 hover:bg-cyan-600',
+    icon: <Truck className="h-3 w-3" />,
   },
   awaiting_sales_review: {
     label: 'Проверка продаж',
-    color: 'blue',
-    icon: <FileTextOutlined />,
+    variant: 'default',
+    className: 'bg-blue-600 hover:bg-blue-600',
+    icon: <FileText className="h-3 w-3" />,
   },
   awaiting_financial_approval: {
     label: 'Финансовое утверждение',
-    color: 'orange',
-    icon: <DollarOutlined />,
+    variant: 'default',
+    className: 'bg-orange-600 hover:bg-orange-600',
+    icon: <DollarSign className="h-3 w-3" />,
   },
   financially_approved: {
     label: 'Финансово утверждено',
-    color: 'green',
-    icon: <CheckCircleOutlined />,
+    variant: 'default',
+    className: 'bg-green-600 hover:bg-green-600',
+    icon: <CheckCircle className="h-3 w-3" />,
   },
   sent_back_for_revision: {
     label: 'На доработке',
-    color: 'purple',
-    icon: <CloseCircleOutlined />,
+    variant: 'default',
+    className: 'bg-purple-600 hover:bg-purple-600',
+    icon: <XCircle className="h-3 w-3" />,
   },
   rejected_by_finance: {
     label: 'Отклонено финансами',
-    color: 'error',
-    icon: <CloseCircleOutlined />,
+    variant: 'destructive',
+    className: '',
+    icon: <XCircle className="h-3 w-3" />,
   },
   awaiting_senior_approval: {
     label: 'Подпись руководства',
-    color: 'gold',
-    icon: <DollarOutlined />,
+    variant: 'default',
+    className: 'bg-amber-600 hover:bg-amber-600',
+    icon: <DollarSign className="h-3 w-3" />,
   },
   approved: {
     label: 'Утверждено',
-    color: 'success',
-    icon: <CheckCircleOutlined />,
+    variant: 'default',
+    className: 'bg-green-600 hover:bg-green-600',
+    icon: <CheckCircle className="h-3 w-3" />,
   },
   rejected: {
     label: 'Отклонено',
-    color: 'error',
-    icon: <CloseCircleOutlined />,
+    variant: 'destructive',
+    className: '',
+    icon: <XCircle className="h-3 w-3" />,
   },
 };
 
@@ -90,8 +103,17 @@ export default function WorkflowStateBadge({ state, size = 'default' }: Workflow
   const config = STATE_CONFIG[state];
 
   return (
-    <Tag color={config.color} icon={config.icon} style={{ fontSize: size === 'small' ? 12 : 14 }}>
+    <Badge
+      variant={config.variant}
+      className={cn(
+        'gap-1',
+        size === 'small' && 'text-xs px-1.5 py-0',
+        size === 'large' && 'text-sm px-3 py-1',
+        config.className
+      )}
+    >
+      {config.icon}
       {config.label}
-    </Tag>
+    </Badge>
   );
 }

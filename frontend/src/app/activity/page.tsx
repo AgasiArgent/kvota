@@ -1,36 +1,39 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Card,
-  Table,
-  Badge,
-  Button,
-  Space,
-  Drawer,
-  Typography,
-  Select,
-  DatePicker,
-  message,
-} from 'antd';
-import {
-  ReloadOutlined,
-  FileSearchOutlined,
-  DownloadOutlined,
-  FilterOutlined,
-} from '@ant-design/icons';
-import type { TableColumnsType, TablePaginationConfig } from 'antd';
-import dayjs, { Dayjs } from 'dayjs';
+import { RefreshCw, FileSearch, Download, Filter, X, Eye } from 'lucide-react';
+import dayjs from 'dayjs';
 import Link from 'next/link';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import PageHeader from '@/components/shared/PageHeader';
+import StatCard from '@/components/shared/StatCard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import {
   activityLogService,
   ActivityLog,
   ActivityLogFilters,
 } from '@/lib/api/activity-log-service';
-
-const { RangePicker } = DatePicker;
-const { Title, Text } = Typography;
 
 export default function ActivityLogPage() {
   // ============================================================================
@@ -43,11 +46,11 @@ export default function ActivityLogPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
 
-  // Filter state
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
-    dayjs().subtract(7, 'days'),
-    dayjs(),
-  ]);
+  // Filter state - using native date strings (YYYY-MM-DD format)
+  const [dateFrom, setDateFrom] = useState<string>(
+    dayjs().subtract(7, 'days').format('YYYY-MM-DD')
+  );
+  const [dateTo, setDateTo] = useState<string>(dayjs().format('YYYY-MM-DD'));
   const [userFilter, setUserFilter] = useState<string | undefined>(undefined);
   const [entityTypeFilter, setEntityTypeFilter] = useState<string | undefined>(undefined);
   const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
@@ -72,8 +75,8 @@ export default function ActivityLogPage() {
 
     try {
       const filters: ActivityLogFilters = {
-        date_from: dateRange[0].format('YYYY-MM-DD'),
-        date_to: dateRange[1].format('YYYY-MM-DD'),
+        date_from: dateFrom,
+        date_to: dateTo,
         user_id: userFilter,
         entity_type: entityTypeFilter,
         action: actionFilter,
@@ -87,18 +90,18 @@ export default function ActivityLogPage() {
         setLogs(response.data.items);
         setTotal(response.data.total);
       } else {
-        message.error(response.error || 'Ошибка загрузки логов');
+        toast.error(response.error || 'Ошибка загрузки логов');
         setLogs([]);
         setTotal(0);
       }
     } catch {
-      message.error('Ошибка загрузки логов');
+      toast.error('Ошибка загрузки логов');
       setLogs([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [dateRange, userFilter, entityTypeFilter, actionFilter, pagination]);
+  }, [dateFrom, dateTo, userFilter, entityTypeFilter, actionFilter, pagination]);
 
   const fetchUsers = async () => {
     const response = await activityLogService.getUsers();
@@ -129,18 +132,12 @@ export default function ActivityLogPage() {
   };
 
   const handleResetFilters = () => {
-    setDateRange([dayjs().subtract(7, 'days'), dayjs()]);
+    setDateFrom(dayjs().subtract(7, 'days').format('YYYY-MM-DD'));
+    setDateTo(dayjs().format('YYYY-MM-DD'));
     setUserFilter(undefined);
     setEntityTypeFilter(undefined);
     setActionFilter(undefined);
     setPagination({ current: 1, pageSize: 50 });
-  };
-
-  const handleTableChange = (newPagination: TablePaginationConfig) => {
-    setPagination({
-      current: newPagination.current || 1,
-      pageSize: newPagination.pageSize || 50,
-    });
   };
 
   const handleViewMetadata = (log: ActivityLog) => {
@@ -150,7 +147,7 @@ export default function ActivityLogPage() {
 
   const handleExportCSV = () => {
     if (logs.length === 0) {
-      message.warning('Нет данных для экспорта');
+      toast.warning('Нет данных для экспорта');
       return;
     }
 
@@ -184,7 +181,7 @@ export default function ActivityLogPage() {
     link.click();
     document.body.removeChild(link);
 
-    message.success('CSV файл загружен');
+    toast.success('CSV файл загружен');
   };
 
   // ============================================================================
@@ -195,81 +192,70 @@ export default function ActivityLogPage() {
     return dayjs(isoString).format('DD.MM.YYYY HH:mm:ss');
   };
 
+  const getActionBadge = (action: string) => {
+    const color = activityLogService.getActionColor(action);
+    const text = activityLogService.formatAction(action);
+
+    // Map ant design colors to badge variants/styles
+    const dotColorMap: Record<string, string> = {
+      blue: 'bg-blue-400',
+      green: 'bg-emerald-400',
+      red: 'bg-rose-400',
+      orange: 'bg-amber-400',
+      purple: 'bg-purple-400',
+    };
+
+    const dotColor = dotColorMap[color] || 'bg-zinc-400';
+
+    return (
+      <Badge variant="secondary" className="gap-1.5">
+        <span className={cn('h-1.5 w-1.5 rounded-full', dotColor)} />
+        {text}
+      </Badge>
+    );
+  };
+
+  const hasActiveFilters =
+    userFilter ||
+    entityTypeFilter ||
+    actionFilter ||
+    dateFrom !== dayjs().subtract(7, 'days').format('YYYY-MM-DD') ||
+    dateTo !== dayjs().format('YYYY-MM-DD');
+
   // ============================================================================
-  // TABLE COLUMNS
+  // STATS CALCULATIONS
   // ============================================================================
 
-  const columns: TableColumnsType<ActivityLog> = [
-    {
-      title: 'Время',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 150,
-      sorter: true,
-      defaultSortOrder: 'descend',
-      render: (value: string) => formatTimestamp(value),
-    },
-    {
-      title: 'Пользователь',
-      dataIndex: 'user_name',
-      key: 'user',
-      width: 150,
-      render: (_: unknown, record: ActivityLog) => (
-        <Text>{record.user_name || record.user_email || record.user_id}</Text>
-      ),
-    },
-    {
-      title: 'Действие',
-      dataIndex: 'action',
-      key: 'action',
-      width: 120,
-      render: (action: string) => (
-        <Badge
-          color={activityLogService.getActionColor(action)}
-          text={activityLogService.formatAction(action)}
-        />
-      ),
-    },
-    {
-      title: 'Тип сущности',
-      dataIndex: 'entity_type',
-      key: 'entity_type',
-      width: 120,
-      render: (type: string) => activityLogService.formatEntityType(type),
-    },
-    {
-      title: 'Детали',
-      dataIndex: 'entity_id',
-      key: 'details',
-      render: (_: unknown, record: ActivityLog) => {
-        const link = activityLogService.getEntityLink(record);
+  const totalActions = logs.length;
+  const uniqueUsers = new Set(logs.map((log) => log.user_id)).size;
+  const createdActions = logs.filter((log) => log.action === 'created').length;
+  const updatedActions = logs.filter((log) => log.action === 'updated').length;
 
-        if (link && record.entity_id) {
-          // Get display text from metadata or use entity_id
-          const displayText = record.metadata?.quote_number || record.entity_id.slice(0, 8);
+  // ============================================================================
+  // DATE PRESETS
+  // ============================================================================
 
-          return (
-            <Link href={link} style={{ color: '#1890ff' }}>
-              {displayText}
-            </Link>
-          );
-        }
-
-        return <Text type="secondary">—</Text>;
-      },
-    },
-    {
-      title: 'Метаданные',
-      key: 'metadata',
-      width: 100,
-      align: 'center',
-      render: (_: unknown, record: ActivityLog) => (
-        <Button size="small" type="link" onClick={() => handleViewMetadata(record)}>
-          Показать
-        </Button>
-      ),
-    },
-  ];
+  const applyDatePreset = (preset: 'today' | '7days' | '30days' | 'thisMonth') => {
+    const today = dayjs();
+    switch (preset) {
+      case 'today':
+        setDateFrom(today.format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+      case '7days':
+        setDateFrom(today.subtract(7, 'days').format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+      case '30days':
+        setDateFrom(today.subtract(30, 'days').format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+      case 'thisMonth':
+        setDateFrom(today.startOf('month').format('YYYY-MM-DD'));
+        setDateTo(today.format('YYYY-MM-DD'));
+        break;
+    }
+  };
 
   // ============================================================================
   // RENDER
@@ -277,206 +263,330 @@ export default function ActivityLogPage() {
 
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div className="space-y-6">
         {/* Header */}
-        <div>
-          <Title level={2} style={{ marginBottom: 8 }}>
-            История действий
-          </Title>
-          <Text type="secondary">Журнал всех операций в системе</Text>
+        <PageHeader title="История действий" description="Журнал всех операций в системе" />
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Всего действий" value={totalActions} />
+          <StatCard label="Активных пользователей" value={uniqueUsers} />
+          <StatCard label="Создано" value={createdActions} valueClassName="text-emerald-400" />
+          <StatCard label="Обновлено" value={updatedActions} valueClassName="text-amber-400" />
         </div>
 
         {/* Filters Card */}
-        <Card>
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Space wrap size="middle">
-              <Space direction="vertical" size={4}>
-                <Text strong>Период:</Text>
-                <RangePicker
-                  value={dateRange}
-                  onChange={(dates) => {
-                    if (dates && dates[0] && dates[1]) {
-                      setDateRange([dates[0], dates[1]]);
-                    }
-                  }}
-                  format="DD.MM.YYYY"
-                  presets={[
-                    { label: 'Сегодня', value: [dayjs(), dayjs()] },
-                    { label: 'Последние 7 дней', value: [dayjs().subtract(7, 'days'), dayjs()] },
-                    { label: 'Последние 30 дней', value: [dayjs().subtract(30, 'days'), dayjs()] },
-                    { label: 'Этот месяц', value: [dayjs().startOf('month'), dayjs()] },
-                  ]}
-                  style={{ width: 300 }}
+        <div className="rounded-lg border border-border/50 bg-card/30 p-4 space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            {/* Date Range Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Период:</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-[150px] bg-background/50 border-border/50"
                 />
-              </Space>
-
-              <Space direction="vertical" size={4}>
-                <Text strong>Пользователь:</Text>
-                <Select
-                  placeholder="Все пользователи"
-                  value={userFilter}
-                  onChange={setUserFilter}
-                  allowClear
-                  style={{ width: 200 }}
-                  showSearch
-                  optionFilterProp="label"
-                  options={[
-                    ...availableUsers.map((user) => ({
-                      label: user.name || user.email,
-                      value: user.id,
-                    })),
-                  ]}
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-[150px] bg-background/50 border-border/50"
                 />
-              </Space>
+              </div>
+            </div>
 
-              <Space direction="vertical" size={4}>
-                <Text strong>Тип сущности:</Text>
-                <Select
-                  placeholder="Все"
-                  value={entityTypeFilter}
-                  onChange={setEntityTypeFilter}
-                  allowClear
-                  style={{ width: 150 }}
-                  options={[
-                    { label: 'Котировка', value: 'quote' },
-                    { label: 'Клиент', value: 'customer' },
-                    { label: 'Контакт', value: 'contact' },
-                  ]}
-                />
-              </Space>
+            {/* User Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Пользователь:</Label>
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-[200px] bg-background/50 border-border/50">
+                  <SelectValue placeholder="Все пользователи" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name || user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <Space direction="vertical" size={4}>
-                <Text strong>Действие:</Text>
-                <Select
-                  placeholder="Все"
-                  value={actionFilter}
-                  onChange={setActionFilter}
-                  allowClear
-                  style={{ width: 150 }}
-                  options={[
-                    { label: 'Создано', value: 'created' },
-                    { label: 'Обновлено', value: 'updated' },
-                    { label: 'Удалено', value: 'deleted' },
-                    { label: 'Восстановлено', value: 'restored' },
-                    { label: 'Экспортировано', value: 'exported' },
-                  ]}
-                />
-              </Space>
-            </Space>
+            {/* Entity Type Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Тип сущности:</Label>
+              <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+                <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
+                  <SelectValue placeholder="Все" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quote">Котировка</SelectItem>
+                  <SelectItem value="customer">Клиент</SelectItem>
+                  <SelectItem value="contact">Контакт</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Space>
-              <Button type="primary" icon={<FilterOutlined />} onClick={handleApplyFilters}>
+            {/* Action Filter */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-medium text-foreground/60">Действие:</Label>
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="w-[150px] bg-background/50 border-border/50">
+                  <SelectValue placeholder="Все" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="created">Создано</SelectItem>
+                  <SelectItem value="updated">Обновлено</SelectItem>
+                  <SelectItem value="deleted">Удалено</SelectItem>
+                  <SelectItem value="restored">Восстановлено</SelectItem>
+                  <SelectItem value="exported">Экспортировано</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-end gap-2 ml-auto">
+              <Button onClick={handleApplyFilters} variant="default">
+                <Filter className="mr-2 h-4 w-4" />
                 Применить фильтры
               </Button>
-              <Button onClick={handleResetFilters}>Сбросить</Button>
-              <Button icon={<ReloadOutlined />} onClick={fetchLogs}>
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetFilters}
+                  className="h-9 px-3 text-foreground/50 hover:text-foreground hover:bg-background/50"
+                >
+                  <X className="mr-1.5 h-4 w-4" />
+                  Сбросить
+                </Button>
+              )}
+              <Button variant="outline" onClick={fetchLogs}>
+                <RefreshCw className="mr-2 h-4 w-4" />
                 Обновить
               </Button>
-              <Button icon={<DownloadOutlined />} onClick={handleExportCSV}>
+              <Button variant="outline" onClick={handleExportCSV}>
+                <Download className="mr-2 h-4 w-4" />
                 Экспорт CSV
               </Button>
-            </Space>
-          </Space>
-        </Card>
+            </div>
+          </div>
+
+          {/* Date Presets */}
+          <div className="flex gap-2">
+            <span className="text-xs text-foreground/50">Быстрый выбор:</span>
+            <button
+              onClick={() => applyDatePreset('today')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Сегодня
+            </button>
+            <span className="text-foreground/30">•</span>
+            <button
+              onClick={() => applyDatePreset('7days')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Последние 7 дней
+            </button>
+            <span className="text-foreground/30">•</span>
+            <button
+              onClick={() => applyDatePreset('30days')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Последние 30 дней
+            </button>
+            <span className="text-foreground/30">•</span>
+            <button
+              onClick={() => applyDatePreset('thisMonth')}
+              className="text-xs text-foreground/60 hover:text-foreground transition-colors"
+            >
+              Этот месяц
+            </button>
+          </div>
+        </div>
 
         {/* Table Card */}
-        <Card>
-          <Table
-            columns={columns}
-            dataSource={logs}
-            rowKey="id"
-            loading={loading}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: total,
-              showSizeChanger: true,
-              pageSizeOptions: ['50', '100', '200'],
-              showTotal: (total) => `Всего записей: ${total}`,
-              position: ['bottomRight'],
-            }}
-            onChange={handleTableChange}
-            locale={{
-              emptyText: (
-                <div style={{ padding: '40px 0', textAlign: 'center' }}>
-                  <FileSearchOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />
-                  <div style={{ marginTop: 16 }}>
-                    <Text type="secondary">Нет записей за выбранный период</Text>
+        <div className="rounded-lg border border-border overflow-hidden bg-card">
+          {loading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="p-8 text-center">
+              <FileSearch className="mx-auto h-12 w-12 text-foreground/20 mb-4" />
+              <p className="text-foreground/40">Нет записей за выбранный период</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-secondary/30 border-b border-border">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Время
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Пользователь
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Действие
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Тип сущности
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Детали
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-foreground/60">
+                      Метаданные
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {logs.map((log) => {
+                    const link = activityLogService.getEntityLink(log);
+                    const displayText = log.metadata?.quote_number || log.entity_id?.slice(0, 8);
+
+                    return (
+                      <tr key={log.id} className="hover:bg-foreground/5 transition-colors">
+                        <td className="px-4 py-3 text-sm text-foreground/70">
+                          {formatTimestamp(log.created_at)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-foreground/70">
+                          {log.user_name || log.user_email || log.user_id}
+                        </td>
+                        <td className="px-4 py-3">{getActionBadge(log.action)}</td>
+                        <td className="px-4 py-3 text-sm text-foreground/70">
+                          {activityLogService.formatEntityType(log.entity_type)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {link && log.entity_id ? (
+                            <Link
+                              href={link}
+                              className="text-amber-400 hover:text-amber-500 transition-colors"
+                            >
+                              {displayText}
+                            </Link>
+                          ) : (
+                            <span className="text-foreground/40">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewMetadata(log)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && total > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/20">
+              <div className="text-sm text-foreground/60">
+                Показано {(pagination.current - 1) * pagination.pageSize + 1}–
+                {Math.min(pagination.current * pagination.pageSize, total)} из {total} записей
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.current === 1}
+                  onClick={() =>
+                    setPagination((p) => ({ ...p, current: Math.max(1, p.current - 1) }))
+                  }
+                >
+                  Назад
+                </Button>
+                <span className="text-sm text-foreground/60">
+                  Страница {pagination.current} из {Math.ceil(total / pagination.pageSize)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.current >= Math.ceil(total / pagination.pageSize)}
+                  onClick={() => setPagination((p) => ({ ...p, current: p.current + 1 }))}
+                >
+                  Далее
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Metadata Dialog */}
+      <Dialog open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Детали действия</DialogTitle>
+            <DialogDescription>Подробная информация о записи в журнале</DialogDescription>
+          </DialogHeader>
+
+          {selectedLog && (
+            <div className="mt-6 space-y-6">
+              <div>
+                <span className="text-sm font-medium text-foreground/60">Время:</span>
+                <div className="mt-1 text-sm">{formatTimestamp(selectedLog.created_at)}</div>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-foreground/60">Пользователь:</span>
+                <div className="mt-1">
+                  {selectedLog.user_name && <div className="text-sm">{selectedLog.user_name}</div>}
+                  {selectedLog.user_email && (
+                    <div className="text-sm text-foreground/50">{selectedLog.user_email}</div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-foreground/60">Действие:</span>
+                <div className="mt-1">{getActionBadge(selectedLog.action)}</div>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-foreground/60">Тип сущности:</span>
+                <div className="mt-1 text-sm">
+                  {activityLogService.formatEntityType(selectedLog.entity_type)}
+                </div>
+              </div>
+
+              {selectedLog.entity_id && (
+                <div>
+                  <span className="text-sm font-medium text-foreground/60">ID сущности:</span>
+                  <div className="mt-1">
+                    <code className="text-xs bg-secondary/50 px-2 py-1 rounded">
+                      {selectedLog.entity_id}
+                    </code>
                   </div>
                 </div>
-              ),
-            }}
-          />
-        </Card>
-      </Space>
+              )}
 
-      {/* Metadata Drawer */}
-      <Drawer
-        title="Детали действия"
-        placement="right"
-        width={600}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      >
-        {selectedLog && (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <div>
-              <Text strong>Время:</Text>
-              <div>{formatTimestamp(selectedLog.created_at)}</div>
-            </div>
-
-            <div>
-              <Text strong>Пользователь:</Text>
-              <div>
-                {selectedLog.user_name && <div>{selectedLog.user_name}</div>}
-                {selectedLog.user_email && <Text type="secondary">{selectedLog.user_email}</Text>}
-              </div>
-            </div>
-
-            <div>
-              <Text strong>Действие:</Text>
-              <div>
-                <Badge
-                  color={activityLogService.getActionColor(selectedLog.action)}
-                  text={activityLogService.formatAction(selectedLog.action)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Text strong>Тип сущности:</Text>
-              <div>{activityLogService.formatEntityType(selectedLog.entity_type)}</div>
-            </div>
-
-            {selectedLog.entity_id && (
-              <div>
-                <Text strong>ID сущности:</Text>
+              {selectedLog.metadata && (
                 <div>
-                  <Text code>{selectedLog.entity_id}</Text>
+                  <span className="text-sm font-medium text-foreground/60">Метаданные:</span>
+                  <pre className="mt-2 text-xs bg-secondary/30 p-3 rounded overflow-auto max-h-[400px]">
+                    {JSON.stringify(selectedLog.metadata, null, 2)}
+                  </pre>
                 </div>
-              </div>
-            )}
-
-            {selectedLog.metadata && (
-              <div>
-                <Text strong>Метаданные:</Text>
-                <pre
-                  style={{
-                    background: '#f5f5f5',
-                    padding: 12,
-                    borderRadius: 4,
-                    overflow: 'auto',
-                    fontSize: 12,
-                    marginTop: 8,
-                  }}
-                >
-                  {JSON.stringify(selectedLog.metadata, null, 2)}
-                </pre>
-              </div>
-            )}
-          </Space>
-        )}
-      </Drawer>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

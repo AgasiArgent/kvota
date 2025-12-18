@@ -1,29 +1,46 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  Form,
-  Input,
-  Select,
-  Button,
-  Card,
-  Space,
-  Typography,
-  Row,
-  Col,
-  message,
-  Divider,
-  InputNumber,
-} from 'antd';
-import { SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft, Save, Loader2, Search } from 'lucide-react';
+import { toast } from 'sonner';
+
 import MainLayout from '@/components/layout/MainLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { customerService } from '@/lib/api/customer-service';
 import { organizationService } from '@/lib/api/organization-service';
 import { validateINN, validateKPP, validateOGRN } from '@/lib/validation/russian-business';
+import { createClient } from '@/lib/supabase/client';
 
-const { Title, Text } = Typography;
-const { TextArea } = Input;
+// DaData company info response type
+interface DaDataCompanyInfo {
+  name: string;
+  full_name?: string;
+  inn: string;
+  kpp?: string;
+  ogrn?: string;
+  address?: string;
+  postal_code?: string;
+  city?: string;
+  region?: string;
+  director_name?: string;
+  director_position?: string;
+  company_type: string;
+  opf?: string;
+  status: string;
+  okved?: string;
+}
 
 interface CustomerFormData {
   name: string;
@@ -47,11 +64,30 @@ interface CustomerFormData {
 
 export default function CreateCustomerPage() {
   const router = useRouter();
-  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [companyType, setCompanyType] = useState<string>('ooo');
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
+
+  // Form state
+  const [formData, setFormData] = useState<CustomerFormData>({
+    name: '',
+    company_type: 'organization',
+    status: 'active',
+    payment_terms: 30,
+    credit_limit: 0,
+    country: 'Russia',
+  });
+  const [companyType, setCompanyType] = useState<string>('organization');
+
+  // DaData auto-fill state
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [directorInfo, setDirectorInfo] = useState<{
+    name?: string;
+    position?: string;
+  } | null>(null);
+
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Fetch user's organization on mount
   useEffect(() => {
@@ -66,14 +102,14 @@ export default function CreateCustomerPage() {
           setOrganizationId(orgId);
           console.log('✅ Organization loaded:', orgId);
         } else {
-          message.error(
+          toast.error(
             'У вас нет доступа к организации. Создайте или присоединитесь к организации.'
           );
           router.push('/organizations');
         }
       } catch (error: any) {
         console.error('Failed to load organization:', error);
-        message.error(`Ошибка загрузки организации: ${error.message}`);
+        toast.error(`Ошибка загрузки организации: ${error.message}`);
       } finally {
         setLoadingOrg(false);
       }
@@ -82,36 +118,149 @@ export default function CreateCustomerPage() {
     fetchOrganization();
   }, [router]);
 
-  // Mapping Russian company types to backend enum values
-  const COMPANY_TYPE_MAP: Record<string, string> = {
-    ooo: 'organization', // ООО
-    ao: 'organization', // АО
-    pao: 'organization', // ПАО
-    zao: 'organization', // ЗАО
-    ip: 'individual_entrepreneur', // ИП
-    individual: 'individual', // Физическое лицо
-    government: 'government', // Государственное учреждение
+  // Fetch company info from DaData by INN
+  const fetchCompanyByINN = async (inn: string) => {
+    // Clean INN and validate length
+    const innClean = inn.replace(/\D/g, '');
+    if (innClean.length !== 10 && innClean.length !== 12) {
+      return; // Invalid INN length, skip lookup
+    }
+
+    setLookupLoading(true);
+    setDirectorInfo(null);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.error('No session for DaData lookup');
+        return;
+      }
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/dadata/company/${innClean}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 404) {
+        toast.info('Компания не найдена в ЕГРЮЛ/ЕГРИП');
+        return;
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка поиска компании');
+      }
+
+      const company: DaDataCompanyInfo = await response.json();
+
+      // Auto-fill form fields
+      setFormData((prev) => ({
+        ...prev,
+        name: company.name || prev.name,
+        address: company.address || prev.address,
+        city: company.city || prev.city,
+        region: company.region || prev.region,
+        postal_code: company.postal_code || prev.postal_code,
+        kpp: company.kpp || prev.kpp,
+        ogrn: company.ogrn || prev.ogrn,
+        // Set company type based on DaData response
+        company_type:
+          company.company_type === 'INDIVIDUAL' ? 'individual_entrepreneur' : prev.company_type,
+      }));
+
+      // Update company type state for UI
+      if (company.company_type === 'INDIVIDUAL') {
+        setCompanyType('individual_entrepreneur');
+      }
+
+      // Store director info for display
+      if (company.director_name) {
+        setDirectorInfo({
+          name: company.director_name,
+          position: company.director_position,
+        });
+      }
+
+      toast.success('Реквизиты загружены из ЕГРЮЛ');
+    } catch (error: any) {
+      console.error('DaData lookup error:', error);
+      // Don't show error toast for network issues - user can fill manually
+    } finally {
+      setLookupLoading(false);
+    }
   };
 
-  const handleSubmit = async (values: CustomerFormData) => {
-    console.log('handleSubmit called with values:', values);
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
 
-    if (!organizationId) {
-      console.error('No organization ID');
-      message.error('Организация не выбрана');
+    if (!formData.name?.trim()) {
+      errors.name = 'Введите название';
+    } else if (formData.name.length < 2) {
+      errors.name = 'Минимум 2 символа';
+    }
+
+    // INN is required for all clients (needed for IDN generation)
+    if (!formData.inn?.trim()) {
+      errors.inn = 'ИНН обязателен для создания КП';
+    } else {
+      const innValidation = validateINN(formData.inn);
+      if (!innValidation.isValid) {
+        errors.inn = innValidation.error || 'Неверный ИНН';
+      }
+    }
+
+    if (formData.kpp) {
+      const kppValidation = validateKPP(formData.kpp);
+      if (!kppValidation.isValid) {
+        errors.kpp = kppValidation.error || 'Неверный КПП';
+      }
+    }
+
+    if (formData.ogrn) {
+      const ogrnValidation = validateOGRN(formData.ogrn);
+      if (!ogrnValidation.isValid) {
+        errors.ogrn = ogrnValidation.error || 'Неверный ОГРН';
+      }
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Неверный формат email';
+    }
+
+    if (formData.postal_code && !/^\d{6}$/.test(formData.postal_code)) {
+      errors.postal_code = 'Индекс должен содержать 6 цифр';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
       return;
     }
 
-    console.log('Organization ID:', organizationId);
+    if (!organizationId) {
+      console.error('No organization ID');
+      toast.error('Организация не выбрана');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Add organization_id and country to the request
       const customerData = {
-        ...values,
-        company_type: COMPANY_TYPE_MAP[values.company_type] || values.company_type,
+        ...formData,
         organization_id: organizationId,
-        country: values.country || 'Russia',
       };
 
       console.log('Sending customer data:', customerData);
@@ -120,403 +269,436 @@ export default function CreateCustomerPage() {
 
       if (!response.success) {
         console.error('API error:', response.error);
-        message.error(`Ошибка создания клиента: ${response.error}`);
+        toast.error(`Ошибка создания клиента: ${response.error}`);
         return;
       }
 
-      message.success('Клиент успешно создан');
-      router.push('/customers');
+      toast.success('Клиент успешно создан');
+      // Redirect to the newly created customer's page
+      const customerId = response.data?.id;
+      if (customerId) {
+        router.push(`/customers/${customerId}`);
+      } else {
+        // Fallback to customers list if no ID returned
+        router.push('/customers');
+      }
     } catch (error: any) {
       console.error('Exception caught:', error);
-      message.error(`Ошибка создания клиента: ${error.message}`);
+      toast.error(`Ошибка создания клиента: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Custom validator for INN
-  const validateINNField = (_: any, value: string) => {
-    if (!value) return Promise.resolve();
-
-    const validation = validateINN(value);
-    if (!validation.isValid) {
-      return Promise.reject(new Error(validation.error));
-    }
-    return Promise.resolve();
-  };
-
-  // Custom validator for KPP
-  const validateKPPField = (_: any, value: string) => {
-    if (!value) return Promise.resolve();
-
-    const validation = validateKPP(value);
-    if (!validation.isValid) {
-      return Promise.reject(new Error(validation.error));
-    }
-    return Promise.resolve();
-  };
-
-  // Custom validator for OGRN
-  const validateOGRNField = (_: any, value: string) => {
-    if (!value) return Promise.resolve();
-
-    const validation = validateOGRN(value);
-    if (!validation.isValid) {
-      return Promise.reject(new Error(validation.error));
-    }
-    return Promise.resolve();
-  };
-
   return (
     <MainLayout>
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <div className="space-y-6">
         {/* Header */}
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/customers')}>
-                Назад
-              </Button>
-              <Title level={2} style={{ margin: 0 }}>
-                Создать клиента
-              </Title>
-            </Space>
-          </Col>
-        </Row>
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" onClick={() => router.push('/customers')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-semibold tracking-tight">Создать клиента</h1>
+        </div>
 
         {/* Form */}
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          initialValues={{
-            company_type: 'ooo',
-            status: 'active',
-            payment_terms: 30,
-            credit_limit: 0,
-          }}
-          requiredMark="optional"
-        >
-          <Row gutter={24}>
-            {/* Basic Information */}
-            <Col xs={24} lg={16}>
-              <Card title="Основная информация">
-                <Row gutter={16}>
-                  <Col xs={24}>
-                    <Form.Item
-                      name="name"
-                      label="Название организации"
-                      rules={[
-                        { required: true, message: 'Введите название' },
-                        { min: 2, message: 'Минимум 2 символа' },
-                      ]}
-                    >
-                      <Input size="large" placeholder='ООО "Название компании"' />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="company_type"
-                      label="Организационно-правовая форма"
-                      rules={[{ required: true, message: 'Выберите тип' }]}
-                    >
-                      <Select
-                        size="large"
-                        onChange={(value) => setCompanyType(value)}
-                        options={[
-                          { label: 'ООО (Общество с ограниченной ответственностью)', value: 'ooo' },
-                          { label: 'АО (Акционерное общество)', value: 'ao' },
-                          { label: 'ПАО (Публичное акционерное общество)', value: 'pao' },
-                          { label: 'ЗАО (Закрытое акционерное общество)', value: 'zao' },
-                          { label: 'ИП (Индивидуальный предприниматель)', value: 'ip' },
-                          { label: 'Физическое лицо', value: 'individual' },
-                          { label: 'Государственное учреждение', value: 'government' },
-                        ]}
-                      />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Form.Item name="industry" label="Отрасль">
-                      <Select
-                        size="large"
-                        placeholder="Выберите отрасль"
-                        options={[
-                          { label: 'Промышленность', value: 'manufacturing' },
-                          { label: 'Торговля', value: 'trade' },
-                          { label: 'IT и технологии', value: 'it_tech' },
-                          { label: 'Строительство', value: 'construction' },
-                          { label: 'Транспорт', value: 'transport' },
-                          { label: 'Финансы', value: 'finance' },
-                          { label: 'Другое', value: 'other' },
-                        ]}
-                      />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Form.Item
-                      name="email"
-                      label="Email"
-                      rules={[{ type: 'email', message: 'Неверный формат email' }]}
-                    >
-                      <Input size="large" placeholder="info@company.ru" />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Form.Item name="phone" label="Телефон">
-                      <Input size="large" placeholder="+7 (495) 123-45-67" />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={12}>
-                    <Form.Item name="status" label="Статус" rules={[{ required: true }]}>
-                      <Select
-                        size="large"
-                        options={[
-                          { label: 'Активный', value: 'active' },
-                          { label: 'Неактивный', value: 'inactive' },
-                          { label: 'Приостановлен', value: 'suspended' },
-                        ]}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-
-              <Card title="Адрес" style={{ marginTop: 24 }}>
-                <Row gutter={16}>
-                  <Col xs={24}>
-                    <Form.Item name="address" label="Адрес">
-                      <TextArea placeholder="ул. Тверская, д. 1, оф. 101" rows={2} />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={8}>
-                    <Form.Item name="city" label="Город">
-                      <Input size="large" placeholder="Москва" />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={8}>
-                    <Form.Item name="region" label="Регион / Область">
-                      <Select
-                        size="large"
-                        showSearch
-                        placeholder="Выберите регион"
-                        options={[
-                          { label: 'Москва', value: 'Москва' },
-                          { label: 'Санкт-Петербург', value: 'Санкт-Петербург' },
-                          { label: 'Московская область', value: 'Московская область' },
-                          { label: 'Ленинградская область', value: 'Ленинградская область' },
-                          { label: 'Свердловская область', value: 'Свердловская область' },
-                          { label: 'Новосибирская область', value: 'Новосибирская область' },
-                          // Add more regions as needed
-                        ]}
-                      />
-                    </Form.Item>
-                  </Col>
-
-                  <Col xs={24} md={8}>
-                    <Form.Item
-                      name="postal_code"
-                      label="Почтовый индекс"
-                      rules={[
-                        {
-                          pattern: /^\d{6}$/,
-                          message: 'Индекс должен содержать 6 цифр',
-                        },
-                      ]}
-                    >
-                      <Input size="large" placeholder="123456" maxLength={6} />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-
-              <Card title="Реквизиты (ИНН, КПП, ОГРН)" style={{ marginTop: 24 }}>
-                <Row gutter={16}>
-                  <Col xs={24}>
-                    <Text type="secondary">
-                      {(companyType === 'ooo' ||
-                        companyType === 'ao' ||
-                        companyType === 'pao' ||
-                        companyType === 'zao') && (
-                        <>
-                          <strong>ИНН организации:</strong> 10 цифр, <strong>КПП:</strong> 9 цифр,{' '}
-                          <strong>ОГРН:</strong> 13 цифр
-                        </>
-                      )}
-                      {companyType === 'ip' && (
-                        <>
-                          <strong>ИНН ИП:</strong> 12 цифр (не 10!), <strong>ОГРНИП:</strong> 15
-                          цифр
-                        </>
-                      )}
-                      {companyType === 'individual' && (
-                        <>
-                          <strong>ИНН физ. лица:</strong> 12 цифр (необязательно)
-                        </>
-                      )}
-                    </Text>
-                    <Divider />
-                  </Col>
-
-                  <Col xs={24} md={8}>
-                    <Form.Item
-                      name="inn"
-                      label={companyType === 'individual' ? 'ИНН (необязательно)' : 'ИНН'}
-                      rules={[{ validator: validateINNField }]}
-                      tooltip={
-                        companyType === 'ooo' ||
-                        companyType === 'ao' ||
-                        companyType === 'pao' ||
-                        companyType === 'zao'
-                          ? 'ИНН организации: 10 цифр с проверкой контрольной суммы'
-                          : companyType === 'ip'
-                            ? 'ИНН ИП: 12 цифр с проверкой контрольной суммы'
-                            : 'ИНН физ.лица: 12 цифр, необязательное поле'
-                      }
-                    >
-                      <Input
-                        size="large"
-                        placeholder={
-                          companyType === 'ooo' ||
-                          companyType === 'ao' ||
-                          companyType === 'pao' ||
-                          companyType === 'zao'
-                            ? '7701234567'
-                            : '770123456789'
+        <form onSubmit={handleSubmit}>
+          {/* INN Lookup - Primary Entry Point */}
+          <Card className="mb-6 border-primary/20 bg-primary/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-primary" />
+                Быстрый поиск по ИНН
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <div className="flex gap-2">
+                    <Input
+                      id="inn-lookup"
+                      maxLength={12}
+                      value={formData.inn || ''}
+                      onChange={(e) => setFormData({ ...formData, inn: e.target.value })}
+                      onBlur={(e) => {
+                        const inn = e.target.value.replace(/\D/g, '');
+                        if (inn.length === 10 || inn.length === 12) {
+                          fetchCompanyByINN(inn);
                         }
-                        maxLength={12}
-                      />
-                    </Form.Item>
-                  </Col>
-
-                  {(companyType === 'ooo' ||
-                    companyType === 'ao' ||
-                    companyType === 'pao' ||
-                    companyType === 'zao') && (
-                    <Col xs={24} md={8}>
-                      <Form.Item
-                        name="kpp"
-                        label="КПП"
-                        rules={[{ validator: validateKPPField }]}
-                        tooltip="КПП организации (9 цифр)"
-                      >
-                        <Input size="large" placeholder="770101001" maxLength={9} />
-                      </Form.Item>
-                    </Col>
-                  )}
-
-                  {(companyType === 'ooo' ||
-                    companyType === 'ao' ||
-                    companyType === 'pao' ||
-                    companyType === 'zao' ||
-                    companyType === 'ip') && (
-                    <Col xs={24} md={8}>
-                      <Form.Item
-                        name="ogrn"
-                        label={
-                          companyType === 'ooo' ||
-                          companyType === 'ao' ||
-                          companyType === 'pao' ||
-                          companyType === 'zao'
-                            ? 'ОГРН'
-                            : 'ОГРНИП'
-                        }
-                        rules={[{ validator: validateOGRNField }]}
-                        tooltip={
-                          companyType === 'ooo' ||
-                          companyType === 'ao' ||
-                          companyType === 'pao' ||
-                          companyType === 'zao'
-                            ? 'ОГРН (13 цифр)'
-                            : 'ОГРНИП (15 цифр)'
-                        }
-                      >
-                        <Input
-                          size="large"
-                          placeholder={
-                            companyType === 'ooo' ||
-                            companyType === 'ao' ||
-                            companyType === 'pao' ||
-                            companyType === 'zao'
-                              ? '1234567890123'
-                              : '123456789012345'
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const inn = formData.inn?.replace(/\D/g, '') || '';
+                          if (inn.length === 10 || inn.length === 12) {
+                            fetchCompanyByINN(inn);
                           }
-                          maxLength={15}
-                        />
-                      </Form.Item>
-                    </Col>
+                        }
+                      }}
+                      placeholder="Введите ИНН (10 или 12 цифр)"
+                      className={`text-lg ${validationErrors.inn ? 'border-destructive' : ''}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="default"
+                      disabled={lookupLoading || !formData.inn}
+                      onClick={() => formData.inn && fetchCompanyByINN(formData.inn)}
+                    >
+                      {lookupLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Search className="h-4 w-4 mr-2" />
+                      )}
+                      Найти
+                    </Button>
+                  </div>
+                  {validationErrors.inn && (
+                    <p className="text-xs text-destructive mt-1">{validationErrors.inn}</p>
                   )}
-                </Row>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Введите ИНН и нажмите «Найти» — реквизиты заполнятся автоматически из ЕГРЮЛ
+              </p>
+
+              {/* Director info from DaData */}
+              {directorInfo && (
+                <div className="mt-4 p-3 bg-background rounded-lg border">
+                  <p className="text-sm font-medium text-foreground/80">Руководитель</p>
+                  <p className="text-sm text-foreground mt-1">{directorInfo.name}</p>
+                  {directorInfo.position && (
+                    <p className="text-xs text-muted-foreground">{directorInfo.position}</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Content - 2/3 width */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Basic Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Основная информация</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="name">Название организации *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder='ООО "Название компании"'
+                      className={validationErrors.name ? 'border-destructive' : ''}
+                    />
+                    {validationErrors.name && (
+                      <p className="text-xs text-destructive mt-1">{validationErrors.name}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="company_type">Организационно-правовая форма *</Label>
+                      <Select
+                        value={formData.company_type}
+                        onValueChange={(value: string) => {
+                          setFormData({ ...formData, company_type: value });
+                          setCompanyType(value);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="organization">ООО (Организация)</SelectItem>
+                          <SelectItem value="individual_entrepreneur">ИП</SelectItem>
+                          <SelectItem value="individual">Физическое лицо</SelectItem>
+                          <SelectItem value="government">Государственный орган</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="industry">Отрасль</Label>
+                      <Select
+                        value={formData.industry}
+                        onValueChange={(value: string) =>
+                          setFormData({ ...formData, industry: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите отрасль" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="manufacturing">Промышленность</SelectItem>
+                          <SelectItem value="trade">Торговля</SelectItem>
+                          <SelectItem value="it_tech">IT и технологии</SelectItem>
+                          <SelectItem value="construction">Строительство</SelectItem>
+                          <SelectItem value="transport">Транспорт</SelectItem>
+                          <SelectItem value="finance">Финансы</SelectItem>
+                          <SelectItem value="other">Другое</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email || ''}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="info@company.ru"
+                        className={validationErrors.email ? 'border-destructive' : ''}
+                      />
+                      {validationErrors.email && (
+                        <p className="text-xs text-destructive mt-1">{validationErrors.email}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="phone">Телефон</Label>
+                      <Input
+                        id="phone"
+                        value={formData.phone || ''}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        placeholder="+7 (495) 123-45-67"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="status">Статус *</Label>
+                      <Select
+                        value={formData.status}
+                        onValueChange={(value: string) =>
+                          setFormData({ ...formData, status: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Активный</SelectItem>
+                          <SelectItem value="inactive">Неактивный</SelectItem>
+                          <SelectItem value="suspended">Приостановлен</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
               </Card>
-            </Col>
 
-            {/* Financial & Notes */}
-            <Col xs={24} lg={8}>
-              <Card title="Финансовые условия">
-                <Form.Item
-                  name="credit_limit"
-                  label="Кредитный лимит (₽)"
-                  tooltip="Максимальная задолженность клиента"
-                >
-                  <InputNumber
-                    size="large"
-                    style={{ width: '100%' }}
-                    min={0}
-                    formatter={(value) => `₽ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                    parser={(value) => value?.replace(/₽\s?|(\s*)/g, '') as any}
-                  />
-                </Form.Item>
+              {/* Address */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Адрес</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="address">Адрес</Label>
+                    <Textarea
+                      id="address"
+                      rows={2}
+                      value={formData.address || ''}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="ул. Тверская, д. 1, оф. 101"
+                    />
+                  </div>
 
-                <Form.Item
-                  name="payment_terms"
-                  label="Условия оплаты (дней)"
-                  tooltip="Количество дней на оплату"
-                >
-                  <InputNumber
-                    size="large"
-                    style={{ width: '100%' }}
-                    min={0}
-                    max={365}
-                    addonAfter="дней"
-                  />
-                </Form.Item>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="city">Город</Label>
+                      <Input
+                        id="city"
+                        value={formData.city || ''}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        placeholder="Москва"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="region">Регион</Label>
+                      <Select
+                        value={formData.region}
+                        onValueChange={(value: string) =>
+                          setFormData({ ...formData, region: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите регион" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Москва">Москва</SelectItem>
+                          <SelectItem value="Санкт-Петербург">Санкт-Петербург</SelectItem>
+                          <SelectItem value="Московская область">Московская область</SelectItem>
+                          <SelectItem value="Ленинградская область">
+                            Ленинградская область
+                          </SelectItem>
+                          <SelectItem value="Свердловская область">Свердловская область</SelectItem>
+                          <SelectItem value="Новосибирская область">
+                            Новосибирская область
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="postal_code">Почтовый индекс</Label>
+                      <Input
+                        id="postal_code"
+                        maxLength={6}
+                        value={formData.postal_code || ''}
+                        onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                        placeholder="123456"
+                        className={validationErrors.postal_code ? 'border-destructive' : ''}
+                      />
+                      {validationErrors.postal_code && (
+                        <p className="text-xs text-destructive mt-1">
+                          {validationErrors.postal_code}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
               </Card>
 
-              <Card title="Примечания" style={{ marginTop: 24 }}>
-                <Form.Item name="notes">
-                  <TextArea rows={6} placeholder="Дополнительная информация о клиенте..." />
-                </Form.Item>
+              {/* Business Details - KPP and OGRN only (INN is at top) */}
+              {(companyType === 'organization' || companyType === 'individual_entrepreneur') && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Дополнительные реквизиты</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {companyType === 'organization' && (
+                        <div>
+                          <Label htmlFor="kpp">КПП</Label>
+                          <Input
+                            id="kpp"
+                            maxLength={9}
+                            value={formData.kpp || ''}
+                            onChange={(e) => setFormData({ ...formData, kpp: e.target.value })}
+                            placeholder="770101001"
+                            className={validationErrors.kpp ? 'border-destructive' : ''}
+                          />
+                          {validationErrors.kpp && (
+                            <p className="text-xs text-destructive mt-1">{validationErrors.kpp}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">9 цифр</p>
+                        </div>
+                      )}
+
+                      <div>
+                        <Label htmlFor="ogrn">
+                          {companyType === 'organization' ? 'ОГРН' : 'ОГРНИП'}
+                        </Label>
+                        <Input
+                          id="ogrn"
+                          maxLength={15}
+                          value={formData.ogrn || ''}
+                          onChange={(e) => setFormData({ ...formData, ogrn: e.target.value })}
+                          placeholder={
+                            companyType === 'organization' ? '1234567890123' : '123456789012345'
+                          }
+                          className={validationErrors.ogrn ? 'border-destructive' : ''}
+                        />
+                        {validationErrors.ogrn && (
+                          <p className="text-xs text-destructive mt-1">{validationErrors.ogrn}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {companyType === 'organization' ? '13 цифр' : '15 цифр'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Sidebar - 1/3 width */}
+            <div className="space-y-6">
+              {/* Financial Terms */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Финансовые условия</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="credit_limit">Кредитный лимит (₽)</Label>
+                    <Input
+                      id="credit_limit"
+                      type="number"
+                      min={0}
+                      value={formData.credit_limit || ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          credit_limit: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="payment_terms">Условия оплаты (дней)</Label>
+                    <Input
+                      id="payment_terms"
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={formData.payment_terms || ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          payment_terms: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Notes */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Примечания</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    rows={6}
+                    value={formData.notes || ''}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Дополнительная информация о клиенте..."
+                  />
+                </CardContent>
               </Card>
 
               {/* Actions */}
-              <Card style={{ marginTop: 24 }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
+              <Card>
+                <CardContent className="pt-6 space-y-3">
                   <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<SaveOutlined />}
-                    size="large"
-                    block
-                    loading={loading || loadingOrg}
-                    disabled={!organizationId || loadingOrg}
+                    type="submit"
+                    className="w-full"
+                    disabled={loading || loadingOrg || !organizationId}
                   >
-                    Создать клиента
+                    <Save className="mr-2 h-4 w-4" />
+                    {loading ? 'Создание...' : 'Создать клиента'}
                   </Button>
-                  <Button size="large" block onClick={() => router.push('/customers')}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => router.push('/customers')}
+                  >
                     Отмена
                   </Button>
-                </Space>
+                </CardContent>
               </Card>
-            </Col>
-          </Row>
-        </Form>
-      </Space>
+            </div>
+          </div>
+        </form>
+      </div>
     </MainLayout>
   );
 }

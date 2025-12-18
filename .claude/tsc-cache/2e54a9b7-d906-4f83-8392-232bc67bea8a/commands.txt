@@ -1,0 +1,2 @@
+frontend:build:cd /Users/andreynovikov/workspace/tech/projects/kvota/user-feedback/frontend && npm run build
+frontend:tsc:cd /Users/andreynovikov/workspace/tech/projects/kvota/user-feedback/frontend && npx tsc --noEmit

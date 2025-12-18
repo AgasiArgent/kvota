@@ -215,31 +215,31 @@ WHERE table_name = 'quotes';
 
 **Workaround:** Use `curl` commands with GitHub API directly
 
-**GitHub API Token:** `***REMOVED***`
+**GitHub API Token:** Store in environment variable `GITHUB_TOKEN`
 
 **Example Commands:**
 ```bash
 # Get repo info
-curl -H "Authorization: token ***REMOVED***" \
+curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/repos/AgasiArgent/kvota
 
 # List issues
-curl -H "Authorization: token ***REMOVED***" \
+curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/repos/AgasiArgent/kvota/issues
 
 # Create issue
 curl -X POST \
-  -H "Authorization: token ***REMOVED***" \
+  -H "Authorization: token $GITHUB_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"title":"Issue title","body":"Issue description"}' \
   https://api.github.com/repos/AgasiArgent/kvota/issues
 
 # List pull requests
-curl -H "Authorization: token ***REMOVED***" \
+curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/repos/AgasiArgent/kvota/pulls
 
 # Get CI/CD workflow runs
-curl -H "Authorization: token ***REMOVED***" \
+curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/repos/AgasiArgent/kvota/actions/runs
 ```
 

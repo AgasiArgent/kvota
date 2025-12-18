@@ -74,10 +74,10 @@ class SecureFileProcessor:
         'комментарии': 'notes',
         'заметки': 'notes',
 
-        'артикул': 'sku',
-        'код': 'sku',
-        'код товара': 'sku',
-        'номер': 'sku',
+        'артикул': 'product_code',
+        'код': 'product_code',
+        'код товара': 'product_code',
+        'номер': 'product_code',
 
         'страна': 'country_of_origin',
         'страна происхождения': 'country_of_origin',
@@ -121,10 +121,10 @@ class SecureFileProcessor:
         'comment': 'notes',
         'remarks': 'notes',
 
-        'sku': 'sku',
-        'code': 'sku',
-        'product_code': 'sku',
-        'item_code': 'sku',
+        'sku': 'product_code',
+        'code': 'product_code',
+        'product_code': 'product_code',
+        'item_code': 'product_code',
 
         'country': 'country_of_origin',
         'origin': 'country_of_origin',
@@ -553,7 +553,7 @@ class SecureFileProcessor:
                 'category': self.sanitize_cell_content(row.get('category', '')),
                 'brand': self.sanitize_cell_content(row.get('brand', '')),
                 'notes': self.sanitize_cell_content(row.get('notes', '')),
-                'sku': self.sanitize_cell_content(row.get('sku', '')),
+                'product_code': self.sanitize_cell_content(row.get('product_code', '')),
                 'country_of_origin': self.sanitize_cell_content(row.get('country_of_origin', ''))
             }
 

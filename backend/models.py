@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field, EmailStr, validator, model_validator
 
 
 # ============================================================================
@@ -136,6 +136,17 @@ class OrganizationUpdate(BaseModel):
     description: Optional[str] = None
     logo_url: Optional[str] = None
     settings: Optional[Dict[str, Any]] = None
+    supplier_code: Optional[str] = Field(None, min_length=3, max_length=3, description="3-letter supplier code for IDN (e.g., MBR, CMT)")
+
+    @validator('supplier_code')
+    def validate_supplier_code(cls, v):
+        """Validate supplier_code is 3 uppercase letters"""
+        if v is None:
+            return v
+        import re
+        if not re.match(r'^[A-Z]{3}$', v):
+            raise ValueError('Supplier code must be exactly 3 uppercase letters (e.g., MBR, CMT)')
+        return v
 
 
 class Organization(OrganizationBase):
@@ -144,6 +155,7 @@ class Organization(OrganizationBase):
     status: OrganizationStatus
     subscription_tier: str = "free"
     subscription_expires_at: Optional[datetime]
+    supplier_code: Optional[str] = Field(None, description="3-letter supplier code for IDN (e.g., MBR, CMT)")
     created_at: datetime
     updated_at: datetime
 
@@ -379,6 +391,10 @@ class CustomerBase(BaseModel):
     status: CustomerStatus = Field(default=CustomerStatus.ACTIVE)
     notes: Optional[str] = Field(None, description="Internal notes")
 
+    # Signatory Information (from DaData on INN lookup)
+    general_director_name: Optional[str] = Field(None, description="Name of the general director (default signatory)")
+    general_director_position: Optional[str] = Field(default="Генеральный директор", description="Position of the signatory")
+
     @validator('inn')
     def validate_inn(cls, v):
         """Validate Russian INN format"""
@@ -414,7 +430,14 @@ class CustomerBase(BaseModel):
 
 class CustomerCreate(CustomerBase):
     """Customer creation model"""
-    pass
+
+    @model_validator(mode='after')
+    def validate_inn_required(self):
+        """INN is required for all customers (needed for IDN generation)"""
+        if not self.inn:
+            raise ValueError('ИНН обязателен для всех клиентов (необходим для генерации IDN)')
+
+        return self
 
 
 class CustomerUpdate(BaseModel):
@@ -436,6 +459,8 @@ class CustomerUpdate(BaseModel):
     payment_terms: Optional[int] = Field(None, ge=0, le=365)
     status: Optional[CustomerStatus] = None
     notes: Optional[str] = None
+    general_director_name: Optional[str] = None
+    general_director_position: Optional[str] = None
 
 
 class Customer(CustomerBase):
@@ -540,7 +565,7 @@ class Quote(BaseModel):
     """Complete quote model matching actual database schema"""
     # Core fields that exist in database
     id: UUID
-    quote_number: str
+    idn_quote: Optional[str] = None  # IDN format: SUPPLIER-INN-YEAR-SEQ (e.g., CMT-1234567890-2025-1)
     organization_id: UUID
     customer_id: Optional[UUID]
     created_by: UUID  # Maps to user_id in forms, but stored as created_by in DB
@@ -656,6 +681,9 @@ class QuoteItem(QuoteItemBase):
     id: UUID
     quote_id: UUID
 
+    # IDN-SKU: Quote IDN + Position (e.g., CMT-1234567890-2025-1-1)
+    idn_sku: Optional[str] = None
+
     # Frontend compatibility fields (mapped from DB fields)
     name: Optional[str] = None  # Maps from description
     final_price: Optional[Decimal] = None  # Maps from unit_price
@@ -738,7 +766,7 @@ class CustomerListResponse(BaseModel):
 class QuoteListItem(BaseModel):
     """Simplified quote model for list view"""
     id: UUID
-    quote_number: str
+    idn_quote: Optional[str] = None  # IDN format: SUPPLIER-INN-YEAR-SEQ
     customer_name: str
     title: Optional[str]
     status: QuoteStatus

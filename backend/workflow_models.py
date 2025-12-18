@@ -87,22 +87,27 @@ class WorkflowTransitionResponse(BaseModel):
 class WorkflowSettings(BaseModel):
     """Organization workflow configuration"""
     organization_id: str
-    workflow_mode: WorkflowMode
+    workflow_mode: WorkflowMode = "simple"
 
-    # Thresholds
-    financial_approval_threshold_usd: Decimal
-    senior_approval_threshold_usd: Decimal
-    multi_senior_threshold_usd: Decimal
-    board_approval_threshold_usd: Decimal
+    # Thresholds (default: no thresholds - everything auto-approved)
+    financial_approval_threshold_usd: Decimal = Decimal("0")
+    senior_approval_threshold_usd: Decimal = Decimal("50000")
+    multi_senior_threshold_usd: Decimal = Decimal("100000")
+    board_approval_threshold_usd: Decimal = Decimal("500000")
 
     # Approval counts
-    senior_approvals_required: int
-    multi_senior_approvals_required: int
-    board_approvals_required: int
+    senior_approvals_required: int = 1
+    multi_senior_approvals_required: int = 2
+    board_approvals_required: int = 3
 
     # Features
-    enable_parallel_logistics_customs: bool
-    allow_send_back: bool
+    enable_parallel_logistics_customs: bool = False
+    allow_send_back: bool = True
+
+    # Legacy fields (for backwards compatibility)
+    thresholds: Optional[list] = None
+    require_procurement_review: Optional[bool] = None
+    require_logistics_customs_parallel: Optional[bool] = None
 
 class WorkflowSettingsUpdate(BaseModel):
     """Update workflow settings (admin only)"""
@@ -117,7 +122,7 @@ class WorkflowSettingsUpdate(BaseModel):
 class MyTask(BaseModel):
     """Quote in user's task list"""
     quote_id: str
-    quote_number: str
+    idn_quote: str
     customer_name: str
     total_amount: Decimal
     workflow_state: WorkflowState

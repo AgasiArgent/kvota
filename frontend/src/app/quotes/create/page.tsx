@@ -3,32 +3,68 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { config } from '@/lib/config';
 import dynamic from 'next/dynamic';
-import {
-  Form,
-  Input,
-  Select,
-  Button,
-  Card,
-  Upload,
-  Table,
-  Typography,
-  Row,
-  Col,
-  App,
-  InputNumber,
-  Space,
-  Spin,
-  Tag,
-  Modal,
-  Radio,
-  Divider,
-  Checkbox,
-  Alert,
-  DatePicker,
-} from 'antd';
 import dayjs from 'dayjs';
 import type { ColDef, ColGroupDef } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  ArrowLeft,
+  Calculator,
+  Save,
+  Info,
+  Pencil,
+  LayoutGrid,
+  Filter,
+  XCircle,
+  Upload,
+  Loader2,
+  FileText,
+  AlertTriangle,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import MainLayout from '@/components/layout/MainLayout';
+import { MonetaryInput, MonetaryValue, Currency } from '@/components/inputs/MonetaryInput';
+import {
+  quotesCalcService,
+  Product,
+  VariableTemplate,
+  CalculationVariables,
+  ProductCalculationResult,
+} from '@/lib/api/quotes-calc-service';
+import { customerService, Customer } from '@/lib/api/customer-service';
+import {
+  calculationSettingsService,
+  CalculationSettings,
+} from '@/lib/api/calculation-settings-service';
+import {
+  getSupplierCountries,
+  formatSupplierCountryOptions,
+} from '@/lib/api/supplier-countries-service';
+import { exchangeRateService } from '@/lib/api/exchange-rate-service';
+import { toast } from 'sonner';
 
 // Lazy load ag-Grid to reduce initial bundle size (saves ~300KB)
 const AgGridReact = dynamic(
@@ -42,49 +78,15 @@ const AgGridReact = dynamic(
     return AgGridReact;
   },
   {
-    loading: () => <Spin size="large" tip="Загрузка таблицы..." />,
+    loading: () => (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Загрузка таблицы...</span>
+      </div>
+    ),
     ssr: false,
   }
 );
-import {
-  InboxOutlined,
-  SaveOutlined,
-  CalculatorOutlined,
-  ArrowLeftOutlined,
-  InfoCircleOutlined,
-  EditOutlined,
-  AppstoreOutlined,
-  FilterOutlined,
-  CloseCircleOutlined,
-} from '@ant-design/icons';
-import { useRouter } from 'next/navigation';
-import type { UploadFile, UploadProps } from 'antd';
-import MainLayout from '@/components/layout/MainLayout';
-import { MonetaryInput, MonetaryValue, Currency } from '@/components/inputs/MonetaryInput';
-import {
-  quotesCalcService,
-  Product,
-  VariableTemplate,
-  CalculationVariables,
-  CalculationVariablesForm,
-  ProductCalculationResult,
-} from '@/lib/api/quotes-calc-service';
-import { customerService, Customer } from '@/lib/api/customer-service';
-import {
-  calculationSettingsService,
-  CalculationSettings,
-} from '@/lib/api/calculation-settings-service';
-import {
-  getSupplierCountries,
-  formatSupplierCountryOptions,
-  type SupplierCountry,
-} from '@/lib/api/supplier-countries-service';
-import { exchangeRateService } from '@/lib/api/exchange-rate-service';
-
-const { Title, Text } = Typography;
-const { Dragger } = Upload;
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // CSS for full row highlighting when selected via checkbox
 const agGridRowSelectionStyles = `
@@ -99,27 +101,6 @@ const agGridRowSelectionStyles = `
   }
 `;
 
-// CSS for compact form styling
-const compactFormStyles = `
-  .compact-form .ant-form-item {
-    margin-bottom: 12px;
-  }
-  .compact-form .ant-form-item-label > label {
-    font-size: 12px;
-    height: auto;
-  }
-  .compact-form .ant-form-item-has-error .ant-select-selector,
-  .compact-form .ant-form-item-has-error .ant-input,
-  .compact-form .ant-form-item-has-error .ant-input-number,
-  .compact-form .ant-form-item-has-error .ant-picker {
-    border-color: #ff4d4f !important;
-  }
-  .compact-form .ant-form-item-has-error .ant-form-item-explain-error {
-    font-size: 11px;
-    margin-top: 2px;
-  }
-`;
-
 // Helper function to parse decimal input with comma or period separator
 const parseDecimalInput = (value: string): number | null => {
   if (!value || value === '') return null;
@@ -129,12 +110,94 @@ const parseDecimalInput = (value: string): number | null => {
   return isNaN(parsed) ? null : parsed;
 };
 
+// Form data interface
+interface FormData {
+  quote_date: string;
+  valid_until: string;
+  seller_company: string;
+  offer_sale_type: string;
+  currency_of_quote: string;
+  offer_incoterms: string;
+  delivery_time: number;
+  markup: number;
+  advance_from_client: number;
+  time_to_advance_on_receiving: number;
+  time_to_advance: number;
+  advance_to_supplier: number;
+  advance_on_loading: number;
+  time_to_advance_loading: number;
+  advance_on_going_to_country_destination: number;
+  time_to_advance_going_to_country_destination: number;
+  advance_on_customs_clearance: number;
+  time_to_advance_on_customs_clearance: number;
+  dm_fee_type: string;
+  dm_fee_value: number;
+  logistics_total: MonetaryValue;
+  logistics_supplier_hub: MonetaryValue;
+  logistics_hub_customs: MonetaryValue;
+  logistics_customs_client: MonetaryValue;
+  brokerage_hub: MonetaryValue;
+  brokerage_customs: MonetaryValue;
+  warehousing_at_customs: MonetaryValue;
+  customs_documentation: MonetaryValue;
+  brokerage_extra: MonetaryValue;
+  customs_code: string;
+  import_tariff: number;
+  excise_tax: MonetaryValue;
+  rate_forex_risk: number;
+  rate_fin_comm: number;
+  rate_loan_interest_daily: number;
+  currency_of_base_price: string;
+  exchange_rate_base_price_to_quote: number;
+  supplier_country: string;
+}
+
+const initialFormData: FormData = {
+  quote_date: dayjs().format('YYYY-MM-DD'),
+  valid_until: dayjs().add(30, 'day').format('YYYY-MM-DD'),
+  seller_company: '',
+  offer_sale_type: '',
+  currency_of_quote: 'RUB',
+  offer_incoterms: 'DDP',
+  delivery_time: 0,
+  markup: 0,
+  advance_from_client: 0,
+  time_to_advance_on_receiving: 0,
+  time_to_advance: 0,
+  advance_to_supplier: 0,
+  advance_on_loading: 0,
+  time_to_advance_loading: 0,
+  advance_on_going_to_country_destination: 0,
+  time_to_advance_going_to_country_destination: 0,
+  advance_on_customs_clearance: 0,
+  time_to_advance_on_customs_clearance: 0,
+  dm_fee_type: 'fixed',
+  dm_fee_value: 0,
+  logistics_total: { value: 0, currency: 'EUR' as Currency },
+  logistics_supplier_hub: { value: 0, currency: 'EUR' as Currency },
+  logistics_hub_customs: { value: 0, currency: 'EUR' as Currency },
+  logistics_customs_client: { value: 0, currency: 'RUB' as Currency },
+  brokerage_hub: { value: 0, currency: 'EUR' as Currency },
+  brokerage_customs: { value: 0, currency: 'RUB' as Currency },
+  warehousing_at_customs: { value: 0, currency: 'RUB' as Currency },
+  customs_documentation: { value: 0, currency: 'RUB' as Currency },
+  brokerage_extra: { value: 0, currency: 'RUB' as Currency },
+  customs_code: '',
+  import_tariff: 0,
+  excise_tax: { value: 0, currency: 'RUB' as Currency },
+  rate_forex_risk: 0,
+  rate_fin_comm: 0,
+  rate_loan_interest_daily: 0,
+  currency_of_base_price: 'USD',
+  exchange_rate_base_price_to_quote: 1.0,
+  supplier_country: 'Турция',
+};
+
 // Helper function to extract MonetaryValue objects from form values
-// Returns the form values with MonetaryValue objects converted to their full structure
 const extractMonetaryValues = (
-  formValues: any
+  formValues: FormData
 ): {
-  variables: any;
+  variables: Record<string, unknown>;
   monetaryFields: Record<string, MonetaryValue>;
 } => {
   const monetaryFieldNames = [
@@ -150,17 +213,16 @@ const extractMonetaryValues = (
   ];
 
   const monetaryFields: Record<string, MonetaryValue> = {};
-  const variables = { ...formValues };
+  const variables: Record<string, unknown> = { ...formValues };
 
   // Extract monetary fields and convert to numeric values for backend compatibility
   for (const fieldName of monetaryFieldNames) {
-    const fieldValue = formValues[fieldName];
+    const fieldValue = formValues[fieldName as keyof FormData];
     if (fieldValue && typeof fieldValue === 'object' && 'value' in fieldValue) {
       // Store the full MonetaryValue for API
       monetaryFields[fieldName] = fieldValue as MonetaryValue;
       // For backward compatibility, set the numeric value in variables
-      // The backend will receive the monetary_fields object separately
-      variables[fieldName] = fieldValue.value;
+      variables[fieldName] = (fieldValue as MonetaryValue).value;
     }
   }
 
@@ -169,21 +231,23 @@ const extractMonetaryValues = (
 
 export default function CreateQuotePage() {
   const router = useRouter();
-  const [form] = Form.useForm<CalculationVariablesForm>();
-  const { message } = App.useApp();
   const gridRef = useRef<any>(null);
 
   // State
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<FormData>(initialFormData);
   const [uploadedProducts, setUploadedProducts] = useState<Product[]>([]);
 
   // Track which cells were manually edited (for product-level overrides)
   const [editedCells, setEditedCells] = useState<Set<string>>(new Set());
-  const [productOverrides, setProductOverrides] = useState<Map<number, Record<string, any>>>(
+  const [productOverrides, setProductOverrides] = useState<Map<number, Record<string, unknown>>>(
     new Map()
   );
 
-  const [uploadedFile, setUploadedFile] = useState<UploadFile | null>(null);
+  // File upload state
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [templates, setTemplates] = useState<VariableTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | undefined>();
@@ -208,16 +272,15 @@ export default function CreateQuotePage() {
   const [supplierCountries, setSupplierCountries] = useState<
     Array<{ label: string; value: string }>
   >([]);
-
-  // Watch form values for delivery date and VAT rate calculation
-  const quoteDate = Form.useWatch('quote_date', form);
-  const deliveryTime = Form.useWatch('delivery_time', form);
+  const [sellerCompanies, setSellerCompanies] = useState<
+    Array<{ id: string; name: string; supplier_code: string; country: string | null }>
+  >([]);
 
   // Calculate delivery_date from quote_date + delivery_time
   const deliveryDate = useMemo(() => {
-    if (!quoteDate || !deliveryTime) return null;
-    return dayjs(quoteDate).add(deliveryTime, 'day');
-  }, [quoteDate, deliveryTime]);
+    if (!formData.quote_date || !formData.delivery_time) return null;
+    return dayjs(formData.quote_date).add(formData.delivery_time, 'day');
+  }, [formData.quote_date, formData.delivery_time]);
 
   // Calculate VAT rate based on delivery date
   const vatRate = useMemo(() => {
@@ -230,62 +293,67 @@ export default function CreateQuotePage() {
     loadCustomers();
     loadTemplates();
     loadAdminSettings();
-    loadSupplierCountries(); // Load supplier countries for dropdown
+    loadSupplierCountries();
+    loadSellerCompanies();
 
-    // Set default values
+    // Set default values from quotesCalcService
     const defaultVars = quotesCalcService.getDefaultVariables();
-    form.setFieldsValue({
-      ...defaultVars,
-      quote_date: dayjs(),
-      valid_until: dayjs().add(30, 'day'),
-      // Transform logistics fields to MonetaryValue objects for MonetaryInput components
-      logistics_total: { value: 0, currency: 'EUR' as Currency }, // Used in "total" mode
+    // Exclude fields that conflict with MonetaryValue types
+    const {
+      excise_tax: _exciseTax,
+      logistics_supplier_hub: _logSupplierHub,
+      logistics_hub_customs: _logHubCustoms,
+      logistics_customs_client: _logCustomsClient,
+      ...compatibleDefaults
+    } = defaultVars;
+    setFormData((prev) => ({
+      ...prev,
+      ...compatibleDefaults,
+      quote_date: dayjs().format('YYYY-MM-DD'),
+      valid_until: dayjs().add(30, 'day').format('YYYY-MM-DD'),
+      logistics_total: { value: 0, currency: 'EUR' as Currency },
       logistics_supplier_hub: {
-        value: defaultVars.logistics_supplier_hub,
+        value: defaultVars.logistics_supplier_hub || 0,
         currency: 'EUR' as Currency,
       },
       logistics_hub_customs: {
-        value: defaultVars.logistics_hub_customs,
+        value: defaultVars.logistics_hub_customs || 0,
         currency: 'EUR' as Currency,
       },
       logistics_customs_client: {
-        value: defaultVars.logistics_customs_client,
+        value: defaultVars.logistics_customs_client || 0,
         currency: 'RUB' as Currency,
       },
-      // Transform brokerage fields to MonetaryValue objects
-      brokerage_hub: { value: defaultVars.brokerage_hub, currency: 'EUR' as Currency },
-      brokerage_customs: { value: defaultVars.brokerage_customs, currency: 'RUB' as Currency },
+      brokerage_hub: { value: defaultVars.brokerage_hub || 0, currency: 'EUR' as Currency },
+      brokerage_customs: { value: defaultVars.brokerage_customs || 0, currency: 'RUB' as Currency },
       warehousing_at_customs: {
-        value: defaultVars.warehousing_at_customs,
+        value: defaultVars.warehousing_at_customs || 0,
         currency: 'RUB' as Currency,
       },
       customs_documentation: {
-        value: defaultVars.customs_documentation,
+        value: defaultVars.customs_documentation || 0,
         currency: 'RUB' as Currency,
       },
-      brokerage_extra: { value: defaultVars.brokerage_extra, currency: 'RUB' as Currency },
-    });
+      brokerage_extra: { value: defaultVars.brokerage_extra || 0, currency: 'RUB' as Currency },
+    }));
   }, []);
 
   // Load contacts when customer changes
   useEffect(() => {
     if (selectedCustomer) {
       loadCustomerContacts(selectedCustomer);
-      // Sync form field with state (customer_id is not in CalculationVariables type, set via setFieldsValue)
-      form.setFieldsValue({ customer_id: selectedCustomer } as any);
     } else {
       setCustomerContacts([]);
       setSelectedContact(undefined);
-      form.setFieldsValue({ customer_id: undefined } as any);
     }
-  }, [selectedCustomer, form]);
+  }, [selectedCustomer]);
 
   // Auto-calculate logistics breakdown when in "total" mode
   const handleLogisticsTotalChange = (monetaryValue: MonetaryValue | null) => {
     if (logisticsMode === 'total' && monetaryValue && monetaryValue.value > 0) {
-      // Distribute the total across legs, keeping the same currency
-      // Using 'as any' because form expects numbers but we're storing MonetaryValue objects
-      form.setFieldsValue({
+      setFormData((prev) => ({
+        ...prev,
+        logistics_total: monetaryValue,
         logistics_supplier_hub: {
           value: monetaryValue.value * 0.5,
           currency: monetaryValue.currency,
@@ -298,7 +366,9 @@ export default function CreateQuotePage() {
           value: monetaryValue.value * 0.2,
           currency: monetaryValue.currency,
         },
-      } as any);
+      }));
+    } else if (monetaryValue) {
+      setFormData((prev) => ({ ...prev, logistics_total: monetaryValue }));
     }
   };
 
@@ -307,7 +377,7 @@ export default function CreateQuotePage() {
     if (result.success && result.data) {
       setCustomers(result.data.customers);
     } else {
-      message.error(`Ошибка загрузки клиентов: ${result.error}`);
+      toast.error(`Ошибка загрузки клиентов: ${result.error}`);
     }
   };
 
@@ -319,7 +389,7 @@ export default function CreateQuotePage() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        message.error('Не авторизован');
+        toast.error('Не авторизован');
         return;
       }
 
@@ -359,11 +429,11 @@ export default function CreateQuotePage() {
         console.log('Templates loaded:', result.data.length, 'templates');
       } else {
         console.error('Templates load failed:', result.error);
-        message.error(`Ошибка загрузки шаблонов: ${result.error}`);
+        toast.error(`Ошибка загрузки шаблонов: ${result.error}`);
       }
     } catch (error) {
       console.error('Templates load error:', error);
-      message.error('Ошибка при загрузке шаблонов');
+      toast.error('Ошибка при загрузке шаблонов');
     }
   };
 
@@ -372,11 +442,12 @@ export default function CreateQuotePage() {
     if (result.success && result.data) {
       setAdminSettings(result.data);
       // Pre-fill admin-only fields from settings
-      form.setFieldsValue({
-        rate_forex_risk: result.data.rate_forex_risk,
-        rate_fin_comm: result.data.rate_fin_comm,
-        rate_loan_interest_daily: result.data.rate_loan_interest_daily,
-      });
+      setFormData((prev) => ({
+        ...prev,
+        rate_forex_risk: result.data!.rate_forex_risk,
+        rate_fin_comm: result.data!.rate_fin_comm,
+        rate_loan_interest_daily: result.data!.rate_loan_interest_daily,
+      }));
     }
   };
 
@@ -387,8 +458,33 @@ export default function CreateQuotePage() {
       setSupplierCountries(options);
     } catch (error) {
       console.error('Failed to load supplier countries:', error);
-      // Fallback to empty array - graceful degradation
       setSupplierCountries([]);
+    }
+  };
+
+  const loadSellerCompanies = async () => {
+    try {
+      const apiUrl = config.apiUrl;
+      const supabase = (await import('@/lib/supabase/client')).createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) return;
+
+      const response = await fetch(`${apiUrl}/api/seller-companies/`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSellerCompanies(data);
+      }
+    } catch (error) {
+      console.error('Failed to load seller companies:', error);
+      setSellerCompanies([]);
     }
   };
 
@@ -400,57 +496,47 @@ export default function CreateQuotePage() {
 
       if (result.success && result.data) {
         setUploadedProducts(result.data.products);
-        setUploadedFile({
-          uid: Date.now().toString(),
-          name: file.name,
-          status: 'done',
-        } as UploadFile);
-        message.success(`Загружено ${result.data.total_count} товаров`);
+        setUploadedFileName(file.name);
+        toast.success(`Загружено ${result.data.total_count} товаров`);
         return true;
       } else {
-        message.error(`Ошибка загрузки файла: ${result.error}`);
+        toast.error(`Ошибка загрузки файла: ${result.error}`);
         return false;
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const uploadProps: UploadProps = {
-    name: 'file',
-    multiple: false,
-    maxCount: 1,
-    accept: '.xlsx,.xls,.csv',
-    customRequest: async ({ file, onSuccess, onError }) => {
-      const uploadFile = file as File;
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file && quotesCalcService.isValidFileType(file)) {
+      await handleFileUpload(file);
+    } else {
+      toast.error('Поддерживаются только файлы Excel (.xlsx, .xls) и CSV (.csv)');
+    }
+  };
 
-      if (!quotesCalcService.isValidFileType(uploadFile)) {
-        message.error('Поддерживаются только файлы Excel (.xlsx, .xls) и CSV (.csv)');
-        if (onError) onError(new Error('Invalid file type'));
-        return;
-      }
-
-      const success = await handleFileUpload(uploadFile);
-      if (success) {
-        if (onSuccess) onSuccess('ok');
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (quotesCalcService.isValidFileType(file)) {
+        await handleFileUpload(file);
       } else {
-        if (onError) onError(new Error('Upload failed'));
+        toast.error('Поддерживаются только файлы Excel (.xlsx, .xls) и CSV (.csv)');
       }
-    },
-    onRemove: () => {
-      setUploadedProducts([]);
-      setUploadedFile(null);
-      message.info('Файл удален');
-      return true;
-    },
-    fileList: uploadedFile ? [uploadedFile] : [],
-    showUploadList: {
-      showRemoveIcon: true,
-      showPreviewIcon: false,
-    },
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedProducts([]);
+    setUploadedFileName(null);
+    toast.info('Файл удален');
   };
 
   // Template selection handler
@@ -463,28 +549,29 @@ export default function CreateQuotePage() {
       console.log('Template load result:', result);
 
       if (result.success && result.data) {
-        // Merge template variables with current form values
         const templateVars = result.data.variables;
         console.log('Template variables:', templateVars);
 
-        // Convert date strings to dayjs objects for DatePicker
+        // Convert date strings to proper format
         const processedVars = { ...templateVars };
         if (processedVars.quote_date && typeof processedVars.quote_date === 'string') {
-          processedVars.quote_date = dayjs(processedVars.quote_date);
+          processedVars.quote_date = dayjs(processedVars.quote_date).format('YYYY-MM-DD');
         }
         if (processedVars.valid_until && typeof processedVars.valid_until === 'string') {
-          processedVars.valid_until = dayjs(processedVars.valid_until);
+          processedVars.valid_until = dayjs(processedVars.valid_until).format('YYYY-MM-DD');
         }
 
-        form.setFieldsValue(processedVars as any);
-        message.success(`Шаблон "${result.data.name}" загружен`);
+        // Type assertion needed as template vars may contain numeric values
+        // that need to be converted to MonetaryValue in FormData
+        setFormData((prev) => ({ ...prev, ...processedVars }) as FormData);
+        toast.success(`Шаблон "${result.data.name}" загружен`);
       } else {
         console.error('Template load failed:', result.error);
-        message.error(`Ошибка загрузки шаблона: ${result.error}`);
+        toast.error(`Ошибка загрузки шаблона: ${result.error}`);
       }
     } catch (error) {
       console.error('Template select error:', error);
-      message.error('Ошибка при загрузке шаблона');
+      toast.error('Ошибка при загрузке шаблона');
     }
   };
 
@@ -504,9 +591,8 @@ export default function CreateQuotePage() {
     console.log('templateUpdateId:', templateUpdateId);
     console.log('templateNewName:', templateNewName);
 
-    const formValues = form.getFieldsValue();
     // Extract monetary values and convert to numbers for template storage
-    const { variables } = extractMonetaryValues(formValues);
+    const { variables } = extractMonetaryValues(formData);
     console.log('Form values to save:', variables);
 
     try {
@@ -514,12 +600,11 @@ export default function CreateQuotePage() {
 
       if (templateSaveMode === 'update' && templateUpdateId) {
         console.log('>>> ENTERING UPDATE BRANCH');
-        // Update existing template
         const existingTemplate = templates.find((t) => t.id === templateUpdateId);
         console.log('existingTemplate found:', existingTemplate);
 
         if (!existingTemplate) {
-          message.error('Шаблон не найден');
+          toast.error('Шаблон не найден');
           return;
         }
 
@@ -527,31 +612,29 @@ export default function CreateQuotePage() {
         result = await quotesCalcService.updateTemplate(templateUpdateId, {
           name: existingTemplate.name,
           description: `Обновлено ${new Date().toLocaleDateString()}`,
-          variables: variables,
+          variables: variables as unknown as CalculationVariables,
           is_default: existingTemplate.is_default,
         });
         console.log('Template update result:', result);
       } else {
-        // Create new template
         if (!templateNewName.trim()) {
-          message.error('Введите название шаблона');
+          toast.error('Введите название шаблона');
           return;
         }
 
         result = await quotesCalcService.createTemplate({
           name: templateNewName,
           description: `Создано ${new Date().toLocaleDateString()}`,
-          variables: variables,
+          variables: variables as unknown as CalculationVariables,
           is_default: false,
         });
         console.log('Template create result:', result);
       }
 
       if (result.success) {
-        message.success(templateSaveMode === 'update' ? 'Шаблон обновлен' : 'Шаблон создан');
-        await loadTemplates(); // Reload templates list
+        toast.success(templateSaveMode === 'update' ? 'Шаблон обновлен' : 'Шаблон создан');
+        await loadTemplates();
 
-        // Select the saved/updated template
         if (result.data?.id) {
           setSelectedTemplate(result.data.id);
         }
@@ -560,87 +643,53 @@ export default function CreateQuotePage() {
         console.log('Templates reloaded after save');
       } else {
         console.error('Template save failed:', result.error);
-        message.error(`Ошибка сохранения: ${result.error}`);
+        toast.error(`Ошибка сохранения: ${result.error}`);
       }
     } catch (error) {
       console.error('Template save error:', error);
-      message.error('Ошибка при сохранении шаблона');
+      toast.error('Ошибка при сохранении шаблона');
     }
-  };
-
-  // Apply quote-level defaults to products before sending to API
-  // Two-tier system: product override > quote default > fallback
-  const applyQuoteDefaultsToProducts = (
-    products: Product[],
-    quoteDefaults: CalculationVariables
-  ): Product[] => {
-    return products.map((product) => ({
-      ...product,
-      // Financial defaults (both Product and CalculationVariables have these)
-      currency_of_base_price:
-        product.currency_of_base_price || quoteDefaults.currency_of_base_price || 'USD',
-      exchange_rate_base_price_to_quote:
-        product.exchange_rate_base_price_to_quote ||
-        quoteDefaults.exchange_rate_base_price_to_quote ||
-        1.0,
-      supplier_discount: product.supplier_discount ?? 0, // Product-only field, default to 0 if not set
-      markup: product.markup ?? quoteDefaults.markup ?? 0,
-
-      // Logistics defaults
-      supplier_country: product.supplier_country || quoteDefaults.supplier_country || 'Турция',
-
-      // Customs defaults
-      customs_code: product.customs_code || quoteDefaults.customs_code || '',
-      import_tariff: product.import_tariff ?? quoteDefaults.import_tariff ?? 0,
-      excise_tax: product.excise_tax ?? quoteDefaults.excise_tax ?? 0,
-    }));
   };
 
   // Clear all quote-level variables
   const handleClearVariables = () => {
-    try {
-      form.resetFields();
-      message.success('Все переменные очищены');
-    } catch (error) {
-      console.warn('Error clearing form:', error);
-      message.success('Все переменные очищены');
-    }
+    setFormData(initialFormData);
+    toast.success('Все переменные очищены');
   };
 
   // Calculate quote
   const handleCalculate = async () => {
-    // Validate form fields first
-    try {
-      await form.validateFields();
-    } catch (error) {
-      message.error('Пожалуйста, заполните все обязательные поля');
-      // Scroll to first error field
-      const errorField = document.querySelector('.ant-form-item-has-error');
-      if (errorField) {
-        errorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+    // Validate required fields
+    if (!formData.seller_company) {
+      toast.error('Выберите компанию-продавца');
+      return;
+    }
+    if (!formData.offer_sale_type) {
+      toast.error('Выберите вид КП');
+      return;
+    }
+    if (!formData.currency_of_quote) {
+      toast.error('Выберите валюту КП');
+      return;
+    }
+    if (!formData.offer_incoterms) {
+      toast.error('Выберите базис поставки');
+      return;
+    }
+    if (!formData.delivery_time) {
+      toast.error('Укажите срок поставки');
       return;
     }
 
     // Validate customer selection
     if (!selectedCustomer) {
-      message.error('Выберите клиента');
-      // Scroll to customer select
-      const customerSelect = document.querySelector('[name="customer_id"]')?.closest('.ant-row');
-      if (customerSelect) {
-        customerSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      toast.error('Выберите клиента');
       return;
     }
 
     // Validate products uploaded
     if (uploadedProducts.length === 0) {
-      message.error('Добавьте минимум 1 продукт');
-      // Scroll to upload section
-      const uploadSection = document.querySelector('.ant-upload-drag');
-      if (uploadSection) {
-        uploadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      toast.error('Добавьте минимум 1 продукт');
       return;
     }
 
@@ -653,56 +702,41 @@ export default function CreateQuotePage() {
         !p.quantity
     );
     if (invalidProducts.length > 0) {
-      message.error(
+      toast.error(
         `Заполните все обязательные поля продуктов (название, цена с НДС, количество). Найдено незаполненных: ${invalidProducts.length}`
       );
-      // Scroll to products grid
-      const productsGrid = document.querySelector('.ag-theme-alpine');
-      if (productsGrid) {
-        productsGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
       return;
     }
 
     setLoading(true);
     try {
-      const formValues = form.getFieldsValue();
-
       // Extract MonetaryValue objects from form values
-      // This converts MonetaryValue objects to numeric values for backend compatibility
-      const { variables: processedFormValues, monetaryFields } = extractMonetaryValues(formValues);
+      const { variables: processedFormValues, monetaryFields } = extractMonetaryValues(formData);
 
-      // Merge form values with defaults to ensure all 39 variables are present
-      // Form only contains visible fields, but backend needs ALL variables
+      // Merge form values with defaults
       const defaultVariables = quotesCalcService.getDefaultVariables();
       const variables = {
-        ...defaultVariables, // Start with all defaults
-        ...processedFormValues, // Override with form values (MonetaryValue converted to numbers)
-        // Include full monetary field data for backend to store with currency info
+        ...defaultVariables,
+        ...processedFormValues,
         monetary_fields: monetaryFields,
       };
 
-      // Convert dayjs dates to ISO strings
-      const quote_date = variables.quote_date
-        ? variables.quote_date.format('YYYY-MM-DD')
-        : dayjs().format('YYYY-MM-DD');
-      const valid_until = variables.valid_until
-        ? variables.valid_until.format('YYYY-MM-DD')
-        : dayjs().add(7, 'day').format('YYYY-MM-DD');
+      // Convert dates to ISO strings
+      const quote_date = formData.quote_date || dayjs().format('YYYY-MM-DD');
+      const valid_until = formData.valid_until || dayjs().add(7, 'day').format('YYYY-MM-DD');
 
       // Get quote currency for exchange rate lookup
-      const quoteCurrency = variables.currency_of_quote || 'RUB';
+      const quoteCurrency = formData.currency_of_quote || 'RUB';
 
       // Collect unique base currencies that need exchange rate lookup
       const uniqueBaseCurrencies = new Set<string>();
       uploadedProducts.forEach((product, index) => {
         const overrides = productOverrides.get(index);
         const baseCurrency =
-          overrides?.currency_of_base_price ??
+          (overrides?.currency_of_base_price as string) ??
           product.currency_of_base_price ??
-          variables.currency_of_base_price ??
+          formData.currency_of_base_price ??
           'USD';
-        // Only need to look up if different from quote currency
         if (baseCurrency !== quoteCurrency) {
           uniqueBaseCurrencies.add(baseCurrency);
         }
@@ -723,54 +757,51 @@ export default function CreateQuotePage() {
         }
       }
 
-      // IMPORTANT: Build products with custom_fields BEFORE applying defaults
-      // Otherwise applyQuoteDefaultsToProducts will overwrite user edits!
+      // Build products with custom_fields
       const productsWithCustomFields = uploadedProducts.map((product, index) => {
         const overrides = productOverrides.get(index);
 
-        // Determine the base currency for this product
         const baseCurrency =
-          overrides?.currency_of_base_price ??
+          (overrides?.currency_of_base_price as string) ??
           product.currency_of_base_price ??
-          variables.currency_of_base_price ??
+          formData.currency_of_base_price ??
           'USD';
 
-        // Get exchange rate: use override if exists, otherwise look up from CBR
-        // If same currency, rate is 1.0
         const exchangeRate =
-          overrides?.exchange_rate_base_price_to_quote ??
+          (overrides?.exchange_rate_base_price_to_quote as number) ??
           product.exchange_rate_base_price_to_quote ??
-          variables.exchange_rate_base_price_to_quote ??
+          formData.exchange_rate_base_price_to_quote ??
           (baseCurrency === quoteCurrency ? 1.0 : (exchangeRates[baseCurrency] ?? 1.0));
 
-        // Apply defaults but preserve overrides
         const productWithDefaults = {
           ...product,
-          // Financial defaults (use override if exists, otherwise use quote default)
           currency_of_base_price: baseCurrency,
           exchange_rate_base_price_to_quote: exchangeRate,
-          supplier_discount: overrides?.supplier_discount ?? product.supplier_discount ?? 0,
-          markup: overrides?.markup ?? product.markup ?? variables.markup ?? 0,
-
-          // Logistics defaults
+          supplier_discount:
+            (overrides?.supplier_discount as number) ?? product.supplier_discount ?? 0,
+          markup: (overrides?.markup as number) ?? product.markup ?? formData.markup ?? 0,
           supplier_country:
-            overrides?.supplier_country ??
+            (overrides?.supplier_country as string) ??
             product.supplier_country ??
-            variables.supplier_country ??
+            formData.supplier_country ??
             'Турция',
-
-          // Customs defaults
           customs_code:
-            overrides?.customs_code ?? product.customs_code ?? variables.customs_code ?? '',
+            (overrides?.customs_code as string) ??
+            product.customs_code ??
+            formData.customs_code ??
+            '',
           import_tariff:
-            overrides?.import_tariff ?? product.import_tariff ?? variables.import_tariff ?? 0,
-          excise_tax: overrides?.excise_tax ?? product.excise_tax ?? variables.excise_tax ?? 0,
-          util_fee: overrides?.util_fee ?? variables.util_fee ?? 0,
+            (overrides?.import_tariff as number) ??
+            product.import_tariff ??
+            formData.import_tariff ??
+            0,
+          excise_tax: (overrides?.excise_tax as number) ?? product.excise_tax ?? 0,
+          util_fee: (overrides?.util_fee as number) ?? 0,
         };
 
         return {
           ...productWithDefaults,
-          custom_fields: overrides || {}, // Attach custom_fields for backend
+          custom_fields: overrides || {},
         };
       });
 
@@ -787,15 +818,14 @@ export default function CreateQuotePage() {
       if (result.success && result.data) {
         setCalculationResults(result.data);
         const quoteId = result.data.quote_id;
-        const quoteNumber = result.data.quote_number;
+        // Support both idn_quote (new) and quote_number (legacy)
+        const quoteIdnOrNumber = result.data.idn_quote || result.data.quote_number;
 
-        console.log('✅ Quote created successfully:', quoteNumber);
+        console.log('✅ Quote created successfully:', quoteIdnOrNumber);
         console.log('✅ Quote ID for redirect:', quoteId);
 
-        // Show success message and redirect to quote view page
-        message.success(`Котировка №${quoteNumber} создана!`, 1.5);
+        toast.success(`Котировка ${quoteIdnOrNumber} создана!`);
 
-        // Redirect to quote view page (where user can see results and export)
         if (quoteId) {
           console.log('Redirecting to view page:', `/quotes/${quoteId}`);
           setTimeout(() => {
@@ -803,33 +833,14 @@ export default function CreateQuotePage() {
           }, 1500);
         } else {
           console.error('❌ Quote ID is undefined, cannot redirect');
-          message.warning('КП создано, но не удалось перейти к просмотру');
+          toast.warning('КП создано, но не удалось перейти к просмотру');
         }
       } else {
-        // Format validation errors as bullet list
         const errorText = result.error || 'Неизвестная ошибка';
-        if (errorText.includes('\n') || errorText.length > 100) {
-          // Multi-line or long error - show in modal for better readability
-          const errorLines = errorText.split('\n').filter((line: string) => line.trim());
-          Modal.error({
-            title: 'Ошибка расчета КП',
-            content: (
-              <div>
-                {errorLines.map((line: string, idx: number) => (
-                  <div key={idx} style={{ marginBottom: '8px' }}>
-                    {line.startsWith('-') || line.startsWith('•') ? line : `• ${line}`}
-                  </div>
-                ))}
-              </div>
-            ),
-            width: 600,
-          });
-        } else {
-          message.error(`Ошибка расчета: ${errorText}`);
-        }
+        toast.error(`Ошибка расчета: ${errorText}`);
       }
     } catch (error: any) {
-      message.error(`Ошибка: ${error.message}`);
+      toast.error(`Ошибка: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -854,7 +865,7 @@ export default function CreateQuotePage() {
             field: 'sku',
             headerName: 'Артикул',
             width: 120,
-            pinned: 'left', // Always visible
+            pinned: 'left',
             editable: true,
             cellStyle: { backgroundColor: '#fff' },
           },
@@ -862,7 +873,7 @@ export default function CreateQuotePage() {
             field: 'brand',
             headerName: 'Бренд',
             width: 120,
-            pinned: 'left', // Always visible
+            pinned: 'left',
             editable: true,
             cellStyle: { backgroundColor: '#fff' },
           },
@@ -870,7 +881,7 @@ export default function CreateQuotePage() {
             field: 'product_name',
             headerName: 'Наименование',
             width: 200,
-            pinned: 'left', // Always visible
+            pinned: 'left',
             editable: true,
             cellStyle: { backgroundColor: '#fff' },
           },
@@ -891,8 +902,8 @@ export default function CreateQuotePage() {
             editable: true,
             type: 'numericColumn',
             cellStyle: { backgroundColor: '#fff' },
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(2) || '',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
           {
             field: 'weight_in_kg',
@@ -902,8 +913,8 @@ export default function CreateQuotePage() {
             editable: true,
             type: 'numericColumn',
             cellStyle: { backgroundColor: '#fff' },
-            valueFormatter: (params) => params.value?.toFixed(2) || '-',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(2) || '-',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
         ],
       },
@@ -921,7 +932,7 @@ export default function CreateQuotePage() {
             cellEditorParams: {
               values: ['TRY', 'USD', 'EUR', 'CNY', 'RUB'],
             },
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
           },
@@ -935,7 +946,7 @@ export default function CreateQuotePage() {
             cellEditorParams: {
               values: supplierCountries.map((c) => c.value),
             },
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
           },
@@ -946,11 +957,11 @@ export default function CreateQuotePage() {
             minWidth: 100,
             editable: true,
             type: 'numericColumn',
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(2) || '',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
           {
             field: 'exchange_rate_base_price_to_quote',
@@ -959,11 +970,11 @@ export default function CreateQuotePage() {
             minWidth: 90,
             editable: true,
             type: 'numericColumn',
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(4) || '',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(4) || '',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
           {
             field: 'customs_code',
@@ -971,7 +982,7 @@ export default function CreateQuotePage() {
             flex: 1,
             minWidth: 120,
             editable: true,
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
           },
@@ -982,11 +993,11 @@ export default function CreateQuotePage() {
             minWidth: 110,
             editable: true,
             type: 'numericColumn',
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(2) || '',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
           {
             field: 'excise_tax',
@@ -995,11 +1006,11 @@ export default function CreateQuotePage() {
             minWidth: 150,
             editable: true,
             type: 'numericColumn',
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(2) || '',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
           {
             field: 'util_fee',
@@ -1008,11 +1019,11 @@ export default function CreateQuotePage() {
             minWidth: 150,
             editable: true,
             type: 'numericColumn',
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(2) || '',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
           {
             field: 'markup',
@@ -1021,11 +1032,11 @@ export default function CreateQuotePage() {
             minWidth: 100,
             editable: true,
             type: 'numericColumn',
-            cellStyle: (params) => ({
+            cellStyle: (params: any) => ({
               backgroundColor: params.value ? '#e6f7ff' : '#f5f5f5',
             }),
-            valueFormatter: (params) => params.value?.toFixed(2) || '',
-            valueParser: (params) => parseDecimalInput(params.newValue),
+            valueFormatter: (params: any) => params.value?.toFixed(2) || '',
+            valueParser: (params: any) => parseDecimalInput(params.newValue),
           },
         ],
       },
@@ -1039,12 +1050,12 @@ export default function CreateQuotePage() {
       resizable: true,
       sortable: true,
       filter: true,
-      floatingFilter: true, // Enable floating filter row below headers
+      floatingFilter: true,
       floatingFilterComponentParams: {
-        suppressFilterButton: false, // Show filter menu button
+        suppressFilterButton: false,
       },
       filterParams: {
-        buttons: ['clear'], // Add clear button to filter menu
+        buttons: ['clear'],
       },
       enableCellChangeFlash: true,
     }),
@@ -1056,7 +1067,7 @@ export default function CreateQuotePage() {
     (field: string, value: any) => {
       const selectedNodes = gridRef.current?.api.getSelectedNodes();
       if (!selectedNodes || selectedNodes.length === 0) {
-        message.warning('Выберите строки для применения значения');
+        toast.warning('Выберите строки для применения значения');
         return;
       }
 
@@ -1072,7 +1083,7 @@ export default function CreateQuotePage() {
 
       setUploadedProducts(updatedProducts);
       gridRef.current?.api.refreshCells({ force: true });
-      message.success(`Значение применено к ${selectedNodes.length} строкам`);
+      toast.success(`Значение применено к ${selectedNodes.length} строкам`);
     },
     [uploadedProducts]
   );
@@ -1081,7 +1092,7 @@ export default function CreateQuotePage() {
   const openBulkEditModal = () => {
     const selectedNodes = gridRef.current?.api.getSelectedNodes();
     if (!selectedNodes || selectedNodes.length === 0) {
-      message.warning('Выберите строки для массового редактирования');
+      toast.warning('Выберите строки для массового редактирования');
       return;
     }
     setBulkEditModalVisible(true);
@@ -1090,7 +1101,7 @@ export default function CreateQuotePage() {
   // Apply bulk edit
   const applyBulkEdit = () => {
     if (!bulkEditField) {
-      message.error('Выберите поле для редактирования');
+      toast.error('Выберите поле для редактирования');
       return;
     }
 
@@ -1113,1244 +1124,1308 @@ export default function CreateQuotePage() {
     { value: 'markup', label: 'Наценка (%)' },
   ];
 
+  // Calculate totals for results table
+  const calculateTotals = (items: ProductCalculationResult[]) => ({
+    quantity: items.reduce((sum, item) => sum + (item.quantity || 0), 0),
+    purchase_price_rub: items.reduce((sum, item) => sum + (item.purchase_price_rub || 0), 0),
+    logistics_costs: items.reduce((sum, item) => sum + (item.logistics_costs || 0), 0),
+    cogs: items.reduce((sum, item) => sum + (item.cogs || 0), 0),
+    cogs_with_vat: items.reduce((sum, item) => sum + (item.cogs_with_vat || 0), 0),
+    import_duties: items.reduce((sum, item) => sum + (item.import_duties || 0), 0),
+    customs_fees: items.reduce((sum, item) => sum + (item.customs_fees || 0), 0),
+    financing_costs: items.reduce((sum, item) => sum + (item.financing_costs || 0), 0),
+    dm_fee: items.reduce((sum, item) => sum + (item.dm_fee || 0), 0),
+    total_cost: items.reduce((sum, item) => sum + (item.total_cost || 0), 0),
+    sale_price: items.reduce((sum, item) => sum + (item.sale_price || 0), 0),
+    margin: items.reduce((sum, item) => sum + (item.margin || 0), 0),
+  });
+
   return (
     <MainLayout>
-      <div style={{ padding: '24px' }}>
+      <div className="p-6 space-y-6">
         {/* Header */}
-        <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
-          <Col>
-            <Space>
-              <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/quotes')}>
-                Назад
-              </Button>
-              <Title level={2} style={{ margin: 0 }}>
-                Создать котировку
-              </Title>
-            </Space>
-          </Col>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => router.push('/quotes')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Назад
+            </Button>
+            <h1 className="text-2xl font-semibold">Создать котировку</h1>
+          </div>
           {/* Admin Settings - Minimal Horizontal Display */}
           {adminSettings && (
-            <Col>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                <InfoCircleOutlined style={{ fontSize: '11px', marginRight: 4 }} />
-                Резерв: {adminSettings.rate_forex_risk.toFixed(2)}% | Комиссия ФА:{' '}
-                {adminSettings.rate_fin_comm.toFixed(2)}% | Годовая ставка:{' '}
-                {(
-                  calculationSettingsService.dailyToAnnualRate(
-                    adminSettings.rate_loan_interest_daily
-                  ) * 100
-                ).toFixed(2)}
-                %
-              </Text>
-            </Col>
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <Info className="h-3 w-3" />
+              Резерв: {adminSettings.rate_forex_risk.toFixed(2)}% | Комиссия ФА:{' '}
+              {adminSettings.rate_fin_comm.toFixed(2)}% | Годовая ставка:{' '}
+              {(
+                calculationSettingsService.dailyToAnnualRate(
+                  adminSettings.rate_loan_interest_daily
+                ) * 100
+              ).toFixed(2)}
+              %
+            </div>
           )}
-        </Row>
+        </div>
 
-        {/* Requirements Alert - Show when customer or products are missing */}
+        {/* Requirements Alert */}
         {(!selectedCustomer || uploadedProducts.length === 0) && !calculationResults && (
-          <Alert
-            message="Чтобы рассчитать котировку"
-            description={
-              <div>
-                {!selectedCustomer && <div>• Выберите клиента из списка ниже</div>}
-                {uploadedProducts.length === 0 && (
-                  <div>• Загрузите файл с товарами (Excel или CSV)</div>
-                )}
-              </div>
-            }
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Чтобы рассчитать котировку</AlertTitle>
+            <AlertDescription>
+              {!selectedCustomer && <div>• Выберите клиента из списка ниже</div>}
+              {uploadedProducts.length === 0 && (
+                <div>• Загрузите файл с товарами (Excel или CSV)</div>
+              )}
+            </AlertDescription>
+          </Alert>
         )}
 
-        <Spin spinning={loading}>
-          <Form
-            form={form}
-            layout="vertical"
-            size="small"
-            className="compact-form"
-            onFinish={handleCalculate}
-            validateTrigger={['onBlur', 'onChange']}
-            scrollToFirstError={{ behavior: 'smooth', block: 'center' }}
-          >
-            {/* Top Section - Form Cards (Full Width) */}
-            <Row gutter={24}>
-              <Col span={24}>
-                {/* Template & Customer Selector - Compact Inline */}
-                <Row
-                  gutter={12}
-                  align="middle"
-                  style={{
-                    marginBottom: 16,
-                    padding: '8px 12px',
-                    background: '#fafafa',
-                    borderRadius: '4px',
-                  }}
-                >
-                  <Col>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Шаблон:
-                    </Text>
-                  </Col>
-                  <Col flex="auto" style={{ maxWidth: '300px' }}>
-                    <Select
-                      size="small"
-                      placeholder="Выберите шаблон"
-                      value={selectedTemplate}
-                      onChange={handleTemplateSelect}
-                      allowClear
-                      style={{ width: '100%' }}
-                      options={templates.map((t) => ({
-                        label: `${t.name}${t.is_default ? ' (по умолч.)' : ''}`,
-                        value: t.id,
-                      }))}
-                    />
-                  </Col>
-                  <Col>
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<SaveOutlined />}
-                      onClick={handleSaveTemplate}
-                    >
-                      Сохранить
-                    </Button>
-                  </Col>
-                  <Col>
-                    <Divider type="vertical" style={{ height: '24px', margin: '0 8px' }} />
-                  </Col>
-                  <Col>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Клиент:
-                    </Text>
-                  </Col>
-                  <Col flex="auto" style={{ maxWidth: '300px' }}>
-                    <Form.Item
-                      name="customer_id"
-                      rules={[{ required: true, message: 'Выберите клиента' }]}
-                      style={{ marginBottom: 0 }}
-                    >
-                      <Select
-                        size="small"
-                        showSearch
-                        placeholder="Выберите клиента"
-                        onChange={(value) => {
-                          setSelectedCustomer(value);
-                        }}
-                        optionFilterProp="children"
-                        style={{ width: '100%' }}
-                        filterOption={(input, option) =>
-                          (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                        }
-                        options={customers.map((c) => ({
-                          label: `${c.name} (${c.inn || 'без ИНН'})`,
-                          value: c.id,
-                        }))}
-                      />
-                    </Form.Item>
-                  </Col>
-                  {selectedCustomer && customerContacts.length > 0 && (
-                    <>
-                      <Col>
-                        <Divider type="vertical" style={{ height: '24px', margin: '0 8px' }} />
-                      </Col>
-                      <Col>
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          Контакт:
-                        </Text>
-                      </Col>
-                      <Col flex="auto" style={{ maxWidth: '250px' }}>
-                        <Select
-                          size="small"
-                          showSearch
-                          placeholder="Контактное лицо"
-                          value={selectedContact}
-                          onChange={setSelectedContact}
-                          optionFilterProp="children"
-                          style={{ width: '100%' }}
-                          allowClear
-                          filterOption={(input, option) =>
-                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                          }
-                          options={customerContacts.map((contact) => ({
-                            label: `${contact.name}${contact.position ? ` (${contact.position})` : ''}${contact.is_primary ? ' ★' : ''}`,
-                            value: contact.id,
-                          }))}
-                        />
-                      </Col>
-                    </>
-                  )}
-                  <Col>
-                    <Divider type="vertical" style={{ height: '24px', margin: '0 8px' }} />
-                  </Col>
-                  <Col>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Дата КП:
-                    </Text>
-                  </Col>
-                  <Col style={{ width: '150px' }}>
-                    <Form.Item
-                      name="quote_date"
-                      noStyle
-                      rules={[{ required: true, message: 'Укажите дату КП' }]}
-                    >
-                      <DatePicker
-                        size="small"
-                        format="YYYY-MM-DD"
-                        style={{ width: '100%' }}
-                        onChange={(date) => {
-                          if (date) {
-                            // Auto-update valid_until to quote_date + 30 days
-                            form.setFieldsValue({
-                              valid_until: date.add(30, 'day'),
-                            });
-                          }
-                        }}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Действительно до:
-                    </Text>
-                  </Col>
-                  <Col style={{ width: '150px' }}>
-                    <Form.Item
-                      name="valid_until"
-                      noStyle
-                      rules={[{ required: true, message: 'Укажите срок действия' }]}
-                    >
-                      <DatePicker size="small" format="YYYY-MM-DD" style={{ width: '100%' }} />
-                    </Form.Item>
-                  </Col>
-                </Row>
+        {/* Template & Customer Selector - Compact Inline */}
+        <div className="bg-muted/50 rounded-lg p-3 flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted-foreground">Шаблон:</span>
+          <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+            <SelectTrigger className="w-[250px] h-8">
+              <SelectValue placeholder="Выберите шаблон" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                  {t.is_default && ' (по умолч.)'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" onClick={handleSaveTemplate}>
+            <Save className="h-4 w-4 mr-1" />
+            Сохранить
+          </Button>
 
-                {/* Variables Form - Grid of Cards */}
-                <Text
-                  type="secondary"
-                  style={{ display: 'block', marginBottom: 16, fontSize: '14px' }}
-                >
-                  🔧 Параметры котировки по умолчанию - эти значения будут применены ко всем
-                  товарам. Вы сможете переопределить их для отдельных товаров в таблице.
-                </Text>
+          <div className="h-6 w-px bg-border mx-2" />
 
-                <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-                  {/* 1. Company & Payment Combined Card */}
-                  <Col xs={24} lg={12}>
-                    <Card
-                      title="🏢 Настройки компании и оплата"
-                      size="small"
-                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      styles={{ body: { padding: '12px' } }}
-                    >
-                      <Row gutter={[12, 8]}>
-                        {/* Company Settings Section */}
-                        <Col span={24}>
-                          <Text
-                            strong
-                            style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}
-                          >
-                            Компания
-                          </Text>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="seller_company"
-                            label="Компания-продавец"
-                            rules={[{ required: true, message: 'Выберите компанию-продавца' }]}
-                          >
-                            <Select placeholder="Выберите компанию-продавца">
-                              <Select.Option value="МАСТЕР БЭРИНГ ООО">
-                                МАСТЕР БЭРИНГ ООО (Россия)
-                              </Select.Option>
-                              <Select.Option value="TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ">
-                                TEXCEL OTOMOTİV TİCARET LİMİTED ŞİRKETİ (Турция)
-                              </Select.Option>
-                              <Select.Option value="UPDOOR Limited">
-                                UPDOOR Limited (Китай)
-                              </Select.Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="offer_sale_type"
-                            label="Вид КП"
-                            rules={[{ required: true, message: 'Выберите вид КП' }]}
-                          >
-                            <Select>
-                              <Select.Option value="поставка">Поставка</Select.Option>
-                              <Select.Option value="транзит">Транзит</Select.Option>
-                              <Select.Option value="финтранзит">Финтранзит</Select.Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="currency_of_quote"
-                            label="Валюта КП"
-                            rules={[{ required: true, message: 'Выберите валюту КП' }]}
-                          >
-                            <Select>
-                              <Select.Option value="RUB">RUB (Рубль)</Select.Option>
-                              <Select.Option value="USD">USD (Доллар США)</Select.Option>
-                              <Select.Option value="EUR">EUR (Евро)</Select.Option>
-                              <Select.Option value="TRY">TRY (Турецкая лира)</Select.Option>
-                              <Select.Option value="CNY">CNY (Юань)</Select.Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="offer_incoterms"
-                            label="Базис поставки"
-                            rules={[{ required: true, message: 'Выберите базис поставки' }]}
-                          >
-                            <Select>
-                              <Select.Option value="DDP">DDP</Select.Option>
-                              <Select.Option value="EXW">EXW</Select.Option>
-                              <Select.Option value="FCA">FCA</Select.Option>
-                              <Select.Option value="DAP">DAP</Select.Option>
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="delivery_time"
-                            label="Срок поставки (дни)"
-                            rules={[{ required: true, message: 'Укажите срок поставки' }]}
-                          >
-                            <InputNumber
-                              min={0}
-                              step={1}
-                              style={{ width: '100%' }}
-                              addonAfter="дн"
-                            />
-                          </Form.Item>
-                          {deliveryDate && (
-                            <Alert
-                              message={`Дата поставки: ${deliveryDate.format('DD.MM.YYYY')} • НДС: ${vatRate}`}
-                              type={vatRate === '22%' ? 'warning' : 'info'}
-                              showIcon
-                              style={{ marginTop: 8 }}
-                            />
-                          )}
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="markup" label="Наценка (%)">
-                            <InputNumber
-                              min={0}
-                              max={500}
-                              step={1}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
+          <span className="text-xs text-muted-foreground">Клиент:</span>
+          <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+            <SelectTrigger className="w-[250px] h-8">
+              <SelectValue placeholder="Выберите клиента" />
+            </SelectTrigger>
+            <SelectContent>
+              {customers.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name} ({c.inn || 'без ИНН'})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-                        {/* Payment Terms - Basic (always visible) */}
-                        <Col span={24} style={{ marginTop: 12 }}>
-                          <Text
-                            strong
-                            style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}
-                          >
-                            Условия оплаты
-                          </Text>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="advance_from_client" label="Аванс от клиента (%)">
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="time_to_advance_on_receiving"
-                            label="Дней от получения до оплаты"
-                          >
-                            <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
+          {selectedCustomer && customerContacts.length > 0 && (
+            <>
+              <div className="h-6 w-px bg-border mx-2" />
+              <span className="text-xs text-muted-foreground">Контакт:</span>
+              <Select value={selectedContact} onValueChange={setSelectedContact}>
+                <SelectTrigger className="w-[200px] h-8">
+                  <SelectValue placeholder="Контактное лицо" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customerContacts.map((contact) => (
+                    <SelectItem key={contact.id} value={contact.id}>
+                      {contact.name}
+                      {contact.position && ` (${contact.position})`}
+                      {contact.is_primary && ' ★'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
 
-                        {/* Advanced Payment Fields Toggle */}
-                        <Col span={24}>
-                          <Button
-                            type="link"
-                            size="small"
-                            onClick={() => setShowAdvancedPayment(!showAdvancedPayment)}
-                            style={{ padding: 0 }}
-                          >
-                            {showAdvancedPayment
-                              ? '▼ Скрыть дополнительные условия оплаты'
-                              : '▶ Показать дополнительные условия оплаты'}
-                          </Button>
-                        </Col>
+          <div className="h-6 w-px bg-border mx-2" />
 
-                        {/* Advanced Payment Fields (conditionally rendered) */}
-                        {showAdvancedPayment && (
-                          <>
-                            <Col span={12}>
-                              <Form.Item name="time_to_advance" label="Дней до аванса">
-                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item name="advance_to_supplier" label="Аванс поставщику (%)">
-                                <InputNumber
-                                  min={0}
-                                  max={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="%"
-                                />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="advance_on_loading"
-                                label="Аванс при заборе груза (%)"
-                              >
-                                <InputNumber
-                                  min={0}
-                                  max={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="%"
-                                />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="time_to_advance_loading"
-                                label="Дней от забора до аванса"
-                              >
-                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="advance_on_going_to_country_destination"
-                                label="Аванс при отправке в РФ (%)"
-                              >
-                                <InputNumber
-                                  min={0}
-                                  max={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="%"
-                                />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="time_to_advance_going_to_country_destination"
-                                label="Дней от отправки до аванса"
-                              >
-                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="advance_on_customs_clearance"
-                                label="Аванс при прохождении таможни (%)"
-                              >
-                                <InputNumber
-                                  min={0}
-                                  max={100}
-                                  style={{ width: '100%' }}
-                                  addonAfter="%"
-                                />
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item
-                                name="time_to_advance_on_customs_clearance"
-                                label="Дней от таможни до аванса"
-                              >
-                                <InputNumber min={0} addonAfter="дн" style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                          </>
-                        )}
+          <span className="text-xs text-muted-foreground">Дата КП:</span>
+          <Input
+            type="date"
+            value={formData.quote_date}
+            onChange={(e) => {
+              const newDate = e.target.value;
+              setFormData((prev) => ({
+                ...prev,
+                quote_date: newDate,
+                valid_until: dayjs(newDate).add(30, 'day').format('YYYY-MM-DD'),
+              }));
+            }}
+            className="w-[140px] h-8"
+          />
 
-                        {/* LPR Compensation - Collapsible (at bottom) */}
-                        <Col span={24} style={{ marginTop: 16 }}>
-                          <Button
-                            type="link"
-                            size="small"
-                            onClick={() => setShowLprCompensation(!showLprCompensation)}
-                            style={{ padding: 0 }}
-                          >
-                            {showLprCompensation
-                              ? '▼ Скрыть вознаграждение ЛПР'
-                              : '▶ Показать вознаграждение ЛПР'}
-                          </Button>
-                        </Col>
+          <span className="text-xs text-muted-foreground">Действительно до:</span>
+          <Input
+            type="date"
+            value={formData.valid_until}
+            onChange={(e) => setFormData((prev) => ({ ...prev, valid_until: e.target.value }))}
+            className="w-[140px] h-8"
+          />
+        </div>
 
-                        {/* LPR Fields (conditionally rendered) */}
-                        {showLprCompensation && (
-                          <>
-                            <Col span={12}>
-                              <Form.Item name="dm_fee_type" label="Тип вознаграждения ЛПР">
-                                <Select>
-                                  <Select.Option value="fixed">Фиксированная сумма</Select.Option>
-                                  <Select.Option value="%">Процент</Select.Option>
-                                </Select>
-                              </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                              <Form.Item name="dm_fee_value" label="Размер вознаграждения">
-                                <InputNumber min={0} step={100} style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                          </>
-                        )}
-                      </Row>
-                    </Card>
-                  </Col>
+        {/* Variables Form Info */}
+        <p className="text-sm text-muted-foreground">
+          🔧 Параметры котировки по умолчанию - эти значения будут применены ко всем товарам. Вы
+          сможете переопределить их для отдельных товаров в таблице.
+        </p>
 
-                  {/* 2. Logistics & Customs Card */}
-                  <Col xs={24} lg={12}>
-                    <Card
-                      title="🚚 Логистика и таможня"
-                      size="small"
-                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      styles={{ body: { padding: '12px' } }}
-                    >
-                      <Row gutter={[12, 8]}>
-                        {/* Logistics Section */}
-                        <Col span={24}>
-                          <Text
-                            strong
-                            style={{ fontSize: '12px', display: 'block', marginBottom: 4 }}
-                          >
-                            Логистика
-                          </Text>
-                        </Col>
-
-                        {/* Toggle between Total and Detailed */}
-                        <Col span={24}>
-                          <Radio.Group
-                            value={logisticsMode}
-                            onChange={(e) => setLogisticsMode(e.target.value)}
-                            size="small"
-                            style={{ marginBottom: 12 }}
-                          >
-                            <Radio.Button value="total">Итого</Radio.Button>
-                            <Radio.Button value="detailed">Детально</Radio.Button>
-                          </Radio.Group>
-                        </Col>
-
-                        {/* Total Logistics Field - Always mounted but hidden to preserve MonetaryValue form state */}
-                        <Col
-                          span={24}
-                          style={{ display: logisticsMode === 'total' ? 'block' : 'none' }}
-                        >
-                          <Form.Item name="logistics_total" label="Логистика всего">
-                            <MonetaryInput
-                              defaultCurrency="EUR"
-                              placeholder="0.00"
-                              onChange={handleLogisticsTotalChange}
-                            />
-                          </Form.Item>
-                        </Col>
-
-                        {/* Detailed Logistics Fields (always present, disabled when mode = total) */}
-                        <Col span={12}>
-                          <Form.Item name="logistics_supplier_hub" label="Поставщик - Хаб (50%)">
-                            <MonetaryInput
-                              defaultCurrency="EUR"
-                              placeholder="0.00"
-                              disabled={logisticsMode === 'total'}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="logistics_hub_customs" label="Хаб - Таможня РФ (30%)">
-                            <MonetaryInput
-                              defaultCurrency="EUR"
-                              placeholder="0.00"
-                              disabled={logisticsMode === 'total'}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item
-                            name="logistics_customs_client"
-                            label="Таможня РФ - Клиент (20%)"
-                          >
-                            <MonetaryInput
-                              defaultCurrency="RUB"
-                              placeholder="0.00"
-                              disabled={logisticsMode === 'total'}
-                            />
-                          </Form.Item>
-                        </Col>
-
-                        {/* Divider between Logistics and Brokerage */}
-                        <Col span={24}>
-                          <Divider style={{ margin: '12px 0' }} />
-                        </Col>
-
-                        {/* Brokerage Section Toggle */}
-                        <Col span={24}>
-                          <Button
-                            type="link"
-                            size="small"
-                            onClick={() => setShowBrokerage(!showBrokerage)}
-                            style={{ padding: 0 }}
-                          >
-                            {showBrokerage ? '▼ Скрыть брокеридж' : '▶ Показать брокеридж'}
-                          </Button>
-                        </Col>
-
-                        {/* Brokerage Fields - Always mounted but visually hidden to preserve MonetaryValue form state */}
-                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
-                          <Form.Item name="brokerage_hub" label="Брокерские хаб">
-                            <MonetaryInput defaultCurrency="EUR" placeholder="0.00" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
-                          <Form.Item name="brokerage_customs" label="Брокерские РФ">
-                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
-                          <Form.Item name="warehousing_at_customs" label="Расходы на СВХ">
-                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
-                          <Form.Item name="customs_documentation" label="Разрешительные документы">
-                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12} style={{ display: showBrokerage ? 'block' : 'none' }}>
-                          <Form.Item name="brokerage_extra" label="Прочие расходы">
-                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Card>
-                  </Col>
-
-                  {/* 3. Customs Clearance Card */}
-                  <Col xs={24} lg={12}>
-                    <Card
-                      title="🛃 Таможенная очистка"
-                      size="small"
-                      style={{ height: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
-                      styles={{ body: { padding: '12px' } }}
-                    >
-                      <Text
-                        type="secondary"
-                        style={{ display: 'block', marginBottom: 8, fontSize: '12px' }}
-                      >
-                        Значения по умолчанию для таможенной очистки
-                      </Text>
-                      <Row gutter={[12, 8]}>
-                        <Col span={24}>
-                          <Form.Item name="customs_code" label="Код ТН ВЭД">
-                            <Input placeholder="8482102009" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="import_tariff" label="Пошлина (%)">
-                            <InputNumber
-                              min={0}
-                              max={100}
-                              step={0.1}
-                              style={{ width: '100%' }}
-                              addonAfter="%"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                          <Form.Item name="excise_tax" label="Акциз (за кг)">
-                            <MonetaryInput defaultCurrency="RUB" placeholder="0.00" />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Card>
-                  </Col>
-                </Row>
-              </Col>
-            </Row>
-
-            {/* File Upload Row */}
-            <Row gutter={24} style={{ marginTop: 24 }}>
-              <Col span={24}>
-                {/* File Upload */}
-                <Card title="📁 Загрузить товары">
-                  <Dragger {...uploadProps}>
-                    <p className="ant-upload-drag-icon">
-                      <InboxOutlined />
-                    </p>
-                    <p className="ant-upload-text">Нажмите или перетащите файл Excel/CSV</p>
-                    <p className="ant-upload-hint">Поддерживаются форматы: .xlsx, .xls, .csv</p>
-                  </Dragger>
-                  {uploadedProducts.length > 0 && (
-                    <Text strong style={{ display: 'block', marginTop: 16 }}>
-                      Загружено товаров: {uploadedProducts.length}
-                    </Text>
-                  )}
-                </Card>
-              </Col>
-            </Row>
-
-            {/* Products Grid Section (Full Width) */}
-            {uploadedProducts.length > 0 && (
-              <Row gutter={24} style={{ marginTop: 24 }}>
-                <Col span={24}>
-                  <Card
-                    title="📋 Загруженные товары"
-                    extra={
-                      <Space>
-                        <Button icon={<EditOutlined />} onClick={openBulkEditModal} size="small">
-                          Массовое редактирование
-                        </Button>
-                        <Button
-                          icon={<FilterOutlined />}
-                          onClick={() => {
-                            // Clear all filters
-                            gridRef.current?.api?.setFilterModel(null);
-                            // Close all filter menus
-                            gridRef.current?.api?.getAllGridColumns()?.forEach((column: any) => {
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              const api = gridRef.current?.api as any;
-                              const filterInstance = api?.getFilterInstance(column.getColId());
-                              if (filterInstance) {
-                                filterInstance.setModel(null);
-                                api?.destroyFilter(column.getColId());
-                              }
-                            });
-                            message.success('Фильтры очищены');
-                          }}
-                          size="small"
-                        >
-                          Очистить фильтры
-                        </Button>
-                        <Button
-                          icon={<AppstoreOutlined />}
-                          onClick={() => setColumnChooserVisible(true)}
-                          size="small"
-                        >
-                          Колонки
-                        </Button>
-                      </Space>
+        {/* Form Cards Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 1. Company & Payment Combined Card */}
+          <Card className="shadow-sm">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">🏢 Настройки компании и оплата</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 space-y-4">
+              {/* Company Settings Section */}
+              <div className="text-xs font-semibold">Компания</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Компания-продавец *</Label>
+                  <Select
+                    value={formData.seller_company}
+                    onValueChange={(v: string) =>
+                      setFormData((prev) => ({ ...prev, seller_company: v }))
                     }
                   >
-                    <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-                      💡 Совет: Выберите строки, затем используйте &quot;Массовое
-                      редактирование&quot; или Ctrl+C/Ctrl+V для копирования из Excel
-                    </Text>
-                    <style>
-                      {agGridRowSelectionStyles}
-                      {compactFormStyles}
-                    </style>
-                    <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
-                      <AgGridReact
-                        ref={gridRef}
-                        rowData={uploadedProducts}
-                        columnDefs={columnDefs}
-                        defaultColDef={defaultColDef}
-                        animateRows={true}
-                        rowSelection={{
-                          mode: 'multiRow',
-                          checkboxes: true,
-                          headerCheckbox: true,
-                          enableClickSelection: false,
-                        }}
-                        enableCellTextSelection={true}
-                        suppressHorizontalScroll={false}
-                        onCellValueChanged={(event: any) => {
-                          const rowIndex = event.rowIndex;
-                          const field = event.colDef?.field;
-                          const newValue = event.newValue;
-
-                          if (rowIndex === null || rowIndex === undefined || !field) return;
-
-                          // Track this cell as manually edited
-                          const cellKey = `${rowIndex}-${field}`;
-                          setEditedCells((prev) => new Set(prev).add(cellKey));
-
-                          // Store the override value
-                          setProductOverrides((prev) => {
-                            const newMap = new Map(prev);
-                            const overrides = newMap.get(rowIndex) || {};
-                            overrides[field] = newValue;
-                            newMap.set(rowIndex, overrides);
-                            return newMap;
-                          });
-
-                          // Update product data in state
-                          setUploadedProducts((prevProducts) => {
-                            const updatedProducts = [...prevProducts];
-                            if (rowIndex !== null && rowIndex !== undefined) {
-                              updatedProducts[rowIndex] = event.data as Product;
-                            }
-                            return updatedProducts;
-                          });
-                        }}
-                      />
-                    </div>
-                  </Card>
-                </Col>
-              </Row>
-            )}
-
-            {/* Calculate and Clear Buttons */}
-            <Row gutter={24} style={{ marginTop: 24 }}>
-              <Col span={24}>
-                <Card>
-                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                    <Button
-                      type="primary"
-                      icon={<CalculatorOutlined />}
-                      size="large"
-                      block
-                      onClick={handleCalculate}
-                      loading={loading}
-                    >
-                      Рассчитать котировку
-                    </Button>
-                    <Button
-                      block
-                      size="large"
-                      icon={<CloseCircleOutlined />}
-                      onClick={handleClearVariables}
-                    >
-                      Очистить все переменные
-                    </Button>
-                  </Space>
-                  {(!selectedCustomer || uploadedProducts.length === 0) && (
-                    <Alert
-                      message="Перед расчетом проверьте:"
-                      description={
-                        <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
-                          {!selectedCustomer && <li>Выберите клиента из списка</li>}
-                          {uploadedProducts.length === 0 && <li>Загрузите файл с товарами</li>}
-                          <li>Заполните все обязательные поля (отмечены красным при пропуске)</li>
-                        </ul>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Выберите компанию" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sellerCompanies.map((company) => (
+                        <SelectItem key={company.id} value={company.name}>
+                          {company.name}
+                          {company.country && ` (${company.country})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Вид КП *</Label>
+                  <Select
+                    value={formData.offer_sale_type}
+                    onValueChange={(v: string) =>
+                      setFormData((prev) => ({ ...prev, offer_sale_type: v }))
+                    }
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Выберите вид" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="поставка">Поставка</SelectItem>
+                      <SelectItem value="транзит">Транзит</SelectItem>
+                      <SelectItem value="финтранзит">Финтранзит</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Валюта КП *</Label>
+                  <Select
+                    value={formData.currency_of_quote}
+                    onValueChange={(v: string) =>
+                      setFormData((prev) => ({ ...prev, currency_of_quote: v }))
+                    }
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Выберите валюту" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="RUB">RUB (Рубль)</SelectItem>
+                      <SelectItem value="USD">USD (Доллар США)</SelectItem>
+                      <SelectItem value="EUR">EUR (Евро)</SelectItem>
+                      <SelectItem value="TRY">TRY (Турецкая лира)</SelectItem>
+                      <SelectItem value="CNY">CNY (Юань)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Базис поставки *</Label>
+                  <Select
+                    value={formData.offer_incoterms}
+                    onValueChange={(v: string) =>
+                      setFormData((prev) => ({ ...prev, offer_incoterms: v }))
+                    }
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Выберите базис" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DDP">DDP</SelectItem>
+                      <SelectItem value="EXW">EXW</SelectItem>
+                      <SelectItem value="FCA">FCA</SelectItem>
+                      <SelectItem value="DAP">DAP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Срок поставки (дни) *</Label>
+                  <div className="flex">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={formData.delivery_time || ''}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          delivery_time: parseInt(e.target.value) || 0,
+                        }))
                       }
-                      type="warning"
-                      showIcon
-                      style={{ marginTop: 12 }}
+                      className="h-8 rounded-r-none"
                     />
+                    <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                      дн
+                    </span>
+                  </div>
+                  {deliveryDate && (
+                    <Alert
+                      variant={vatRate === '22%' ? 'destructive' : 'default'}
+                      className="mt-2 py-2"
+                    >
+                      <AlertDescription className="text-xs">
+                        Дата поставки: {deliveryDate.format('DD.MM.YYYY')} • НДС: {vatRate}
+                      </AlertDescription>
+                    </Alert>
                   )}
-                </Card>
-              </Col>
-            </Row>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Наценка (%)</Label>
+                  <div className="flex">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={500}
+                      value={formData.markup || ''}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          markup: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      className="h-8 rounded-r-none"
+                    />
+                    <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                      %
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-            {/* Results Section */}
-            {calculationResults && (
-              <Card
-                title={`📊 Результаты - Котировка №${calculationResults.quote_number}`}
-                style={{ marginTop: 24 }}
-                extra={
-                  <Space>
-                    <Tag color="green">Итого: ₽{calculationResults.total_amount?.toFixed(2)}</Tag>
-                  </Space>
-                }
+              {/* Payment Terms */}
+              <div className="text-xs font-semibold mt-4">Условия оплаты</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Аванс от клиента (%)</Label>
+                  <div className="flex">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={formData.advance_from_client || ''}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          advance_from_client: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      className="h-8 rounded-r-none"
+                    />
+                    <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                      %
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Дней от получения до оплаты</Label>
+                  <div className="flex">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={formData.time_to_advance_on_receiving || ''}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          time_to_advance_on_receiving: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                      className="h-8 rounded-r-none"
+                    />
+                    <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                      дн
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced Payment Toggle */}
+              <Button
+                variant="link"
+                size="sm"
+                className="p-0 h-auto text-xs"
+                onClick={() => setShowAdvancedPayment(!showAdvancedPayment)}
               >
-                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                  Показаны все промежуточные расчеты для тестирования
-                </Text>
+                {showAdvancedPayment
+                  ? '▼ Скрыть дополнительные условия оплаты'
+                  : '▶ Показать дополнительные условия оплаты'}
+              </Button>
 
-                {/* Results Table */}
-                <Table<ProductCalculationResult>
-                  dataSource={calculationResults.items || []}
-                  rowKey={(record: ProductCalculationResult) =>
-                    record.product_code || record.product_name || '0'
+              {showAdvancedPayment && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Дней до аванса</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formData.time_to_advance || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            time_to_advance: parseInt(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        дн
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Аванс поставщику (%)</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={formData.advance_to_supplier || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            advance_to_supplier: parseFloat(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Аванс при заборе груза (%)</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={formData.advance_on_loading || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            advance_on_loading: parseFloat(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Дней от забора до аванса</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formData.time_to_advance_loading || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            time_to_advance_loading: parseInt(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        дн
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Аванс при отправке в РФ (%)</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={formData.advance_on_going_to_country_destination || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            advance_on_going_to_country_destination:
+                              parseFloat(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Дней от отправки до аванса</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formData.time_to_advance_going_to_country_destination || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            time_to_advance_going_to_country_destination:
+                              parseInt(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        дн
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Аванс при прохождении таможни (%)</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={formData.advance_on_customs_clearance || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            advance_on_customs_clearance: parseFloat(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Дней от таможни до аванса</Label>
+                    <div className="flex">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formData.time_to_advance_on_customs_clearance || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            time_to_advance_on_customs_clearance: parseInt(e.target.value) || 0,
+                          }))
+                        }
+                        className="h-8 rounded-r-none"
+                      />
+                      <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                        дн
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* LPR Compensation Toggle */}
+              <Button
+                variant="link"
+                size="sm"
+                className="p-0 h-auto text-xs mt-4"
+                onClick={() => setShowLprCompensation(!showLprCompensation)}
+              >
+                {showLprCompensation
+                  ? '▼ Скрыть вознаграждение ЛПР'
+                  : '▶ Показать вознаграждение ЛПР'}
+              </Button>
+
+              {showLprCompensation && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Тип вознаграждения ЛПР</Label>
+                    <Select
+                      value={formData.dm_fee_type}
+                      onValueChange={(v: string) =>
+                        setFormData((prev) => ({ ...prev, dm_fee_type: v }))
+                      }
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fixed">Фиксированная сумма</SelectItem>
+                        <SelectItem value="%">Процент</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Размер вознаграждения</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={formData.dm_fee_value || ''}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          dm_fee_value: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 2. Logistics & Customs Card */}
+          <Card className="shadow-sm">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">🚚 Логистика и таможня</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 space-y-4">
+              {/* Logistics Section */}
+              <div className="text-xs font-semibold">Логистика</div>
+
+              {/* Toggle between Total and Detailed */}
+              <div className="flex gap-2">
+                <Button
+                  variant={logisticsMode === 'total' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setLogisticsMode('total')}
+                >
+                  Итого
+                </Button>
+                <Button
+                  variant={logisticsMode === 'detailed' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setLogisticsMode('detailed')}
+                >
+                  Детально
+                </Button>
+              </div>
+
+              {/* Total Logistics Field */}
+              {logisticsMode === 'total' && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Логистика всего</Label>
+                  <MonetaryInput
+                    defaultCurrency="EUR"
+                    placeholder="0.00"
+                    value={formData.logistics_total}
+                    onChange={handleLogisticsTotalChange}
+                  />
+                </div>
+              )}
+
+              {/* Detailed Logistics Fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Поставщик - Хаб (50%)</Label>
+                  <MonetaryInput
+                    defaultCurrency="EUR"
+                    placeholder="0.00"
+                    disabled={logisticsMode === 'total'}
+                    value={formData.logistics_supplier_hub}
+                    onChange={(v) =>
+                      v && setFormData((prev) => ({ ...prev, logistics_supplier_hub: v }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Хаб - Таможня РФ (30%)</Label>
+                  <MonetaryInput
+                    defaultCurrency="EUR"
+                    placeholder="0.00"
+                    disabled={logisticsMode === 'total'}
+                    value={formData.logistics_hub_customs}
+                    onChange={(v) =>
+                      v && setFormData((prev) => ({ ...prev, logistics_hub_customs: v }))
+                    }
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Таможня РФ - Клиент (20%)</Label>
+                  <MonetaryInput
+                    defaultCurrency="RUB"
+                    placeholder="0.00"
+                    disabled={logisticsMode === 'total'}
+                    value={formData.logistics_customs_client}
+                    onChange={(v) =>
+                      v && setFormData((prev) => ({ ...prev, logistics_customs_client: v }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <hr className="my-4" />
+
+              {/* Brokerage Section Toggle */}
+              <Button
+                variant="link"
+                size="sm"
+                className="p-0 h-auto text-xs"
+                onClick={() => setShowBrokerage(!showBrokerage)}
+              >
+                {showBrokerage ? '▼ Скрыть брокеридж' : '▶ Показать брокеридж'}
+              </Button>
+
+              {showBrokerage && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Брокерские хаб</Label>
+                    <MonetaryInput
+                      defaultCurrency="EUR"
+                      placeholder="0.00"
+                      value={formData.brokerage_hub}
+                      onChange={(v) => v && setFormData((prev) => ({ ...prev, brokerage_hub: v }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Брокерские РФ</Label>
+                    <MonetaryInput
+                      defaultCurrency="RUB"
+                      placeholder="0.00"
+                      value={formData.brokerage_customs}
+                      onChange={(v) =>
+                        v && setFormData((prev) => ({ ...prev, brokerage_customs: v }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Расходы на СВХ</Label>
+                    <MonetaryInput
+                      defaultCurrency="RUB"
+                      placeholder="0.00"
+                      value={formData.warehousing_at_customs}
+                      onChange={(v) =>
+                        v && setFormData((prev) => ({ ...prev, warehousing_at_customs: v }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Разрешительные документы</Label>
+                    <MonetaryInput
+                      defaultCurrency="RUB"
+                      placeholder="0.00"
+                      value={formData.customs_documentation}
+                      onChange={(v) =>
+                        v && setFormData((prev) => ({ ...prev, customs_documentation: v }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Прочие расходы</Label>
+                    <MonetaryInput
+                      defaultCurrency="RUB"
+                      placeholder="0.00"
+                      value={formData.brokerage_extra}
+                      onChange={(v) =>
+                        v && setFormData((prev) => ({ ...prev, brokerage_extra: v }))
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 3. Customs Clearance Card */}
+          <Card className="shadow-sm">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-base">🛃 Таможенная очистка</CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Значения по умолчанию для таможенной очистки
+              </p>
+              <div className="space-y-1">
+                <Label className="text-xs">Код ТН ВЭД</Label>
+                <Input
+                  placeholder="8482102009"
+                  value={formData.customs_code}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, customs_code: e.target.value }))
                   }
-                  scroll={{ x: 1500 }}
-                  pagination={false}
-                  size="small"
-                  summary={(pageData: readonly ProductCalculationResult[]) => {
-                    const totals = {
-                      quantity: pageData.reduce((sum, item) => sum + (item.quantity || 0), 0),
-                      purchase_price_rub: pageData.reduce(
-                        (sum, item) => sum + (item.purchase_price_rub || 0),
-                        0
-                      ),
-                      logistics_costs: pageData.reduce(
-                        (sum, item) => sum + (item.logistics_costs || 0),
-                        0
-                      ),
-                      cogs: pageData.reduce((sum, item) => sum + (item.cogs || 0), 0),
-                      cogs_with_vat: pageData.reduce(
-                        (sum, item) => sum + (item.cogs_with_vat || 0),
-                        0
-                      ),
-                      import_duties: pageData.reduce(
-                        (sum, item) => sum + (item.import_duties || 0),
-                        0
-                      ),
-                      customs_fees: pageData.reduce(
-                        (sum, item) => sum + (item.customs_fees || 0),
-                        0
-                      ),
-                      financing_costs: pageData.reduce(
-                        (sum, item) => sum + (item.financing_costs || 0),
-                        0
-                      ),
-                      dm_fee: pageData.reduce((sum, item) => sum + (item.dm_fee || 0), 0),
-                      total_cost: pageData.reduce((sum, item) => sum + (item.total_cost || 0), 0),
-                      sale_price: pageData.reduce((sum, item) => sum + (item.sale_price || 0), 0),
-                      margin: pageData.reduce((sum, item) => sum + (item.margin || 0), 0),
-                    };
-
-                    return (
-                      <Table.Summary fixed>
-                        <Table.Summary.Row
-                          style={{ backgroundColor: '#fafafa', fontWeight: 'bold' }}
-                        >
-                          <Table.Summary.Cell index={0}>
-                            <strong>ИТОГО СБС</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={1}>
-                            <strong>{totals.quantity}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={2}>—</Table.Summary.Cell>
-                          <Table.Summary.Cell index={3}>—</Table.Summary.Cell>
-                          <Table.Summary.Cell index={4}>
-                            <strong>{totals.purchase_price_rub.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={5}>
-                            <strong>{totals.logistics_costs.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={6}>
-                            <strong>{totals.cogs.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={7}>
-                            <strong>{totals.cogs_with_vat.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={8}>
-                            <strong>{totals.import_duties.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={9}>
-                            <strong>{totals.customs_fees.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={10}>
-                            <strong>{totals.financing_costs.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={11}>
-                            <strong>{totals.dm_fee.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={12}>
-                            <strong>{totals.total_cost.toFixed(2)}</strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={13}>
-                            <strong style={{ color: '#1890ff' }}>
-                              {totals.sale_price.toFixed(2)}
-                            </strong>
-                          </Table.Summary.Cell>
-                          <Table.Summary.Cell index={14}>
-                            <strong style={{ color: totals.margin > 0 ? 'green' : 'red' }}>
-                              {totals.margin.toFixed(2)}
-                            </strong>
-                          </Table.Summary.Cell>
-                        </Table.Summary.Row>
-                      </Table.Summary>
-                    );
-                  }}
-                  columns={[
-                    {
-                      title: 'Товар',
-                      dataIndex: 'product_name',
-                      key: 'product_name',
-                      fixed: 'left' as any,
-                      width: 200,
-                    },
-                    {
-                      title: 'Кол-во',
-                      dataIndex: 'quantity',
-                      key: 'quantity',
-                      width: 80,
-                    },
-                    {
-                      title: 'С НДС',
-                      dataIndex: 'base_price_vat',
-                      key: 'base_price_vat',
-                      width: 100,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Без НДС',
-                      dataIndex: 'base_price_no_vat',
-                      key: 'base_price_no_vat',
-                      width: 100,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Закупка ₽',
-                      dataIndex: 'purchase_price_rub',
-                      key: 'purchase_price_rub',
-                      width: 110,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Логистика',
-                      dataIndex: 'logistics_costs',
-                      key: 'logistics_costs',
-                      width: 110,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'С/с',
-                      dataIndex: 'cogs',
-                      key: 'cogs',
-                      width: 100,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'С/с+НДС',
-                      dataIndex: 'cogs_with_vat',
-                      key: 'cogs_with_vat',
-                      width: 110,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Пошлина',
-                      dataIndex: 'import_duties',
-                      key: 'import_duties',
-                      width: 100,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Акциз+Утиль',
-                      dataIndex: 'customs_fees',
-                      key: 'customs_fees',
-                      width: 110,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Финансир',
-                      dataIndex: 'financing_costs',
-                      key: 'financing_costs',
-                      width: 100,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Вознагр',
-                      dataIndex: 'dm_fee',
-                      key: 'dm_fee',
-                      width: 100,
-                      render: (val: any) => (typeof val === 'number' ? val.toFixed(2) : val),
-                    },
-                    {
-                      title: 'Итого СБС',
-                      dataIndex: 'total_cost',
-                      key: 'total_cost',
-                      width: 110,
-                      render: (val: any) =>
-                        typeof val === 'number' ? <strong>{val.toFixed(2)}</strong> : val,
-                    },
-                    {
-                      title: 'Продажа',
-                      dataIndex: 'sale_price',
-                      key: 'sale_price',
-                      width: 110,
-                      render: (val: any) =>
-                        typeof val === 'number' ? (
-                          <strong style={{ color: '#1890ff' }}>{val.toFixed(2)}</strong>
-                        ) : (
-                          val
-                        ),
-                    },
-                    {
-                      title: 'Маржа',
-                      dataIndex: 'margin',
-                      key: 'margin',
-                      width: 100,
-                      render: (val: any) =>
-                        typeof val === 'number' ? (
-                          <span style={{ color: val > 0 ? 'green' : 'red' }}>{val.toFixed(2)}</span>
-                        ) : (
-                          val
-                        ),
-                    },
-                  ]}
+                  className="h-8"
                 />
-              </Card>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Пошлина (%)</Label>
+                  <div className="flex">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={formData.import_tariff || ''}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          import_tariff: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      className="h-8 rounded-r-none"
+                    />
+                    <span className="inline-flex items-center px-2 bg-muted border border-l-0 rounded-r-md text-xs">
+                      %
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Акциз (за кг)</Label>
+                  <MonetaryInput
+                    defaultCurrency="RUB"
+                    placeholder="0.00"
+                    value={formData.excise_tax}
+                    onChange={(v) => v && setFormData((prev) => ({ ...prev, excise_tax: v }))}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* File Upload */}
+        <Card>
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-base">📁 Загрузить товары</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+            >
+              <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
+              <p className="text-sm mb-2">Нажмите или перетащите файл Excel/CSV</p>
+              <p className="text-xs text-muted-foreground mb-4">
+                Поддерживаются форматы: .xlsx, .xls, .csv
+              </p>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="file-upload"
+              />
+              <label htmlFor="file-upload">
+                <Button variant="outline" asChild>
+                  <span>Выбрать файл</span>
+                </Button>
+              </label>
+            </div>
+
+            {uploadedFileName && (
+              <div className="mt-4 flex items-center justify-between p-3 bg-muted rounded-lg">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span className="text-sm">{uploadedFileName}</span>
+                  <Badge variant="secondary">{uploadedProducts.length} товаров</Badge>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleRemoveFile}>
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </div>
             )}
-          </Form>
-        </Spin>
+          </CardContent>
+        </Card>
+
+        {/* Products Grid Section */}
+        {uploadedProducts.length > 0 && (
+          <Card>
+            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-base">📋 Загруженные товары</CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={openBulkEditModal}>
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Массовое редактирование
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    gridRef.current?.api?.setFilterModel(null);
+                    toast.success('Фильтры очищены');
+                  }}
+                >
+                  <Filter className="h-4 w-4 mr-1" />
+                  Очистить фильтры
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setColumnChooserVisible(true)}>
+                  <LayoutGrid className="h-4 w-4 mr-1" />
+                  Колонки
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-xs text-muted-foreground mb-3">
+                💡 Совет: Выберите строки, затем используйте &quot;Массовое редактирование&quot; или
+                Ctrl+C/Ctrl+V для копирования из Excel
+              </p>
+              <style>{agGridRowSelectionStyles}</style>
+              <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
+                <AgGridReact
+                  ref={gridRef}
+                  rowData={uploadedProducts}
+                  columnDefs={columnDefs}
+                  defaultColDef={defaultColDef}
+                  animateRows={true}
+                  rowSelection={{
+                    mode: 'multiRow',
+                    checkboxes: true,
+                    headerCheckbox: true,
+                    enableClickSelection: false,
+                  }}
+                  enableCellTextSelection={true}
+                  suppressHorizontalScroll={false}
+                  onCellValueChanged={(event: any) => {
+                    const rowIndex = event.rowIndex;
+                    const field = event.colDef?.field;
+                    const newValue = event.newValue;
+
+                    if (rowIndex === null || rowIndex === undefined || !field) return;
+
+                    // Track this cell as manually edited
+                    const cellKey = `${rowIndex}-${field}`;
+                    setEditedCells((prev) => new Set(prev).add(cellKey));
+
+                    // Store the override value
+                    setProductOverrides((prev) => {
+                      const newMap = new Map(prev);
+                      const overrides = newMap.get(rowIndex) || {};
+                      overrides[field] = newValue;
+                      newMap.set(rowIndex, overrides);
+                      return newMap;
+                    });
+
+                    // Update product data in state
+                    setUploadedProducts((prevProducts) => {
+                      const updatedProducts = [...prevProducts];
+                      if (rowIndex !== null && rowIndex !== undefined) {
+                        updatedProducts[rowIndex] = event.data as Product;
+                      }
+                      return updatedProducts;
+                    });
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Calculate and Clear Buttons */}
+        <Card>
+          <CardContent className="py-4 space-y-3">
+            <Button size="lg" className="w-full" onClick={handleCalculate} disabled={loading}>
+              {loading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Calculator className="h-4 w-4 mr-2" />
+              )}
+              Рассчитать котировку
+            </Button>
+            <Button variant="outline" size="lg" className="w-full" onClick={handleClearVariables}>
+              <XCircle className="h-4 w-4 mr-2" />
+              Очистить все переменные
+            </Button>
+            {(!selectedCustomer || uploadedProducts.length === 0) && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Перед расчетом проверьте:</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-5 mt-2">
+                    {!selectedCustomer && <li>Выберите клиента из списка</li>}
+                    {uploadedProducts.length === 0 && <li>Загрузите файл с товарами</li>}
+                    <li>Заполните все обязательные поля (отмечены красным при пропуске)</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Results Section */}
+        {calculationResults && (
+          <Card>
+            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-base">
+                📊 Результаты - {calculationResults.idn_quote || calculationResults.quote_number}
+              </CardTitle>
+              <Badge variant="default" className="text-sm">
+                Итого: ₽{calculationResults.total_amount?.toFixed(2)}
+              </Badge>
+            </CardHeader>
+            <CardContent className="px-4 pb-4">
+              <p className="text-xs text-muted-foreground mb-4">
+                Показаны все промежуточные расчеты для тестирования
+              </p>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2 font-medium">Товар</th>
+                      <th className="text-right py-2 px-2 font-medium">Кол-во</th>
+                      <th className="text-right py-2 px-2 font-medium">С НДС</th>
+                      <th className="text-right py-2 px-2 font-medium">Без НДС</th>
+                      <th className="text-right py-2 px-2 font-medium">Закупка ₽</th>
+                      <th className="text-right py-2 px-2 font-medium">Логистика</th>
+                      <th className="text-right py-2 px-2 font-medium">С/с</th>
+                      <th className="text-right py-2 px-2 font-medium">С/с+НДС</th>
+                      <th className="text-right py-2 px-2 font-medium">Пошлина</th>
+                      <th className="text-right py-2 px-2 font-medium">Акциз+Утиль</th>
+                      <th className="text-right py-2 px-2 font-medium">Финансир</th>
+                      <th className="text-right py-2 px-2 font-medium">Вознагр</th>
+                      <th className="text-right py-2 px-2 font-medium">Итого СБС</th>
+                      <th className="text-right py-2 px-2 font-medium">Продажа</th>
+                      <th className="text-right py-2 px-2 font-medium">Маржа</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(calculationResults.items || []).map(
+                      (item: ProductCalculationResult, idx: number) => (
+                        <tr
+                          key={item.product_code || item.product_name || idx}
+                          className="border-b"
+                        >
+                          <td className="py-2 px-2 max-w-[200px] truncate">{item.product_name}</td>
+                          <td className="py-2 px-2 text-right">{item.quantity}</td>
+                          <td className="py-2 px-2 text-right">
+                            {item.base_price_vat?.toFixed(2)}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            {item.base_price_no_vat?.toFixed(2)}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            {item.purchase_price_rub?.toFixed(2)}
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            {item.logistics_costs?.toFixed(2)}
+                          </td>
+                          <td className="py-2 px-2 text-right">{item.cogs?.toFixed(2)}</td>
+                          <td className="py-2 px-2 text-right">{item.cogs_with_vat?.toFixed(2)}</td>
+                          <td className="py-2 px-2 text-right">{item.import_duties?.toFixed(2)}</td>
+                          <td className="py-2 px-2 text-right">{item.customs_fees?.toFixed(2)}</td>
+                          <td className="py-2 px-2 text-right">
+                            {item.financing_costs?.toFixed(2)}
+                          </td>
+                          <td className="py-2 px-2 text-right">{item.dm_fee?.toFixed(2)}</td>
+                          <td className="py-2 px-2 text-right font-semibold">
+                            {item.total_cost?.toFixed(2)}
+                          </td>
+                          <td className="py-2 px-2 text-right font-semibold">
+                            {item.sale_price?.toFixed(2)}
+                          </td>
+                          <td
+                            className={`py-2 px-2 text-right ${item.margin && item.margin > 0 ? 'text-green-600' : 'text-red-600'}`}
+                          >
+                            {item.margin?.toFixed(2)}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                  <tfoot>
+                    {calculationResults.items && calculationResults.items.length > 0 && (
+                      <tr className="bg-muted font-semibold">
+                        <td className="py-2 px-2">ИТОГО СБС</td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).quantity}
+                        </td>
+                        <td className="py-2 px-2 text-right">—</td>
+                        <td className="py-2 px-2 text-right">—</td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).purchase_price_rub.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).logistics_costs.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).cogs.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).cogs_with_vat.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).import_duties.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).customs_fees.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).financing_costs.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).dm_fee.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).total_cost.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {calculateTotals(calculationResults.items).sale_price.toFixed(2)}
+                        </td>
+                        <td
+                          className={`py-2 px-2 text-right ${calculateTotals(calculationResults.items).margin > 0 ? 'text-green-600' : 'text-red-600'}`}
+                        >
+                          {calculateTotals(calculationResults.items).margin.toFixed(2)}
+                        </td>
+                      </tr>
+                    )}
+                  </tfoot>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Bulk Edit Modal */}
-        <Modal
-          title="Массовое редактирование"
-          open={bulkEditModalVisible}
-          onOk={applyBulkEdit}
-          onCancel={() => {
-            setBulkEditModalVisible(false);
-            setBulkEditField('');
-            setBulkEditValue('');
-          }}
-          okText="Применить"
-          cancelText="Отмена"
-          width={500}
-          keyboard={true}
-        >
-          <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <Text type="secondary">
-              Выбрано строк:{' '}
-              <strong>{gridRef.current?.api?.getSelectedNodes()?.length || 0}</strong>
-            </Text>
-            <Form layout="vertical">
-              <Form.Item label="Выберите поле для редактирования" required>
+        <Dialog open={bulkEditModalVisible} onOpenChange={setBulkEditModalVisible}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Массовое редактирование</DialogTitle>
+              <DialogDescription>
+                Выбрано строк: {gridRef.current?.api?.getSelectedNodes()?.length || 0}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Выберите поле для редактирования</Label>
                 <Select
                   value={bulkEditField}
-                  onChange={(value) => {
-                    setBulkEditField(value);
+                  onValueChange={(v: string) => {
+                    setBulkEditField(v);
                     setBulkEditValue('');
                   }}
-                  placeholder="Выберите поле"
-                  options={bulkEditFields}
-                />
-              </Form.Item>
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите поле" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bulkEditFields.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               {bulkEditField && (
-                <Form.Item label="Новое значение" required>
+                <div className="space-y-2">
+                  <Label>Новое значение</Label>
                   {bulkEditField === 'currency_of_base_price' ? (
-                    <Select
-                      value={bulkEditValue}
-                      onChange={setBulkEditValue}
-                      placeholder="Выберите валюту"
-                      options={[
-                        { value: 'TRY', label: 'TRY (Турецкая лира)' },
-                        { value: 'USD', label: 'USD (Доллар США)' },
-                        { value: 'EUR', label: 'EUR (Евро)' },
-                        { value: 'CNY', label: 'CNY (Юань)' },
-                      ]}
-                    />
+                    <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите валюту" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TRY">TRY (Турецкая лира)</SelectItem>
+                        <SelectItem value="USD">USD (Доллар США)</SelectItem>
+                        <SelectItem value="EUR">EUR (Евро)</SelectItem>
+                        <SelectItem value="CNY">CNY (Юань)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   ) : bulkEditField === 'supplier_country' ? (
-                    <Select
-                      value={bulkEditValue}
-                      onChange={setBulkEditValue}
-                      placeholder="Выберите страну"
-                      showSearch
-                      optionFilterProp="label"
-                      options={supplierCountries}
-                      loading={supplierCountries.length === 0}
-                      style={{ width: '100%' }}
-                    />
+                    <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите страну" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {supplierCountries.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : bulkEditField === 'customs_code' ? (
                     <Input
                       value={bulkEditValue}
                       onChange={(e) => setBulkEditValue(e.target.value)}
                       placeholder="Введите код ТН ВЭД"
-                      onPressEnter={applyBulkEdit}
+                      onKeyDown={(e) => e.key === 'Enter' && applyBulkEdit()}
                     />
                   ) : (
-                    <InputNumber
+                    <Input
+                      type="number"
                       value={bulkEditValue}
-                      onChange={setBulkEditValue}
-                      style={{ width: '100%' }}
+                      onChange={(e) => setBulkEditValue(e.target.value)}
                       placeholder="Введите числовое значение"
                       min={0}
                       step={bulkEditField.includes('rate') ? 0.0001 : 0.01}
-                      onPressEnter={applyBulkEdit}
+                      onKeyDown={(e) => e.key === 'Enter' && applyBulkEdit()}
                     />
                   )}
-                </Form.Item>
+                </div>
               )}
-            </Form>
-          </Space>
-        </Modal>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBulkEditModalVisible(false);
+                  setBulkEditField('');
+                  setBulkEditValue('');
+                }}
+              >
+                Отмена
+              </Button>
+              <Button onClick={applyBulkEdit}>Применить</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Column Chooser Modal */}
-        <Modal
-          title="Управление колонками"
-          open={columnChooserVisible}
-          onCancel={() => setColumnChooserVisible(false)}
-          onOk={() => setColumnChooserVisible(false)}
-          width={600}
-          okText="Готово"
-          cancelText="Отмена"
-        >
-          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <Space direction="vertical" style={{ width: '100%' }} size="small">
+        <Dialog open={columnChooserVisible} onOpenChange={setColumnChooserVisible}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Управление колонками</DialogTitle>
+            </DialogHeader>
+
+            <div className="max-h-[400px] overflow-y-auto space-y-2">
               {gridRef.current?.api?.getAllGridColumns()?.map((column: any) => {
                 const colId = column.getColId();
                 const colDef = column.getColDef();
                 const headerName = colDef.headerName || colId;
                 const isVisible = column.isVisible();
 
-                // Skip checkbox column
                 if (colId === 'checkbox') return null;
 
                 return (
-                  <div key={`${colId}-${columnVisibilityRefresh}`} style={{ padding: '4px 0' }}>
+                  <div
+                    key={`${colId}-${columnVisibilityRefresh}`}
+                    className="flex items-center gap-2"
+                  >
                     <Checkbox
+                      id={colId}
                       checked={isVisible}
-                      onChange={(e) => {
-                        gridRef.current?.api?.setColumnsVisible([colId], e.target.checked);
-                        setColumnVisibilityRefresh((prev) => prev + 1); // Force re-render
+                      onCheckedChange={(checked: boolean) => {
+                        gridRef.current?.api?.setColumnsVisible([colId], !!checked);
+                        setColumnVisibilityRefresh((prev) => prev + 1);
                       }}
-                    >
-                      <span style={{ fontSize: '13px' }}>{headerName}</span>
-                    </Checkbox>
+                    />
+                    <Label htmlFor={colId} className="text-sm cursor-pointer">
+                      {headerName}
+                    </Label>
                   </div>
                 );
               })}
-            </Space>
-          </div>
-        </Modal>
+            </div>
+
+            <DialogFooter>
+              <Button onClick={() => setColumnChooserVisible(false)}>Готово</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Template Save Modal */}
-        <Modal
-          title="Сохранить шаблон"
-          open={templateSaveModalVisible}
-          onOk={performTemplateSave}
-          onCancel={() => setTemplateSaveModalVisible(false)}
-          okText="Сохранить"
-          cancelText="Отмена"
-          width={500}
-        >
-          <Form layout="vertical">
-            <Form.Item label="Выберите действие">
-              <Radio.Group
-                value={templateSaveMode}
-                onChange={(e) => setTemplateSaveMode(e.target.value)}
-              >
-                <Space direction="vertical">
-                  <Radio value="new">Создать новый шаблон</Radio>
-                  <Radio value="update" disabled={templates.length === 0}>
-                    Обновить существующий шаблон
-                  </Radio>
-                </Space>
-              </Radio.Group>
-            </Form.Item>
+        <Dialog open={templateSaveModalVisible} onOpenChange={setTemplateSaveModalVisible}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Сохранить шаблон</DialogTitle>
+            </DialogHeader>
 
-            {templateSaveMode === 'new' && (
-              <Form.Item label="Название нового шаблона" required>
-                <Input
-                  value={templateNewName}
-                  onChange={(e) => setTemplateNewName(e.target.value)}
-                  placeholder="Введите название"
-                  onPressEnter={performTemplateSave}
-                />
-              </Form.Item>
-            )}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Выберите действие</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      id="mode-new"
+                      name="template-mode"
+                      checked={templateSaveMode === 'new'}
+                      onChange={() => setTemplateSaveMode('new')}
+                    />
+                    <Label htmlFor="mode-new" className="cursor-pointer">
+                      Создать новый шаблон
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      id="mode-update"
+                      name="template-mode"
+                      checked={templateSaveMode === 'update'}
+                      onChange={() => setTemplateSaveMode('update')}
+                      disabled={templates.length === 0}
+                    />
+                    <Label
+                      htmlFor="mode-update"
+                      className={`cursor-pointer ${templates.length === 0 ? 'text-muted-foreground' : ''}`}
+                    >
+                      Обновить существующий шаблон
+                    </Label>
+                  </div>
+                </div>
+              </div>
 
-            {templateSaveMode === 'update' && (
-              <Form.Item label="Выберите шаблон для обновления" required>
-                <Select
-                  value={templateUpdateId}
-                  onChange={setTemplateUpdateId}
-                  placeholder="Выберите шаблон"
-                  options={templates.map((t) => ({
-                    label: t.name,
-                    value: t.id,
-                  }))}
-                />
-              </Form.Item>
-            )}
-          </Form>
-        </Modal>
+              {templateSaveMode === 'new' && (
+                <div className="space-y-2">
+                  <Label>Название нового шаблона</Label>
+                  <Input
+                    value={templateNewName}
+                    onChange={(e) => setTemplateNewName(e.target.value)}
+                    placeholder="Введите название"
+                    onKeyDown={(e) => e.key === 'Enter' && performTemplateSave()}
+                  />
+                </div>
+              )}
+
+              {templateSaveMode === 'update' && (
+                <div className="space-y-2">
+                  <Label>Выберите шаблон для обновления</Label>
+                  <Select value={templateUpdateId} onValueChange={setTemplateUpdateId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите шаблон" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTemplateSaveModalVisible(false)}>
+                Отмена
+              </Button>
+              <Button onClick={performTemplateSave}>Сохранить</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

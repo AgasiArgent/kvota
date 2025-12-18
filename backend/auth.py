@@ -114,20 +114,20 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
         # Get JWT secret from Supabase (this would normally be configured)
         jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
         if not jwt_secret:
-            # For development, we'll use a simpler validation
-            # In production, you'd validate against the proper Supabase JWT secret
-            payload = jwt.decode(token, options={"verify_signature": False})
+            # For development, skip all validation (matches production which uses internal Kong)
+            payload = jwt.decode(token, options={"verify_signature": False, "verify_exp": False, "verify_aud": False})
         else:
-            payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
+            payload = jwt.decode(token, jwt_secret, algorithms=["HS256"], audience="authenticated")
         
-        # Check expiration
-        exp = payload.get("exp")
-        if exp and datetime.utcnow().timestamp() > exp:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        # Check expiration (skip in dev mode when JWT_SECRET not set)
+        if jwt_secret:
+            exp = payload.get("exp")
+            if exp and datetime.utcnow().timestamp() > exp:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has expired",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
         
         return payload
         

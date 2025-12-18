@@ -420,12 +420,12 @@ COMMIT;  -- When ready
 
 ```bash
 # View recent workflow runs
-curl -H "Authorization: token ***REMOVED***" \
+curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/repos/AgasiArgent/kvota/actions/runs?per_page=5
 
 # Get specific run logs
 # (Get run ID from above command)
-curl -H "Authorization: token ***REMOVED***" \
+curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/repos/AgasiArgent/kvota/actions/runs/<RUN_ID>/jobs
 ```
 
