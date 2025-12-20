@@ -480,6 +480,8 @@ result = supabase.table("quotes") \
 - **[quick-reference.md](resources/quick-reference.md)** ⭐ - Commands, status codes, all 9 gotchas
 - **[supabase-rls.md](resources/supabase-rls.md)** ⭐ - Multi-tenant security (1,392 lines)
 - **[export-patterns.md](resources/export-patterns.md)** ⭐ - Excel/PDF generation
+- **[VARIABLE_MAPPING.md](../../VARIABLE_MAPPING.md)** ⭐ - Excel→Backend→CalcEngine→DB mapping
+- **[variable-mapping.csv](../../reference/variable-mapping.csv)** - Sortable 44-variable spreadsheet
 - [fastapi-patterns.md](resources/fastapi-patterns.md) - Routes, Pydantic, dependencies
 - [testing-patterns.md](resources/testing-patterns.md) - Pytest, fixtures, TDD
 - [error-handling.md](resources/error-handling.md) - HTTPException, status codes

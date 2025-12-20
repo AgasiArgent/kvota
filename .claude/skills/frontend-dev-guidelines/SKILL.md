@@ -513,7 +513,9 @@ npm run build
 
 **Frontend-specific:**
 - [frontend/CLAUDE.md](../../../frontend/CLAUDE.md) - Frontend conventions and patterns
-- [VARIABLES.md](../../VARIABLES.md) - 42 calculation variables reference
+- [VARIABLES.md](../../VARIABLES.md) - 44 calculation variables reference
+- [VARIABLE_MAPPING.md](../../VARIABLE_MAPPING.md) - Excel→Backend→CalcEngine→DB mapping
+- [variable-mapping.csv](../../reference/variable-mapping.csv) - Sortable variable spreadsheet
 
 **Testing:**
 - [AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md](../../AUTOMATED_TESTING_WITH_CHROME_DEVTOOLS.md) - Chrome DevTools MCP guide
