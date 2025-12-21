@@ -142,6 +142,23 @@ export default function ListGridWithPresets({
     toast.info('Выберите "Сохранить как пресет" чтобы сохранить текущий вид');
   }, []);
 
+  // Wait for presets to load before rendering grid to avoid race condition
+  // where the initial fetch gets cancelled when presets update columns
+  if (presetsLoading) {
+    return (
+      <div className={className}>
+        <div className="space-y-4">
+          <div className="h-10 w-48 bg-muted animate-pulse rounded" />
+          <div className="space-y-3">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="h-12 w-full bg-muted animate-pulse rounded" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
       {/* Header with PresetSelector */}

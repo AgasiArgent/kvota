@@ -7,7 +7,7 @@
  * Uses the /api/quotes-list backend API with preset support.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getAuthToken } from '@/lib/auth/auth-helper';
 import { config } from '@/lib/config';
 
@@ -182,6 +182,9 @@ export async function exportQuotesList(
 
 /**
  * Hook for fetching quotes list with dynamic columns
+ *
+ * Uses fetch ID pattern instead of cancelled flag to handle React 18 Strict Mode
+ * and multiple re-renders without losing data from successful fetches.
  */
 export function useQuotesList(params: ListQueryParams): UseQuotesListResult {
   const [data, setData] = useState<ListResponse | null>(null);
@@ -189,12 +192,32 @@ export function useQuotesList(params: ListQueryParams): UseQuotesListResult {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Track component mount state
+  const isMountedRef = useRef(true);
+  // Track current fetch to avoid stale results from older fetches
+  const fetchIdRef = useRef(0);
+
   const refetch = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
 
+  // Track mount/unmount
   useEffect(() => {
-    let cancelled = false;
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Skip fetching if no columns specified (wait for preset to load)
+    if (!params.columns || params.columns.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Increment fetch ID to identify this specific fetch
+    const currentFetchId = ++fetchIdRef.current;
 
     async function load() {
       setIsLoading(true);
@@ -202,15 +225,14 @@ export function useQuotesList(params: ListQueryParams): UseQuotesListResult {
 
       try {
         const result = await fetchQuotesList(params);
-        if (!cancelled) {
+        // Only update state if this is still the current fetch and component is mounted
+        if (isMountedRef.current && fetchIdRef.current === currentFetchId) {
           setData(result);
+          setIsLoading(false);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (isMountedRef.current && fetchIdRef.current === currentFetchId) {
           setError(err instanceof Error ? err.message : 'Unknown error');
-        }
-      } finally {
-        if (!cancelled) {
           setIsLoading(false);
         }
       }
@@ -218,9 +240,7 @@ export function useQuotesList(params: ListQueryParams): UseQuotesListResult {
 
     load();
 
-    return () => {
-      cancelled = true;
-    };
+    // No cleanup needed - we use fetchIdRef to ignore stale results
   }, [
     // Deep dependency check for params
     JSON.stringify(params.columns),

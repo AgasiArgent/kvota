@@ -38,7 +38,7 @@ COLUMN_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "quote_number": {
         "table": "quotes",
-        "sql": "q.quote_number",
+        "sql": "q.idn_quote",  # Legacy alias - actual column is idn_quote
         "type": "text"
     },
     "idn_quote": {

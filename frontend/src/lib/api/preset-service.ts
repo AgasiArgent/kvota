@@ -289,13 +289,40 @@ export function groupPresetsByType(presets: ListPreset[]): {
 
 /**
  * Get columns from preset for ag-Grid
+ *
+ * Handles both old format (array of ColumnConfig) and new format
+ * (object with columnDefs and columnOrder)
  */
 export function getColumnsFromPreset(preset: ListPreset): string[] {
-  if (!preset.columns || !Array.isArray(preset.columns)) {
+  if (!preset.columns) {
     return [];
   }
 
-  return preset.columns.filter((col) => !col.hide).map((col) => col.field);
+  // Handle new format: { columnDefs: [...], columnOrder: [...] }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const columns = preset.columns as any;
+  if (columns.columnDefs && Array.isArray(columns.columnDefs)) {
+    // Use columnOrder if available, otherwise extract from columnDefs
+    if (columns.columnOrder && Array.isArray(columns.columnOrder)) {
+      // Filter out hidden columns
+      const hiddenFields = new Set(
+        columns.columnDefs
+          .filter((col: ColumnConfig) => col.hide)
+          .map((col: ColumnConfig) => col.field)
+      );
+      return columns.columnOrder.filter((field: string) => !hiddenFields.has(field));
+    }
+    return columns.columnDefs
+      .filter((col: ColumnConfig) => !col.hide)
+      .map((col: ColumnConfig) => col.field);
+  }
+
+  // Handle old format: array of ColumnConfig
+  if (Array.isArray(preset.columns)) {
+    return preset.columns.filter((col) => !col.hide).map((col) => col.field);
+  }
+
+  return [];
 }
 
 /**
