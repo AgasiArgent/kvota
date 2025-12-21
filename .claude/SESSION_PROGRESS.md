@@ -7,10 +7,10 @@
 ## Current TODO
 
 **TASK-008: Quote List Constructor with Department Presets**
-- Status: 96% complete (50/52 tasks)
-- Phases 0-7 complete
-- Phase 8: Documentation in progress
-- Ready for commit and PR
+- Status: 100% complete ✅
+- All phases complete (0-8)
+- Tested on localhost - grid displays correctly
+- Bug fixes committed (e3fac4e)
 
 **Uncommitted files:**
 - `dev/active/20251221-TASK-008-quote-list-constructor-with-department-presets/` - Task docs
@@ -56,6 +56,13 @@ Major feature: Consolidate 3 department Excel spreadsheets (~200 columns) into s
 - ✅ ESLint: 0 errors (209 warnings pre-existing)
 - ✅ Frontend build: Success
 - ✅ Backend imports: All 61 columns available, routes registered
+- ✅ Localhost testing: Grid displays 20/23 records correctly
+
+**Runtime Bug Fixes (commit e3fac4e):**
+- Fixed race condition in `useQuotesList` - fetchIdRef pattern for React 18 Strict Mode
+- Fixed `getColumnsFromPreset` - handle nested `{columnDefs, columnOrder}` format
+- Fixed premature grid render - wait for presets before rendering ListGrid
+- Fixed `quote_number` → `idn_quote` column mapping in backend
 
 ---
 
