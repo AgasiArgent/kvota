@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { getApiEndpoint } from '@/lib/config';
 
+/**
+ * Public endpoint - no authentication required.
+ * Exchange rates are public data from Central Bank of Russia.
+ */
 export async function GET(_request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Fetch all exchange rates from backend (cached in memory)
     const response = await fetch(getApiEndpoint('/api/exchange-rates/all'), {
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',
       },
     });

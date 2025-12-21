@@ -288,12 +288,16 @@ export default function ListGrid({
     <div className={cn('space-y-4', className)}>
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
           {isLoading ? (
             <Skeleton className="h-4 w-32" />
           ) : (
             <>
-              Показано {data?.rows?.length || 0} из {totalItems} записей
+              <span>
+                Показано {data?.rows?.length || 0} из {totalItems} записей
+              </span>
+              <span className="text-muted-foreground/70">•</span>
+              <span>{columns.length} колонок</span>
             </>
           )}
         </div>

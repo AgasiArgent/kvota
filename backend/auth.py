@@ -1,9 +1,14 @@
 """
 FastAPI Authentication Integration with Supabase
 Handles JWT validation, user context, and role-based access control
+
+Performance optimization: User metadata is cached for 5 minutes to reduce
+Supabase API calls. JWT signature is still verified on every request.
 """
 import os
 import jwt
+import time
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from fastapi import HTTPException, Depends, status
@@ -13,6 +18,7 @@ import asyncpg
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from uuid import UUID
+from cachetools import TTLCache
 
 # Load environment variables
 load_dotenv()
@@ -38,6 +44,41 @@ else:
 
 # Security scheme for FastAPI
 security = HTTPBearer()
+
+# =============================================================================
+# USER METADATA CACHE
+# =============================================================================
+# Cache user metadata for 5 minutes (300 seconds)
+# Key: user_id, Value: user_data dict
+# This avoids 3 HTTP calls to Supabase per request
+_user_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
+
+# Track cache stats for monitoring
+_cache_stats = {"hits": 0, "misses": 0}
+
+
+def get_cache_stats() -> Dict[str, Any]:
+    """Get cache statistics for monitoring"""
+    total = _cache_stats["hits"] + _cache_stats["misses"]
+    hit_rate = (_cache_stats["hits"] / total * 100) if total > 0 else 0
+    return {
+        "hits": _cache_stats["hits"],
+        "misses": _cache_stats["misses"],
+        "hit_rate": f"{hit_rate:.1f}%",
+        "cached_users": len(_user_cache),
+        "max_size": _user_cache.maxsize,
+        "ttl_seconds": _user_cache.ttl
+    }
+
+
+def invalidate_user_cache(user_id: str) -> None:
+    """
+    Invalidate cache for a specific user.
+    Call this when user's role or organization membership changes.
+    """
+    if user_id in _user_cache:
+        del _user_cache[user_id]
+        print(f"[auth cache] Invalidated cache for user {user_id}")
 
 # ============================================================================
 # USER MODELS
@@ -148,16 +189,32 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
 # USER MANAGEMENT
 # ============================================================================
 
-async def get_user_from_database(user_id: str) -> Optional[Dict[str, Any]]:
+async def get_user_from_database(user_id: str, skip_cache: bool = False) -> Optional[Dict[str, Any]]:
     """
-    Get user details from database with organization memberships
+    Get user details from database with organization memberships.
+
+    Uses TTL cache (5 minutes) to avoid repeated Supabase API calls.
+    JWT signature is still verified on every request for security.
 
     Args:
         user_id: User UUID from JWT token
+        skip_cache: If True, bypass cache and fetch fresh data
 
     Returns:
         User data from database or None
     """
+    global _cache_stats
+
+    # Check cache first (unless skip_cache is True)
+    if not skip_cache and user_id in _user_cache:
+        _cache_stats["hits"] += 1
+        cached_data = _user_cache[user_id]
+        print(f"[auth cache] HIT for user {user_id[:8]}... (hits: {_cache_stats['hits']}, misses: {_cache_stats['misses']})")
+        return cached_data
+
+    _cache_stats["misses"] += 1
+    t_start = time.time()
+
     try:
         # Get user from Supabase auth.users via Admin API
         try:
@@ -191,8 +248,6 @@ async def get_user_from_database(user_id: str) -> Optional[Dict[str, Any]]:
                 "organizations(id, name, slug), "
                 "roles(id, name, slug, permissions)"
             ).eq("user_id", user_id).eq("status", "active").execute()
-
-            print(f"[get_user_from_database] org_members_response for user {user_id}: {org_members_response.data}")
 
             # Transform the response to match expected format
             organizations = []
@@ -232,6 +287,11 @@ async def get_user_from_database(user_id: str) -> Optional[Dict[str, Any]]:
 
         user_data['organizations'] = organizations
         user_data['last_active_organization_id'] = last_active_organization_id
+
+        # Cache the result
+        _user_cache[user_id] = user_data
+        t_elapsed = (time.time() - t_start) * 1000
+        print(f"[auth cache] MISS for user {user_id[:8]}... - fetched in {t_elapsed:.0f}ms (cached for 5 min)")
 
         return user_data
 

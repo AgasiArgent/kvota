@@ -33,9 +33,12 @@ class AllRatesResponse(BaseModel):
 
 
 @router.get("/all", response_model=AllRatesResponse)
-async def get_all_rates(user: User = Depends(get_current_user)):
+async def get_all_rates():
     """
     Get all CBR exchange rates in one request.
+
+    PUBLIC ENDPOINT - No authentication required.
+    Exchange rates are public data from Central Bank of Russia.
 
     Returns all cached rates (currency -> RUB rate) with cache metadata.
     Rates are refreshed daily at 12:05 MSK.

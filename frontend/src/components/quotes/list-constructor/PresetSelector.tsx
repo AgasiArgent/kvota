@@ -12,7 +12,17 @@
  */
 
 import React, { useMemo } from 'react';
-import { ChevronDown, Save, Settings2, Star, Building2, User, Layers } from 'lucide-react';
+import {
+  ChevronDown,
+  Save,
+  Settings2,
+  Star,
+  Building2,
+  User,
+  Layers,
+  Plus,
+  Eye,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +54,8 @@ export interface PresetSelectorProps {
   onSaveCurrent?: () => void;
   /** Callback when "Manage presets" is clicked */
   onManagePresets?: () => void;
+  /** Callback when "Create custom view" is clicked */
+  onCreateCustomView?: () => void;
   /** Whether current state has unsaved changes */
   hasChanges?: boolean;
   /** Additional class name */
@@ -61,6 +73,7 @@ export default function PresetSelector({
   onSelectPreset,
   onSaveCurrent,
   onManagePresets,
+  onCreateCustomView,
   hasChanges = false,
   className,
 }: PresetSelectorProps) {
@@ -144,10 +157,10 @@ export default function PresetSelector({
         )}
 
         {/* Actions */}
-        {onSaveCurrent && (
-          <DropdownMenuItem onClick={onSaveCurrent}>
-            <Save className="h-4 w-4 mr-2" />
-            Сохранить текущий вид
+        {onCreateCustomView && (
+          <DropdownMenuItem onClick={onCreateCustomView}>
+            <Plus className="h-4 w-4 mr-2" />
+            Создать свой вид
           </DropdownMenuItem>
         )}
 
@@ -155,6 +168,13 @@ export default function PresetSelector({
           <DropdownMenuItem onClick={onManagePresets}>
             <Settings2 className="h-4 w-4 mr-2" />
             Настроить колонки
+          </DropdownMenuItem>
+        )}
+
+        {onSaveCurrent && hasChanges && (
+          <DropdownMenuItem onClick={onSaveCurrent}>
+            <Save className="h-4 w-4 mr-2" />
+            Сохранить изменения
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>

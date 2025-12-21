@@ -363,6 +363,20 @@ COLUMN_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
 
     # -------------------------------------------------------------------------
+    # LOGISTICS & PURCHASING FIELDS (from migration 057)
+    # -------------------------------------------------------------------------
+    "delivery_city": {
+        "table": "quotes",
+        "sql": "q.delivery_city",
+        "type": "text"
+    },
+    "cargo_type": {
+        "table": "quotes",
+        "sql": "q.cargo_type",
+        "type": "text"
+    },
+
+    # -------------------------------------------------------------------------
     # DERIVED FIELDS (calculated on the fly)
     # -------------------------------------------------------------------------
     "logistics_eu_tr": {
@@ -414,6 +428,30 @@ COLUMN_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "table": "derived",
         "sql": "EXTRACT(MONTH FROM q.created_at) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM q.created_at) = EXTRACT(YEAR FROM CURRENT_DATE)",
         "type": "boolean"
+    },
+
+    # -------------------------------------------------------------------------
+    # AGGREGATED PRODUCT FIELDS (from migration 057 - use SQL functions)
+    # -------------------------------------------------------------------------
+    "production_time_range": {
+        "table": "derived",
+        "sql": "get_quote_production_time_range(q.id)",
+        "type": "text"
+    },
+    "pickup_countries": {
+        "table": "derived",
+        "sql": "get_quote_pickup_countries(q.id)",
+        "type": "text"
+    },
+    "supplier_payment_countries": {
+        "table": "derived",
+        "sql": "get_quote_supplier_payment_countries(q.id)",
+        "type": "text"
+    },
+    "purchasing_companies_list": {
+        "table": "derived",
+        "sql": "get_quote_purchasing_companies(q.id)",
+        "type": "text"
     },
 }
 

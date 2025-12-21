@@ -16,9 +16,11 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 import os
 import asyncpg
+import time
 
 from auth import get_current_user, User
 from services.list_query_builder import ListQueryBuilder, get_available_columns, validate_columns
+from db_pool import get_db_connection, release_db_connection
 
 
 router = APIRouter(prefix="/api/quotes-list", tags=["quotes-list"])
@@ -63,11 +65,6 @@ class ColumnsResponse(BaseModel):
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-async def get_db_connection():
-    """Get a database connection"""
-    return await asyncpg.connect(os.getenv("DATABASE_URL"))
-
 
 def serialize_row(row: asyncpg.Record) -> Dict[str, Any]:
     """Convert a database row to a JSON-serializable dict"""
@@ -140,20 +137,35 @@ async def query_list(
 
     builder.set_pagination(request.page, request.page_size)
 
-    # Execute queries
+    # Execute queries with timing
+    t_start = time.time()
     conn = await get_db_connection()
+    t_conn = time.time()
+    print(f"[quotes-list] DB connection: {(t_conn - t_start)*1000:.0f}ms")
+
     try:
         # Get data
         data_query, data_params = builder.build_query()
+        t_query_built = time.time()
+        print(f"[quotes-list] Query built: {(t_query_built - t_conn)*1000:.0f}ms")
+        print(f"[quotes-list] SQL: {data_query[:500]}...")
+
         rows = await conn.fetch(data_query, *data_params)
+        t_data = time.time()
+        print(f"[quotes-list] Data fetch ({len(rows)} rows): {(t_data - t_query_built)*1000:.0f}ms")
 
         # Get total count
         count_query, count_params = builder.build_count_query()
         count_result = await conn.fetchrow(count_query, *count_params)
         total = count_result["total"] if count_result else 0
+        t_count = time.time()
+        print(f"[quotes-list] Count query: {(t_count - t_data)*1000:.0f}ms")
 
         # Serialize rows
         serialized_rows = [serialize_row(row) for row in rows]
+        t_serialize = time.time()
+        print(f"[quotes-list] Serialization: {(t_serialize - t_count)*1000:.0f}ms")
+        print(f"[quotes-list] TOTAL DB time: {(t_serialize - t_start)*1000:.0f}ms")
 
         # Calculate pagination
         total_pages = (total + request.page_size - 1) // request.page_size if total > 0 else 1
@@ -172,7 +184,7 @@ async def query_list(
             detail=f"Database error: {str(e)}"
         )
     finally:
-        await conn.close()
+        await release_db_connection(conn)
 
 
 @router.get("/", response_model=ListResponse)
@@ -310,7 +322,7 @@ async def export_list(
             )
 
     finally:
-        await conn.close()
+        await release_db_connection(conn)
 
 
 @router.get("/preset/{preset_id}", response_model=ListResponse)

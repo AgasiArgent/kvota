@@ -59,6 +59,7 @@ export default function ListGridWithPresets({
   const [currentColumns, setCurrentColumns] = useState<string[]>(SALES_PRESET_COLUMNS);
   const [columnConfigOpen, setColumnConfigOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isCreatingCustomView, setIsCreatingCustomView] = useState(false);
 
   // Load initial preset
   useEffect(() => {
@@ -107,15 +108,24 @@ export default function ListGridWithPresets({
   const handleSaveAsPreset = useCallback(
     async (name: string, columns: string[]) => {
       try {
-        const columnConfigs: ColumnConfig[] = columns.map((field) => ({
+        // Build column definitions with default widths
+        const columnDefs: ColumnConfig[] = columns.map((field) => ({
           field,
           hide: false,
+          width: 150, // Default width
         }));
+
+        // Backend expects object format: { columnDefs, columnOrder }
+        const columnsPayload = {
+          columnDefs,
+          columnOrder: columns,
+        };
 
         const newPreset = await createPreset({
           name,
           preset_type: 'personal',
-          columns: columnConfigs,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          columns: columnsPayload as any,
           is_default: false,
         });
 
@@ -132,6 +142,13 @@ export default function ListGridWithPresets({
 
   // Open column config modal
   const handleOpenColumnConfig = useCallback(() => {
+    setIsCreatingCustomView(false);
+    setColumnConfigOpen(true);
+  }, []);
+
+  // Create custom view - open modal with minimal columns selected
+  const handleCreateCustomView = useCallback(() => {
+    setIsCreatingCustomView(true);
     setColumnConfigOpen(true);
   }, []);
 
@@ -170,6 +187,7 @@ export default function ListGridWithPresets({
           onSelectPreset={handleSelectPreset}
           onSaveCurrent={handleSaveCurrent}
           onManagePresets={handleOpenColumnConfig}
+          onCreateCustomView={handleCreateCustomView}
           hasChanges={hasUnsavedChanges}
         />
       </div>
@@ -189,10 +207,14 @@ export default function ListGridWithPresets({
       {/* Column Config Modal */}
       <ColumnConfigModal
         open={columnConfigOpen}
-        onClose={() => setColumnConfigOpen(false)}
-        selectedColumns={currentColumns}
+        onClose={() => {
+          setColumnConfigOpen(false);
+          setIsCreatingCustomView(false);
+        }}
+        selectedColumns={isCreatingCustomView ? [] : currentColumns}
         onApply={handleApplyColumns}
         onSaveAsPreset={handleSaveAsPreset}
+        isCreatingCustomView={isCreatingCustomView}
       />
     </div>
   );

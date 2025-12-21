@@ -29,6 +29,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import {
   ALL_COLUMNS,
@@ -53,6 +54,8 @@ export interface ColumnConfigModalProps {
   onApply: (columns: string[]) => void;
   /** Callback to save as new preset */
   onSaveAsPreset?: (name: string, columns: string[]) => void;
+  /** Whether this is for creating a new custom view */
+  isCreatingCustomView?: boolean;
 }
 
 // =============================================================================
@@ -65,22 +68,23 @@ export default function ColumnConfigModal({
   selectedColumns,
   onApply,
   onSaveAsPreset,
+  isCreatingCustomView = false,
 }: ColumnConfigModalProps) {
   // Local state for column selection
   const [localColumns, setLocalColumns] = useState<Set<string>>(new Set(selectedColumns));
   const [searchTerm, setSearchTerm] = useState('');
   const [savePresetName, setSavePresetName] = useState('');
-  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [showSaveForm, setShowSaveForm] = useState(isCreatingCustomView);
 
   // Reset local state when modal opens
   React.useEffect(() => {
     if (open) {
       setLocalColumns(new Set(selectedColumns));
       setSearchTerm('');
-      setShowSaveForm(false);
+      setShowSaveForm(isCreatingCustomView);
       setSavePresetName('');
     }
-  }, [open, selectedColumns]);
+  }, [open, selectedColumns, isCreatingCustomView]);
 
   // Filter columns by search term
   const filteredColumns = useMemo(() => {
@@ -192,10 +196,13 @@ export default function ColumnConfigModal({
     <Dialog open={open} onOpenChange={(isOpen: boolean) => !isOpen && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle>Настройка колонок</DialogTitle>
+          <DialogTitle>
+            {isCreatingCustomView ? 'Создание нового вида' : 'Настройка колонок'}
+          </DialogTitle>
           <DialogDescription>
-            Выберите колонки для отображения в таблице. Выбрано: {localColumns.size} из{' '}
-            {ALL_COLUMNS.length}
+            {isCreatingCustomView
+              ? 'Выберите нужные колонки и сохраните как личный пресет'
+              : `Выберите колонки для отображения в таблице. Выбрано: ${localColumns.size} из ${ALL_COLUMNS.length}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -262,18 +269,27 @@ export default function ColumnConfigModal({
                   {/* Category Columns */}
                   <div className="grid grid-cols-2 gap-1 pl-6">
                     {columns.map((col) => (
-                      <label
-                        key={col.field}
-                        className="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={localColumns.has(col.field)}
-                          onCheckedChange={() => toggleColumn(col.field)}
-                        />
-                        <span className="text-sm truncate" title={col.headerName}>
-                          {col.headerName}
-                        </span>
-                      </label>
+                      <TooltipProvider key={col.field} delayDuration={600}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <label className="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer">
+                              <Checkbox
+                                checked={localColumns.has(col.field)}
+                                onCheckedChange={() => toggleColumn(col.field)}
+                              />
+                              <span className="text-sm truncate">{col.headerName}</span>
+                            </label>
+                          </TooltipTrigger>
+                          {col.description && (
+                            <TooltipContent side="right" className="max-w-xs">
+                              <p className="font-medium">{col.headerName}</p>
+                              <p className="text-muted-foreground text-xs mt-1">
+                                {col.description}
+                              </p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
                     ))}
                   </div>
 

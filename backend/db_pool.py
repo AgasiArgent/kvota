@@ -47,12 +47,13 @@ async def init_db_pool():
 
         _pool = await asyncpg.create_pool(
             dsn=db_url,
-            min_size=0,   # Start with 0 connections (lazy initialization)
-            max_size=10,  # Maximum 10 connections (reduced from 20)
+            min_size=3,   # Pre-warm 3 connections (handles React 18 double-render)
+            max_size=10,  # Maximum 10 connections
             command_timeout=60,  # Query timeout in seconds
             max_queries=50000,  # Max queries per connection before recycling
             max_inactive_connection_lifetime=300  # Close idle connections after 5 min
         )
+        print(f"✅ Database connection pool initialized ({_pool.get_min_size()}-{_pool.get_max_size()} connections)")
 
     return _pool
 
