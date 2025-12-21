@@ -32,6 +32,7 @@ import QuoteStats from '@/components/quotes/QuoteStats';
 import QuoteFilters from '@/components/quotes/QuoteFilters';
 import StatusBadge from '@/components/shared/StatusBadge';
 import CreateQuoteModal from '@/components/quotes/CreateQuoteModal';
+import SpecificationExportModal from '@/components/quotes/SpecificationExportModal';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -50,6 +51,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { GridScrollHelper } from '@/components/ui/grid-scroll-helper';
 
 import { QuoteService } from '@/lib/api/quote-service';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -61,6 +63,7 @@ interface QuoteListItem {
   id: string;
   idn_quote?: string; // New IDN format (optional for backward compatibility)
   quote_number?: string; // Legacy field (optional for backward compatibility)
+  customer_id?: string;
   customer_name?: string;
   created_by_name?: string;
   workflow_state?: string;
@@ -120,44 +123,59 @@ interface ActionsMenuProps {
   data: QuoteListItem;
   onSubmitForApproval: (id: string, idnQuote: string) => void;
   onExport: (id: string, type: 'validation' | 'invoice') => void;
+  onSpecificationExport: (data: QuoteListItem) => void;
 }
 
-const ActionsMenu = memo(({ data, onSubmitForApproval, onExport }: ActionsMenuProps) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-        <MoreHorizontal className="h-4 w-4" />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      {data.workflow_state === 'draft' && (
-        <>
-          <DropdownMenuItem
-            onClick={() => onSubmitForApproval(data.id, data.idn_quote || data.quote_number || '')}
-          >
-            <Send className="mr-2 h-4 w-4" />
-            На утверждение
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-        </>
-      )}
-      <DropdownMenuItem onClick={() => onExport(data.id, 'validation')}>
-        <FileSpreadsheet className="mr-2 h-4 w-4" />
-        Экспорт для проверки
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => onExport(data.id, 'invoice')}>
-        <FileDown className="mr-2 h-4 w-4" />
-        Счёт (Invoice)
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-));
+const ActionsMenu = memo(
+  ({ data, onSubmitForApproval, onExport, onSpecificationExport }: ActionsMenuProps) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {data.workflow_state === 'draft' && (
+          <>
+            <DropdownMenuItem
+              onClick={() =>
+                onSubmitForApproval(data.id, data.idn_quote || data.quote_number || '')
+              }
+            >
+              <Send className="mr-2 h-4 w-4" />
+              На утверждение
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuItem onClick={() => onExport(data.id, 'validation')}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          Экспорт для проверки
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onExport(data.id, 'invoice')}>
+          <FileDown className="mr-2 h-4 w-4" />
+          Счёт (Invoice)
+        </DropdownMenuItem>
+        {data.customer_id && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onSpecificationExport(data)}>
+              <FileText className="mr-2 h-4 w-4" />
+              Спецификация (DOCX)
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+);
 ActionsMenu.displayName = 'ActionsMenu';
 
 export default function QuotesPage() {
   const router = useRouter();
   const { profile } = useAuth();
   const gridRef = useRef<AgGridReact>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Data state
@@ -190,6 +208,10 @@ export default function QuotesPage() {
   // Create quote modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  // Specification export modal
+  const [specModalOpen, setSpecModalOpen] = useState(false);
+  const [specModalQuote, setSpecModalQuote] = useState<QuoteListItem | null>(null);
 
   const quoteService = new QuoteService();
 
@@ -428,6 +450,11 @@ export default function QuotesPage() {
     handleExport(quoteId, type);
   }, []);
 
+  const handleSpecificationExport = useCallback((quote: QuoteListItem) => {
+    setSpecModalQuote(quote);
+    setSpecModalOpen(true);
+  }, []);
+
   // ag-Grid column definitions - memoized to prevent recreation on every render
   // Column definitions with consistent alignment:
   // - Text columns: left-aligned (header + data)
@@ -504,16 +531,22 @@ export default function QuotesPage() {
         width: 60,
         sortable: false,
         filter: false,
+        resizable: false,
+        suppressMovable: true,
+        // Pin actions column to right - always visible without scrolling
+        pinned: 'right',
+        lockPinned: true,
         cellRenderer: (params: ICellRendererParams) => (
           <ActionsMenu
             data={params.data}
             onSubmitForApproval={handleOpenSubmitModal}
             onExport={handleExportMemo}
+            onSpecificationExport={handleSpecificationExport}
           />
         ),
       },
     ],
-    [handleOpenSubmitModal, handleExportMemo]
+    [handleOpenSubmitModal, handleExportMemo, handleSpecificationExport]
   );
 
   const defaultColDef: ColDef = {
@@ -583,57 +616,62 @@ export default function QuotesPage() {
           loadingMembers={loadingMembers}
         />
 
-        {/* Table */}
-        <div
-          className={cn(
-            'ag-theme-custom-dark rounded-lg border border-border overflow-hidden',
-            isPending && 'opacity-70 transition-opacity'
-          )}
-          style={{ height: 600 }}
-        >
-          {loading ? (
-            <div className="p-4 space-y-3">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : quotes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <FileText className="h-16 w-16 mb-4 opacity-50" />
-              <p className="text-lg font-medium">КП не найдено</p>
-              <p className="text-sm mt-1">
-                {authorFilter
-                  ? 'По выбранному фильтру нет коммерческих предложений'
-                  : 'Создайте первое коммерческое предложение'}
-              </p>
-            </div>
-          ) : (
-            <AgGridReact
-              ref={gridRef}
-              theme="legacy"
-              rowData={quotes}
-              columnDefs={columnDefs}
-              defaultColDef={defaultColDef}
-              rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
-              suppressCellFocus={true}
-              // Disable text selection to prevent InvalidNodeTypeError on detached nodes
-              enableCellTextSelection={false}
-              ensureDomOrder={true}
-              pagination
-              paginationPageSize={pageSize}
-              domLayout="normal"
-              getRowId={(params) => params.data.id}
-              onRowClicked={(e) => {
-                // Skip navigation when clicking on checkbox column
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                if ((e as any).column?.getColId() === 'ag-Grid-SelectionColumn') return;
-                if (e.data?.id) {
-                  router.push(`/quotes/${e.data.id}`);
-                }
-              }}
-            />
-          )}
-        </div>
+        {/* Table with scroll helper */}
+        <GridScrollHelper gridContainerRef={gridContainerRef}>
+          <div
+            ref={gridContainerRef}
+            className={cn(
+              'ag-theme-custom-dark rounded-lg border border-border',
+              isPending && 'opacity-70 transition-opacity'
+            )}
+          >
+            {loading ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : quotes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                <FileText className="h-16 w-16 mb-4 opacity-50" />
+                <p className="text-lg font-medium">КП не найдено</p>
+                <p className="text-sm mt-1">
+                  {authorFilter
+                    ? 'По выбранному фильтру нет коммерческих предложений'
+                    : 'Создайте первое коммерческое предложение'}
+                </p>
+              </div>
+            ) : (
+              <AgGridReact
+                ref={gridRef}
+                theme="legacy"
+                rowData={quotes}
+                columnDefs={columnDefs}
+                defaultColDef={defaultColDef}
+                rowSelection={{ mode: 'multiRow', enableClickSelection: false }}
+                suppressCellFocus={true}
+                // Disable text selection to prevent InvalidNodeTypeError on detached nodes
+                enableCellTextSelection={false}
+                ensureDomOrder={true}
+                pagination
+                paginationPageSize={pageSize}
+                // autoHeight: grid expands to fit content, no nested scroll trap
+                domLayout="autoHeight"
+                // Always show horizontal scrollbar when content overflows
+                alwaysShowHorizontalScroll={true}
+                getRowId={(params) => params.data.id}
+                onRowClicked={(e) => {
+                  // Skip navigation when clicking on checkbox column
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  if ((e as any).column?.getColId() === 'ag-Grid-SelectionColumn') return;
+                  if (e.data?.id) {
+                    router.push(`/quotes/${e.data.id}`);
+                  }
+                }}
+              />
+            )}
+          </div>
+        </GridScrollHelper>
       </div>
 
       {/* Submit for Approval Dialog */}
@@ -670,6 +708,20 @@ export default function QuotesPage() {
         onSuccess={handleCreateModalSuccess}
         selectedFile={selectedFile}
       />
+
+      {/* Specification Export Modal */}
+      {specModalQuote && (
+        <SpecificationExportModal
+          open={specModalOpen}
+          onCancel={() => {
+            setSpecModalOpen(false);
+            setSpecModalQuote(null);
+          }}
+          quoteId={specModalQuote.id}
+          customerId={specModalQuote.customer_id || ''}
+          quoteNumber={specModalQuote.idn_quote || specModalQuote.quote_number || ''}
+        />
+      )}
     </MainLayout>
   );
 }

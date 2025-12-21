@@ -271,9 +271,11 @@ CREATE TABLE quote_calculations (
 
 ### Secondary
 - **Calculation Summary:** `.claude/reference/calculation_engine_summary.md`
-- **Variables Guide:** `.claude/VARIABLES.md` (42 variables classified)
+- **Variables Guide:** `.claude/VARIABLES.md` (44 variables classified)
+- **Variable Mapping:** `.claude/VARIABLE_MAPPING.md` ⭐ - Excel→Backend→CalcEngine→DB
+- **Variable CSV:** `.claude/reference/variable-mapping.csv` - Sortable spreadsheet
 - **Source Code:** `backend/calculation_engine.py`
-- **Tests:** `backend/tests/test_quotes_calc_*.py`
+- **Tests:** `backend/tests/test_quotes_calc_*.py`, `backend/tests/test_variable_mapping.py`
 
 ### Archive (May Be Outdated)
 - `.claude/archive/Variables_specification_notion.md` - Contains outdated internal_markup values
