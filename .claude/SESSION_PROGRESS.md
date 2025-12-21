@@ -1,16 +1,181 @@
 # Session Progress
 
-**Last Updated:** 2025-12-14 (Session 74)
+**Last Updated:** 2025-12-21 (Session 79)
 
 ---
 
 ## Current TODO
 
-None - all clear!
+**TASK-008: Quote List Constructor with Department Presets**
+- Status: 100% complete ✅
+- All phases complete (0-8)
+- Session 78: Additional columns and fixes
+
+**Uncommitted files:**
+- `dev/active/20251221-TASK-008-quote-list-constructor-with-department-presets/` - Task docs
+- `.claude/reference/list-constructor-mapping.md` - Column mapping reference
+- Backend: `routes/list_presets.py`, `routes/quotes_list.py`, `routes/purchasing_companies.py`, `routes/suppliers.py`, `services/list_query_builder.py`
+- Frontend: `components/quotes/list-constructor/` (ListGrid, PresetSelector, ColumnConfigModal, etc.)
+- Migrations: 052-057 (includes new logistics fields)
 
 ---
 
 ## Recent Completed
+
+### Session 79 (2025-12-21) - Performance Optimization
+
+**Two major optimizations implemented:**
+
+**1. Connection Pooling (~40% faster):**
+- Replaced `/quotes` page with ListGridWithPresets component (728 → 138 lines)
+- Added timing logs to `/api/quotes-list/` endpoint for bottleneck identification
+- Fixed connection pooling - switched to `db_pool.py` with pre-warmed connections
+- Changed `min_size=0` → `min_size=3` for instant connection acquisition
+
+**2. Auth Caching (~70% faster):**
+- Added TTLCache (5 min expiry) for user metadata in `auth.py`
+- Cache key = user_id (works across token refreshes)
+- First request fetches from Supabase (3 HTTP calls), subsequent requests instant
+- Added `invalidate_user_cache()` for role/org changes
+- Added `get_cache_stats()` for monitoring
+
+**Combined Performance Results:**
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| DB Connection | 1.6-3s | 0ms | ✅ Fixed |
+| Auth overhead | 2.4s/request | 0ms (cached) | ✅ Fixed |
+| `/api/quotes-list/` | 6-7s | **1.4-2.5s** | **~70%** |
+| `/api/organizations/` | 3.7s | **1.2s** | **~68%** |
+| `/api/users/profile` | 3.7s | **1.2s** | **~68%** |
+
+**Files Modified:**
+- `frontend/src/app/quotes/page.tsx` - Simplified to use ListGridWithPresets
+- `backend/routes/quotes_list.py` - Added timing logs, switched to connection pool
+- `backend/db_pool.py` - Changed min_size from 0 to 3 for pre-warmed connections
+- `backend/auth.py` - Added TTLCache for user metadata (5 min TTL)
+- `backend/requirements.txt` - Added cachetools==5.3.2
+
+---
+
+### Session 78 (2025-12-21) - TASK-008 Additional Columns & Fixes
+
+**Bug Fixes:**
+- Made `/api/exchange-rates/all` endpoint public (fixed race condition with auth token)
+- Fixed preset save format (frontend sent array, backend expected `{columnDefs, columnOrder}` object)
+- Added column count display next to row count in ListGrid toolbar
+
+**Migration 057: Logistics & Purchasing Fields (Applied):**
+- `purchasing_companies` table (reference table like seller_companies)
+- Quote-level: `delivery_city`, `cargo_type` (FCL/LCL/AIR/RAIL)
+- Product-level: `pickup_country`, `supplier_payment_country`, `purchasing_company_id`
+- SQL helper functions for aggregation:
+  - `get_quote_production_time_range()` - Returns "15-150 дн." format
+  - `get_quote_pickup_countries()` - Returns "Latvia, Romania, Turkey"
+  - `get_quote_supplier_payment_countries()` - Returns comma-separated countries
+  - `get_quote_purchasing_companies()` - Returns company short names
+
+**New Columns Added (65 total):**
+- `delivery_city` - Город доставки в РФ
+- `cargo_type` - Тип груза (FCL/LCL/AIR/RAIL)
+- `pickup_countries` - Страны забора груза (aggregated)
+- `supplier_payment_countries` - Страны оплаты поставщику (aggregated)
+- `production_time_range` - Срок готовности к отгрузке (aggregated range)
+- `purchasing_companies_list` - Юр лица закупок (aggregated)
+
+**Files Modified:**
+- `backend/routes/exchange_rates.py` - Made /all endpoint public
+- `frontend/src/app/api/exchange-rates/all/route.ts` - Removed auth check
+- `frontend/src/components/quotes/list-constructor/ListGrid.tsx` - Added column count
+- `frontend/src/components/quotes/list-constructor/ListGridWithPresets.tsx` - Fixed preset save format
+- `frontend/src/components/quotes/list-constructor/columnDefs.ts` - Added new delivery columns
+- `backend/services/list_query_builder.py` - Added 6 new column definitions
+- `backend/migrations/057_quote_logistics_fields.sql` - NEW
+
+---
+
+### Session 77 (2025-12-21) - TASK-008 Quote List Constructor
+
+**Quote List Constructor with Department Presets**
+
+Major feature: Consolidate 3 department Excel spreadsheets (~200 columns) into single ag-Grid view with ~80 unique columns and department presets.
+
+**Database (4 migrations applied):**
+- 052: `purchasing_companies`, `suppliers`, `quote_approval_history` tables with RLS
+- 053: 32 new columns across quotes, quote_items, quote_calculation_summaries
+- 054: `list_presets` table for column configurations
+- 055: 4 system presets (Продажи, Логистика, Бухгалтерия, Руководство)
+
+**Backend (~2,000 lines):**
+- `routes/list_presets.py` - CRUD for presets with permission checks
+- `routes/quotes_list.py` - Dynamic query with preset support
+- `routes/purchasing_companies.py` - CRUD for purchasing companies
+- `routes/suppliers.py` - CRUD for suppliers
+- `services/list_query_builder.py` - Dynamic SQL builder with 61 columns
+
+**Frontend (~1,500 lines):**
+- `ListGrid.tsx` - ag-Grid wrapper with pagination, sorting, filtering
+- `PresetSelector.tsx` - Dropdown with grouped presets
+- `ColumnConfigModal.tsx` - Column configuration with category grouping
+- `ListGridWithPresets.tsx` - Main entry point component
+- `columnDefs.ts` - 61 column definitions with Russian headers
+- `preset-service.ts` - API hooks for preset management
+- `quotes-list-service.ts` - API hooks for list data
+
+**Testing:**
+- ✅ TypeScript: 0 errors
+- ✅ ESLint: 0 errors (209 warnings pre-existing)
+- ✅ Frontend build: Success
+- ✅ Backend imports: All 61 columns available, routes registered
+- ✅ Localhost testing: Grid displays 20/23 records correctly
+
+**Runtime Bug Fixes (commit e3fac4e):**
+- Fixed race condition in `useQuotesList` - fetchIdRef pattern for React 18 Strict Mode
+- Fixed `getColumnsFromPreset` - handle nested `{columnDefs, columnOrder}` format
+- Fixed premature grid render - wait for presets before rendering ListGrid
+- Fixed `quote_number` → `idn_quote` column mapping in backend
+
+---
+
+### Session 76 (2025-12-18) - Production Hotfix
+
+**Backend crash fix - missing Python dependencies**
+
+Root cause: After BFG secrets cleanup, VPS had diverged git history and wasn't pulling latest code properly.
+
+**Issues fixed:**
+- `ModuleNotFoundError: No module named 'docx'` - Added `python-docx==1.1.2` to requirements.txt (PR #30, #31)
+- `ModuleNotFoundError: No module named 'num2words'` - Added `num2words==0.5.14` to requirements.txt (PR #32)
+- VPS git divergence - Force reset to `origin/main` after BFG history rewrite
+
+**PRs merged:**
+- PR #30: fix/add-python-docx → feature/user-feedback
+- PR #31: feature/user-feedback → main (python-docx fix)
+- PR #32: fix/add-python-docx → main (num2words fix)
+
+**GitHub branch protection configured:**
+- main: Protected, admin bypass enabled
+- feature/user-feedback: Protected, admin bypass enabled
+
+---
+
+### Session 75 (2025-12-18) - Security Audit
+
+**Git secrets cleanup with BFG Repo Cleaner**
+
+- Removed 11 hardcoded secrets from git history (GitHub tokens, DB passwords, API keys)
+- Force-pushed cleaned history to all branches
+- Set up branch protection rules
+- Created `DEVELOPER_ONBOARDING.md` (988 lines)
+
+**Secrets removed:**
+- GitHub PAT tokens (2)
+- VPS SSH password
+- Supabase keys (3)
+- Notion API key
+- Todoist API key
+- Dadata API key
+
+---
 
 ### Session 74 (2025-12-14) - TASK-002 Complete
 

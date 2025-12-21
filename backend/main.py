@@ -21,7 +21,7 @@ from supabase import create_client, Client
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload, dadata, seller_companies, customer_contracts, specification_export
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload, dadata, seller_companies, customer_contracts, specification_export, list_presets, purchasing_companies, suppliers, quotes_list
 
 # Sentry for error tracking
 import sentry_sdk
@@ -619,6 +619,10 @@ app.include_router(monitoring_test.router)  # Test endpoints for Sentry + Telegr
 app.include_router(webhooks.router)  # Sentry webhooks for frontend error → Telegram
 app.include_router(dadata.router)  # DaData company lookup by INN
 app.include_router(seller_companies.router)  # Seller companies CRUD
+app.include_router(list_presets.router)  # List presets for quote list column configurations (TASK-008)
+app.include_router(purchasing_companies.router)  # Purchasing companies CRUD (TASK-008)
+app.include_router(suppliers.router)  # Suppliers CRUD (TASK-008)
+app.include_router(quotes_list.router)  # Dynamic quote list query with preset support (TASK-008)
 
 @app.post("/api/admin/fix-database-function")
 async def fix_database_function():
