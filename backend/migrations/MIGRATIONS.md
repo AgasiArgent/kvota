@@ -50,6 +50,11 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 | 041 | `041_add_total_with_vat_usd.sql` | Add total with VAT USD column | ✅ Done | 2025-12-04 | Session 46 |
 | 042 | `042_fix_organization_members_rls_recursion.sql` | Fix RLS recursion in org members | ✅ Done | 2025-12-11 | Session 47 |
 | 043 | `043_add_idn_system.sql` | **IDN System: supplier_code, idn_quote, idn_sku** | ⏳ Pending | - | Session 49 |
+| 044 | `044_seller_companies.sql` | Seller companies reference table | ✅ Done | 2025-12-XX | Earlier |
+| 052 | `052_list_constructor_reference_tables.sql` | **TASK-008: purchasing_companies, suppliers, quote_approval_history** | ✅ Done | 2025-12-21 | Session 49 |
+| 053 | `053_list_constructor_new_fields.sql` | **TASK-008: New fields in quotes, quote_items, calc_summaries** | ✅ Done | 2025-12-21 | Session 49 |
+| 054 | `054_list_presets.sql` | **TASK-008: list_presets table for column configurations** | ✅ Done | 2025-12-21 | Session 49 |
+| 055 | `055_seed_department_presets.sql` | **TASK-008: Seed 4 system department presets** | ✅ Done | 2025-12-21 | Session 49 |
 
 ---
 
@@ -70,11 +75,11 @@ psql postgresql://postgres:password@db.your-project.supabase.co:5432/postgres -f
 
 ---
 
-## Next Migration Number: 022
+## Next Migration Number: 056
 
 Create new migration:
 ```bash
-touch backend/migrations/022_your_migration_name.sql
+touch backend/migrations/056_your_migration_name.sql
 ```
 
 Then update this log!
