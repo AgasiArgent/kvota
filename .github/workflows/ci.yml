@@ -23,7 +23,6 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        working-directory: frontend
         run: npm install --legacy-peer-deps
 
       - name: Run ESLint
@@ -55,7 +54,6 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        working-directory: frontend
         run: npm install --legacy-peer-deps
 
       - name: Build Next.js app
