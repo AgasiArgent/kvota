@@ -6,6 +6,9 @@
   "scripts": {
     "prepare": "husky"
   },
+  "dependencies": {
+    "react-is": "^19.1.0"
+  },
   "devDependencies": {
     "husky": "^9.1.7"
   },
