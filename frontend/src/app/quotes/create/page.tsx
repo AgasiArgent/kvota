@@ -1990,7 +1990,9 @@ export default function CreateQuotePage() {
               <style>{agGridRowSelectionStyles}</style>
               <div className="ag-theme-alpine" style={{ height: 500, width: '100%' }}>
                 <AgGridReact
-                  ref={gridRef}
+                  onGridReady={(params) => {
+                    gridRef.current = { api: params.api };
+                  }}
                   rowData={uploadedProducts}
                   columnDefs={columnDefs}
                   defaultColDef={defaultColDef}

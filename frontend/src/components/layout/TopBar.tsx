@@ -51,7 +51,7 @@ export default function TopBar({ onCommandPaletteOpen }: TopBarProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-9 w-9 rounded-full">
             <Avatar className="h-9 w-9">
-              <AvatarImage src={profile?.avatar_url} alt={profile?.full_name || ''} />
+              <AvatarImage src={profile?.avatar_url ?? undefined} alt={profile?.full_name || ''} />
               <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                 {initials}
               </AvatarFallback>
