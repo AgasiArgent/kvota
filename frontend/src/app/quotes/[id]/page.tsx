@@ -283,15 +283,18 @@ export default function QuoteDetailPage() {
       try {
         const token = await getAuthToken();
 
-        const response = await fetch(
-          `${config.apiUrl}/api/quotes/${quoteId}/export/${type}?format=${format}`,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        // Use different endpoint for validation export (big Excel with API_Inputs, расчет, API_Results)
+        const apiUrl =
+          format === 'validation'
+            ? `${config.apiUrl}/api/upload/export-as-template/${quoteId}`
+            : `${config.apiUrl}/api/quotes/${quoteId}/export/${type}?format=${format}`;
+
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
