@@ -153,9 +153,18 @@ export class ContractsService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        // Handle different error formats: string, object with message, or other
+        let errorMessage = 'Failed to export specification';
+        if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else if (typeof errorData.detail === 'object' && errorData.detail?.message) {
+          errorMessage = errorData.detail.message;
+        } else if (typeof errorData.error === 'string') {
+          errorMessage = errorData.error;
+        }
         return {
           success: false,
-          error: errorData.error || errorData.detail || 'Failed to export specification',
+          error: errorMessage,
         };
       }
 

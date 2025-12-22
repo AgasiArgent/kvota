@@ -59,11 +59,15 @@ router = APIRouter(
 async def export_specification(
     quote_id: UUID,
     request: SpecificationExportRequest,
-    user: User = Depends(require_permission("quotes:read")),
+    user: User = Depends(get_current_user),
     supabase: Client = Depends(get_supabase)
 ):
     """
     Export specification (Спецификация) as DOCX document
+
+    Permission check:
+    - Users with 'quotes:read' can export any quote in their organization
+    - Users with 'quotes:read_own' can only export quotes they created
 
     Steps:
     1. Validate quote exists and user has permission
@@ -98,6 +102,19 @@ async def export_specification(
             )
 
         quote = quote_result.data[0]
+
+        # 1a. Check read permission
+        # Users with 'quotes:read' can read any quote in org
+        # Users with 'quotes:read_own' can only read their own quotes
+        has_read_all = "*" in user.permissions or "quotes:read" in user.permissions
+        has_read_own = "quotes:read_own" in user.permissions
+        is_owner = str(quote.get("created_by")) == str(user.id)
+
+        if not has_read_all and not (has_read_own and is_owner):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Нет доступа к этой КП. Вы можете экспортировать только свои КП."
+            )
 
         # 2. Verify contract exists and belongs to the same customer
         contract_result = supabase.table("customer_contracts").select("*")\

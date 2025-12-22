@@ -7,16 +7,12 @@
 ## Current TODO
 
 **TASK-008: Quote List Constructor with Department Presets**
-- Status: 100% complete ✅
-- All phases complete (0-8)
-- Session 78: Additional columns and fixes
+- Status: ✅ MERGED to main (PR #34)
+- Commit: `87fecd2` (2025-12-21)
 
-**Uncommitted files:**
-- `dev/active/20251221-TASK-008-quote-list-constructor-with-department-presets/` - Task docs
-- `.claude/reference/list-constructor-mapping.md` - Column mapping reference
-- Backend: `routes/list_presets.py`, `routes/quotes_list.py`, `routes/purchasing_companies.py`, `routes/suppliers.py`, `services/list_query_builder.py`
-- Frontend: `components/quotes/list-constructor/` (ListGrid, PresetSelector, ColumnConfigModal, etc.)
-- Migrations: 052-057 (includes new logistics fields)
+**Session 79: Performance Optimization**
+- Status: ✅ MERGED to main (PR #34)
+- ~70% faster API responses (auth caching + connection pooling)
 
 ---
 
