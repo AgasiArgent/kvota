@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   Kanban,
   Newspaper,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
 
   const userRole = profile?.organizationRole || profile?.role || '';
   const isAdmin = userRole && ['admin', 'owner'].includes(userRole.toLowerCase());
+  const isOwner = userRole && userRole.toLowerCase() === 'owner';
 
   const mainNavItems: NavItem[] = [
     { href: '/quotes', label: 'Коммерческие предложения', icon: FileText },
@@ -94,6 +96,15 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
             { href: '/admin/feedback', label: 'Обратная связь', icon: MessageSquare },
             { href: '/admin/excel-validation', label: 'Валидация Excel', icon: FileSpreadsheet },
           ],
+        },
+      ]
+    : [];
+
+  const ownerNavGroups: NavGroup[] = isOwner
+    ? [
+        {
+          label: 'Маркетинг',
+          items: [{ href: '/campaigns', label: 'Email кампании', icon: Mail }],
         },
       ]
     : [];
@@ -169,6 +180,27 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
               <Separator className="my-4 bg-border/50" />
               {adminNavGroups.map((group, idx) => (
                 <div key={idx} className="mb-5">
+                  {!collapsed && group.label && (
+                    <h4 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-foreground/40">
+                      {group.label}
+                    </h4>
+                  )}
+                  <div className="space-y-0.5">
+                    {group.items.map((item) => (
+                      <NavLink key={item.href} item={item} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Owner-only sections */}
+          {ownerNavGroups.length > 0 && (
+            <>
+              {adminNavGroups.length === 0 && <Separator className="my-4 bg-border/50" />}
+              {ownerNavGroups.map((group, idx) => (
+                <div key={`owner-${idx}`} className="mb-5">
                   {!collapsed && group.label && (
                     <h4 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-foreground/40">
                       {group.label}
