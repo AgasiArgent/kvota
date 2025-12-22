@@ -215,8 +215,109 @@ class SmartLeadService:
             )
             return {}
 
+    async def get_campaign_leads(self, campaign_id: str) -> Dict[str, Any]:
+        """
+        Fetch all leads for a specific campaign to count CRM categories.
+
+        Args:
+            campaign_id: SmartLead campaign ID
+
+        Returns:
+            Dict with 'total_leads' (from API) and 'leads' (list of lead dicts)
+        """
+        try:
+            # SmartLead API returns paginated leads in format:
+            # {"total_leads": "613", "data": [{...}, {...}]}
+            all_leads = []
+            offset = 0
+            api_total_leads = 0
+
+            while True:
+                response = await self._make_request(
+                    f"/campaigns/{campaign_id}/leads",
+                    params={"limit": 100, "offset": offset}
+                )
+
+                # Handle response structure: {"total_leads": N, "data": [...]}
+                if not response or not isinstance(response, dict):
+                    break
+
+                # Get total from API (first request)
+                if offset == 0:
+                    api_total_leads = int(response.get("total_leads", 0) or 0)
+
+                leads_data = response.get("data", [])
+                if not leads_data:
+                    break
+
+                all_leads.extend(leads_data)
+
+                # Check if we got less than requested (no more pages)
+                if len(leads_data) < 100:
+                    break
+
+                offset += len(leads_data)
+
+            logger.info(f"Retrieved {len(all_leads)} leads (API reports {api_total_leads}) for campaign {campaign_id}")
+            return {
+                "total_leads": api_total_leads,
+                "leads": all_leads
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to fetch leads for campaign {campaign_id}: {e}")
+            return {"total_leads": 0, "leads": []}
+
+    def _count_lead_categories(self, leads: List[Dict[str, Any]], api_total_leads: int) -> Dict[str, int]:
+        """
+        Count leads by CRM category.
+
+        SmartLead category IDs:
+        - 1: Interested (positive)
+        - 2: Meeting Request (positive)
+        - 3: Not Interested (negative)
+        - 4: Do Not Contact (negative)
+        - 5: Information Request (positive)
+        - 6: Out Of Office (neutral)
+        - 7: Wrong Person (neutral)
+        - 8: Uncategorizable by AI (neutral)
+        - 9: Sender Originated Bounce (neutral)
+
+        Args:
+            leads: List of lead dicts with lead_category_id
+            api_total_leads: Total count from SmartLead API (authoritative)
+
+        Returns:
+            Dict with total_leads, positive_count, meeting_request_count
+        """
+        # Positive category IDs
+        POSITIVE_CATEGORY_IDS = {1, 2, 5}  # Interested, Meeting Request, Information Request
+        MEETING_REQUEST_ID = 2
+
+        positive_count = 0
+        meeting_request_count = 0
+
+        for lead in leads:
+            category_id = lead.get("lead_category_id")
+            if category_id:
+                if category_id in POSITIVE_CATEGORY_IDS:
+                    positive_count += 1
+                if category_id == MEETING_REQUEST_ID:
+                    meeting_request_count += 1
+
+        logger.info(f"Category counts: total={api_total_leads} (fetched {len(leads)}), positive={positive_count}, meetings={meeting_request_count}")
+
+        return {
+            "total_leads": api_total_leads,  # Use API total, not len(leads)
+            "positive_count": positive_count,
+            "meeting_request_count": meeting_request_count
+        }
+
     def _parse_metrics(
-        self, analytics: Dict[str, Any], lead_stats: Dict[str, Any]
+        self,
+        analytics: Dict[str, Any],
+        lead_stats: Dict[str, Any],
+        category_counts: Optional[Dict[str, int]] = None
     ) -> CampaignMetrics:
         """
         Parse SmartLead API response into CampaignMetrics model.
@@ -224,6 +325,7 @@ class SmartLeadService:
         Args:
             analytics: Response from /campaigns/{id}/analytics
             lead_stats: Response from /campaigns/{id}/lead-statistics
+            category_counts: Dict with positive_count and meeting_request_count from leads
 
         Returns:
             CampaignMetrics with parsed values
@@ -246,7 +348,15 @@ class SmartLeadService:
         blocked_count = int(lead_stats.get("blocked", 0) or 0)
         paused_count = int(lead_stats.get("paused", 0) or 0)
         stopped_count = int(lead_stats.get("stopped", 0) or 0)
-        total_leads = int(lead_stats.get("total", 0) or 0)
+
+        # Parse category counts (includes actual total_leads from fetched data)
+        total_leads = 0
+        positive_count = 0
+        meeting_request_count = 0
+        if category_counts:
+            total_leads = category_counts.get("total_leads", 0)
+            positive_count = category_counts.get("positive_count", 0)
+            meeting_request_count = category_counts.get("meeting_request_count", 0)
 
         # Create metrics object
         metrics = CampaignMetrics(
@@ -266,6 +376,8 @@ class SmartLeadService:
             paused_count=paused_count,
             stopped_count=stopped_count,
             total_leads=total_leads,
+            positive_count=positive_count,
+            meeting_request_count=meeting_request_count,
         )
 
         # Calculate rates
@@ -299,8 +411,15 @@ class SmartLeadService:
             analytics = await self.get_campaign_analytics(campaign_id)
             lead_stats = await self.get_campaign_lead_statistics(campaign_id)
 
-            # Parse into metrics
-            metrics = self._parse_metrics(analytics, lead_stats)
+            # Fetch leads to count CRM categories
+            leads_result = await self.get_campaign_leads(campaign_id)
+            category_counts = self._count_lead_categories(
+                leads_result["leads"],
+                leads_result["total_leads"]
+            )
+
+            # Parse into metrics (include category counts)
+            metrics = self._parse_metrics(analytics, lead_stats, category_counts)
 
             # Store in database (upsert based on campaign_id)
             supabase = self._get_supabase_client()

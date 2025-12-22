@@ -84,19 +84,36 @@ class CampaignMetrics(BaseModel):
     stopped_count: int = Field(default=0, ge=0, description="Stopped")
     total_leads: int = Field(default=0, ge=0, description="Total leads in campaign")
 
+    # CRM Categories (from SmartLead lead_category_id)
+    positive_count: int = Field(default=0, ge=0, description="Positive leads (Interested + Meeting Request + Information Request)")
+    meeting_request_count: int = Field(default=0, ge=0, description="Meeting Request leads")
+
     # Calculated rates (can be computed or stored)
     open_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, description="Open rate %")
     click_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, description="Click rate %")
-    reply_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, description="Reply rate %")
+    reply_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, description="Reply rate % (CR = replies/total_leads)")
     bounce_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, description="Bounce rate %")
+    positive_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, description="Warm CR % (positive/replies)")
+    meeting_to_positive_rate: Optional[Decimal] = Field(default=None, ge=0, le=100, description="Application CR % (meeting/positive)")
 
     def calculate_rates(self) -> None:
         """Calculate rates from raw counts"""
         if self.sent_count > 0:
             self.open_rate = Decimal(str(round(self.unique_open_count / self.sent_count * 100, 2)))
             self.click_rate = Decimal(str(round(self.unique_click_count / self.sent_count * 100, 2)))
-            self.reply_rate = Decimal(str(round(self.reply_count / self.sent_count * 100, 2)))
             self.bounce_rate = Decimal(str(round(self.bounce_count / self.sent_count * 100, 2)))
+
+        # CR = replies / total_leads
+        if self.total_leads > 0:
+            self.reply_rate = Decimal(str(round(self.reply_count / self.total_leads * 100, 2)))
+
+        # Тепл. CR = positive / replies (warm leads conversion from replies)
+        if self.reply_count > 0:
+            self.positive_rate = Decimal(str(round(self.positive_count / self.reply_count * 100, 2)))
+
+        # Заяв. CR = meetings / positive (application rate from warm leads)
+        if self.positive_count > 0:
+            self.meeting_to_positive_rate = Decimal(str(round(self.meeting_request_count / self.positive_count * 100, 2)))
 
     class Config:
         json_schema_extra = {

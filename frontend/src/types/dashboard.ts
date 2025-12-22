@@ -43,11 +43,17 @@ export interface CampaignMetrics {
   stopped_count: number;
   total_leads: number;
 
+  // CRM Categories (from SmartLead lead_category_id)
+  positive_count?: number;
+  meeting_request_count?: number;
+
   // Calculated rates (percentage)
   open_rate?: number;
   click_rate?: number;
   reply_rate?: number;
   bounce_rate?: number;
+  positive_rate?: number;
+  meeting_to_positive_rate?: number;
 }
 
 // ============================================================================
@@ -391,6 +397,8 @@ export function getEmptyCampaignMetrics(): CampaignMetrics {
     paused_count: 0,
     stopped_count: 0,
     total_leads: 0,
+    positive_count: 0,
+    meeting_request_count: 0,
   };
 }
 
@@ -398,18 +406,20 @@ export function getEmptyCampaignMetrics(): CampaignMetrics {
  * Available metric fields for widgets
  */
 export const AVAILABLE_METRICS = [
-  { field: 'sent_count', label: 'Отправлено', isRate: false },
+  { field: 'total_leads', label: 'Всего лидов', isRate: false },
+  { field: 'reply_count', label: 'Ответов', isRate: false },
+  { field: 'reply_rate', label: 'Конверсия (Reply Rate)', isRate: true },
+  { field: 'positive_count', label: 'Позитивных', isRate: false },
+  { field: 'meeting_request_count', label: 'Запросов встреч', isRate: false },
+  { field: 'sent_count', label: 'Отправлено писем', isRate: false },
   { field: 'open_count', label: 'Открытий', isRate: false },
   { field: 'unique_open_count', label: 'Уникальных открытий', isRate: false },
   { field: 'click_count', label: 'Кликов', isRate: false },
   { field: 'unique_click_count', label: 'Уникальных кликов', isRate: false },
-  { field: 'reply_count', label: 'Ответов', isRate: false },
   { field: 'bounce_count', label: 'Отказов', isRate: false },
   { field: 'unsubscribed_count', label: 'Отписок', isRate: false },
   { field: 'interested_count', label: 'Заинтересованных', isRate: false },
-  { field: 'total_leads', label: 'Всего лидов', isRate: false },
   { field: 'open_rate', label: 'Open Rate', isRate: true },
   { field: 'click_rate', label: 'Click Rate', isRate: true },
-  { field: 'reply_rate', label: 'Reply Rate', isRate: true },
   { field: 'bounce_rate', label: 'Bounce Rate', isRate: true },
 ] as const;

@@ -33,7 +33,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, RefreshCw, Trash2, Upload, BarChart3 } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  RefreshCw,
+  Trash2,
+  Upload,
+  BarChart3,
+  ChevronRight,
+  ChevronDown,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   fetchCampaignData,
@@ -49,6 +58,8 @@ export default function CampaignsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState<CampaignDataSource | 'all'>('all');
+  const [groupByCompany, setGroupByCompany] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Sync dialog state
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
@@ -183,6 +194,100 @@ export default function CampaignsPage() {
     return `${num.toFixed(2)}%`;
   };
 
+  const toggleGroupExpanded = (company: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(company)) {
+        next.delete(company);
+      } else {
+        next.add(company);
+      }
+      return next;
+    });
+  };
+
+  // Extract company prefix from campaign name (e.g., "phmb-main" -> "phmb")
+  const extractCompanyPrefix = (name: string): string => {
+    // Try common separators: dash, space, underscore
+    const separators = ['-', ' ', '_'];
+    for (const sep of separators) {
+      const parts = name.split(sep);
+      if (parts.length > 1 && parts[0].length >= 2) {
+        return parts[0].toLowerCase();
+      }
+    }
+    return name.toLowerCase();
+  };
+
+  // Group campaigns by company and aggregate metrics
+  interface AggregatedCampaign {
+    company: string;
+    campaignCount: number;
+    metrics: {
+      total_leads: number;
+      reply_count: number;
+      reply_rate: number;
+      positive_count: number;
+      positive_rate: number;
+      meeting_request_count: number;
+      meeting_to_positive_rate: number;
+    };
+    campaigns: CampaignData[];
+  }
+
+  const groupedCampaigns = React.useMemo((): AggregatedCampaign[] => {
+    if (!groupByCompany) return [];
+
+    const groups: Record<string, CampaignData[]> = {};
+
+    for (const campaign of campaigns) {
+      const prefix = extractCompanyPrefix(campaign.campaign_name);
+      if (!groups[prefix]) {
+        groups[prefix] = [];
+      }
+      groups[prefix].push(campaign);
+    }
+
+    return Object.entries(groups)
+      .map(([company, groupCampaigns]) => {
+        // Aggregate metrics
+        const totalLeads = groupCampaigns.reduce((sum, c) => sum + (c.metrics.total_leads || 0), 0);
+        const replyCount = groupCampaigns.reduce((sum, c) => sum + (c.metrics.reply_count || 0), 0);
+        const positiveCount = groupCampaigns.reduce(
+          (sum, c) => sum + (c.metrics.positive_count || 0),
+          0
+        );
+        const meetingCount = groupCampaigns.reduce(
+          (sum, c) => sum + (c.metrics.meeting_request_count || 0),
+          0
+        );
+
+        // Calculate rates from aggregated values
+        // CR = replies / total_leads
+        // Тепл. CR = теплые / ответов (positive / replies)
+        // Заяв. CR = заявки / теплые (meetings / positive)
+        const replyRate = totalLeads > 0 ? (replyCount / totalLeads) * 100 : 0;
+        const positiveRate = replyCount > 0 ? (positiveCount / replyCount) * 100 : 0;
+        const meetingToPositiveRate = positiveCount > 0 ? (meetingCount / positiveCount) * 100 : 0;
+
+        return {
+          company,
+          campaignCount: groupCampaigns.length,
+          metrics: {
+            total_leads: totalLeads,
+            reply_count: replyCount,
+            reply_rate: replyRate,
+            positive_count: positiveCount,
+            positive_rate: positiveRate,
+            meeting_request_count: meetingCount,
+            meeting_to_positive_rate: meetingToPositiveRate,
+          },
+          campaigns: groupCampaigns,
+        };
+      })
+      .sort((a, b) => b.metrics.total_leads - a.metrics.total_leads);
+  }, [campaigns, groupByCompany]);
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
@@ -237,6 +342,15 @@ export default function CampaignsPage() {
             Ручные
           </Button>
         </div>
+        <div className="border-l pl-4 ml-2">
+          <Button
+            variant={groupByCompany ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setGroupByCompany(!groupByCompany)}
+          >
+            {groupByCompany ? 'По компаниям' : 'Группировать'}
+          </Button>
+        </div>
       </div>
 
       {/* Campaigns Table */}
@@ -244,7 +358,9 @@ export default function CampaignsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Кампании ({campaigns.length})
+            {groupByCompany
+              ? `Компании (${groupedCampaigns.length} групп, ${campaigns.length} кампаний)`
+              : `Кампании (${campaigns.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -264,18 +380,200 @@ export default function CampaignsPage() {
                   : 'Синхронизируйте данные из SmartLead или добавьте вручную'}
               </p>
             </div>
+          ) : groupByCompany ? (
+            /* Grouped View with Expandable Rows */
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]"></TableHead>
+                    <TableHead>Компания</TableHead>
+                    <TableHead className="text-right">Кампаний</TableHead>
+                    <TableHead className="text-right">Лидов</TableHead>
+                    <TableHead className="text-right">Ответов</TableHead>
+                    <TableHead className="text-right">CR</TableHead>
+                    <TableHead className="text-right">Теплые</TableHead>
+                    <TableHead className="text-right">Тепл. CR</TableHead>
+                    <TableHead className="text-right">Заявки</TableHead>
+                    <TableHead className="text-right">Заяв. CR</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groupedCampaigns.map((group) => {
+                    const isExpanded = expandedGroups.has(group.company);
+                    return (
+                      <React.Fragment key={group.company}>
+                        {/* Group Header Row */}
+                        <TableRow
+                          className="font-medium bg-muted/50 cursor-pointer hover:bg-muted/70"
+                          onClick={() => toggleGroupExpanded(group.company)}
+                        >
+                          <TableCell className="py-2">
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </TableCell>
+                          <TableCell className="font-bold uppercase">{group.company}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="outline">{group.campaignCount}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            {formatNumber(group.metrics.total_leads)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatNumber(group.metrics.reply_count)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatPercent(group.metrics.reply_rate)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatNumber(group.metrics.positive_count)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatPercent(group.metrics.positive_rate)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatNumber(group.metrics.meeting_request_count)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatPercent(group.metrics.meeting_to_positive_rate)}
+                          </TableCell>
+                        </TableRow>
+                        {/* Expanded Campaign Rows */}
+                        {isExpanded &&
+                          group.campaigns.map((campaign) => (
+                            <TableRow key={campaign.id} className="bg-background/50 text-sm">
+                              <TableCell></TableCell>
+                              <TableCell className="pl-6 text-muted-foreground">
+                                {campaign.campaign_name}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant="secondary" className="text-xs">
+                                  {campaign.source === 'smartlead' ? 'SL' : 'M'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatNumber(campaign.metrics.total_leads)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatNumber(campaign.metrics.reply_count)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatPercent(campaign.metrics.reply_rate)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatNumber(campaign.metrics.positive_count || 0)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatPercent(campaign.metrics.positive_rate)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatNumber(campaign.metrics.meeting_request_count || 0)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatPercent(campaign.metrics.meeting_to_positive_rate)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </React.Fragment>
+                    );
+                  })}
+                  {/* Total row */}
+                  <TableRow className="bg-primary/10 font-bold">
+                    <TableCell></TableCell>
+                    <TableCell>ИТОГО</TableCell>
+                    <TableCell className="text-right">
+                      <Badge>{campaigns.length}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatNumber(
+                        groupedCampaigns.reduce((sum, g) => sum + g.metrics.total_leads, 0)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatNumber(
+                        groupedCampaigns.reduce((sum, g) => sum + g.metrics.reply_count, 0)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(() => {
+                        const totalLeads = groupedCampaigns.reduce(
+                          (sum, g) => sum + g.metrics.total_leads,
+                          0
+                        );
+                        const totalReplies = groupedCampaigns.reduce(
+                          (sum, g) => sum + g.metrics.reply_count,
+                          0
+                        );
+                        return formatPercent(
+                          totalLeads > 0 ? (totalReplies / totalLeads) * 100 : 0
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatNumber(
+                        groupedCampaigns.reduce((sum, g) => sum + g.metrics.positive_count, 0)
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(() => {
+                        const totalReplies = groupedCampaigns.reduce(
+                          (sum, g) => sum + g.metrics.reply_count,
+                          0
+                        );
+                        const totalPositive = groupedCampaigns.reduce(
+                          (sum, g) => sum + g.metrics.positive_count,
+                          0
+                        );
+                        return formatPercent(
+                          totalReplies > 0 ? (totalPositive / totalReplies) * 100 : 0
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatNumber(
+                        groupedCampaigns.reduce(
+                          (sum, g) => sum + g.metrics.meeting_request_count,
+                          0
+                        )
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(() => {
+                        const totalPositive = groupedCampaigns.reduce(
+                          (sum, g) => sum + g.metrics.positive_count,
+                          0
+                        );
+                        const totalMeetings = groupedCampaigns.reduce(
+                          (sum, g) => sum + g.metrics.meeting_request_count,
+                          0
+                        );
+                        return formatPercent(
+                          totalPositive > 0 ? (totalMeetings / totalPositive) * 100 : 0
+                        );
+                      })()}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           ) : (
+            /* Individual Campaigns View */
             <div className="overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Кампания</TableHead>
                     <TableHead>Источник</TableHead>
-                    <TableHead className="text-right">Отправлено</TableHead>
-                    <TableHead className="text-right">Открыто</TableHead>
-                    <TableHead className="text-right">Open Rate</TableHead>
+                    <TableHead className="text-right">Лидов</TableHead>
                     <TableHead className="text-right">Ответов</TableHead>
-                    <TableHead className="text-right">Reply Rate</TableHead>
+                    <TableHead className="text-right">CR</TableHead>
+                    <TableHead className="text-right">Теплые</TableHead>
+                    <TableHead className="text-right">Тепл. CR</TableHead>
+                    <TableHead className="text-right">Заявки</TableHead>
+                    <TableHead className="text-right">Заяв. CR</TableHead>
                     <TableHead>Обновлено</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
@@ -290,19 +588,25 @@ export default function CampaignsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatNumber(campaign.metrics.sent_count)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatNumber(campaign.metrics.open_count)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatPercent(campaign.metrics.open_rate)}
+                        {formatNumber(campaign.metrics.total_leads)}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatNumber(campaign.metrics.reply_count)}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatPercent(campaign.metrics.reply_rate)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatNumber(campaign.metrics.positive_count || 0)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatPercent(campaign.metrics.positive_rate)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatNumber(campaign.metrics.meeting_request_count || 0)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatPercent(campaign.metrics.meeting_to_positive_rate)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(campaign.updated_at)}
