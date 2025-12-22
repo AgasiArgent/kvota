@@ -322,7 +322,7 @@ class SmartLeadService:
                 "source": "smartlead",
                 "campaign_id": campaign_id,
                 "campaign_name": campaign.name,
-                "metrics": metrics.model_dump(),
+                "metrics": metrics.model_dump(mode="json"),  # Serialize Decimals to JSON-compatible format
                 "synced_at": now,
                 "updated_at": now,
             }

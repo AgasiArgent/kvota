@@ -176,9 +176,11 @@ export default function CampaignsPage() {
     return value.toLocaleString('ru-RU');
   };
 
-  const formatPercent = (value: number | undefined | null) => {
+  const formatPercent = (value: number | string | undefined | null) => {
     if (value === undefined || value === null) return '-';
-    return `${value.toFixed(2)}%`;
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return '-';
+    return `${num.toFixed(2)}%`;
   };
 
   return (
