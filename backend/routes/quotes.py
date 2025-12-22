@@ -248,6 +248,7 @@ async def list_quotes(
             quotes_data.append({
                 "id": quote["id"],
                 "idn_quote": quote["idn_quote"],
+                "customer_id": quote.get("customer_id"),
                 "customer_name": customer_name,
                 "created_by_name": created_by_name,
                 "title": quote.get("title", ""),

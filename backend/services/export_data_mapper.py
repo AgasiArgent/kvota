@@ -178,9 +178,13 @@ async def fetch_export_data(quote_id: str, organization_id: str) -> ExportData:
 
 
     # ========== Step 2: Get quote items with calculation results ==========
+    # Fetch both phase_results (USD) and phase_results_quote_currency (client currency)
     items_response = supabase.table("quote_items").select(
-        "*, quote_calculation_results(phase_results, calculated_at)"
+        "*, quote_calculation_results(phase_results, phase_results_quote_currency, calculated_at)"
     ).eq("quote_id", quote_id).order("position").execute()
+
+    # Get USD to quote currency rate for fallback conversion
+    usd_to_quote_rate = float(quote.get('usd_to_quote_rate', 1.0))
 
     items = []
     for item_row in items_response.data:
@@ -205,13 +209,64 @@ async def fetch_export_data(quote_id: str, organization_id: str) -> ExportData:
                 latest_calc = None
 
             if latest_calc:
-                item_dict['calculation_results'] = latest_calc.get('phase_results', {})
+                # Prefer phase_results_quote_currency (already converted to client currency)
+                # Fall back to phase_results (USD) if quote currency version not available
+                phase_results_quote = latest_calc.get('phase_results_quote_currency', {}) or {}
+                phase_results_usd = latest_calc.get('phase_results', {}) or {}
+
+                # Key fields that must exist for exports
+                required_fields = [
+                    'sales_price_per_unit_no_vat', 'sales_price_total_no_vat',
+                    'sales_price_per_unit_with_vat', 'sales_price_total_with_vat',
+                    'vat_from_sales', 'purchase_price_total_quote_currency',
+                    'logistics_total', 'customs_fee', 'cogs_per_product',
+                    'profit', 'dm_fee'
+                ]
+
+                if phase_results_quote:
+                    # Use pre-converted quote currency values
+                    # But also merge any missing fields from USD with conversion
+                    merged = dict(phase_results_quote)
+                    for field in required_fields:
+                        if field not in merged or merged.get(field) is None:
+                            # Field missing in quote currency, convert from USD
+                            if field in phase_results_usd and phase_results_usd.get(field) is not None:
+                                try:
+                                    merged[field] = float(phase_results_usd[field]) * usd_to_quote_rate
+                                except (ValueError, TypeError):
+                                    pass
+                    item_dict['calculation_results'] = merged
+                    item_dict['calculation_results_usd'] = phase_results_usd
+                elif phase_results_usd:
+                    # Fallback: convert key fields from USD to quote currency on the fly
+                    converted = dict(phase_results_usd)
+                    fields_to_convert = [
+                        'sales_price_per_unit_no_vat', 'sales_price_total_no_vat',
+                        'sales_price_per_unit_with_vat', 'sales_price_total_with_vat',
+                        'vat_from_sales', 'purchase_price_total_quote_currency',
+                        'logistics_total', 'customs_fee', 'cogs_per_product',
+                        'profit', 'dm_fee'
+                    ]
+                    for field in fields_to_convert:
+                        if field in converted and converted[field] is not None:
+                            try:
+                                converted[field] = float(converted[field]) * usd_to_quote_rate
+                            except (ValueError, TypeError):
+                                pass
+                    item_dict['calculation_results'] = converted
+                    item_dict['calculation_results_usd'] = phase_results_usd
+                else:
+                    item_dict['calculation_results'] = None
+                    item_dict['calculation_results_usd'] = None
+
                 item_dict['calculated_at'] = latest_calc.get('calculated_at')
             else:
                 item_dict['calculation_results'] = None
+                item_dict['calculation_results_usd'] = None
                 item_dict['calculated_at'] = None
         else:
             item_dict['calculation_results'] = None
+            item_dict['calculation_results_usd'] = None
             item_dict['calculated_at'] = None
 
         # Remove nested quote_calculation_results array (we've extracted it)
