@@ -351,13 +351,48 @@ async def gather_specification_data(
         .eq("quote_id", str(quote_id))\
         .execute()
 
-    # Build lookup: quote_item_id -> phase_results
+    # Get USD to quote currency rate for fallback conversion
+    usd_to_quote_rate = float(quote.get('usd_to_quote_rate', 1.0))
+
+    # Build lookup: quote_item_id -> phase_results (prefer quote currency, fallback to USD with conversion)
     calc_results_by_item: Dict[str, Dict] = {}
     if calc_results.data:
         for calc in calc_results.data:
             item_id = calc.get("quote_item_id")
             if item_id:
-                calc_results_by_item[item_id] = calc.get("phase_results", {})
+                # Prefer phase_results_quote_currency (already converted to client currency)
+                phase_results_quote = calc.get("phase_results_quote_currency", {}) or {}
+                phase_results_usd = calc.get("phase_results", {}) or {}
+
+                if phase_results_quote:
+                    # Use quote currency version, but merge missing fields from USD
+                    merged = dict(phase_results_quote)
+                    required_fields = [
+                        'sales_price_per_unit_with_vat', 'sales_price_total_with_vat',
+                        'sales_price_per_unit_no_vat', 'sales_price_total_no_vat',
+                        'vat_from_sales'
+                    ]
+                    for field in required_fields:
+                        if field not in merged or merged.get(field) is None:
+                            if field in phase_results_usd and phase_results_usd.get(field) is not None:
+                                try:
+                                    merged[field] = float(phase_results_usd[field]) * usd_to_quote_rate
+                                except (ValueError, TypeError):
+                                    pass
+                    calc_results_by_item[item_id] = merged
+                elif phase_results_usd:
+                    # Fallback: convert USD to quote currency
+                    converted = {}
+                    for field in ['sales_price_per_unit_with_vat', 'sales_price_total_with_vat',
+                                  'sales_price_per_unit_no_vat', 'sales_price_total_no_vat', 'vat_from_sales']:
+                        if field in phase_results_usd and phase_results_usd.get(field) is not None:
+                            try:
+                                converted[field] = float(phase_results_usd[field]) * usd_to_quote_rate
+                            except (ValueError, TypeError):
+                                pass
+                    calc_results_by_item[item_id] = converted
+                else:
+                    calc_results_by_item[item_id] = {}
 
     # 5b. Fetch quote calculation variables for payment terms and delivery time
     variables_result = supabase_client.table("quote_calculation_variables").select("variables")\
@@ -435,30 +470,35 @@ async def gather_specification_data(
     products = []
     total_quantity = 0
     total_amount_vat = Decimal("0.00")
+    total_vat_from_sales = Decimal("0.00")  # Accumulate actual VAT from calculations
 
     for item in items_result.data:
         item_id = item.get("id")
         quantity = Decimal(str(item.get("quantity", 1)))
 
         # Get SALES prices from calculation results (not purchase price!)
-        # sales_price_per_unit_with_vat_quote = AJ16 in calculation engine
-        # sales_price_total_with_vat_quote = AK16 in calculation engine
+        # Field names: sales_price_per_unit_with_vat, sales_price_total_with_vat
         phase_results = calc_results_by_item.get(item_id, {})
-        unit_price_vat = Decimal(str(phase_results.get("sales_price_per_unit_with_vat_quote", 0)))
-        total_price_vat = Decimal(str(phase_results.get("sales_price_total_with_vat_quote", 0)))
+        unit_price_vat = Decimal(str(phase_results.get("sales_price_per_unit_with_vat", 0)))
+        total_price_vat = Decimal(str(phase_results.get("sales_price_total_with_vat", 0)))
+        item_vat = Decimal(str(phase_results.get("vat_from_sales", 0)))
 
         # Fallback: if no calculation results, use base_price_vat (purchase price)
         if unit_price_vat == 0 and total_price_vat == 0:
             unit_price_vat = Decimal(str(item.get("base_price_vat", 0)))
             total_price_vat = unit_price_vat * quantity
+            # Calculate VAT as 22% of base (no calculation results available)
+            item_vat = total_price_vat / Decimal("1.22") * Decimal("0.22")
 
         product_code = item.get("product_code") or ""
         brand = item.get("brand") or ""
+        idn_sku = item.get("idn_sku") or ""
 
         products.append({
             "name": item.get("product_name") or "",
             "product_code": product_code,
             "brand": brand,
+            "idn_sku": idn_sku,
             "quantity": quantity,
             "unit_price_vat": unit_price_vat,
             "total_price_vat": total_price_vat
@@ -466,9 +506,10 @@ async def gather_specification_data(
 
         total_quantity += int(quantity)
         total_amount_vat += total_price_vat
+        total_vat_from_sales += item_vat
 
-    # 8. Calculate VAT amount (20% of base)
-    vat_amount = total_amount_vat / Decimal("1.2") * Decimal("0.2")
+    # 8. Use actual VAT from calculation results (not hardcoded 20%)
+    vat_amount = total_vat_from_sales
 
     # 9. Convert amounts to Russian words
     currency = quote.get("currency", "USD")
@@ -590,7 +631,7 @@ def fill_products_table(doc: Document, products: List[Dict[str, Any]]) -> Docume
 
     Template has 8 columns:
     0. № (number)
-    1. IDN-SKU (REMOVED - no longer used)
+    1. IDN-SKU - hidden if all blank
     2. Наименование позиции (name)
     3. Артикул (product_code) - hidden if all blank
     4. Производитель (brand) - hidden if all blank
@@ -616,6 +657,8 @@ def fill_products_table(doc: Document, products: List[Dict[str, Any]]) -> Docume
         # If no table found, just return doc as-is
         return doc
 
+    # Check if all idn_sku values are blank
+    all_idn_sku_blank = all(not (product.get("idn_sku") or "").strip() for product in products)
     # Check if all product_code values are blank
     all_product_code_blank = all(not (product.get("product_code") or "").strip() for product in products)
     # Check if all brand values are blank
@@ -627,7 +670,7 @@ def fill_products_table(doc: Document, products: List[Dict[str, Any]]) -> Docume
 
         # Fill cells - template column indices (before removal)
         row.cells[0].text = str(idx)  # №
-        row.cells[1].text = ""  # IDN-SKU (leave blank, will be removed)
+        row.cells[1].text = product.get("idn_sku") or ""  # IDN-SKU
         row.cells[2].text = product.get("name") or ""
         row.cells[3].text = product.get("product_code") or ""
         row.cells[4].text = product.get("brand") or ""
@@ -639,14 +682,15 @@ def fill_products_table(doc: Document, products: List[Dict[str, Any]]) -> Docume
     # Track which columns to remove
     columns_to_remove = []
 
-    # Always remove IDN-SKU column (index 1)
-    columns_to_remove.append(1)
+    # Remove IDN-SKU column if all blank (index 1)
+    if all_idn_sku_blank:
+        columns_to_remove.append(1)
 
-    # Remove brand column if all blank (index 4, but shifts after IDN-SKU removal)
+    # Remove brand column if all blank (index 4)
     if all_brand_blank:
         columns_to_remove.append(4)
 
-    # Remove product_code column if all blank (index 3, but shifts)
+    # Remove product_code column if all blank (index 3)
     if all_product_code_blank:
         columns_to_remove.append(3)
 
