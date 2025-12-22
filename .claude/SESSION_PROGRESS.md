@@ -1,22 +1,89 @@
 # Session Progress
 
-**Last Updated:** 2025-12-21 (Session 79)
+**Last Updated:** 2025-12-22 (Session 81)
 
 ---
 
 ## Current TODO
 
-**TASK-008: Quote List Constructor with Department Presets**
-- Status: ✅ MERGED to main (PR #34)
-- Commit: `87fecd2` (2025-12-21)
-
-**Session 79: Performance Optimization**
-- Status: ✅ MERGED to main (PR #34)
-- ~70% faster API responses (auth caching + connection pooling)
+None - ready for next task.
 
 ---
 
 ## Recent Completed
+
+### Session 81 (2025-12-22) - TASK-009 Dashboard Constructor Complete
+
+**Dashboard Constructor with SmartLead Integration** - Commit `bf539a6`
+
+Full-featured dashboard system for email campaign analytics with drag-and-drop widgets.
+
+**Backend (~1,500 lines):**
+- `domain_models/dashboard.py` - Dashboard, Widget, and config types
+- `routes/dashboards.py` - CRUD for dashboards with RLS
+- `routes/campaigns.py` - Campaign data management API
+- `services/smartlead_service.py` - SmartLead API integration
+- `services/campaign_data_service.py` - Campaign metrics storage
+
+**Frontend (~2,500 lines):**
+- `/dashboards` - Dashboard list page
+- `/dashboards/[id]` - Dashboard view page
+- `/dashboards/[id]/edit` - Dashboard editor with drag-and-drop
+- `/campaigns` - Campaign data management page
+- `components/dashboard-constructor/` - 7 widget components:
+  - `DashboardGrid.tsx` - react-grid-layout wrapper
+  - `Widget.tsx` - Base widget container
+  - `KPICard.tsx` - KPI metrics display
+  - `ChartWidget.tsx` - Recharts line/bar/pie charts
+  - `TableWidget.tsx` - Data table widget
+  - `FilterWidget.tsx` - Filter controls
+  - `WidgetPanel.tsx` - Widget palette for adding
+
+**Database (Migration 058):**
+- `dashboards` - Dashboard metadata with RLS
+- `dashboard_widgets` - Widget configurations
+- `campaign_data` - SmartLead campaign metrics storage
+
+**Bug Fixes During Testing:**
+- Fixed react-grid-layout import (`.default` fallback for SSR)
+- Fixed `formatPercent` null handling in campaigns page
+- Fixed ESLint unused imports
+
+**Testing:** ✅ Manual browser testing complete
+- Dashboard list, create, edit, delete
+- Widget add, drag, resize, configure
+- Campaign sync dialog, manual entry
+
+**See:** `dev/completed/20251222-TASK-009-dashboard-constructor-with-smartlead-integration/`
+
+---
+
+### Session 80 (2025-12-22) - Production Fixes & Spec Export Improvements
+
+**Production Error Fixes (PR #36):**
+- Fixed 500 error on `/api/exchange-rates/org` - applied missing migration 034
+- Added `use_manual_exchange_rates` and `default_input_currency` columns to `calculation_settings`
+- Created `organization_exchange_rates` table with RLS policies
+
+**Specification Export - IDN-SKU (PR #37):**
+- Fixed idn_sku not being generated when uploading quotes via Excel
+- Added idn_sku generation in `quotes_upload.py` when creating quote items
+- Format: `{quote_idn}-{position}` (e.g., `MBR-7838325264-2025-4-1`)
+- IDN-SKU column now appears in specification export when values exist
+- Column hidden if all values are blank (consistent with product_code/brand)
+
+**Specification Export - Price Rounding:**
+- Round unit prices and totals to 2 decimal places
+- Ensures clean numbers in specification documents
+
+**Database:**
+- Backfilled idn_sku for last 5 quotes (10 items)
+
+**Files Modified:**
+- `backend/routes/quotes_upload.py` - Added idn_sku generation
+- `backend/services/specification_export_service.py` - Added idn_sku to export, price rounding
+
+---
 
 ### Session 79 (2025-12-21) - Performance Optimization
 
