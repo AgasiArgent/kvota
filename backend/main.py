@@ -21,7 +21,7 @@ from supabase import create_client, Client
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload, dadata, seller_companies, customer_contracts, specification_export, list_presets, purchasing_companies, suppliers, quotes_list
+from routes import customers, quotes, organizations, quotes_calc, calculation_settings, users, activity_logs, exchange_rates, feedback, dashboard, team, analytics, workflow, supplier_countries, excel_validation, leads_webhook, leads, lead_contacts, lead_stages, activities, monitoring_test, webhooks, financial_approval, org_exchange_rates, quote_versions, quotes_upload, dadata, seller_companies, customer_contracts, specification_export, list_presets, purchasing_companies, suppliers, quotes_list, dashboards, campaign_data
 
 # Sentry for error tracking
 import sentry_sdk
@@ -623,6 +623,8 @@ app.include_router(list_presets.router)  # List presets for quote list column co
 app.include_router(purchasing_companies.router)  # Purchasing companies CRUD (TASK-008)
 app.include_router(suppliers.router)  # Suppliers CRUD (TASK-008)
 app.include_router(quotes_list.router)  # Dynamic quote list query with preset support (TASK-008)
+app.include_router(dashboards.router)  # Dashboard constructor CRUD (TASK-009)
+app.include_router(campaign_data.router)  # Campaign data for dashboards - SmartLead sync + manual entry (TASK-009)
 
 @app.post("/api/admin/fix-database-function")
 async def fix_database_function():
