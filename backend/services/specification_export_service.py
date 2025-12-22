@@ -494,6 +494,10 @@ async def gather_specification_data(
         brand = item.get("brand") or ""
         idn_sku = item.get("idn_sku") or ""
 
+        # Round prices to 2 decimal places
+        unit_price_vat = unit_price_vat.quantize(Decimal("0.01"))
+        total_price_vat = total_price_vat.quantize(Decimal("0.01"))
+
         products.append({
             "name": item.get("product_name") or "",
             "product_code": product_code,
@@ -510,6 +514,10 @@ async def gather_specification_data(
 
     # 8. Use actual VAT from calculation results (not hardcoded 20%)
     vat_amount = total_vat_from_sales
+
+    # Round totals to 2 decimal places
+    total_amount_vat = total_amount_vat.quantize(Decimal("0.01"))
+    vat_amount = vat_amount.quantize(Decimal("0.01"))
 
     # 9. Convert amounts to Russian words
     currency = quote.get("currency", "USD")

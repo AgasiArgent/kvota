@@ -916,9 +916,13 @@ async def upload_excel_with_validation_export(
                     raise Exception("Failed to create quote")
                 quote_id = quote_response.data[0]['id']
 
-                # 2. Create quote_items records
+                # 2. Create quote_items records with IDN-SKU
+                idn_service = get_idn_service()
                 items_data = []
                 for idx, p in enumerate(parsed_data.products):
+                    # Generate IDN-SKU (1-based position for user-facing IDN)
+                    item_idn_sku = idn_service.generate_item_idn_sku(idn_quote, idx + 1) if idn_quote else None
+
                     custom_fields = {
                         "currency_of_base_price": p.currency.value,
                         # Exchange rate: base_currency -> USD (canonical calculation currency)
@@ -935,6 +939,7 @@ async def upload_excel_with_validation_export(
                     }
                     items_data.append({
                         "quote_id": quote_id,
+                        "idn_sku": item_idn_sku,
                         "position": idx,
                         "product_name": p.name,
                         "product_code": p.sku or "",
@@ -973,13 +978,15 @@ async def upload_excel_with_validation_export(
                         "quote_currency": quote_currency,
                         "usd_to_quote_rate": float(usd_to_quote_rate),
                         # Key values in quote currency
-                        "purchase_price_total": float(r.purchase_price_total_quote_currency * usd_to_quote_rate),
+                        "purchase_price_total_quote_currency": float(r.purchase_price_total_quote_currency * usd_to_quote_rate),
                         "logistics_total": float(r.logistics_total * usd_to_quote_rate),
                         "cogs_per_product": float(r.cogs_per_product * usd_to_quote_rate),
+                        "customs_fee": float(r.customs_fee * usd_to_quote_rate),
                         "sales_price_total_no_vat": float(r.sales_price_total_no_vat * usd_to_quote_rate),
                         "sales_price_total_with_vat": float(r.sales_price_total_with_vat * usd_to_quote_rate),
                         "sales_price_per_unit_no_vat": float(r.sales_price_per_unit_no_vat * usd_to_quote_rate),
                         "sales_price_per_unit_with_vat": float(r.sales_price_per_unit_with_vat * usd_to_quote_rate),
+                        "vat_from_sales": float(r.vat_from_sales * usd_to_quote_rate),
                         "profit": float(r.profit * usd_to_quote_rate),
                         "dm_fee": float(r.dm_fee * usd_to_quote_rate),
                     }
@@ -1308,6 +1315,10 @@ async def export_quote_as_template_endpoint(
             "rate_fin_comm": stored_variables.get("rate_fin_comm", 0),
             "rate_loan_interest_daily": stored_variables.get("rate_loan_interest_daily", 0),
             "exchange_rates": stored_variables.get("exchange_rates", {}),
+            # Exchange rate info for validation export (USD -> quote currency conversion)
+            # Quote stores usd_to_quote_rate from when it was calculated
+            "_usd_to_quote_rate": float(quote.get("usd_to_quote_rate", 1.0)),
+            "_quote_currency": quote_currency,
         }
 
         # Build product_inputs from quote_items
@@ -1383,6 +1394,9 @@ async def export_quote_as_template_endpoint(
             "credit_sales_amount": raw_summary.get("calc_bl3_credit_sales_amount", 0),
             "credit_sales_fv": raw_summary.get("calc_bl4_credit_sales_with_interest", 0),
             "credit_sales_interest": raw_summary.get("calc_bl5_credit_sales_interest", 0),
+            # Exchange rate info for Excel conversion formulas
+            "_usd_to_quote_rate": float(quote.get("usd_to_quote_rate", 1.0)),
+            "_quote_currency": quote_currency,
         }
 
         # Generate the big validation Excel file
