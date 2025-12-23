@@ -185,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const getSessionDataFromCookie = (): { access_token: string; refresh_token: string } | null => {
     if (typeof document === 'undefined') return null;
 
-    const cookieName = 'sb-wstwwmiihkzlgvlymlfd-auth-token';
+    const cookieName = 'sb-db-auth-token';
     const cookies = document.cookie.split(';');
 
     for (const cookie of cookies) {
