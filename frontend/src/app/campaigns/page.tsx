@@ -59,7 +59,7 @@ export default function CampaignsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState<CampaignDataSource | 'all'>('all');
-  const [groupByCompany, setGroupByCompany] = useState(false);
+  const [groupByCompany, setGroupByCompany] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Sync dialog state
