@@ -54,6 +54,7 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
   const userRole = profile?.organizationRole || profile?.role || '';
   const isAdmin = userRole && ['admin', 'owner'].includes(userRole.toLowerCase());
   const isOwner = userRole && userRole.toLowerCase() === 'owner';
+  const hasMarketingAccess = isOwner || userRole.toLowerCase() === 'marketing_director';
 
   const mainNavItems: NavItem[] = [
     { href: '/quotes', label: 'Коммерческие предложения', icon: FileText },
@@ -100,7 +101,7 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
       ]
     : [];
 
-  const ownerNavGroups: NavGroup[] = isOwner
+  const marketingNavGroups: NavGroup[] = hasMarketingAccess
     ? [
         {
           label: 'Маркетинг',
@@ -195,12 +196,12 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps) 
             </>
           )}
 
-          {/* Owner-only sections */}
-          {ownerNavGroups.length > 0 && (
+          {/* Marketing sections (owner + marketing_director) */}
+          {marketingNavGroups.length > 0 && (
             <>
               {adminNavGroups.length === 0 && <Separator className="my-4 bg-border/50" />}
-              {ownerNavGroups.map((group, idx) => (
-                <div key={`owner-${idx}`} className="mb-5">
+              {marketingNavGroups.map((group, idx) => (
+                <div key={`marketing-${idx}`} className="mb-5">
                   {!collapsed && group.label && (
                     <h4 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-foreground/40">
                       {group.label}
